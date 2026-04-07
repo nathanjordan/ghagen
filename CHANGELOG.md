@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.2.0...ghagen-v0.2.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* add contents:read permission to publish job ([a7cb3fb](https://github.com/nathanjordan/ghagen/commit/a7cb3fb283239dc2b40735d2cde063648b85fd83))
+
 ## [0.2.0](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.1.0...ghagen-v0.2.0) (2026-04-07)
 
 
