@@ -1,0 +1,168 @@
+"""ghagen's own CI/CD workflows, defined with ghagen (dogfooding)."""
+
+from __future__ import annotations
+
+from ghagen import (
+    App,
+    Job,
+    Matrix,
+    On,
+    Permissions,
+    PRTrigger,
+    PushTrigger,
+    Raw,
+    ScheduleTrigger,
+    Step,
+    Strategy,
+    Workflow,
+    WorkflowDispatchTrigger,
+    checkout,
+    expr,
+    setup_python,
+    setup_uv,
+)
+from ghagen.models.common import PermissionLevel
+from ghagen.models.job import Environment
+
+
+def _ci_workflow() -> Workflow:
+    """CI: lint, type-check, test across Python versions, verify sync."""
+    return Workflow(
+        name="CI",
+        on=On(
+            push=PushTrigger(branches=["main"]),
+            pull_request=PRTrigger(branches=["main"]),
+        ),
+        jobs={
+            "lint": Job(
+                name="Lint",
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    Step(name="Sync", run="uv sync"),
+                    Step(name="Ruff check", run="uv run ruff check src/ tests/"),
+                ],
+            ),
+            "typecheck": Job(
+                name="Type check",
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    Step(name="Sync", run="uv sync"),
+                    Step(name="Pyright", run="uv run pyright src/"),
+                ],
+            ),
+            "test": Job(
+                name="Test (Python ${{ matrix.python-version }})",
+                runs_on="ubuntu-latest",
+                strategy=Strategy(
+                    matrix=Matrix(
+                        extras={
+                            "python-version": ["3.11", "3.12", "3.13"],
+                        },
+                    ),
+                ),
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    setup_python(version="${{ matrix.python-version }}"),
+                    Step(name="Sync", run="uv sync"),
+                    Step(name="Test", run="uv run pytest"),
+                ],
+            ),
+            "check-sync": Job(
+                name="Check workflow sync",
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    Step(name="Sync", run="uv sync"),
+                    Step(name="Verify workflows", run="uv run ghagen check"),
+                ],
+            ),
+        },
+    )
+
+
+def _schema_drift_workflow() -> Workflow:
+    """Weekly schema drift detection."""
+    return Workflow(
+        name="Schema Drift Check",
+        on=On(
+            schedule=[ScheduleTrigger(cron="0 9 * * 1")],
+            workflow_dispatch=WorkflowDispatchTrigger(),
+        ),
+        permissions=Permissions(
+            contents=PermissionLevel.READ,
+            issues=PermissionLevel.WRITE,
+        ),
+        jobs={
+            "check-drift": Job(
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    Step(name="Sync", run="uv sync"),
+                    Step(
+                        name="Fetch schema and regenerate",
+                        run=(
+                            "uv run python -m ghagen.schema.fetch\n"
+                            "uv run python -m ghagen.schema.codegen"
+                        ),
+                    ),
+                    Step(
+                        name="Check for drift",
+                        run=(
+                            'if ! git diff --exit-code src/ghagen/schema/snapshot/; then\n'
+                            '  echo "::warning::Schema drift detected"\n'
+                            '  gh issue create \\\n'
+                            '    --title "GitHub Actions schema drift detected" \\\n'
+                            '    --body "$(git diff src/ghagen/schema/snapshot/)" \\\n'
+                            '    --label schema-drift\n'
+                            'fi'
+                        ),
+                        env={"GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
+                    ),
+                ],
+            ),
+        },
+    )
+
+
+def _release_workflow() -> Workflow:
+    """Build and publish to PyPI on tag push (placeholder)."""
+    return Workflow(
+        name="Release",
+        on=On(
+            push=PushTrigger(tags=["v*"]),
+        ),
+        permissions=Permissions(
+            id_token=PermissionLevel.WRITE,
+        ),
+        jobs={
+            "publish": Job(
+                runs_on="ubuntu-latest",
+                environment=Environment(name="release"),
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    Step(name="Build", run="uv build"),
+                    Step(
+                        name="Publish to PyPI",
+                        uses="pypa/gh-action-pypi-publish@release/v1",
+                    ),
+                ],
+            ),
+        },
+    )
+
+
+def create_app() -> App:
+    """Create the ghagen App with all workflows."""
+    app = App(outdir=".github/workflows")
+    app.add(_ci_workflow(), "ci.yml")
+    app.add(_schema_drift_workflow(), "schema-drift.yml")
+    app.add(_release_workflow(), "release.yml")
+    return app
