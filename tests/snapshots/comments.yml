@@ -1,0 +1,24 @@
+# The name shown in the GitHub UI
+name: Commented Workflow
+on: # trigger configuration
+  push:
+    branches:
+    - main
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    -  # fast Python linter
+      name: Ruff
+      run: ruff check .
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+# Wait for lint to pass
+    needs: lint
+    steps:
+    - uses: actions/checkout@v4
+    - name: Pytest
+      run: python -m pytest
