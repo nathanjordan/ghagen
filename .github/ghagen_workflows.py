@@ -164,6 +164,7 @@ def _release_workflow() -> Workflow:
         if_="needs.release-please.outputs.release_created == 'true'",
         environment=Environment(name="release"),
         permissions=Permissions(
+            contents=PermissionLevel.READ,
             id_token=PermissionLevel.WRITE,
         ),
         steps=[
