@@ -83,7 +83,14 @@ class GhagenModel(BaseModel):
         return seq
 
     def to_commented_map(self) -> CommentedMap:
-        """Serialize this model to a CommentedMap with comments and ordering."""
+        """Serialize this model to a CommentedMap with comments and ordering.
+
+        Applies canonical key ordering, merges extras, attaches comments,
+        and runs the ``post_process`` callback if set.
+
+        Returns:
+            A :class:`ruamel.yaml.comments.CommentedMap` ready for YAML emission.
+        """
         # Dump model fields (by alias, excluding None/unset)
         data = self.model_dump(
             by_alias=True,

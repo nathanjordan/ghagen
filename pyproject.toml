@@ -47,6 +47,8 @@ dev = [
     "httpx",
     "datamodel-code-generator>=0.25",
     "jsonschema",
+    "mkdocs-material",
+    "mkdocstrings[python]",
 ]
 
 [tool.ruff]

@@ -27,6 +27,14 @@ class App:
         header: str | None = None,
         source: str | None = None,
     ) -> None:
+        """Initialize the App.
+
+        Args:
+            outdir: Directory where workflow YAML files will be written.
+            header: Custom header comment for generated files.
+                If ``None``, uses the default ghagen header.
+            source: Source file path to include in the header comment.
+        """
         self.outdir = Path(outdir)
         self.header = header
         self.source = source

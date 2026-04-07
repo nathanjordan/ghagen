@@ -39,7 +39,12 @@ class Workflow(GhagenModel):
     """
 
     name: str | None = None
-    run_name: str | None = Field(None, serialization_alias="run-name")
+    run_name: str | None = Field(
+        None,
+        serialization_alias="run-name",
+        description="Custom name for workflow runs, "
+        "supports expressions.",
+    )
     on: On | CommentedMap | dict[str, Any] | None = None
     permissions: (
         Permissions | Literal["read-all", "write-all"] | Raw[str] | CommentedMap | None

@@ -118,10 +118,17 @@ class Job(GhagenModel):
 
     name: str | None = None
     runs_on: str | list[str] | Raw[str] | Raw[list[str]] | None = Field(
-        None, serialization_alias="runs-on"
+        None,
+        serialization_alias="runs-on",
+        description="Runner label(s) for this job.",
     )
     needs: str | list[str] | None = None
-    if_: str | None = Field(None, serialization_alias="if")
+    if_: str | None = Field(
+        None,
+        serialization_alias="if",
+        description="Conditional expression that must evaluate "
+        "to true for this job to run.",
+    )
     permissions: Permissions | CommentedMap | None = None
     environment: str | Environment | CommentedMap | None = None
     strategy: Strategy | CommentedMap | None = None
@@ -129,9 +136,17 @@ class Job(GhagenModel):
     defaults: Defaults | CommentedMap | None = None
     steps: list[Step | CommentedMap] | None = None
     outputs: dict[str, str | JobOutput | CommentedMap] | None = None
-    timeout_minutes: int | None = Field(None, serialization_alias="timeout-minutes")
+    timeout_minutes: int | None = Field(
+        None,
+        serialization_alias="timeout-minutes",
+        description="Maximum minutes the job can run before "
+        "being cancelled.",
+    )
     continue_on_error: bool | str | None = Field(
-        None, serialization_alias="continue-on-error"
+        None,
+        serialization_alias="continue-on-error",
+        description="Allow the workflow to continue when this "
+        "job fails.",
     )
     concurrency: str | Concurrency | CommentedMap | None = None
     services: dict[str, Service | str | CommentedMap] | None = None

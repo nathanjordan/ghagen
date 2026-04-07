@@ -33,7 +33,21 @@ def checkout(
     fetch_depth: int | None = 1,
     **kwargs: Any,
 ) -> Step:
-    """Create a checkout step using ``actions/checkout@v4``."""
+    """Create a checkout step using ``actions/checkout@v4``.
+
+    Args:
+        ref: Git reference to check out (branch, tag, or SHA).
+            Defaults to the triggering ref.
+        fetch_depth: Number of commits to fetch. Set to ``0`` for a full
+            clone. Defaults to ``1`` (shallow clone).
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step` (e.g., ``name``, ``if_``,
+            ``env``). A ``with_`` dict is merged with the built-in
+            parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"ref": ref, "fetch-depth": fetch_depth},
@@ -53,7 +67,19 @@ def setup_python(
     cache: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a Python setup step using ``actions/setup-python@v5``."""
+    """Create a Python setup step using ``actions/setup-python@v5``.
+
+    Args:
+        version: Python version string (e.g., ``"3.12"`` or
+            ``"${{ matrix.python-version }}"``).
+        cache: Package manager to cache (e.g., ``"pip"``, ``"uv"``).
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"python-version": version, "cache": cache},
@@ -73,7 +99,18 @@ def setup_node(
     cache: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a Node.js setup step using ``actions/setup-node@v4``."""
+    """Create a Node.js setup step using ``actions/setup-node@v4``.
+
+    Args:
+        version: Node.js version string (e.g., ``"20"``).
+        cache: Package manager to cache (e.g., ``"npm"``, ``"yarn"``).
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"node-version": version, "cache": cache},
@@ -92,7 +129,18 @@ def setup_uv(
     version: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a uv setup step using ``astral-sh/setup-uv@v4``."""
+    """Create a uv setup step using ``astral-sh/setup-uv@v4``.
+
+    Args:
+        version: Specific uv version to install. If ``None``, uses the
+            latest release.
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"version": version},
@@ -113,7 +161,21 @@ def cache(
     restore_keys: str | list[str] | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a cache step using ``actions/cache@v4``."""
+    """Create a cache step using ``actions/cache@v4``.
+
+    Args:
+        key: Cache key (e.g.,
+            ``"${{ runner.os }}-pip-${{ hashFiles('...') }}"``).
+        path: Path(s) to cache.
+        restore_keys: Fallback key(s) for partial cache matches. A list
+            is joined with newlines.
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     rk = restore_keys
     if isinstance(rk, list):
         rk = "\n".join(rk)
@@ -135,7 +197,18 @@ def upload_artifact(
     path: str,
     **kwargs: Any,
 ) -> Step:
-    """Create an upload-artifact step using ``actions/upload-artifact@v4``."""
+    """Create an upload-artifact step using ``actions/upload-artifact@v4``.
+
+    Args:
+        name: Name for the artifact.
+        path: File or directory path to upload.
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"name": name, "path": path},
@@ -155,7 +228,18 @@ def download_artifact(
     path: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a download-artifact step using ``actions/download-artifact@v4``."""
+    """Create a download-artifact step using ``actions/download-artifact@v4``.
+
+    Args:
+        name: Name of the artifact to download.
+        path: Destination path. Defaults to the workspace directory.
+        **kwargs: Additional keyword arguments passed to
+            :class:`~ghagen.models.step.Step`. A ``with_`` dict is merged
+            with the built-in parameters.
+
+    Returns:
+        A configured :class:`~ghagen.models.step.Step`.
+    """
     with_overrides = kwargs.pop("with_", None)
     with_ = _build_with(
         {"name": name, "path": path},

@@ -21,19 +21,39 @@ class Step(GhagenModel):
 
     id: str | None = None
     name: str | None = None
-    if_: str | None = Field(None, serialization_alias="if")
+    if_: str | None = Field(
+        None,
+        serialization_alias="if",
+        description="Conditional expression that must evaluate "
+        "to true for this step to run.",
+    )
     uses: str | None = None
     run: str | None = None
     with_: dict[str, Any] | CommentedMap | None = Field(
-        None, serialization_alias="with"
+        None,
+        serialization_alias="with",
+        description="Input parameters for the action "
+        "specified by ``uses``.",
     )
     env: dict[str, str] | None = None
     shell: ShellType | Raw[str] | None = None
-    working_directory: str | None = Field(None, serialization_alias="working-directory")
-    continue_on_error: bool | str | None = Field(
-        None, serialization_alias="continue-on-error"
+    working_directory: str | None = Field(
+        None,
+        serialization_alias="working-directory",
+        description="Working directory for ``run`` commands.",
     )
-    timeout_minutes: int | None = Field(None, serialization_alias="timeout-minutes")
+    continue_on_error: bool | str | None = Field(
+        None,
+        serialization_alias="continue-on-error",
+        description="Allow the job to continue when this step "
+        "fails.",
+    )
+    timeout_minutes: int | None = Field(
+        None,
+        serialization_alias="timeout-minutes",
+        description="Maximum minutes the step can run before "
+        "being cancelled.",
+    )
 
     def _get_key_order(self) -> list[str]:
         return STEP_KEY_ORDER

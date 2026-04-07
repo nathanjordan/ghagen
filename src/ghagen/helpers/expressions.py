@@ -1,4 +1,14 @@
-"""Fluent builder for GitHub Actions ${{ }} expressions."""
+"""Fluent builder for GitHub Actions ``${{ }}`` expressions.
+
+Use the module-level :data:`expr` singleton as the entry point::
+
+    from ghagen import expr
+
+    expr.github.ref              # "${{ github.ref }}"
+    expr.secrets["PYPI_TOKEN"]   # "${{ secrets.PYPI_TOKEN }}"
+    expr.contains(expr.github.ref, "refs/tags/")
+    # "${{ contains(github.ref, 'refs/tags/') }}"
+"""
 
 from __future__ import annotations
 

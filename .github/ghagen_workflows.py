@@ -159,10 +159,53 @@ def _release_workflow() -> Workflow:
     )
 
 
+def _docs_workflow() -> Workflow:
+    """Build and deploy documentation to GitHub Pages."""
+    return Workflow(
+        name="Docs",
+        on=On(
+            push=PushTrigger(branches=["main"]),
+            workflow_dispatch=WorkflowDispatchTrigger(),
+        ),
+        permissions=Permissions(
+            contents=PermissionLevel.WRITE,
+        ),
+        jobs={
+            "deploy": Job(
+                name="Deploy docs",
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    setup_uv(),
+                    setup_python(version="3.13"),
+                    Step(
+                        name="Install dependencies",
+                        run="uv sync",
+                    ),
+                    Step(
+                        name="Configure Git",
+                        run=(
+                            "git config user.name github-actions[bot]\n"
+                            "git config user.email "
+                            "41898282+github-actions[bot]"
+                            "@users.noreply.github.com"
+                        ),
+                    ),
+                    Step(
+                        name="Deploy docs",
+                        run="uv run mkdocs gh-deploy --force",
+                    ),
+                ],
+            ),
+        },
+    )
+
+
 def create_app() -> App:
     """Create the ghagen App with all workflows."""
     app = App(outdir=".github/workflows")
     app.add(_ci_workflow(), "ci.yml")
     app.add(_schema_drift_workflow(), "schema-drift.yml")
     app.add(_release_workflow(), "release.yml")
+    app.add(_docs_workflow(), "docs.yml")
     return app

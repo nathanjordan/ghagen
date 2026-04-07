@@ -2,7 +2,7 @@
 
 ## What's Done
 
-Steps 1-5 of the original plan and Milestones 2-3 are complete:
+Steps 1-5 of the original plan and Milestones 2-4 are complete:
 
 - **Project scaffolding** — uv + hatchling, src layout, ruff/pyright, pre-commit
 - **YAML emitter** — ruamel.yaml with CommentedMap, canonical key ordering, comment attachment
@@ -15,74 +15,13 @@ Steps 1-5 of the original plan and Milestones 2-3 are complete:
 - **Schema pipeline** — Schema fetcher (`fetch.py`), code generator (`codegen.py`), drift detection (`diff.py`), initial snapshots, weekly CI workflow for drift detection
 - **Integration tests** — 7 end-to-end tests with JSON Schema validation and round-trip verification
 - **Snapshot tests** — 5 snapshot files (`ci_basic`, `matrix_complex`, `comments`, `escape_hatches`, `full_featured`) via pytest-snapshot
-- **Dogfooding** — ghagen's own CI/CD defined in `.github/ghagen_workflows.py` (CI, schema-drift, release workflows)
+- **Dogfooding** — ghagen's own CI/CD defined in `.github/ghagen_workflows.py` (CI, schema-drift, release, docs workflows)
+- **Documentation site** — MkDocs-Material with mkdocstrings, 14 pages (guides, API reference, CLI), auto-deployed to GitHub Pages
+- **README** — badges, install, example, feature highlights, doc links
 
 ### Known Issues (Deferred)
 
 - **Comment formatting on sequence items** — EOL comments on map sequence items (e.g., Steps) render on a separate line instead of inline; block comments lack proper indentation. Root cause is ruamel.yaml's internal comment placement on `CommentedSeq` items that are `CommentedMap`s. Tests documenting the behavior are in `tests/test_emitter/test_yaml_writer.py`.
-
----
-
-## Milestone 4: Documentation
-
-**Goal:** Comprehensive docs site and polished README for open-source launch.
-
-### 4.1 MkDocs-Material Site
-
-**Config:** `mkdocs.yml` at repo root
-
-```yaml
-site_name: ghagen
-site_description: Generate GitHub Actions workflows from Python
-theme:
-  name: material
-  palette:
-    primary: deep-purple
-plugins:
-  - search
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [src]
-          options:
-            show_source: false
-            heading_level: 3
-```
-
-**Pages:**
-
-| Page | Content |
-|---|---|
-| `docs/index.md` | Overview, quick example, install instructions |
-| `docs/getting-started.md` | Step-by-step tutorial: install, init, define workflow, synth |
-| `docs/concepts.md` | Architecture overview: layers, models, emitter, app |
-| `docs/escape-hatches.md` | Detailed guide to Raw, extras, post_process, CommentedMap |
-| `docs/dry-patterns.md` | Reuse patterns: step factories, job templates, shared constants, loops |
-| `docs/comments.md` | How to add comments: block, end-of-line, field-level, header |
-| `docs/cli.md` | CLI reference: synth, check, init (with examples) |
-| `docs/api/workflow.md` | API reference for Workflow model |
-| `docs/api/job.md` | API reference for Job, Strategy, Matrix, Environment |
-| `docs/api/step.md` | API reference for Step model |
-| `docs/api/triggers.md` | API reference for On, all trigger types |
-| `docs/api/permissions.md` | API reference for Permissions |
-| `docs/api/helpers.md` | API reference for step factories and expression builder |
-
-### 4.2 README
-
-Polish `README.md` with:
-- Project tagline and badges (CI status, PyPI version, Python versions, license)
-- Quick install: `pip install ghagen`
-- Minimal example showing Python → YAML
-- Feature highlights (typed models, comments, DRY, escape hatches, CLI)
-- Links to full documentation
-
-### 4.3 Dev Dependencies
-
-Add to dev dependency group:
-```
-"mkdocs-material",
-"mkdocstrings[python]",
-```
 
 ---
 
