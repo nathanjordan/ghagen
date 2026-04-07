@@ -2,7 +2,7 @@
 
 ## What's Done
 
-Steps 1-5 of the original plan and Milestone 2 are complete:
+Steps 1-5 of the original plan and Milestones 2-3 are complete:
 
 - **Project scaffolding** — uv + hatchling, src layout, ruff/pyright, pre-commit
 - **YAML emitter** — ruamel.yaml with CommentedMap, canonical key ordering, comment attachment
@@ -10,66 +10,16 @@ Steps 1-5 of the original plan and Milestone 2 are complete:
 - **Escape hatches** — `Raw[T]`, `extras`, `post_process` callback, `CommentedMap` passthrough
 - **App class** — `synth()` and `check()` for multi-workflow synthesis
 - **CLI** — `ghagen synth`, `ghagen check`, `ghagen init` via Typer
-- **Tests** — 112 passing (models, emitter, CLI, helpers, schema)
+- **Tests** — 128 passing (models, emitter, CLI, helpers, schema, integration, snapshots)
 - **DRY helpers** — Step factories (`checkout`, `setup_python`, `setup_node`, `setup_uv`, `cache`, `upload_artifact`, `download_artifact`) and expression builder (`expr`)
 - **Schema pipeline** — Schema fetcher (`fetch.py`), code generator (`codegen.py`), drift detection (`diff.py`), initial snapshots, weekly CI workflow for drift detection
+- **Integration tests** — 7 end-to-end tests with JSON Schema validation and round-trip verification
+- **Snapshot tests** — 5 snapshot files (`ci_basic`, `matrix_complex`, `comments`, `escape_hatches`, `full_featured`) via pytest-snapshot
+- **Dogfooding** — ghagen's own CI/CD defined in `.github/ghagen_workflows.py` (CI, schema-drift, release workflows)
 
----
+### Known Issues (Deferred)
 
-## Milestone 3: Expanded Test Coverage and Dogfooding
-
-**Goal:** Comprehensive tests, integration validation, and self-hosting ghagen's own CI.
-
-### 3.1 Integration Tests
-
-**File:** `tests/test_integration/test_full_workflow.py`
-
-End-to-end tests that:
-1. Define a workflow in Python using all model types
-2. Generate YAML via `to_yaml()`
-3. Validate the generated YAML against the SchemaStore JSON Schema using the `jsonschema` library
-4. Parse the YAML back with `ruamel.yaml` and verify round-trip correctness
-
-Cover these scenarios:
-- Simple CI workflow (push + PR triggers, single job, checkout + test steps)
-- Matrix build (multi-version Python, multi-OS, with exclude)
-- Reusable workflow call (`uses` job)
-- Workflow with containers and services
-- Workflow with all permission scopes set
-- Complex triggers (schedule, workflow_dispatch with inputs, workflow_call with inputs/outputs/secrets)
-- Escape hatches: `Raw`, `extras`, `post_process`, `CommentedMap` passthrough
-
-### 3.2 Snapshot Tests
-
-**Directory:** `tests/snapshots/`
-
-Store expected YAML output as `.yml` files. Use `pytest-snapshot` to compare generated output against stored snapshots. Snapshots should cover:
-
-- `ci_basic.yml` — minimal CI workflow
-- `matrix_complex.yml` — multi-axis matrix with exclude
-- `comments.yml` — workflow with block, end-of-line, and field-level comments
-- `escape_hatches.yml` — all four escape hatches in one workflow
-- `full_featured.yml` — comprehensive workflow exercising all model types
-
-### 3.3 Dogfooding
-
-**File:** `.github/ghagen_workflows.py`
-
-Define ghagen's own CI/CD workflows using ghagen:
-
-1. **CI workflow** (`ci.yml`): lint (ruff), type check (pyright), test (pytest) across Python 3.11-3.13
-2. **Schema drift workflow** (`schema-drift.yml`): weekly cron from Milestone 2
-3. **Release workflow** (`release.yml`): build + publish to PyPI on tag push (placeholder until Milestone 5)
-
-After generating, run `ghagen check` in CI to verify the YAML stays in sync with the Python definitions.
-
-### 3.4 Comment Formatting Polish
-
-Known issues from the initial implementation:
-- End-of-line comments on sequence items render on a separate line instead of inline
-- Block comments on sequence items have inconsistent indentation
-
-Investigate ruamel.yaml's `yaml_set_comment_before_after_key` and `yaml_add_eol_comment` behavior at different nesting depths. Add targeted tests and fix the emitter wrapper if needed.
+- **Comment formatting on sequence items** — EOL comments on map sequence items (e.g., Steps) render on a separate line instead of inline; block comments lack proper indentation. Root cause is ruamel.yaml's internal comment placement on `CommentedSeq` items that are `CommentedMap`s. Tests documenting the behavior are in `tests/test_emitter/test_yaml_writer.py`.
 
 ---
 
