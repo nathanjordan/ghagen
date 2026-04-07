@@ -1,4 +1,4 @@
-"""Integration tests: build workflows, generate YAML, validate against schema, round-trip."""
+"""Integration tests: build workflows, generate YAML, validate against schema."""
 
 from __future__ import annotations
 
@@ -22,10 +22,8 @@ from ghagen import (
     Workflow,
     WorkflowCallTrigger,
     WorkflowDispatchTrigger,
-    checkout,
 )
 from ghagen.models.common import PermissionLevel
-from ghagen.models.job import Concurrency, Environment
 from ghagen.models.trigger import (
     WorkflowCallInput,
     WorkflowCallOutput,

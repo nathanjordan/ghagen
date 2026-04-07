@@ -104,15 +104,15 @@ def test_block_comment_on_scalar_seq_item():
     assert "# feature branch" in result
     # The comment appears before the second item
     lines = result.strip().split("\n")
-    comment_idx = next(i for i, l in enumerate(lines) if "feature branch" in l)
-    develop_idx = next(i for i, l in enumerate(lines) if "develop" in l)
+    comment_idx = next(i for i, line in enumerate(lines) if "feature branch" in line)
+    develop_idx = next(i for i, line in enumerate(lines) if "develop" in line)
     assert comment_idx < develop_idx
 
 
 def test_eol_comment_on_map_seq_item_known_limitation():
-    """EOL comments on map sequence items render on a separate line (known ruamel.yaml limitation).
+    """EOL comments on map sequence items render on a separate line.
 
-    Ideally this would render as:
+    Known ruamel.yaml limitation. Ideally this would render as:
         - uses: actions/checkout@v4  # checkout step
     But ruamel.yaml renders it as:
         -  # checkout step
@@ -131,7 +131,7 @@ def test_eol_comment_on_map_seq_item_known_limitation():
 
 
 def test_block_comment_on_map_seq_item_known_limitation():
-    """Block comments on map sequence items are not indented (known ruamel.yaml limitation).
+    """Block comments on map sequence items are not indented.
 
     The comment renders at column 0 regardless of nesting depth.
     """
@@ -144,6 +144,6 @@ def test_block_comment_on_map_seq_item_known_limitation():
     assert "# Run the tests" in result
     # The comment appears before the second item
     lines = result.strip().split("\n")
-    comment_idx = next(i for i, l in enumerate(lines) if "Run the tests" in l)
-    run_idx = next(i for i, l in enumerate(lines) if "run: echo hello" in l)
+    comment_idx = next(i for i, line in enumerate(lines) if "Run the tests" in line)
+    run_idx = next(i for i, line in enumerate(lines) if "run: echo hello" in line)
     assert comment_idx < run_idx

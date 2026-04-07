@@ -21,21 +21,13 @@ from ghagen import (
     Step,
     Strategy,
     Workflow,
-    WorkflowCallTrigger,
     WorkflowDispatchTrigger,
     checkout,
-    expr,
     setup_python,
-    setup_uv,
 )
 from ghagen.models.common import PermissionLevel
-from ghagen.models.job import Concurrency, Environment
-from ghagen.models.trigger import (
-    WorkflowCallInput,
-    WorkflowCallOutput,
-    WorkflowCallSecret,
-    WorkflowDispatchInput,
-)
+from ghagen.models.job import Concurrency
+from ghagen.models.trigger import WorkflowDispatchInput
 
 SNAPSHOT_DIR = Path(__file__).parent.parent / "snapshots"
 
