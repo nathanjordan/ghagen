@@ -76,3 +76,15 @@ jobs:
       run: uv sync
     - name: Verify workflows
       run: uv run ghagen check
+  test-action:
+    name: Test action
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - name: Test composite action
+      uses: ./
+      with:
+        source: .

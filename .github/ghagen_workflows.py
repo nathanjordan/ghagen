@@ -86,6 +86,18 @@ def _ci_workflow() -> Workflow:
                     Step(name="Verify workflows", run="uv run ghagen check"),
                 ],
             ),
+            "test-action": Job(
+                name="Test action",
+                runs_on="ubuntu-latest",
+                steps=[
+                    checkout(),
+                    Step(
+                        name="Test composite action",
+                        uses="./",
+                        with_={"source": "."},
+                    ),
+                ],
+            ),
         },
     )
 
