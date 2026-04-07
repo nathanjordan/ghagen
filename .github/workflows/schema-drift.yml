@@ -1,0 +1,27 @@
+name: Schema Drift Check
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # Every Monday at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync
+      - run: |
+          uv run python -m ghagen.schema.fetch
+          uv run python -m ghagen.schema.codegen
+      - name: Check for drift
+        run: |
+          if ! git diff --exit-code src/ghagen/schema/snapshot/; then
+            echo "::warning::Schema drift detected"
+            gh issue create \
+              --title "GitHub Actions schema drift detected" \
+              --body "$(git diff src/ghagen/schema/snapshot/)" \
+              --label schema-drift
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
