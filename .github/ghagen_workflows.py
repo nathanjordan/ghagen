@@ -132,29 +132,55 @@ def _schema_drift_workflow() -> Workflow:
 
 
 def _release_workflow() -> Workflow:
-    """Build and publish to PyPI on tag push (placeholder)."""
-    return Workflow(
-        name="Release",
-        on=On(
-            push=PushTrigger(tags=["v*"]),
+    """Release Please + PyPI publish on push to main."""
+    release_please_job = Job(
+        name="Release Please",
+        runs_on="ubuntu-latest",
+        permissions=Permissions(
+            contents=PermissionLevel.WRITE,
+            pull_requests=PermissionLevel.WRITE,
         ),
+        outputs={
+            "release_created": "${{ steps.release.outputs.release_created }}",
+            "tag_name": "${{ steps.release.outputs.tag_name }}",
+        },
+        steps=[
+            Step(
+                name="Release Please",
+                id="release",
+                uses="googleapis/release-please-action@v4",
+            ),
+        ],
+    )
+
+    publish_job = Job(
+        name="Publish to PyPI",
+        runs_on="ubuntu-latest",
+        needs="release-please",
+        if_="needs.release-please.outputs.release_created == 'true'",
+        environment=Environment(name="release"),
         permissions=Permissions(
             id_token=PermissionLevel.WRITE,
         ),
-        jobs={
-            "publish": Job(
-                runs_on="ubuntu-latest",
-                environment=Environment(name="release"),
-                steps=[
-                    checkout(),
-                    setup_uv(),
-                    Step(name="Build", run="uv build"),
-                    Step(
-                        name="Publish to PyPI",
-                        uses="pypa/gh-action-pypi-publish@release/v1",
-                    ),
-                ],
+        steps=[
+            checkout(),
+            setup_uv(),
+            Step(name="Build", run="uv build"),
+            Step(
+                name="Publish to PyPI",
+                uses="pypa/gh-action-pypi-publish@release/v1",
             ),
+        ],
+    )
+
+    return Workflow(
+        name="Release",
+        on=On(
+            push=PushTrigger(branches=["main"]),
+        ),
+        jobs={
+            "release-please": release_please_job,
+            "publish": publish_job,
         },
     )
 

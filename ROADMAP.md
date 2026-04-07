@@ -2,7 +2,7 @@
 
 ## What's Done
 
-Steps 1-5 of the original plan and Milestones 2-4 are complete:
+Steps 1-5 of the original plan and Milestones 2-5 are complete:
 
 - **Project scaffolding** — uv + hatchling, src layout, ruff/pyright, pre-commit
 - **YAML emitter** — ruamel.yaml with CommentedMap, canonical key ordering, comment attachment
@@ -18,69 +18,11 @@ Steps 1-5 of the original plan and Milestones 2-4 are complete:
 - **Dogfooding** — ghagen's own CI/CD defined in `.github/ghagen_workflows.py` (CI, schema-drift, release, docs workflows)
 - **Documentation site** — MkDocs-Material with mkdocstrings, 14 pages (guides, API reference, CLI), auto-deployed to GitHub Pages
 - **README** — badges, install, example, feature highlights, doc links
+- **Release pipeline** — Release Please automation (`googleapis/release-please-action@v4`) with OIDC-based PyPI trusted publishing, CHANGELOG.md, version management via conventional commits
 
 ### Known Issues (Deferred)
 
 - **Comment formatting on sequence items** — EOL comments on map sequence items (e.g., Steps) render on a separate line instead of inline; block comments lack proper indentation. Root cause is ruamel.yaml's internal comment placement on `CommentedSeq` items that are `CommentedMap`s. Tests documenting the behavior are in `tests/test_emitter/test_yaml_writer.py`.
-
----
-
-## Milestone 5: Release Preparation
-
-**Goal:** Ship v0.1.0 to PyPI and set up automated release pipeline.
-
-### 5.1 Version Management
-
-Options (choose one):
-- **python-semantic-release**: auto-bump version from conventional commit messages, generate changelog
-- **Manual**: bump version in `pyproject.toml`, tag, push
-
-Recommendation: start with manual releases, add semantic-release later when commit discipline is established.
-
-### 5.2 PyPI Trusted Publishing
-
-Set up OIDC-based publishing so GitHub Actions can publish to PyPI without storing API tokens:
-
-1. Create the `ghagen` project on PyPI
-2. Configure Trusted Publisher in PyPI settings (link to GitHub repo + workflow)
-3. Create a release workflow:
-
-```yaml
-name: Release
-on:
-  push:
-    tags: ["v*"]
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-      - run: uv build
-      - uses: pypa/gh-action-pypi-publish@release/v1
-```
-
-### 5.3 Changelog
-
-Maintain a `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/) format. Automate generation from git tags/commits if using semantic-release.
-
-### 5.4 Pre-release Checklist
-
-Before tagging v0.1.0:
-- [ ] All milestones 1-4 complete
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check src/ tests/` clean
-- [ ] `uv run pyright src/` clean
-- [ ] `ghagen check` passes (dogfooding)
-- [ ] README has install/usage instructions
-- [ ] Documentation site builds and deploys
-- [ ] License file present (MIT)
-- [ ] `py.typed` marker present
-- [ ] `pyproject.toml` metadata complete (description, keywords, classifiers, URLs)
 
 ---
 
