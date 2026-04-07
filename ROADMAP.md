@@ -19,6 +19,7 @@ Steps 1-5 of the original plan and Milestones 2-5 are complete:
 - **Documentation site** — MkDocs-Material with mkdocstrings, 14 pages (guides, API reference, CLI), auto-deployed to GitHub Pages
 - **README** — badges, install, example, feature highlights, doc links
 - **Release pipeline** — Release Please automation (`googleapis/release-please-action@v4`) with OIDC-based PyPI trusted publishing, CHANGELOG.md, version management via conventional commits
+- **GitHub Action** — Composite action (`action.yml`) wrapping `ghagen check` for users to add workflow freshness checking to their CI (`uses: nathanjordan/ghagen@v0.2.0`)
 
 ### Known Issues (Deferred)
 
@@ -29,19 +30,6 @@ Steps 1-5 of the original plan and Milestones 2-5 are complete:
 ## Future Work (Post v0.1.0)
 
 These items are not gated on the initial release but represent the longer-term vision.
-
-### GitHub Action for Users
-
-A composite action that wraps `ghagen check` so users can add freshness checking to their own CI:
-
-```yaml
-# In user's workflow
-- uses: nathanjordan/ghagen-action@v1
-  with:
-    config: .github/ghagen_workflows.py
-```
-
-Implementation: a small `action.yml` that installs ghagen and runs `ghagen check`. Eventually dogfooded with ghagen itself.
 
 ### VSCode Extension
 
