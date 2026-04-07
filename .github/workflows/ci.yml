@@ -22,6 +22,8 @@ jobs:
       run: uv sync
     - name: Ruff check
       run: uv run ruff check src/ tests/
+    - name: actionlint
+      uses: rhysd/actionlint@v1.7.11
   typecheck:
     name: Type check
     runs-on: ubuntu-latest

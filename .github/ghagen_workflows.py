@@ -42,6 +42,10 @@ def _ci_workflow() -> Workflow:
                     setup_uv(),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Ruff check", run="uv run ruff check src/ tests/"),
+                    Step(
+                        name="actionlint",
+                        uses="rhysd/actionlint@v1.7.11",
+                    ),
                 ],
             ),
             "typecheck": Job(
