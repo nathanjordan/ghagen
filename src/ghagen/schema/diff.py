@@ -1,4 +1,9 @@
-"""Detect drift between committed schema snapshots and upstream."""
+"""Detect drift between committed schema snapshots and upstream.
+
+Compares both schemas (workflow + action) and both generated model
+files against freshly fetched/generated versions. Used by CI to flag
+upstream schema changes so ghagen can stay in sync.
+"""
 
 from __future__ import annotations
 
@@ -7,15 +12,24 @@ import sys
 import tempfile
 from pathlib import Path
 
-from ghagen.schema.codegen import generate_models
-from ghagen.schema.fetch import SNAPSHOT_DIR, save_schema
+from ghagen.schema.codegen import _generated_filename, generate_all_models
+from ghagen.schema.fetch import SCHEMAS, SNAPSHOT_DIR, save_all_schemas
+
+
+def _tracked_files() -> list[str]:
+    """Return the names of every snapshot file tracked for drift."""
+    names: list[str] = []
+    for name, info in SCHEMAS.items():
+        names.append(info["filename"])
+        names.append(_generated_filename(name))
+    return names
 
 
 def check_drift(snapshot_dir: Path | None = None) -> tuple[bool, str]:
     """Compare committed snapshots against freshly generated ones.
 
     Returns ``(has_drift, diff_output)`` where *has_drift* is ``True``
-    when the upstream schema or generated models differ from the
+    when any upstream schema or generated models file differs from the
     committed snapshots.
     """
     if snapshot_dir is None:
@@ -26,14 +40,11 @@ def check_drift(snapshot_dir: Path | None = None) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
 
-        # Fetch fresh schema and generate fresh models
-        fresh_schema = tmp_path / "workflow_schema.json"
-        fresh_models = tmp_path / "_generated_models.py"
-        save_schema(fresh_schema)
-        generate_models(fresh_schema, fresh_models)
+        # Fetch fresh schemas and generate fresh models
+        save_all_schemas(tmp_path)
+        generate_all_models(tmp_path)
 
-        # Compare each snapshot file
-        for name in ("workflow_schema.json", "_generated_models.py"):
+        for name in _tracked_files():
             snapshot_file = snapshot_dir / name
             fresh_file = tmp_path / name
 

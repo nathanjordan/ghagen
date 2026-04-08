@@ -1,0 +1,26 @@
+name: Greet
+description: Say hello to someone
+author: ghagen
+branding:
+  icon: heart
+  color: purple
+inputs:
+  who:
+    description: Who to greet
+    required: true
+    default: world
+  shout:
+    description: Uppercase the greeting
+    required: false
+    default: 'false'
+outputs:
+  message:
+    description: The greeting message
+    value: ${{ steps.greet.outputs.text }}
+runs:
+  using: composite
+  steps:
+  - id: greet
+    name: Greet
+    run: echo Hello, ${{ inputs.who }}
+    shell: bash

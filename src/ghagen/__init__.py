@@ -12,6 +12,15 @@ from ghagen.helpers.steps import (
     setup_uv,
     upload_artifact,
 )
+from ghagen.models.action import (
+    Action,
+    ActionInput,
+    ActionOutput,
+    Branding,
+    CompositeRuns,
+    DockerRuns,
+    NodeRuns,
+)
 from ghagen.models.common import ExpressionStr
 from ghagen.models.container import Container, Service
 from ghagen.models.job import Job, Matrix, Strategy
@@ -31,6 +40,13 @@ __all__ = [
     "App",
     "Raw",
     "ExpressionStr",
+    "Action",
+    "ActionInput",
+    "ActionOutput",
+    "Branding",
+    "CompositeRuns",
+    "DockerRuns",
+    "NodeRuns",
     "Container",
     "Service",
     "Job",

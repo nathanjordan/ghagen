@@ -103,7 +103,7 @@ def synth(
     for path in written:
         typer.echo(f"  wrote {path}")
 
-    typer.echo(f"Synthesized {len(written)} workflow(s).")
+    typer.echo(f"Synthesized {len(written)} file(s).")
 
 
 @app.command()
@@ -118,7 +118,7 @@ def check(
 
     stale = ghagen_app.check()
     if not stale:
-        typer.echo("All workflow files are up-to-date.")
+        typer.echo("All files are up-to-date.")
         raise typer.Exit(0)
 
     typer.echo(f"{len(stale)} file(s) are out of date:\n", err=True)
@@ -145,11 +145,9 @@ def init(
         '''\
 """GitHub Actions workflow definitions."""
 
-from ghagen import Workflow, Job, Step, On
-from ghagen.app import App
-from ghagen.models.trigger import PushTrigger, PRTrigger
+from ghagen import App, Job, On, PRTrigger, PushTrigger, Step, Workflow
 
-app = App(outdir=".github/workflows")
+app = App()
 
 ci = Workflow(
     name="CI",
@@ -168,7 +166,7 @@ ci = Workflow(
     },
 )
 
-app.add(ci, filename="ci.yml")
+app.add_workflow(ci, "ci.yml")
 '''
     )
 

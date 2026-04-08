@@ -125,3 +125,56 @@ ENVIRONMENT_KEY_ORDER: list[str] = [
     "name",
     "url",
 ]
+
+ACTION_KEY_ORDER: list[str] = [
+    "name",
+    "description",
+    "author",
+    "branding",
+    "inputs",
+    "outputs",
+    "runs",
+]
+
+ACTION_INPUT_KEY_ORDER: list[str] = [
+    "description",
+    "required",
+    "default",
+    "deprecationMessage",
+]
+
+ACTION_OUTPUT_KEY_ORDER: list[str] = [
+    "description",
+    "value",
+]
+
+BRANDING_KEY_ORDER: list[str] = [
+    "icon",
+    "color",
+]
+
+COMPOSITE_RUNS_KEY_ORDER: list[str] = [
+    "using",
+    "steps",
+]
+
+DOCKER_RUNS_KEY_ORDER: list[str] = [
+    "using",
+    "image",
+    "env",
+    "args",
+    "pre-entrypoint",
+    "pre-if",
+    "entrypoint",
+    "post-entrypoint",
+    "post-if",
+]
+
+NODE_RUNS_KEY_ORDER: list[str] = [
+    "using",
+    "main",
+    "pre",
+    "post",
+    "pre-if",
+    "post-if",
+]

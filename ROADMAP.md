@@ -20,6 +20,7 @@ Steps 1-5 of the original plan and Milestones 2-5 are complete:
 - **README** — badges, install, example, feature highlights, doc links
 - **Release pipeline** — Release Please automation (`googleapis/release-please-action@v4`) with OIDC-based PyPI trusted publishing, CHANGELOG.md, version management via conventional commits
 - **GitHub Action** — Composite action (`action.yml`) wrapping `ghagen check` for users to add workflow freshness checking to their CI (`uses: nathanjordan/ghagen@v0.2.0`)
+- **Reusable workflows and composite/Docker/JS actions** — `Action`/`ActionInput`/`ActionOutput`/`Branding`/`CompositeRuns`/`DockerRuns`/`NodeRuns` models generate `action.yml` files alongside workflows; `App` redesigned with `add_workflow()`/`add_action()`/`add()`; reusable workflow producer side (`workflow_call` trigger) covered end-to-end; schema pipeline extended to fetch, codegen, diff, and validate the `github-action.json` schema; ghagen's own `action.yml` is now dogfooded from Python
 
 ### Known Issues (Deferred)
 
@@ -42,13 +43,6 @@ A language server / extension that provides:
 ### Import from YAML (Migration Tool)
 
 A `ghagen import` command that parses an existing `.github/workflows/*.yml` file and generates the equivalent ghagen Python code. Useful for migrating existing repos to ghagen.
-
-### Reusable Workflow and Composite Action Generation
-
-Extend beyond workflow files to generate:
-- Reusable workflow files (the `workflow_call` trigger side)
-- `action.yml` files for composite actions
-- `action.yml` files for Docker/JavaScript actions (metadata only)
 
 ### Linting Rules
 

@@ -133,6 +133,75 @@ def test_reusable_workflow_call(workflow_schema: dict[str, Any]):
     assert "steps" not in job
 
 
+def test_reusable_workflow_producer(workflow_schema: dict[str, Any]):
+    """Reusable workflow (producer side): ``on: workflow_call`` with inputs,
+    outputs, and secrets that the called workflow declares. This is the
+    counterpart to ``test_reusable_workflow_call`` above (consumer side).
+    """
+    wf = Workflow(
+        name="Reusable Deploy",
+        on=On(
+            workflow_call=WorkflowCallTrigger(
+                inputs={
+                    "environment": WorkflowCallInput(
+                        description="Deployment environment",
+                        required=True,
+                        type="string",
+                    ),
+                    "dry_run": WorkflowCallInput(
+                        description="Only print what would happen",
+                        required=False,
+                        default="false",
+                        type="boolean",
+                    ),
+                },
+                outputs={
+                    "deploy_url": WorkflowCallOutput(
+                        description="URL of the deployed service",
+                        value="${{ jobs.deploy.outputs.url }}",
+                    ),
+                },
+                secrets={
+                    "deploy_token": WorkflowCallSecret(
+                        description="Token for the deploy API",
+                        required=True,
+                    ),
+                },
+            ),
+        ),
+        jobs={
+            "deploy": Job(
+                runs_on="ubuntu-latest",
+                outputs={"url": "${{ steps.d.outputs.url }}"},
+                steps=[
+                    Step(
+                        id="d",
+                        name="Deploy",
+                        run=(
+                            "echo Deploying to ${{ inputs.environment }} "
+                            "(dry_run=${{ inputs.dry_run }})"
+                        ),
+                        env={
+                            "DEPLOY_TOKEN": "${{ secrets.deploy_token }}",
+                        },
+                    ),
+                ],
+            ),
+        },
+    )
+
+    yaml_str = wf.to_yaml(include_header=False)
+    data = validate_and_roundtrip(yaml_str, workflow_schema)
+
+    call = data["on"]["workflow_call"]
+    assert call["inputs"]["environment"]["required"] is True
+    assert call["inputs"]["environment"]["type"] == "string"
+    assert call["inputs"]["dry_run"]["default"] == "false"
+    assert call["outputs"]["deploy_url"]["value"] == "${{ jobs.deploy.outputs.url }}"
+    assert call["secrets"]["deploy_token"]["required"] is True
+    assert data["jobs"]["deploy"]["outputs"]["url"] == "${{ steps.d.outputs.url }}"
+
+
 def test_containers_and_services(workflow_schema: dict[str, Any]):
     """Workflow with job containers and services."""
     wf = Workflow(

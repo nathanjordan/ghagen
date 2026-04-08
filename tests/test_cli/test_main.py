@@ -40,11 +40,9 @@ def test_synth_and_check(tmp_path: Path, monkeypatch: object):
     config_file = tmp_path / "ghagen_config.py"
     config_file.write_text(
         """\
-from ghagen import Workflow, Job, Step, On
-from ghagen.app import App
-from ghagen.models.trigger import PushTrigger
+from ghagen import App, Job, On, PushTrigger, Step, Workflow
 
-app = App(outdir=".github/workflows")
+app = App()
 ci = Workflow(
     name="CI",
     on=On(push=PushTrigger(branches=["main"])),
@@ -53,7 +51,7 @@ ci = Workflow(
         steps=[Step(uses="actions/checkout@v4")],
     )},
 )
-app.add(ci, filename="ci.yml")
+app.add_workflow(ci, "ci.yml")
 """
     )
 
@@ -75,17 +73,27 @@ app.add(ci, filename="ci.yml")
     assert "up-to-date" in result.output
 
 
-def test_check_detects_stale(tmp_path: Path, monkeypatch: object):
+def test_synth_workflow_and_action(tmp_path: Path, monkeypatch: object):
+    """Synth a workflow and an action together via the new App API."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
     config_file = tmp_path / "ghagen_config.py"
     config_file.write_text(
         """\
-from ghagen import Workflow, Job, Step, On
-from ghagen.app import App
-from ghagen.models.trigger import PushTrigger
+from ghagen import (
+    Action,
+    ActionInput,
+    App,
+    CompositeRuns,
+    Job,
+    On,
+    PushTrigger,
+    Step,
+    Workflow,
+)
 
-app = App(outdir=".github/workflows")
+app = App()
+
 ci = Workflow(
     name="CI",
     on=On(push=PushTrigger(branches=["main"])),
@@ -94,7 +102,54 @@ ci = Workflow(
         steps=[Step(uses="actions/checkout@v4")],
     )},
 )
-app.add(ci, filename="ci.yml")
+app.add_workflow(ci, "ci.yml")
+
+greet = Action(
+    name="Greet",
+    description="Say hello",
+    inputs={"who": ActionInput(description="Name", default="world")},
+    runs=CompositeRuns(steps=[
+        Step(run="echo hello ${{ inputs.who }}", shell="bash"),
+    ]),
+)
+app.add_action(greet)
+"""
+    )
+
+    result = runner.invoke(app, ["synth"])
+    assert result.exit_code == 0, result.output
+    assert "Synthesized 2 file(s)" in result.output
+
+    assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
+    action_file = tmp_path / "action.yml"
+    assert action_file.exists()
+    content = action_file.read_text()
+    assert "name: Greet" in content
+    assert "using: composite" in content
+
+    result = runner.invoke(app, ["check"])
+    assert result.exit_code == 0
+    assert "up-to-date" in result.output
+
+
+def test_check_detects_stale(tmp_path: Path, monkeypatch: object):
+    monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
+
+    config_file = tmp_path / "ghagen_config.py"
+    config_file.write_text(
+        """\
+from ghagen import App, Job, On, PushTrigger, Step, Workflow
+
+app = App()
+ci = Workflow(
+    name="CI",
+    on=On(push=PushTrigger(branches=["main"])),
+    jobs={"test": Job(
+        runs_on="ubuntu-latest",
+        steps=[Step(uses="actions/checkout@v4")],
+    )},
+)
+app.add_workflow(ci, "ci.yml")
 """
     )
 
