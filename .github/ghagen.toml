@@ -1,0 +1,13 @@
+# ghagen lint configuration for ghagen's own workflows.
+#
+# This file exists to exercise the config loader against ghagen itself
+# during CI and to serve as a reference example for users.
+#
+# All three built-in rules are currently enabled at their default
+# severity (warning). Uncomment entries below to customise.
+
+[lint]
+# disable = ["missing-timeout"]
+
+# [lint.severity]
+# missing-permissions = "error"

@@ -12,6 +12,7 @@ from ghagen.helpers.steps import (
     setup_uv,
     upload_artifact,
 )
+from ghagen.lint import LintConfig, Severity, SourceLocation, Violation
 from ghagen.models.action import (
     Action,
     ActionInput,
@@ -61,6 +62,11 @@ __all__ = [
     "WorkflowCallTrigger",
     "WorkflowDispatchTrigger",
     "Workflow",
+    # Lint
+    "LintConfig",
+    "Severity",
+    "SourceLocation",
+    "Violation",
     # Helpers
     "expr",
     "cache",

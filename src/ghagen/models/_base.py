@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from ghagen._raw import Raw
@@ -15,6 +16,40 @@ from ghagen.emitter.yaml_writer import (
     to_ordered_commented_map,
     unwrap_raw,
 )
+
+# Frame path fragments that mark a frame as "internal" to ghagen/pydantic.
+# When walking the stack to find the user-code construction site, frames
+# matching any of these substrings are skipped.
+_INTERNAL_FRAME_MARKERS: tuple[str, ...] = (
+    "/pydantic/",
+    "/ghagen/models/",
+    "/ghagen/helpers/",
+    "/ghagen/emitter/",
+)
+
+
+def _is_internal_frame(filename: str) -> bool:
+    """Return True if ``filename`` is inside pydantic or ghagen internals."""
+    return any(marker in filename for marker in _INTERNAL_FRAME_MARKERS)
+
+
+def _find_user_frame() -> tuple[str, int] | None:
+    """Walk up the call stack to find the first user-code frame.
+
+    Returns ``(filename, lineno)`` of the first frame that is NOT inside
+    pydantic or ghagen internals, or ``None`` if no such frame exists.
+    """
+    try:
+        frame = sys._getframe(1)  # skip this helper
+    except ValueError:  # pragma: no cover — defensive
+        return None
+
+    while frame is not None:
+        if not _is_internal_frame(frame.f_code.co_filename):
+            return (frame.f_code.co_filename, frame.f_lineno)
+        frame = frame.f_back
+
+    return None
 
 
 class GhagenModel(BaseModel):
@@ -41,6 +76,16 @@ class GhagenModel(BaseModel):
     eol_comment: str | None = Field(None, exclude=True)
     field_comments: dict[str, str] = Field(default_factory=dict, exclude=True)
     field_eol_comments: dict[str, str] = Field(default_factory=dict, exclude=True)
+
+    # Captured source location (file, line) of the user code that
+    # constructed this model. Populated by model_post_init via frame
+    # walking. None if no user frame was found (e.g., constructed entirely
+    # from inside ghagen internals).
+    _source_location: tuple[str, int] | None = PrivateAttr(default=None)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Capture the construction site's file/line from the call stack."""
+        self._source_location = _find_user_frame()
 
     def _get_key_order(self) -> list[str]:
         """Return the canonical key ordering for this model type.

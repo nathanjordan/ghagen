@@ -9,6 +9,15 @@ from pathlib import Path
 import typer
 
 from ghagen.app import App
+from ghagen.lint import (
+    format_github,
+    format_human,
+    format_json,
+    load_config,
+    run_lint,
+)
+from ghagen.lint.rules import ALL_RULES
+from ghagen.lint.violation import Severity
 
 app = typer.Typer(
     name="ghagen",
@@ -127,6 +136,78 @@ def check(
         typer.echo(diff, err=True)
 
     raise typer.Exit(1)
+
+
+@app.command()
+def lint(
+    config: str | None = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to ghagen_workflows.py config file",
+    ),
+    format: str = typer.Option(  # noqa: A002 — matches ruff/pyright UX
+        "human",
+        "--format",
+        "-f",
+        help="Output format: human, json, or github",
+    ),
+    disable: list[str] = typer.Option(  # noqa: B008
+        [],
+        "--disable",
+        help="Disable a rule by ID (repeatable)",
+    ),
+    list_rules: bool = typer.Option(
+        False,
+        "--list-rules",
+        help="List available rules and exit",
+    ),
+) -> None:
+    """Lint ghagen workflow definitions for common problems."""
+    if list_rules:
+        for rule_fn in ALL_RULES:
+            meta = rule_fn.meta
+            typer.echo(
+                f"{meta.id} ({meta.default_severity.value})\n"
+                f"  {meta.description}"
+            )
+        raise typer.Exit(0)
+
+    # Load lint config — separate from the ghagen_workflows.py config
+    try:
+        lint_config, warnings = load_config(Path.cwd(), cli_disable=disable)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(2) from exc
+
+    for warning in warnings:
+        typer.echo(f"warning: {warning}", err=True)
+
+    # Load the user's App from ghagen_workflows.py
+    config_path = _find_config(config)
+    ghagen_app = _load_app(config_path)
+
+    # Run the lint rules
+    violations = run_lint(ghagen_app, lint_config)
+
+    # Render in the requested format
+    if format == "human":
+        typer.echo(format_human(violations), nl=False)
+    elif format == "json":
+        typer.echo(format_json(violations))
+    elif format == "github":
+        typer.echo(format_github(violations), nl=False)
+    else:
+        typer.echo(
+            f"Error: unknown --format value '{format}' "
+            "(valid: human, json, github)",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    # Exit 1 only if there are error-severity violations
+    if any(v.severity == Severity.ERROR for v in violations):
+        raise typer.Exit(1)
 
 
 @app.command()
