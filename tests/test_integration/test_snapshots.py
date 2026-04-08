@@ -8,9 +8,16 @@ from pytest_snapshot.plugin import Snapshot
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen import (
+    Action,
+    ActionInput,
+    ActionOutput,
+    Branding,
+    CompositeRuns,
     Container,
+    DockerRuns,
     Job,
     Matrix,
+    NodeRuns,
     On,
     Permissions,
     PRTrigger,
@@ -256,3 +263,98 @@ def test_full_featured(snapshot: Snapshot):
     )
 
     snapshot.assert_match(wf.to_yaml(include_header=False), "full_featured.yml")
+
+
+def test_composite_action_snapshot(snapshot: Snapshot):
+    """Composite action YAML snapshot."""
+    snapshot.snapshot_dir = SNAPSHOT_DIR
+
+    action = Action(
+        name="Greet",
+        description="Say hello to someone",
+        author="ghagen",
+        branding=Branding(icon="heart", color="purple"),
+        inputs={
+            "who": ActionInput(
+                description="Who to greet",
+                required=True,
+                default="world",
+            ),
+            "shout": ActionInput(
+                description="Uppercase the greeting",
+                required=False,
+                default="false",
+            ),
+        },
+        outputs={
+            "message": ActionOutput(
+                description="The greeting message",
+                value="${{ steps.greet.outputs.text }}",
+            ),
+        },
+        runs=CompositeRuns(
+            steps=[
+                Step(
+                    id="greet",
+                    name="Greet",
+                    run="echo Hello, ${{ inputs.who }}",
+                    shell="bash",
+                ),
+            ],
+        ),
+    )
+
+    snapshot.assert_match(action.to_yaml(include_header=False), "composite_action.yml")
+
+
+def test_docker_action_snapshot(snapshot: Snapshot):
+    """Docker action YAML snapshot."""
+    snapshot.snapshot_dir = SNAPSHOT_DIR
+
+    action = Action(
+        name="Docker Greet",
+        description="Greet inside a container",
+        branding=Branding(icon="box", color="blue"),
+        inputs={
+            "who": ActionInput(description="Who to greet", default="world"),
+        },
+        outputs={
+            "time": ActionOutput(description="Time the action ran"),
+        },
+        runs=DockerRuns(
+            image="Dockerfile",
+            env={"GREETING": "Hello"},
+            args=["${{ inputs.who }}"],
+            entrypoint="entrypoint.sh",
+            post_entrypoint="cleanup.sh",
+            post_if="always()",
+        ),
+    )
+
+    snapshot.assert_match(action.to_yaml(include_header=False), "docker_action.yml")
+
+
+def test_node_action_snapshot(snapshot: Snapshot):
+    """Node.js action YAML snapshot."""
+    snapshot.snapshot_dir = SNAPSHOT_DIR
+
+    action = Action(
+        name="Node Greet",
+        description="Greet from a Node script",
+        branding=Branding(icon="code", color="yellow"),
+        inputs={
+            "who": ActionInput(description="Who to greet", default="world"),
+        },
+        outputs={
+            "message": ActionOutput(description="The greeting"),
+        },
+        runs=NodeRuns(
+            using="node20",
+            main="dist/index.js",
+            pre="dist/setup.js",
+            post="dist/cleanup.js",
+            post_if="always()",
+        ),
+    )
+
+    snapshot.assert_match(action.to_yaml(include_header=False), "node_action.yml")

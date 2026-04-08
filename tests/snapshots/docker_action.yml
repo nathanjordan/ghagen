@@ -1,0 +1,22 @@
+name: Docker Greet
+description: Greet inside a container
+branding:
+  icon: box
+  color: blue
+inputs:
+  who:
+    description: Who to greet
+    default: world
+outputs:
+  time:
+    description: Time the action ran
+runs:
+  using: docker
+  image: Dockerfile
+  env:
+    GREETING: Hello
+  args:
+  - ${{ inputs.who }}
+  entrypoint: entrypoint.sh
+  post-entrypoint: cleanup.sh
+  post-if: always()

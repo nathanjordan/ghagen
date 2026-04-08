@@ -10,20 +10,27 @@ import jsonschema
 import pytest
 from ruamel.yaml import YAML
 
-SCHEMA_PATH = (
+SNAPSHOT_DIR = (
     Path(__file__).parent.parent.parent
     / "src"
     / "ghagen"
     / "schema"
     / "snapshot"
-    / "workflow_schema.json"
 )
+WORKFLOW_SCHEMA_PATH = SNAPSHOT_DIR / "workflow_schema.json"
+ACTION_SCHEMA_PATH = SNAPSHOT_DIR / "action_schema.json"
 
 
 @pytest.fixture(scope="session")
 def workflow_schema() -> dict[str, Any]:
     """Load the GitHub Actions workflow JSON Schema from the local snapshot."""
-    return json.loads(SCHEMA_PATH.read_text())
+    return json.loads(WORKFLOW_SCHEMA_PATH.read_text())
+
+
+@pytest.fixture(scope="session")
+def action_schema() -> dict[str, Any]:
+    """Load the GitHub Actions action (action.yml) JSON Schema."""
+    return json.loads(ACTION_SCHEMA_PATH.read_text())
 
 
 def validate_and_roundtrip(yaml_str: str, schema: dict[str, Any]) -> dict[str, Any]:

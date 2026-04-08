@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ghagen.schema.fetch import fetch_schema, save_schema
+from ghagen.schema.fetch import SCHEMAS, fetch_schema, save_all_schemas, save_schema
 
 SAMPLE_SCHEMA = {"type": "object", "properties": {"name": {"type": "string"}}}
 
@@ -106,3 +106,46 @@ def test_save_schema_trailing_newline(
     save_schema(dest)
 
     assert dest.read_text().endswith("\n")
+
+
+def test_schemas_registry_has_workflow_and_action() -> None:
+    """Both workflow and action schemas must be registered."""
+    assert "workflow" in SCHEMAS
+    assert "action" in SCHEMAS
+    assert SCHEMAS["workflow"]["url"].endswith("github-workflow.json")
+    assert SCHEMAS["action"]["url"].endswith("github-action.json")
+    assert SCHEMAS["workflow"]["filename"] == "workflow_schema.json"
+    assert SCHEMAS["action"]["filename"] == "action_schema.json"
+
+
+def test_fetch_action_schema_uses_action_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``fetch_schema('action')`` hits the action URL, not the workflow one."""
+    captured_urls: list[str] = []
+
+    def capture(url: str, *args: object, **kwargs: object) -> MagicMock:
+        captured_urls.append(url)
+        return _mock_response(SAMPLE_SCHEMA)
+
+    monkeypatch.setattr("ghagen.schema.fetch.httpx.get", capture)
+    fetch_schema("action")
+    assert len(captured_urls) == 1
+    assert captured_urls[0] == SCHEMAS["action"]["url"]
+
+
+def test_save_all_schemas_writes_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``save_all_schemas`` writes one file per registered schema."""
+    monkeypatch.setattr(
+        "ghagen.schema.fetch.httpx.get",
+        lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
+    )
+
+    written = save_all_schemas(tmp_path)
+    assert len(written) == len(SCHEMAS)
+    assert (tmp_path / "workflow_schema.json").exists()
+    assert (tmp_path / "action_schema.json").exists()
+    for path in written:
+        assert path.read_text().endswith("\n")

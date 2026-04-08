@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from ghagen import (
+    Action,
+    ActionInput,
     App,
+    Branding,
+    CompositeRuns,
     Job,
     Matrix,
     On,
@@ -244,11 +248,78 @@ def _docs_workflow() -> Workflow:
     )
 
 
+def _ghagen_check_action() -> Action:
+    """ghagen's own composite action wrapping ``ghagen check``.
+
+    Dogfooding: this is what currently lives at ``action.yml`` and is
+    consumed by the ``test-action`` job in CI via ``uses: ./``.
+    """
+    return Action(
+        name="ghagen Check",
+        description=(
+            "Verify GitHub Actions workflows are in sync "
+            "with Python definitions"
+        ),
+        branding=Branding(icon="check-circle", color="green"),
+        inputs={
+            "config": ActionInput(
+                description="Path to ghagen config file",
+                required=False,
+                default=".github/ghagen_workflows.py",
+            ),
+            "python-version": ActionInput(
+                description="Python version to use",
+                required=False,
+                default="3.13",
+            ),
+            "ghagen-version": ActionInput(
+                description="ghagen version to install (empty for latest)",
+                required=False,
+                default="",
+            ),
+            "source": ActionInput(
+                description=(
+                    "Local source path to install from (for testing). "
+                    "Leave empty to install from PyPI."
+                ),
+                required=False,
+                default="",
+            ),
+        },
+        runs=CompositeRuns(
+            steps=[
+                Step(
+                    uses="actions/setup-python@v5",
+                    with_={"python-version": "${{ inputs.python-version }}"},
+                ),
+                Step(
+                    name="Install ghagen",
+                    run=(
+                        'if [ -n "${{ inputs.source }}" ]; then\n'
+                        '  pip install "${{ inputs.source }}"\n'
+                        "else\n"
+                        "  pip install ghagen${{ inputs.ghagen-version != ''"
+                        " && format('=={0}', inputs.ghagen-version) || '' }}\n"
+                        "fi"
+                    ),
+                    shell="bash",
+                ),
+                Step(
+                    name="Check workflows",
+                    run='ghagen check --config "${{ inputs.config }}"',
+                    shell="bash",
+                ),
+            ],
+        ),
+    )
+
+
 def create_app() -> App:
-    """Create the ghagen App with all workflows."""
-    app = App(outdir=".github/workflows")
-    app.add(_ci_workflow(), "ci.yml")
-    app.add(_schema_drift_workflow(), "schema-drift.yml")
-    app.add(_release_workflow(), "release.yml")
-    app.add(_docs_workflow(), "docs.yml")
+    """Create the ghagen App with all workflows and the composite action."""
+    app = App()
+    app.add_workflow(_ci_workflow(), "ci.yml")
+    app.add_workflow(_schema_drift_workflow(), "schema-drift.yml")
+    app.add_workflow(_release_workflow(), "release.yml")
+    app.add_workflow(_docs_workflow(), "docs.yml")
+    app.add_action(_ghagen_check_action())
     return app

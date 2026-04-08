@@ -1,0 +1,18 @@
+name: Node Greet
+description: Greet from a Node script
+branding:
+  icon: code
+  color: yellow
+inputs:
+  who:
+    description: Who to greet
+    default: world
+outputs:
+  message:
+    description: The greeting
+runs:
+  using: node20
+  main: dist/index.js
+  pre: dist/setup.js
+  post: dist/cleanup.js
+  post-if: always()
