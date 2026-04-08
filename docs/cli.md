@@ -1,6 +1,6 @@
 # CLI Reference
 
-ghagen provides three commands: `synth`, `check`, and `init`. All commands are invoked through the `ghagen` CLI, which is built with Typer.
+ghagen provides four commands: `synth`, `check`, `lint`, and `init`. All commands are invoked through the `ghagen` CLI, which is built with Typer.
 
 ## ghagen synth
 
@@ -74,6 +74,51 @@ Add `ghagen check` to your CI pipeline to ensure that generated YAML files are n
 ```
 
 If someone edits a generated YAML file directly instead of updating the Python source, `ghagen check` will fail and the CI run will report the mismatch.
+
+## ghagen lint
+
+Run rule-based checks against your workflow definitions. See the
+[Linting guide](linting.md) for rule descriptions and configuration.
+
+```bash
+ghagen lint
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--config PATH`, `-c` | Path to the `ghagen_workflows.py` config file. |
+| `--format {human,json,github}`, `-f` | Output format. Defaults to `human`. |
+| `--disable RULE_ID` | Disable a rule by ID. Can be repeated. |
+| `--list-rules` | Print all available rules with their descriptions and exit. |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | No error-severity violations (warnings may still be present) |
+| `1`  | At least one error-severity violation found |
+| `2`  | Configuration error (malformed TOML, unknown severity, etc.) |
+
+### Example
+
+```bash
+# Human-readable output (default)
+ghagen lint
+
+# JSON for scripts
+ghagen lint --format=json
+
+# GitHub annotations for CI
+ghagen lint --format=github
+
+# List all rules
+ghagen lint --list-rules
+
+# Disable specific rules
+ghagen lint --disable missing-timeout --disable unpinned-actions
+```
 
 ## ghagen init
 

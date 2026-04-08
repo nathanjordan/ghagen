@@ -7,6 +7,8 @@ on:
   push:
     branches:
     - main
+permissions:
+  contents: read
 jobs:
   lint:
     name: Lint
@@ -24,6 +26,9 @@ jobs:
       run: uv run ruff check src/ tests/
     - name: actionlint
       uses: rhysd/actionlint@v1.7.11
+    - name: ghagen lint
+      run: uv run ghagen lint --format=github
+    timeout-minutes: 10
   typecheck:
     name: Type check
     runs-on: ubuntu-latest
@@ -38,6 +43,7 @@ jobs:
       run: uv sync
     - name: Pyright
       run: uv run pyright src/
+    timeout-minutes: 10
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -62,6 +68,7 @@ jobs:
       run: uv sync
     - name: Test
       run: uv run pytest
+    timeout-minutes: 15
   check-sync:
     name: Check workflow sync
     runs-on: ubuntu-latest
@@ -76,6 +83,7 @@ jobs:
       run: uv sync
     - name: Verify workflows
       run: uv run ghagen check
+    timeout-minutes: 10
   test-action:
     name: Test action
     runs-on: ubuntu-latest
@@ -88,3 +96,4 @@ jobs:
       uses: ./
       with:
         source: .
+    timeout-minutes: 10

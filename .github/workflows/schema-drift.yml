@@ -25,3 +25,4 @@ jobs:
       run: "if ! git diff --exit-code src/ghagen/schema/snapshot/; then\n  echo \"::warning::Schema drift detected\"\n  gh issue create \\\n    --title \"GitHub Actions schema drift detected\" \\\n    --body \"$(git diff src/ghagen/schema/snapshot/)\" \\\n    --label schema-drift\nfi"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 10

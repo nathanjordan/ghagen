@@ -37,10 +37,12 @@ def _ci_workflow() -> Workflow:
             push=PushTrigger(branches=["main"]),
             pull_request=PRTrigger(branches=["main"]),
         ),
+        permissions=Permissions(contents=PermissionLevel.READ),
         jobs={
             "lint": Job(
                 name="Lint",
                 runs_on="ubuntu-latest",
+                timeout_minutes=10,
                 steps=[
                     checkout(),
                     setup_uv(),
@@ -50,11 +52,16 @@ def _ci_workflow() -> Workflow:
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.11",
                     ),
+                    Step(
+                        name="ghagen lint",
+                        run="uv run ghagen lint --format=github",
+                    ),
                 ],
             ),
             "typecheck": Job(
                 name="Type check",
                 runs_on="ubuntu-latest",
+                timeout_minutes=10,
                 steps=[
                     checkout(),
                     setup_uv(),
@@ -65,6 +72,7 @@ def _ci_workflow() -> Workflow:
             "test": Job(
                 name="Test (Python ${{ matrix.python-version }})",
                 runs_on="ubuntu-latest",
+                timeout_minutes=15,
                 strategy=Strategy(
                     matrix=Matrix(
                         extras={
@@ -83,6 +91,7 @@ def _ci_workflow() -> Workflow:
             "check-sync": Job(
                 name="Check workflow sync",
                 runs_on="ubuntu-latest",
+                timeout_minutes=10,
                 steps=[
                     checkout(),
                     setup_uv(),
@@ -93,6 +102,7 @@ def _ci_workflow() -> Workflow:
             "test-action": Job(
                 name="Test action",
                 runs_on="ubuntu-latest",
+                timeout_minutes=10,
                 steps=[
                     checkout(),
                     Step(
@@ -121,6 +131,7 @@ def _schema_drift_workflow() -> Workflow:
         jobs={
             "check-drift": Job(
                 runs_on="ubuntu-latest",
+                timeout_minutes=10,
                 steps=[
                     checkout(),
                     setup_uv(),
@@ -156,6 +167,7 @@ def _release_workflow() -> Workflow:
     release_please_job = Job(
         name="Release Please",
         runs_on="ubuntu-latest",
+        timeout_minutes=10,
         permissions=Permissions(
             contents=PermissionLevel.WRITE,
             pull_requests=PermissionLevel.WRITE,
@@ -176,6 +188,7 @@ def _release_workflow() -> Workflow:
     publish_job = Job(
         name="Publish to PyPI",
         runs_on="ubuntu-latest",
+        timeout_minutes=10,
         needs="release-please",
         if_="needs.release-please.outputs.release_created == 'true'",
         environment=Environment(name="release"),
@@ -221,6 +234,7 @@ def _docs_workflow() -> Workflow:
             "deploy": Job(
                 name="Deploy docs",
                 runs_on="ubuntu-latest",
+                timeout_minutes=15,
                 steps=[
                     checkout(),
                     setup_uv(),
