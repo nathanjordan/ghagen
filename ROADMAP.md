@@ -21,7 +21,7 @@ Steps 1-5 of the original plan and Milestones 2-5 are complete:
 - **Release pipeline** — Release Please automation (`googleapis/release-please-action@v4`) with OIDC-based PyPI trusted publishing, CHANGELOG.md, version management via conventional commits
 - **GitHub Action** — Composite action (`action.yml`) wrapping `ghagen check` for users to add workflow freshness checking to their CI (`uses: nathanjordan/ghagen@v0.2.0`)
 - **Reusable workflows and composite/Docker/JS actions** — `Action`/`ActionInput`/`ActionOutput`/`Branding`/`CompositeRuns`/`DockerRuns`/`NodeRuns` models generate `action.yml` files alongside workflows; `App` redesigned with `add_workflow()`/`add_action()`/`add()`; reusable workflow producer side (`workflow_call` trigger) covered end-to-end; schema pipeline extended to fetch, codegen, diff, and validate the `github-action.json` schema; ghagen's own `action.yml` is now dogfooded from Python
-- **Linting (partial)** — `ghagen lint` command with rule engine, Python source-line capture via frame inspection, `.github/ghagen.toml` + `pyproject.toml` config loading, human/JSON/GitHub annotation output formats. Ships 3 of 5 planned rules: `missing-permissions`, `unpinned-actions`, `missing-timeout`. The remaining `duplicate-step-ids` and `mutable-defaults` rules are deferred to follow-up work.
+- **Linting** — `ghagen lint` command with rule engine, Python source-line capture via frame inspection, `.github/ghagen.toml` + `pyproject.toml` config loading, human/JSON/GitHub annotation output formats. Built-in rules: `missing-permissions`, `unpinned-actions`, `missing-timeout`, `duplicate-step-ids`.
 
 ### Known Issues (Deferred)
 
@@ -44,17 +44,6 @@ A language server / extension that provides:
 ### Import from YAML (Migration Tool)
 
 A `ghagen import` command that parses an existing `.github/workflows/*.yml` file and generates the equivalent ghagen Python code. Useful for migrating existing repos to ghagen.
-
-### Linting Rules (remaining)
-
-The initial cut of `ghagen lint` is shipped (see "What's Done"). Two
-rules from the original list remain:
-
-- **`duplicate-step-ids`** — catch duplicate `id` values within a job's steps.
-- **`mutable-defaults`** — flag workflow definitions that share mutable
-  default values. Needs its own design: "mutable default" is ambiguous
-  in a ghagen context and the rule's semantics should be pinned down
-  before implementation.
 
 ### Action Version Pinning
 

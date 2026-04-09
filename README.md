@@ -67,7 +67,7 @@ jobs:
 - **YAML comments** — block, end-of-line, and field-level comments preserved in output
 - **DRY helpers** — step factories (`checkout()`, `setup_python()`, `setup_uv()`) and expression builder (`expr`)
 - **Escape hatches** — `Raw[T]`, `extras`, `post_process`, and `CommentedMap` passthrough for anything the typed API doesn't cover
-- **Linting** — `ghagen lint` catches common problems (missing `permissions`, unpinned actions, missing `timeout-minutes`) at the Python level with source-line precision
+- **Linting** — `ghagen lint` catches common problems (missing `permissions`, unpinned actions, missing `timeout-minutes`, duplicate step ids) at the Python level with source-line precision
 - **CLI** — `ghagen synth` generates YAML, `ghagen check` verifies freshness in CI, `ghagen lint` runs rule-based checks, `ghagen init` scaffolds a starter config
 
 ## Quick Start
