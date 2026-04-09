@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
+from ghagen.transforms import SynthContext, Transform
 
 _Item = Workflow | Action
 
@@ -36,6 +37,8 @@ class App:
         root: str | Path = ".",
         header: str | None = None,
         source: str | None = None,
+        lockfile: str | Path | None = ".github/ghagen.lock.toml",
+        transforms: list[Transform] | None = None,
     ) -> None:
         """Initialize the App.
 
@@ -46,11 +49,19 @@ class App:
             header: Custom header comment for generated files.
                 If ``None``, uses the default ghagen header.
             source: Source file path to include in the header comment.
+            lockfile: Path to the pin lockfile, relative to *root*.
+                Set to ``None`` to disable lockfile auto-loading.
+                Defaults to ``".github/ghagen.lock.toml"``.
+            transforms: Additional model transforms to apply during
+                synthesis.  The pin transform is auto-registered when
+                a lockfile is present; these are appended after it.
         """
         self.root = Path(root)
         self.header = header
         self.source = source
+        self.lockfile_path = Path(lockfile) if lockfile is not None else None
         self._items: list[tuple[_Item, Path]] = []
+        self._transforms: list[Transform] = list(transforms or [])
 
     def add(self, item: _Item, path: str | Path) -> None:
         """Register an item at an explicit path relative to ``root``.
@@ -89,16 +100,52 @@ class App:
         """
         self.add(action, Path(dir) / "action.yml")
 
+    def _build_transforms(self) -> list[Transform]:
+        """Build the full transform list, auto-registering pin if needed."""
+        transforms: list[Transform] = []
+
+        if self.lockfile_path is not None:
+            full_lockfile = self.root / self.lockfile_path
+            if full_lockfile.is_file():
+                from ghagen.pin.lockfile import read_lockfile
+                from ghagen.pin.transform import PinTransform
+
+                lockfile = read_lockfile(full_lockfile)
+                transforms.append(PinTransform(lockfile))
+
+        transforms.extend(self._transforms)
+        return transforms
+
+    def _apply_transforms(
+        self, item: _Item, rel_path: Path, transforms: list[Transform]
+    ) -> _Item:
+        """Deep-copy a model and apply all transforms."""
+        if not transforms:
+            return item
+
+        working = item.model_copy(deep=True)
+        item_type = "workflow" if isinstance(item, Workflow) else "action"
+        ctx = SynthContext(
+            workflow_key=rel_path.stem,
+            item_type=item_type,
+            root=self.root,
+        )
+        for transform in transforms:
+            working = transform(working, ctx)
+        return working
+
     def synth(self) -> list[Path]:
         """Synthesize all registered items to YAML files.
 
         Returns:
             List of file paths that were written.
         """
+        transforms = self._build_transforms()
         written: list[Path] = []
         for item, rel_path in self._items:
             full = self.root / rel_path
-            item.to_yaml_file(
+            working = self._apply_transforms(item, rel_path, transforms)
+            working.to_yaml_file(
                 full,
                 header=self.header,
                 source=self.source,
@@ -113,11 +160,13 @@ class App:
             List of ``(path, diff)`` tuples for files that are out of date.
             Empty list means everything is in sync.
         """
+        transforms = self._build_transforms()
         stale: list[tuple[Path, str]] = []
 
         for item, rel_path in self._items:
             full = self.root / rel_path
-            expected = item.to_yaml(
+            working = self._apply_transforms(item, rel_path, transforms)
+            expected = working.to_yaml(
                 header=self.header,
                 source=self.source,
             )

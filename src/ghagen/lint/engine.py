@@ -29,6 +29,15 @@ def run_lint(app: App, config: LintConfig) -> list[Violation]:
         A list of :class:`~ghagen.lint.violation.Violation`s in the order
         they were produced.
     """
+    # Load lockfile if available so rules can check pin status.
+    lockfile = None
+    if app.lockfile_path is not None:
+        lockfile_full = app.root / app.lockfile_path
+        if lockfile_full.is_file():
+            from ghagen.pin.lockfile import read_lockfile
+
+            lockfile = read_lockfile(lockfile_full)
+
     violations: list[Violation] = []
 
     for item, path in app._items:
@@ -36,7 +45,9 @@ def run_lint(app: App, config: LintConfig) -> list[Violation]:
             continue
 
         workflow_key = path.stem  # e.g. "ci" from "ci.yml"
-        ctx = RuleContext(workflow_key=workflow_key, config=config)
+        ctx = RuleContext(
+            workflow_key=workflow_key, config=config, lockfile=lockfile
+        )
 
         for rule_fn in ALL_RULES:
             rule_id = rule_fn.meta.id

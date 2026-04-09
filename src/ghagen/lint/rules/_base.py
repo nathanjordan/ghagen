@@ -29,6 +29,7 @@ class RuleContext:
 
     workflow_key: str
     config: LintConfig
+    lockfile: Any | None = None  # Optional Lockfile instance
 
     def loc(self, model: Any, symbolic: str) -> SourceLocation:
         """Build a SourceLocation from a model's captured _source_location
