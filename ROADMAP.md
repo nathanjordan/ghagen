@@ -22,6 +22,7 @@ Steps 1-5 of the original plan and Milestones 2-5 are complete:
 - **GitHub Action** — Composite action (`action.yml`) wrapping `ghagen check` for users to add workflow freshness checking to their CI (`uses: nathanjordan/ghagen@v0.2.0`)
 - **Reusable workflows and composite/Docker/JS actions** — `Action`/`ActionInput`/`ActionOutput`/`Branding`/`CompositeRuns`/`DockerRuns`/`NodeRuns` models generate `action.yml` files alongside workflows; `App` redesigned with `add_workflow()`/`add_action()`/`add()`; reusable workflow producer side (`workflow_call` trigger) covered end-to-end; schema pipeline extended to fetch, codegen, diff, and validate the `github-action.json` schema; ghagen's own `action.yml` is now dogfooded from Python
 - **Linting** — `ghagen lint` command with rule engine, Python source-line capture via frame inspection, `.github/ghagen.toml` + `pyproject.toml` config loading, human/JSON/GitHub annotation output formats. Built-in rules: `missing-permissions`, `unpinned-actions`, `missing-timeout`, `duplicate-step-ids`.
+- **Action pinning** — `ghagen pin` command resolves action version refs (e.g. `@v4`) to immutable commit SHAs stored in a lockfile at `.github/ghagen.lock.toml` (Cargo.lock / package-lock.json-style; machine-managed, auto-sorted). Clean version tags stay in Python source. Flags: `--update`, `--check`, `--prune`, `--token`. Built on a model transform pipeline (`SynthContext`, `Transform` protocol) applied between Pydantic models and YAML emission; `App.synth()`/`check()` auto-apply the lockfile when present. GitHub API resolver (urllib) handles lightweight and annotated tags. Emitted YAML uses the industry-standard inline comment format: `actions/checkout@<sha>  # v4`. The `unpinned-actions` lint rule is lockfile-aware.
 
 ### Known Issues (Deferred)
 
@@ -44,13 +45,3 @@ A language server / extension that provides:
 ### Import from YAML (Migration Tool)
 
 A `ghagen import` command that parses an existing `.github/workflows/*.yml` file and generates the equivalent ghagen Python code. Useful for migrating existing repos to ghagen.
-
-### Action Version Pinning
-
-A `ghagen pin` command that resolves action version tags to their commit SHAs:
-
-```
-actions/checkout@v4 → actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
-```
-
-Preserves the tag as a comment for readability. Uses the GitHub API to resolve tags.
