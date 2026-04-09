@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -207,6 +209,125 @@ def lint(
 
     # Exit 1 only if there are error-severity violations
     if any(v.severity == Severity.ERROR for v in violations):
+        raise typer.Exit(1)
+
+
+@app.command()
+def pin(
+    config: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file"
+    ),
+    update: bool = typer.Option(
+        False, "--update", help="Re-resolve all entries to latest SHAs"
+    ),
+    check_mode: bool = typer.Option(
+        False,
+        "--check",
+        help="Verify lockfile is in sync with code (exit 1 if stale)",
+    ),
+    prune: bool = typer.Option(
+        False, "--prune", help="Remove lockfile entries not referenced in code"
+    ),
+    token: str | None = typer.Option(
+        None, "--token", help="GitHub token (default: $GITHUB_TOKEN)"
+    ),
+) -> None:
+    """Pin action references to commit SHAs in a lockfile."""
+    from ghagen.pin.collect import collect_uses_refs
+    from ghagen.pin.lockfile import (
+        PinEntry,
+        read_lockfile,
+        write_lockfile,
+    )
+    from ghagen.pin.resolve import ResolveError, parse_uses, resolve_ref
+
+    config_path = _find_config(config)
+    ghagen_app = _load_app(config_path)
+
+    # Resolve lockfile path from the app.
+    if ghagen_app.lockfile_path is None:
+        typer.echo("Error: lockfile is disabled (lockfile=None on App)", err=True)
+        raise typer.Exit(1)
+
+    lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
+
+    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
+    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not gh_token:
+        typer.echo(
+            "warning: no GitHub token found. Using unauthenticated requests "
+            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
+            err=True,
+        )
+
+    # Collect all uses: refs from the app.
+    refs = collect_uses_refs(ghagen_app)
+
+    # Read existing lockfile.
+    lockfile = read_lockfile(lockfile_full)
+
+    if check_mode:
+        # --check: verify lockfile covers all refs and nothing is stale.
+        missing = refs - set(lockfile.pins)
+        extra = set(lockfile.pins) - refs if prune else set()
+        if missing or extra:
+            if missing:
+                typer.echo("Missing lockfile entries:", err=True)
+                for ref in sorted(missing):
+                    typer.echo(f"  {ref}", err=True)
+            if extra:
+                typer.echo("Stale lockfile entries:", err=True)
+                for ref in sorted(extra):
+                    typer.echo(f"  {ref}", err=True)
+            raise typer.Exit(1)
+        typer.echo("Lockfile is in sync.")
+        raise typer.Exit(0)
+
+    # Determine which refs need resolution.
+    to_resolve = refs if update else refs - set(lockfile.pins)
+
+    # Resolve refs via GitHub API.
+    now = datetime.now(UTC)
+    resolved = 0
+    errors = 0
+
+    for uses in sorted(to_resolve):
+        try:
+            parsed = parse_uses(uses)
+        except ValueError as exc:
+            typer.echo(f"warning: skipping {uses!r}: {exc}", err=True)
+            continue
+
+        try:
+            sha = resolve_ref(
+                parsed.owner, parsed.repo, parsed.ref, token=gh_token
+            )
+        except ResolveError as exc:
+            typer.echo(f"error: {uses}: {exc}", err=True)
+            errors += 1
+            continue
+
+        lockfile.pins[uses] = PinEntry(sha=sha, resolved_at=now)
+        resolved += 1
+        typer.echo(f"  {uses} → {sha[:12]}")
+
+    # Prune stale entries.
+    pruned = 0
+    if prune:
+        pruned = lockfile.prune(refs)
+        if pruned:
+            typer.echo(f"Pruned {pruned} stale entry/entries.")
+
+    # Write lockfile if anything changed.
+    if resolved or pruned:
+        write_lockfile(lockfile, lockfile_full)
+        typer.echo(f"Wrote {lockfile_full}")
+
+    if not to_resolve and not pruned:
+        typer.echo("Lockfile is already up to date.")
+
+    if errors:
+        typer.echo(f"{errors} ref(s) failed to resolve.", err=True)
         raise typer.Exit(1)
 
 

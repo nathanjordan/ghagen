@@ -69,6 +69,10 @@ def check_unpinned_actions(
                 _, ref = uses.rsplit("@", 1)
                 if _is_pinned_ref(ref):
                     continue
+
+                # If the lockfile covers this ref, treat it as pinned.
+                if ctx.lockfile is not None and ctx.lockfile.get(uses) is not None:
+                    continue
             # else: no @ref at all → unpinned
 
             symbolic = (

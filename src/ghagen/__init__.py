@@ -36,6 +36,7 @@ from ghagen.models.trigger import (
     WorkflowDispatchTrigger,
 )
 from ghagen.models.workflow import Workflow
+from ghagen.transforms import SynthContext, Transform
 
 __all__ = [
     "App",
@@ -67,6 +68,9 @@ __all__ = [
     "Severity",
     "SourceLocation",
     "Violation",
+    # Transforms
+    "SynthContext",
+    "Transform",
     # Helpers
     "expr",
     "cache",
