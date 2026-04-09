@@ -20,9 +20,18 @@ jobs:
     - name: Sync
       run: uv sync
     - name: Fetch schema and regenerate
-      run: "uv run python -m ghagen.schema.fetch\nuv run python -m ghagen.schema.codegen"
+      run: |-
+        uv run python -m ghagen.schema.fetch
+        uv run python -m ghagen.schema.codegen
     - name: Check for drift
-      run: "if ! git diff --exit-code src/ghagen/schema/snapshot/; then\n  echo \"::warning::Schema drift detected\"\n  gh issue create \\\n    --title \"GitHub Actions schema drift detected\" \\\n    --body \"$(git diff src/ghagen/schema/snapshot/)\" \\\n    --label schema-drift\nfi"
+      run: |-
+        if ! git diff --exit-code src/ghagen/schema/snapshot/; then
+          echo "::warning::Schema drift detected"
+          gh issue create \
+            --title "GitHub Actions schema drift detected" \
+            --body "$(git diff src/ghagen/schema/snapshot/)" \
+            --label schema-drift
+        fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 10

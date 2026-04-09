@@ -97,7 +97,9 @@ class GhagenModel(BaseModel):
     def _serialize_value(self, value: Any) -> Any:
         """Recursively serialize a value for YAML output."""
         if isinstance(value, Raw):
-            return value.value
+            # Route through unwrap_raw to preserve PlainScalarString wrapping
+            # of Raw[str] values (which bypasses the block-scalar auto-cast).
+            return unwrap_raw(value)
         if isinstance(value, GhagenModel):
             return value.to_commented_map()
         if isinstance(value, CommentedMap):

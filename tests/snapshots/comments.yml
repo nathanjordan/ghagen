@@ -10,13 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    -  # fast Python linter
-      name: Ruff
+    - name: Ruff  # fast Python linter
       run: ruff check .
   test:
     name: Test
     runs-on: ubuntu-latest
-# Wait for lint to pass
+    # Wait for lint to pass
     needs: lint
     steps:
     - uses: actions/checkout@v4
