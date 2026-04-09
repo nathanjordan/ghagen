@@ -96,6 +96,38 @@ Job(runs_on="ubuntu-latest", steps=[...])
 Job(runs_on="ubuntu-latest", timeout_minutes=10, steps=[...])
 ```
 
+### `duplicate-step-ids` (error)
+
+Flags two or more steps within a single job that share the same `id`.
+GitHub Actions requires step ids to be unique within a job; duplicates
+break `steps.<id>.outputs` references because the expression silently
+resolves to just one of the matching steps. Step ids are scoped per-job,
+so the same id in two different jobs is fine.
+
+Severity is `error` (not warning) because this is a correctness bug, not
+a hardening concern — `ghagen lint` exits with code 1 when any
+duplicates are found.
+
+```python
+# Triggers the rule
+Job(
+    runs_on="ubuntu-latest",
+    steps=[
+        Step(id="build", run="make"),
+        Step(id="build", run="make test"),  # duplicate!
+    ],
+)
+
+# Passes
+Job(
+    runs_on="ubuntu-latest",
+    steps=[
+        Step(id="build", run="make"),
+        Step(id="test", run="make test"),
+    ],
+)
+```
+
 ## Configuration
 
 Lint behavior is configured via a TOML file. Two locations are checked,
@@ -168,5 +200,3 @@ The following are intentionally out of scope for v1:
 - **YAML-level linting** — use `actionlint` for that.
 - **User-defined rules** — all rules are built-in. A public rule API may
   come later once the built-in rule shape is proven.
-- **`duplicate-step-ids`** and **`mutable-defaults`** — planned for a
-  follow-up release.
