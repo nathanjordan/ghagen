@@ -28,7 +28,12 @@ runs:
     with:
       python-version: ${{ inputs.python-version }}
   - name: Install ghagen
-    run: "if [ -n \"${{ inputs.source }}\" ]; then\n  pip install \"${{ inputs.source }}\"\nelse\n  pip install ghagen${{ inputs.ghagen-version != '' && format('=={0}', inputs.ghagen-version) || '' }}\nfi"
+    run: |-
+      if [ -n "${{ inputs.source }}" ]; then
+        pip install "${{ inputs.source }}"
+      else
+        pip install ghagen${{ inputs.ghagen-version != '' && format('=={0}', inputs.ghagen-version) || '' }}
+      fi
     shell: bash
   - name: Check workflows
     run: ghagen check --config "${{ inputs.config }}"

@@ -149,6 +149,38 @@ def test_comments(snapshot: Snapshot):
     snapshot.assert_match(wf.to_yaml(include_header=False), "comments.yml")
 
 
+def test_multiline_run(snapshot: Snapshot):
+    """Multi-line run commands render as YAML literal block scalars."""
+    snapshot.snapshot_dir = SNAPSHOT_DIR
+
+    wf = Workflow(
+        name="Multiline",
+        on=On(push=PushTrigger(branches=["main"])),
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                steps=[
+                    Step(uses="actions/checkout@v4"),
+                    Step(
+                        name="Tests",
+                        run="python -m pytest\ncoverage report\n",
+                    ),
+                    Step(
+                        name="Inline",
+                        run="echo single-line",
+                    ),
+                    Step(
+                        name="Strip",
+                        run="echo one\necho two",
+                    ),
+                ],
+            ),
+        },
+    )
+
+    snapshot.assert_match(wf.to_yaml(include_header=False), "multiline_run.yml")
+
+
 def test_escape_hatches(snapshot: Snapshot):
     """All four escape hatches in one workflow snapshot."""
     snapshot.snapshot_dir = SNAPSHOT_DIR

@@ -6,6 +6,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
+from ruamel.yaml.scalarstring import PlainScalarString, ScalarString
 
 T = TypeVar("T")
 
@@ -47,6 +48,7 @@ class Raw(Generic[T]):
             serialization=core_schema.plain_serializer_function_ser_schema(
                 cls._serialize,
                 info_arg=False,
+                return_schema=core_schema.any_schema(),
             ),
         )
 
@@ -58,4 +60,7 @@ class Raw(Generic[T]):
 
     @staticmethod
     def _serialize(value: Raw[Any]) -> Any:
-        return value.value
+        inner = value.value
+        if isinstance(inner, str) and not isinstance(inner, ScalarString):
+            return PlainScalarString(inner)
+        return inner
