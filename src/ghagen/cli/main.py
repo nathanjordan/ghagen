@@ -480,6 +480,10 @@ def outdated(
     user_files = track_user_files(_tracked_load)
     ghagen_app = ghagen_app_holder[0]
 
+    # _load_app uses exec_module which doesn't register in sys.modules,
+    # so track_user_files won't see the config file itself. Add it explicitly.
+    user_files.add(config_path.resolve())
+
     # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
     gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not gh_token:

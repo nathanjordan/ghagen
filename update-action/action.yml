@@ -67,17 +67,14 @@ runs:
     run: |
       set -euo pipefail
 
-      OUTDATED_JSON=$(ghagen outdated --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" 2>&1 || true)
+      JSON_FILE=$(mktemp)
+      ghagen outdated --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
 
-      # Check if there are any updates
-      VERSION_BUMPS=$(echo "$OUTDATED_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('version_bumps',[])))")
-      LOCKFILE_STALE=$(echo "$OUTDATED_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('lockfile_stale',[])))")
-      HELPER_PROVIDED=$(echo "$OUTDATED_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('helper_provided',[])))")
+      VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
+      LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
+      HELPER_PROVIDED=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('helper_provided',[])))")
 
-      echo "outdated_json<<GHAGEN_EOF" >> "$GITHUB_OUTPUT"
-      echo "$OUTDATED_JSON" >> "$GITHUB_OUTPUT"
-      echo "GHAGEN_EOF" >> "$GITHUB_OUTPUT"
-
+      echo "json_file=$JSON_FILE" >> "$GITHUB_OUTPUT"
       echo "version_bumps=$VERSION_BUMPS" >> "$GITHUB_OUTPUT"
       echo "lockfile_stale=$LOCKFILE_STALE" >> "$GITHUB_OUTPUT"
       echo "helper_provided=$HELPER_PROVIDED" >> "$GITHUB_OUTPUT"
@@ -107,11 +104,14 @@ runs:
 
       BRANCH="${{ inputs.branch-prefix }}$(date +%Y%m%d)"
       PREFIX="${{ inputs.commit-message-prefix }}"
-      LABEL_ARGS=""
+
+      # Build label args as an array to avoid eval
+      LABEL_ARGS=()
       if [ -n "${{ inputs.labels }}" ]; then
         IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
         for label in "${LABELS[@]}"; do
-          LABEL_ARGS="$LABEL_ARGS --label $(echo "$label" | xargs)"
+          trimmed=$(echo "$label" | xargs)
+          LABEL_ARGS+=(--label "$trimmed")
         done
       fi
 
@@ -143,65 +143,53 @@ runs:
       fi
 
       # Build commit message
-      COMMIT_MSG="${PREFIX}update ghagen action dependencies"
+      COMMIT_MSG="update ghagen action dependencies"
       if [ -n "$PREFIX" ]; then
-        COMMIT_MSG="${PREFIX} update ghagen action dependencies"
+        COMMIT_MSG="${PREFIX} ${COMMIT_MSG}"
       fi
 
       git add -A
       git commit -m "$COMMIT_MSG"
       git push -u origin "$BRANCH"
 
-      # Build PR body
-      PR_BODY=$(cat <<'BODY_EOF'
-      ## ghagen dependency update
+      # Build PR body via Python to a temp file (avoids shell quoting issues)
+      BODY_FILE=$(mktemp)
+      JSON_FILE="${{ steps.detect.outputs.json_file }}"
+      python3 -c "
+import json, sys
+d = json.load(open('$JSON_FILE'))
+lines = ['## ghagen dependency update', '']
 
-      BODY_EOF
-      )
+bumps = d.get('version_bumps', [])
+if bumps:
+    lines.append('### Version bumps')
+    lines.append('')
+    for b in bumps:
+        lines.append(f'- \`{b[\"uses\"]}\` -> \`{b[\"latest\"]}\` [{b[\"severity\"]}]')
+    lines.append('')
 
-      # Add version bump details
-      if [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-        BUMP_DETAILS=$(echo '${{ steps.detect.outputs.outdated_json }}' | python3 -c "
-      import sys, json
-      d = json.load(sys.stdin)
-      for b in d.get('version_bumps', []):
-          print(f\"- \`{b['uses']}\` → \`{b['latest']}\` [{b['severity']}]\")
-      ")
-        PR_BODY="$PR_BODY
+stale = d.get('lockfile_stale', [])
+if stale:
+    lines.append('### Lockfile maintenance')
+    lines.append('')
+    for s in stale:
+        lines.append(f'- \`{s[\"uses\"]}\` SHA refreshed')
+    lines.append('')
 
-      ### Version bumps
-      $BUMP_DETAILS"
-      fi
+helpers = d.get('helper_provided', [])
+if helpers:
+    lines.append('### Helper-provided actions (requires ghagen upgrade)')
+    lines.append('')
+    for h in helpers:
+        lines.append(f'- \`{h[\"uses\"]}\` -> \`{h[\"latest\"]}\` (upgrade ghagen to get this)')
+    lines.append('')
 
-      # Add lockfile stale details
-      if [ "${{ steps.detect.outputs.lockfile_stale }}" != "0" ]; then
-        STALE_DETAILS=$(echo '${{ steps.detect.outputs.outdated_json }}' | python3 -c "
-      import sys, json
-      d = json.load(sys.stdin)
-      for s in d.get('lockfile_stale', []):
-          print(f\"- \`{s['uses']}\` SHA refreshed\")
-      ")
-        PR_BODY="$PR_BODY
+with open('$BODY_FILE', 'w') as f:
+    f.write('\n'.join(lines))
+"
 
-      ### Lockfile maintenance
-      $STALE_DETAILS"
-      fi
-
-      # Add helper-provided info
-      if [ "${{ steps.detect.outputs.helper_provided }}" != "0" ]; then
-        HELPER_DETAILS=$(echo '${{ steps.detect.outputs.outdated_json }}' | python3 -c "
-      import sys, json
-      d = json.load(sys.stdin)
-      for h in d.get('helper_provided', []):
-          print(f\"- \`{h['uses']}\` → \`{h['latest']}\` (upgrade ghagen to get this)\")
-      ")
-        PR_BODY="$PR_BODY
-
-      ### Helper-provided actions (requires ghagen upgrade)
-      $HELPER_DETAILS"
-      fi
-
-      eval gh pr create --title "\"${COMMIT_MSG}\"" --body "\"${PR_BODY}\"" $LABEL_ARGS
+      gh pr create --title "$COMMIT_MSG" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+      rm -f "$BODY_FILE"
     shell: bash
 
   - name: Create issue
@@ -212,50 +200,66 @@ runs:
       set -euo pipefail
 
       TITLE="ghagen dependency updates available ($(date +%Y-%m-%d))"
-      LABEL_ARGS=""
+
+      # Build label args as an array
+      LABEL_ARGS=()
       if [ -n "${{ inputs.labels }}" ]; then
         IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
         for label in "${LABELS[@]}"; do
-          LABEL_ARGS="$LABEL_ARGS --label $(echo "$label" | xargs)"
+          trimmed=$(echo "$label" | xargs)
+          LABEL_ARGS+=(--label "$trimmed")
         done
       fi
 
       # Check if issue already exists
-      EXISTING=$(gh issue list --search "\"$TITLE\" in:title" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+      EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
       if [ -n "$EXISTING" ]; then
         echo "Issue #$EXISTING already exists. Skipping."
         exit 0
       fi
 
-      BODY=$(echo '${{ steps.detect.outputs.outdated_json }}' | python3 -c "
-      import sys, json
-      d = json.load(sys.stdin)
-      parts = []
+      # Build issue body via Python to a temp file
+      BODY_FILE=$(mktemp)
+      JSON_FILE="${{ steps.detect.outputs.json_file }}"
+      python3 -c "
+import json
+d = json.load(open('$JSON_FILE'))
+lines = []
 
-      bumps = d.get('version_bumps', [])
-      if bumps:
-          parts.append('## Version updates available\n')
-          for b in bumps:
-              files = ', '.join(f'\`{f}\`' for f in b.get('source_files', []))
-              parts.append(f\"- [ ] \`{b['uses']}\` → \`{b['latest']}\` [{b['severity']}]  \")
-              if files:
-                  parts.append(f\"  in {files}\")
+bumps = d.get('version_bumps', [])
+if bumps:
+    lines.append('## Version updates available')
+    lines.append('')
+    for b in bumps:
+        files = ', '.join(f'\`{f}\`' for f in b.get('source_files', []))
+        line = f'- [ ] \`{b[\"uses\"]}\` -> \`{b[\"latest\"]}\` [{b[\"severity\"]}]'
+        if files:
+            line += f'  in {files}'
+        lines.append(line)
+    lines.append('')
 
-      stale = d.get('lockfile_stale', [])
-      if stale:
-          parts.append('\n## Stale lockfile entries\n')
-          parts.append('Run \`ghagen pin --update\` to refresh.\n')
-          for s in stale:
-              parts.append(f\"- [ ] \`{s['uses']}\` — SHA changed\")
+stale = d.get('lockfile_stale', [])
+if stale:
+    lines.append('## Stale lockfile entries')
+    lines.append('')
+    lines.append('Run \`ghagen pin --update\` to refresh.')
+    lines.append('')
+    for s in stale:
+        lines.append(f'- [ ] \`{s[\"uses\"]}\` — SHA changed')
+    lines.append('')
 
-      helpers = d.get('helper_provided', [])
-      if helpers:
-          parts.append('\n## Helper-provided actions (requires ghagen upgrade)\n')
-          for h in helpers:
-              parts.append(f\"- \`{h['uses']}\` → \`{h['latest']}\` [{h['severity']}]\")
+helpers = d.get('helper_provided', [])
+if helpers:
+    lines.append('## Helper-provided actions (requires ghagen upgrade)')
+    lines.append('')
+    for h in helpers:
+        lines.append(f'- \`{h[\"uses\"]}\` -> \`{h[\"latest\"]}\` [{h[\"severity\"]}]')
+    lines.append('')
 
-      print('\n'.join(parts))
-      ")
+with open('$BODY_FILE', 'w') as f:
+    f.write('\n'.join(lines))
+"
 
-      eval gh issue create --title "\"$TITLE\"" --body "\"$BODY\"" $LABEL_ARGS
+      gh issue create --title "$TITLE" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+      rm -f "$BODY_FILE"
     shell: bash

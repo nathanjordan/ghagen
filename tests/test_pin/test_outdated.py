@@ -264,6 +264,26 @@ class TestOutdatedApply:
         assert "actions/setup-python@v6" in config_content
 
 
+_HELPER_CONFIG = """\
+from ghagen import App, Job, On, PushTrigger, Workflow
+from ghagen.helpers.steps import checkout, setup_python
+
+app = App()
+ci = Workflow(
+    name="CI",
+    on=On(push=PushTrigger(branches=["main"])),
+    jobs={"test": Job(
+        runs_on="ubuntu-latest",
+        steps=[
+            checkout(),
+            setup_python("3.13"),
+        ],
+    )},
+)
+app.add_workflow(ci, "ci.yml")
+"""
+
+
 class TestOutdatedHelperRefs:
     """Tests for helper-provided refs reported separately."""
 
@@ -274,16 +294,14 @@ class TestOutdatedHelperRefs:
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
 
-        # Config where all refs come from helper (track_user_files returns empty)
-        _setup_project(tmp_path)
+        # Config that uses helpers — the uses strings live in ghagen source,
+        # not in the config file, so they should be classified as helper refs.
+        config_path = tmp_path / "ghagen_config.py"
+        config_path.write_text(_HELPER_CONFIG)
 
-        with patch(
-            "ghagen.pin.sources.track_user_files",
-            side_effect=lambda loader: (loader(), set())[1],
-        ):
-            result = runner.invoke(
-                app, ["outdated", "--mode", "versions", "--json"]
-            )
+        result = runner.invoke(
+            app, ["outdated", "--mode", "versions", "--json"]
+        )
 
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -298,15 +316,13 @@ class TestOutdatedHelperRefs:
     ):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
-        _setup_project(tmp_path)
 
-        with patch(
-            "ghagen.pin.sources.track_user_files",
-            side_effect=lambda loader: (loader(), set())[1],
-        ):
-            result = runner.invoke(
-                app, ["outdated", "--mode", "versions"]
-            )
+        config_path = tmp_path / "ghagen_config.py"
+        config_path.write_text(_HELPER_CONFIG)
+
+        result = runner.invoke(
+            app, ["outdated", "--mode", "versions"]
+        )
 
         assert result.exit_code == 0, result.output
         assert "Helper-provided action updates" in result.output
