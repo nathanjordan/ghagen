@@ -56,6 +56,11 @@ def _ci_workflow() -> Workflow:
                         name="ghagen lint",
                         run="uv run ghagen lint --format=github",
                     ),
+                    Step(
+                        name="ghagen pin --check",
+                        run="uv run ghagen pin --check --prune",
+                        env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
+                    ),
                 ],
             ),
             "typecheck": Job(

@@ -14,7 +14,7 @@ jobs:
     steps:
     - id: release
       name: Release Please
-      uses: googleapis/release-please-action@v4
+      uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38  # v4
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -31,13 +31,13 @@ jobs:
       name: release
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       with:
         fetch-depth: 1
     - name: Set up uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a  # v4
     - name: Build
       run: uv build
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
     timeout-minutes: 10
