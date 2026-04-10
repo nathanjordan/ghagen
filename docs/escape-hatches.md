@@ -7,18 +7,19 @@ ghagen's typed models cover the most common GitHub Actions features, but the Git
 `Raw[T]` wraps a value to bypass validation on a single field. The value is emitted as-is into the YAML output. Use this when a field has a constrained type (e.g., a `Literal` or `Enum`) but you need to pass an expression or a value outside the allowed set.
 
 ```python
-from ghagen import Step, Job
-from ghagen.models.raw import Raw
+from ghagen import Job, Raw, Step
 
-# Use an expression where a literal string is expected
+# Use an expression where a literal runner label is expected
 Job(runs_on=Raw("${{ matrix.os }}"))
 
-# Use a custom shell not in the predefined set
+# Use a custom shell that isn't in the predefined set
 Step(name="Custom shell", run="echo hello", shell=Raw("custom-shell"))
-
-# Pass a dynamic value
-Step(uses=Raw("actions/checkout@${{ inputs.checkout-version }}"))
 ```
+
+`Step.uses`, `Step.run`, and other plain-`str` fields don't need `Raw` — you
+can put a `${{ ... }}` expression directly in the string. Reach for `Raw`
+only when a field has a constrained type (like `shell`'s predefined set or
+`runs_on`'s runner labels).
 
 `Raw[T]` is the lightest escape hatch. It preserves type safety on all other fields and only bypasses the constraint on the specific field you wrap.
 
@@ -46,14 +47,14 @@ timeout-minutes: 30
 continue-on-error: true
 ```
 
-`extras` keys are added after the model's own fields. Values can be any type that ruamel.yaml can serialize -- strings, numbers, booleans, lists, or nested dicts.
+`extras` keys are added after the model's own fields. Values can be any YAML-serializable type -- strings, numbers, booleans, lists, or nested dicts.
 
-## 3. post_process -- Modify the CommentedMap
+## 3. post_process -- Hook into emission
 
-The `post_process` callback receives the model's `CommentedMap` representation just before it is emitted. You can mutate it freely -- add keys, remove keys, reorder entries, or modify values.
+Set `post_process` to a callback that runs just before the model is written out. It receives the underlying YAML node (a ruamel.yaml `CommentedMap`, which behaves like a dict) and can freely add keys, remove keys, reorder entries, or modify values.
 
 ```python
-from ghagen import Workflow
+from ghagen import On, PushTrigger, Workflow
 
 def add_annotation(cm):
     cm["x-generated-by"] = "ghagen"
@@ -66,7 +67,7 @@ Workflow(
 )
 ```
 
-`post_process` is powerful because you have full access to the intermediate representation. Use it for conditional logic, complex mutations, or anything that doesn't fit the declarative model:
+Use `post_process` for conditional logic, complex mutations, or anything that doesn't fit the declarative model:
 
 ```python
 import os
@@ -80,12 +81,14 @@ def add_debug_step(cm):
 Workflow(..., post_process=add_debug_step)
 ```
 
-## 4. CommentedMap passthrough -- Raw YAML structure
+## 4. Raw YAML passthrough
 
-For maximum flexibility, you can pass a `CommentedMap` directly anywhere a model is expected. This bypasses the type system entirely and gives you full control over the YAML structure.
+For maximum flexibility, you can build a raw YAML node (a ruamel.yaml `CommentedMap`, which acts like an ordered dict) and pass it anywhere a typed model is expected. This bypasses the type system entirely and gives you full control over the YAML structure.
 
 ```python
 from ruamel.yaml.comments import CommentedMap
+
+from ghagen import Job, On, PushTrigger, Step, Workflow
 
 cm_job = CommentedMap()
 cm_job["runs-on"] = "ubuntu-latest"
@@ -104,7 +107,7 @@ Workflow(
 )
 ```
 
-You can mix typed models and raw `CommentedMap` objects in the same workflow. The typed models are converted to `CommentedMap` during synthesis, so they coexist seamlessly.
+Typed models and raw YAML nodes can be mixed freely in the same workflow — use typed models where they fit and drop down to a `CommentedMap` only for the sections that need escape.
 
 ## When to use which
 
@@ -114,7 +117,7 @@ Use this decision guide to pick the right escape hatch:
 |---|---|
 | A field rejects your value (expression, custom enum) | `Raw[T]` |
 | You need a YAML key that has no corresponding model field | `extras` |
-| You need conditional logic or complex mutations at synthesis time | `post_process` |
-| You need full control over a section of YAML | CommentedMap passthrough |
+| You need conditional logic or complex mutations at emission time | `post_process` |
+| You need full control over a section of YAML | Raw YAML passthrough |
 
 **Start with `Raw[T]`** and escalate only if it doesn't solve your problem. The lighter the escape hatch, the more type safety and IDE support you retain.

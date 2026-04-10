@@ -16,8 +16,7 @@ pip install ghagen
 ## Example
 
 ```python
-from ghagen import Workflow, Job, Step, On, App
-from ghagen.models.trigger import PushTrigger, PRTrigger
+from ghagen import App, Job, On, PRTrigger, PushTrigger, Step, Workflow
 
 workflow = Workflow(
     name="CI",
@@ -36,8 +35,8 @@ workflow = Workflow(
     },
 )
 
-app = App(outdir=".github/workflows")
-app.add(workflow, filename="ci.yml")
+app = App()
+app.add_workflow(workflow, "ci.yml")
 app.synth()
 ```
 

@@ -1,10 +1,9 @@
 # Linting
 
 `ghagen lint` runs rule-based checks against your workflow definitions
-**at the Python model level**, before YAML is emitted. Because ghagen owns
-the intermediate representation, violations point straight at the line in
+**at the Python source level**. Violations point at the exact line in
 your `ghagen_workflows.py` that constructed the offending model — not a
-line number in a generated file.
+line number in a generated file — so you can jump straight to the fix.
 
 This is complementary to tools like
 [actionlint](https://github.com/rhysd/actionlint), which lints the

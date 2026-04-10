@@ -74,13 +74,14 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Concepts: concepts.md
+  - Cookbook: cookbook.md
   - Guides:
       - DRY Patterns: dry-patterns.md
       - Escape Hatches: escape-hatches.md
       - Comments: comments.md
       - Linting: linting.md
   - CLI Reference: cli.md
+  - FAQ: faq.md
   - API Reference:
       - Workflow: api/workflow.md
       - Job: api/job.md

@@ -1,6 +1,6 @@
 # Comments
 
-ghagen propagates comments through the entire generation pipeline so they appear in the final YAML output. This is useful for documenting intent, explaining non-obvious configuration, and adding context for anyone reading the generated files.
+You can attach comments to any model in Python and they appear in the generated YAML. This is useful for documenting intent, explaining non-obvious configuration, and adding context for anyone reading the generated files.
 
 ## Comment types
 
@@ -149,4 +149,4 @@ To skip the header entirely on a single `to_yaml()` call, pass `include_header=F
 
 ## Known limitations
 
-**EOL comments on map sequence items**: When a step (or other map item in a sequence) has an `eol_comment`, it renders on a separate line rather than truly at the end of the first line. This is due to how ruamel.yaml handles comments on mapping nodes within sequences. The comment still appears in the output and is associated with the correct node, but its visual placement is slightly different from a true end-of-line comment.
+**EOL comments on steps (and other mapping items inside sequences)**: When a step has an `eol_comment`, it renders on its own line above the step rather than at the end of the first line. The comment is still attached to the right node and appears in the output — only its visual placement differs from a true end-of-line comment.

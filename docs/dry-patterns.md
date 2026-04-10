@@ -7,14 +7,14 @@ ghagen definitions are plain Python, so standard techniques for reducing duplica
 ghagen ships with factory functions for frequently used GitHub Actions. Each returns a `Step` instance and accepts `**kwargs` that are passed through to the `Step` constructor, so you can add `if` conditions, environment variables, or any other field.
 
 ```python
-from ghagen.steps import (
-    checkout,
-    setup_python,
-    setup_node,
-    setup_uv,
+from ghagen import (
     cache,
-    upload_artifact,
+    checkout,
     download_artifact,
+    setup_node,
+    setup_python,
+    setup_uv,
+    upload_artifact,
 )
 ```
 
@@ -23,8 +23,8 @@ from ghagen.steps import (
 ```python
 steps = [
     checkout(),
-    setup_python(python_version="3.12"),
-    cache(path="~/.cache/pip", key="pip-${{ hashFiles('requirements.txt') }}"),
+    setup_python(version="3.12"),
+    cache(key="pip-${{ hashFiles('requirements.txt') }}", path="~/.cache/pip"),
     Step(name="Install deps", run="pip install -r requirements.txt"),
     Step(name="Test", run="pytest"),
     upload_artifact(name="coverage", path="htmlcov/"),
@@ -37,7 +37,7 @@ Since factories forward `**kwargs` to `Step`, you can add any supported field:
 
 ```python
 checkout(name="Checkout with submodules", with_={"submodules": "recursive"})
-setup_python(python_version="3.12", if_="github.event_name == 'push'")
+setup_python(version="3.12", if_="github.event_name == 'push'")
 ```
 
 ## Job template functions
@@ -45,8 +45,7 @@ setup_python(python_version="3.12", if_="github.event_name == 'push'")
 Define a function that returns a `Job` to create reusable job templates:
 
 ```python
-from ghagen import Job, Step
-from ghagen.steps import checkout
+from ghagen import Job, Step, checkout
 
 def lint_job(tool: str, cmd: str) -> Job:
     return Job(
@@ -128,16 +127,16 @@ You are not limited to a single file. Split workflow definitions across modules 
 
 ```python
 # .github/ghagen_workflows.py
-from ghagen.app import App
+from ghagen import App
 from .ci import ci_workflow
 from .deploy import deploy_workflow
 from .release import release_workflow
 
-app = App(outdir=".github/workflows")
+app = App()
 
-app.add(ci_workflow, filename="ci.yml")
-app.add(deploy_workflow, filename="deploy.yml")
-app.add(release_workflow, filename="release.yml")
+app.add_workflow(ci_workflow, "ci.yml")
+app.add_workflow(deploy_workflow, "deploy.yml")
+app.add_workflow(release_workflow, "release.yml")
 ```
 
 Each module defines and exports its own `Workflow` object. This keeps individual files focused and easy to navigate, while the top-level file serves as the manifest of all generated workflows.
@@ -146,14 +145,14 @@ You can also share helper functions, step lists, and job templates across module
 
 ```python
 # .github/common.py
-from ghagen.steps import checkout, setup_python
+from ghagen import Step, checkout, setup_python
 
 RUNNER = "ubuntu-latest"
 
 def python_setup_steps(version: str = "3.12"):
     return [
         checkout(),
-        setup_python(python_version=version),
+        setup_python(version=version),
         Step(name="Install deps", run="pip install -e '.[dev]'"),
     ]
 ```
