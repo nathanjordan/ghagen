@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json as json_mod
 import os
 import sys
 import tomllib
@@ -427,3 +428,276 @@ app.add_workflow(ci, "ci.yml")
 
     typer.echo(f"Created {config_path}")
     typer.echo("Run `ghagen synth` to generate workflow YAML files.")
+
+
+@app.command()
+def outdated(
+    config: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file"
+    ),
+    json: bool = typer.Option(
+        False, "--json", help="Output in machine-readable JSON format"
+    ),
+    mode: str = typer.Option(
+        "all",
+        "--mode",
+        help="Detection mode: 'versions', 'lockfile', or 'all' (default)",
+    ),
+    apply: bool = typer.Option(
+        False, "--apply", help="Apply version bump changes to source files"
+    ),
+    token: str | None = typer.Option(
+        None, "--token", help="GitHub token (default: $GITHUB_TOKEN)"
+    ),
+) -> None:
+    """Check for outdated action references and stale lockfile entries."""
+    from ghagen.pin.collect import collect_uses_refs
+    from ghagen.pin.lockfile import read_lockfile
+    from ghagen.pin.resolve import ResolveError, list_tags, parse_uses, resolve_ref
+    from ghagen.pin.sources import classify_refs, locate_uses_refs, track_user_files
+    from ghagen.pin.update import apply_updates
+    from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
+
+    if mode not in ("versions", "lockfile", "all"):
+        typer.echo(
+            f"Error: unknown --mode value '{mode}' "
+            "(valid: versions, lockfile, all)",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    config_path = _find_config(config)
+
+    # Track user files during app loading (needs the import side-effects).
+    user_files: set[Path] = set()
+    ghagen_app_holder: list[App] = []
+
+    def _tracked_load() -> App:
+        loaded = _load_app(config_path)
+        ghagen_app_holder.append(loaded)
+        return loaded
+
+    user_files = track_user_files(_tracked_load)
+    ghagen_app = ghagen_app_holder[0]
+
+    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
+    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not gh_token:
+        typer.echo(
+            "warning: no GitHub token found. Using unauthenticated requests "
+            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
+            err=True,
+        )
+
+    # Collect all uses: refs from the app.
+    refs = collect_uses_refs(ghagen_app)
+
+    if not refs:
+        if json:
+            typer.echo(
+                json_mod.dumps(
+                    {"version_bumps": [], "lockfile_stale": [], "helper_provided": []},
+                    indent=2,
+                )
+            )
+        else:
+            typer.echo("Everything is up to date.")
+        raise typer.Exit(0)
+
+    # Classify refs into user-controlled vs helper-provided.
+    ref_locations = locate_uses_refs(refs, user_files)
+    user_refs, helper_refs = classify_refs(refs, ref_locations)
+
+    # --- Version bump detection ---
+    version_bumps: list[dict] = []
+    helper_provided: list[dict] = []
+
+    check_versions = mode in ("versions", "all")
+    check_lockfile = mode in ("lockfile", "all")
+
+    if check_versions:
+        # Group refs by owner/repo for efficient API calls.
+        repo_refs: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        for uses in sorted(refs):
+            try:
+                parsed = parse_uses(uses)
+            except ValueError:
+                continue
+            key = (parsed.owner, parsed.repo)
+            repo_refs.setdefault(key, []).append((uses, parsed.ref))
+
+        # Fetch tags per repo and check for updates.
+        repo_tags_cache: dict[tuple[str, str], list[str]] = {}
+        for (owner, repo), uses_list in sorted(repo_refs.items()):
+            if (owner, repo) not in repo_tags_cache:
+                try:
+                    tags = list_tags(owner, repo, token=gh_token)
+                except ResolveError as exc:
+                    typer.echo(
+                        f"warning: failed to list tags for {owner}/{repo}: {exc}",
+                        err=True,
+                    )
+                    continue
+                repo_tags_cache[(owner, repo)] = tags
+
+            tags = repo_tags_cache[(owner, repo)]
+
+            for uses, current_ref in uses_list:
+                latest_tag = find_latest_tag(current_ref, tags)
+                if latest_tag is None:
+                    continue  # up to date or non-semver
+
+                current_ver = parse_tag(current_ref)
+                latest_ver = parse_tag(latest_tag)
+                if current_ver is None or latest_ver is None:
+                    continue
+
+                severity = classify_bump(current_ver, latest_ver)
+
+                if uses in user_refs:
+                    version_bumps.append(
+                        {
+                            "uses": uses,
+                            "current": current_ref,
+                            "latest": latest_tag,
+                            "severity": severity,
+                            "origin": "user",
+                            "source_files": [
+                                str(p) for p in user_refs[uses]
+                            ],
+                        }
+                    )
+                elif uses in helper_refs:
+                    helper_provided.append(
+                        {
+                            "uses": uses,
+                            "current": current_ref,
+                            "latest": latest_tag,
+                            "severity": severity,
+                            "helper": "ghagen built-in",
+                        }
+                    )
+
+    # --- Lockfile staleness detection ---
+    lockfile_stale: list[dict] = []
+
+    if check_lockfile and ghagen_app.lockfile_path is not None:
+        lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
+        lockfile = read_lockfile(lockfile_full)
+
+        for uses in sorted(refs):
+            entry = lockfile.get(uses)
+            if entry is None:
+                continue  # not pinned
+
+            try:
+                parsed = parse_uses(uses)
+            except ValueError:
+                continue
+
+            try:
+                current_sha = resolve_ref(
+                    parsed.owner, parsed.repo, parsed.ref, token=gh_token
+                )
+            except ResolveError as exc:
+                typer.echo(
+                    f"warning: failed to resolve {uses}: {exc}",
+                    err=True,
+                )
+                continue
+
+            if current_sha != entry.sha:
+                origin = "user" if uses in user_refs else "helper"
+                stale_entry: dict = {
+                    "uses": uses,
+                    "current_sha": entry.sha,
+                    "latest_sha": current_sha,
+                    "origin": origin,
+                }
+                if uses in user_refs:
+                    stale_entry["source_files"] = [
+                        str(p) for p in user_refs[uses]
+                    ]
+                lockfile_stale.append(stale_entry)
+
+    # --- Apply updates if requested ---
+    if apply and version_bumps:
+        updates = {
+            bump["uses"]: bump["uses"].rsplit("@", 1)[0] + "@" + bump["latest"]
+            for bump in version_bumps
+        }
+        changed_files = apply_updates(updates, ref_locations)
+        if changed_files:
+            typer.echo("Applied version bumps:")
+            for f in changed_files:
+                typer.echo(f"  modified {f}")
+
+    # --- Output ---
+    if not version_bumps and not lockfile_stale and not helper_provided:
+        if json:
+            typer.echo(
+                json_mod.dumps(
+                    {"version_bumps": [], "lockfile_stale": [], "helper_provided": []},
+                    indent=2,
+                )
+            )
+        else:
+            typer.echo("Everything is up to date.")
+        raise typer.Exit(0)
+
+    if json:
+        result: dict = {}
+        if check_versions:
+            result["version_bumps"] = version_bumps
+        if check_lockfile:
+            result["lockfile_stale"] = lockfile_stale
+        if check_versions:
+            result["helper_provided"] = helper_provided
+        typer.echo(json_mod.dumps(result, indent=2))
+    else:
+        _print_human_report(version_bumps, lockfile_stale, helper_provided)
+
+
+def _print_human_report(
+    version_bumps: list[dict],
+    lockfile_stale: list[dict],
+    helper_provided: list[dict],
+) -> None:
+    """Print a human-readable outdated report."""
+    if version_bumps:
+        typer.echo("Version updates available:")
+        typer.echo("")
+        for bump in version_bumps:
+            severity_tag = f"[{bump['severity']}]"
+            typer.echo(
+                f"  {bump['uses']}  →  {bump['latest']}  {severity_tag}"
+            )
+            for src in bump.get("source_files", []):
+                typer.echo(f"    in {src}")
+        typer.echo("")
+
+    if lockfile_stale:
+        typer.echo("Stale lockfile entries:")
+        typer.echo("")
+        for entry in lockfile_stale:
+            typer.echo(
+                f"  {entry['uses']}"
+            )
+            typer.echo(
+                f"    current SHA: {entry['current_sha'][:12]}..."
+            )
+            typer.echo(
+                f"    latest SHA:  {entry['latest_sha'][:12]}..."
+            )
+        typer.echo("")
+
+    if helper_provided:
+        typer.echo("Helper-provided action updates:")
+        typer.echo("")
+        for hp in helper_provided:
+            severity_tag = f"[{hp['severity']}]"
+            typer.echo(
+                f"  {hp['uses']}  →  {hp['latest']}  {severity_tag}"
+            )
+            typer.echo(f"    provided by: {hp['helper']}")
+        typer.echo("")
