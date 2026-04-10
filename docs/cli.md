@@ -18,12 +18,25 @@ ghagen synth
 
 ### Config file resolution
 
-If `--config` is not specified, ghagen searches for config files in this order:
+If `--config` is not specified, ghagen locates the workflow file in this order:
 
-1. `.github/ghagen_workflows.py`
-2. `ghagen_config.py`
+1. The top-level `entrypoint` key in `.github/ghagen.toml`, if present
+2. `.github/ghagen_workflows.py`
+3. `ghagen_config.py`
 
-Within the config file, ghagen looks for:
+The `entrypoint` value is a path (relative paths resolve against the
+directory containing `ghagen.toml`, not the current working directory). Use
+this when your workflow file lives outside the two default locations:
+
+```toml
+# .github/ghagen.toml
+entrypoint = "../scripts/workflows.py"
+
+[lint]
+# existing lint config continues to live here
+```
+
+Within the workflow file, ghagen looks for:
 
 1. A `create_app()` function that returns an `App` instance
 2. An `app` variable that is an `App` instance

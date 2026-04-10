@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import sys
+import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -32,6 +33,50 @@ CONFIG_SEARCH_PATHS = [
     "ghagen_config.py",
 ]
 
+GHAGEN_TOML_PATH = Path(".github/ghagen.toml")
+
+
+def _entrypoint_from_ghagen_toml(cwd: Path) -> Path | None:
+    """Return the configured entrypoint path, or ``None`` if not set.
+
+    Reads ``.github/ghagen.toml`` (relative to *cwd*), extracts the
+    top-level ``entrypoint`` key, and resolves it relative to the toml
+    file's directory. Returns ``None`` if the file or key is absent.
+    Raises ``typer.Exit(1)`` on malformed TOML, a wrong-type value, or
+    a resolved path that does not exist.
+    """
+    ghagen_toml = cwd / GHAGEN_TOML_PATH
+    if not ghagen_toml.is_file():
+        return None
+
+    try:
+        with ghagen_toml.open("rb") as f:
+            data = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        typer.echo(f"Error: {ghagen_toml}: failed to parse TOML: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    raw = data.get("entrypoint")
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        typer.echo(
+            f"Error: {ghagen_toml}: 'entrypoint' must be a string, "
+            f"got {type(raw).__name__}",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    resolved = (ghagen_toml.parent / raw).resolve()
+    if not resolved.is_file():
+        typer.echo(
+            f"Error: {ghagen_toml}: entrypoint '{raw}' does not exist "
+            f"(resolved to {resolved})",
+            err=True,
+        )
+        raise typer.Exit(1)
+    return resolved
+
 
 def _find_config(config: str | None) -> Path:
     """Locate the workflow config file."""
@@ -42,6 +87,10 @@ def _find_config(config: str | None) -> Path:
             raise typer.Exit(1)
         return path
 
+    from_toml = _entrypoint_from_ghagen_toml(Path.cwd())
+    if from_toml is not None:
+        return from_toml
+
     for candidate in CONFIG_SEARCH_PATHS:
         path = Path(candidate)
         if path.exists():
@@ -50,7 +99,9 @@ def _find_config(config: str | None) -> Path:
     typer.echo(
         "Error: no config file found. Searched:\n"
         + "\n".join(f"  - {p}" for p in CONFIG_SEARCH_PATHS)
-        + "\n\nUse --config to specify a path, or run `ghagen init` to create one.",
+        + f"\n  - {GHAGEN_TOML_PATH} (top-level 'entrypoint' key)\n"
+        "\nUse --config to specify a path, set 'entrypoint' in "
+        f"{GHAGEN_TOML_PATH}, or run `ghagen init` to create one.",
         err=True,
     )
     raise typer.Exit(1)
