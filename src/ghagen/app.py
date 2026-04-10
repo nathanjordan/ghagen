@@ -5,6 +5,8 @@ from __future__ import annotations
 import difflib
 from pathlib import Path
 
+import ghagen._dedent as _dedent_mod
+from ghagen.config import load_options
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
 from ghagen.transforms import SynthContext, Transform
@@ -66,6 +68,10 @@ class App:
         self.lockfile_path = Path(lockfile) if lockfile is not None else None
         self._items: list[tuple[_Item, Path]] = []
         self._transforms: list[Transform] = list(transforms or [])
+
+        # Apply project-level options (e.g. auto_dedent) from ghagen.toml.
+        options = load_options(self.root)
+        _dedent_mod.auto_dedent = options.auto_dedent
 
     def add(self, item: _Item, path: str | Path) -> None:
         """Register an item at an explicit path relative to ``root``.

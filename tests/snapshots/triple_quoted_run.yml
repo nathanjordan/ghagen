@@ -1,0 +1,20 @@
+name: Multiline
+on:
+  push:
+    branches:
+    - main
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Tests
+      run: |-
+        python -m pytest
+        coverage report
+    - name: Inline
+      run: echo single-line
+    - name: Strip
+      run: |-
+        echo one
+        echo two

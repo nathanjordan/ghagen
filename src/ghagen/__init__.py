@@ -1,5 +1,6 @@
 """ghagen — Generate GitHub Actions workflow YAML from Python code."""
 
+from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
 from ghagen.helpers.expressions import expr
@@ -41,6 +42,7 @@ from ghagen.transforms import SynthContext, Transform
 __all__ = [
     "App",
     "Raw",
+    "dedent",
     "ExpressionStr",
     "Action",
     "ActionInput",

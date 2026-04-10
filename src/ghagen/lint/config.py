@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ghagen._toml import load_toml as _load_toml
 from ghagen.lint.violation import Severity
 
 
@@ -59,14 +59,6 @@ def _parse_disable(raw: Any, source: str) -> set[str]:
                 f"got {type(item).__name__}"
             )
     return set(raw)
-
-
-def _load_toml(path: Path) -> dict[str, Any]:
-    try:
-        with path.open("rb") as f:
-            return tomllib.load(f)
-    except tomllib.TOMLDecodeError as exc:
-        raise ValueError(f"{path}: failed to parse TOML: {exc}") from exc
 
 
 def _extract_from_ghagen_toml(path: Path) -> LintConfig:

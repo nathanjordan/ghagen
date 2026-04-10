@@ -1,5 +1,6 @@
 """Tests for the Step model."""
 
+import ghagen._dedent as _dedent_mod
 from ghagen import Raw, Step
 from ghagen.models.common import ShellType
 
@@ -96,3 +97,70 @@ def test_step_post_process():
     step = Step(uses="actions/checkout@v4", post_process=add_key)
     cm = step.to_commented_map()
     assert cm["injected"] == "value"
+
+
+# --- Auto-dedent tests ---
+
+
+def test_run_auto_dedent_triple_quoted():
+    step = Step(
+        run="""
+            echo hello
+            echo world
+        """
+    )
+    assert step.run == "echo hello\necho world"
+
+
+def test_run_auto_dedent_preserves_relative_indent():
+    step = Step(
+        run="""
+            if [ -f config ]; then
+                source config
+            fi
+        """
+    )
+    assert step.run == "if [ -f config ]; then\n    source config\nfi"
+
+
+def test_run_auto_dedent_single_line_noop():
+    step = Step(run="pytest")
+    assert step.run == "pytest"
+
+
+def test_run_auto_dedent_newline_concat_noop():
+    step = Step(run="echo hello\necho world")
+    assert step.run == "echo hello\necho world"
+
+
+def test_run_none():
+    step = Step(uses="actions/checkout@v4")
+    assert step.run is None
+
+
+def test_run_auto_dedent_disabled():
+    original = _dedent_mod.auto_dedent
+    try:
+        _dedent_mod.auto_dedent = False
+        step = Step(
+            run="""
+                echo hello
+            """
+        )
+        # With auto_dedent disabled, the raw string passes through.
+        assert "                echo hello" in step.run
+    finally:
+        _dedent_mod.auto_dedent = original
+
+
+def test_run_auto_dedent_to_commented_map():
+    """End-to-end: triple-quoted run through to CommentedMap."""
+    step = Step(
+        name="Build",
+        run="""
+            echo building
+            make all
+        """,
+    )
+    cm = step.to_commented_map()
+    assert cm["run"] == "echo building\nmake all"

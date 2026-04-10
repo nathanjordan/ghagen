@@ -390,3 +390,45 @@ def test_node_action_snapshot(snapshot: Snapshot):
     )
 
     snapshot.assert_match(action.to_yaml(include_header=False), "node_action.yml")
+
+
+def test_triple_quoted_run(snapshot: Snapshot):
+    """Triple-quoted run strings produce identical YAML to \\n-concatenated style."""
+    snapshot.snapshot_dir = SNAPSHOT_DIR
+
+    wf = Workflow(
+        name="Multiline",
+        on=On(push=PushTrigger(branches=["main"])),
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                steps=[
+                    Step(uses="actions/checkout@v4"),
+                    Step(
+                        name="Tests",
+                        run="""
+                            python -m pytest
+                            coverage report
+                        """,
+                    ),
+                    Step(
+                        name="Inline",
+                        run="echo single-line",
+                    ),
+                    Step(
+                        name="Strip",
+                        run="""
+                            echo one
+                            echo two
+                        """,
+                    ),
+                ],
+            ),
+        },
+    )
+
+    # Similar to multiline_run.yml but uses |- (strip) instead of | (clip)
+    # because dedent_script strips the artifact trailing \n from triple quotes.
+    snapshot.assert_match(
+        wf.to_yaml(include_header=False), "triple_quoted_run.yml"
+    )

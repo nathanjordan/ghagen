@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import Field
+from pydantic import BeforeValidator, Field
 from ruamel.yaml.comments import CommentedMap
 
+import ghagen._dedent as _dedent_mod
+from ghagen._dedent import dedent_script
 from ghagen._raw import Raw
 from ghagen.emitter.key_order import STEP_KEY_ORDER
 from ghagen.models._base import GhagenModel
 from ghagen.models.common import ShellType
+
+
+def _maybe_dedent_run(v: Any) -> Any:
+    """Auto-dedent ``run`` strings when :data:`ghagen._dedent.auto_dedent` is enabled."""
+    if isinstance(v, str) and _dedent_mod.auto_dedent:
+        return dedent_script(v)
+    return v
 
 
 class Step(GhagenModel):
@@ -28,7 +37,7 @@ class Step(GhagenModel):
         "to true for this step to run.",
     )
     uses: str | None = None
-    run: str | None = None
+    run: Annotated[str, BeforeValidator(_maybe_dedent_run)] | None = None
     with_: dict[str, Any] | CommentedMap | None = Field(
         None,
         serialization_alias="with",

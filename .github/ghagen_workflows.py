@@ -143,22 +143,22 @@ def _schema_drift_workflow() -> Workflow:
                     Step(name="Sync", run="uv sync"),
                     Step(
                         name="Fetch schema and regenerate",
-                        run=(
-                            "uv run python -m ghagen.schema.fetch\n"
-                            "uv run python -m ghagen.schema.codegen"
-                        ),
+                        run="""
+                            uv run python -m ghagen.schema.fetch
+                            uv run python -m ghagen.schema.codegen
+                        """,
                     ),
                     Step(
                         name="Check for drift",
-                        run=(
-                            'if ! git diff --exit-code src/ghagen/schema/snapshot/; then\n'
-                            '  echo "::warning::Schema drift detected"\n'
-                            '  gh issue create \\\n'
-                            '    --title "GitHub Actions schema drift detected" \\\n'
-                            '    --body "$(git diff src/ghagen/schema/snapshot/)" \\\n'
-                            '    --label schema-drift\n'
-                            'fi'
-                        ),
+                        run="""
+                            if ! git diff --exit-code src/ghagen/schema/snapshot/; then
+                              echo "::warning::Schema drift detected"
+                              gh issue create \\
+                                --title "GitHub Actions schema drift detected" \\
+                                --body "$(git diff src/ghagen/schema/snapshot/)" \\
+                                --label schema-drift
+                            fi
+                        """,
                         env={"GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
                     ),
                 ],
@@ -251,65 +251,64 @@ def _release_workflow() -> Workflow:
                     "GH_TOKEN": "${{ secrets.HOMEBREW_TAP_TOKEN }}",
                     "TAG": "${{ needs.release-please.outputs.tag_name }}",
                 },
-                run=(
-                    "# Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1\n"
-                    'VERSION="${TAG#ghagen-v}"\n'
-                    'VERSION="${VERSION#v}"\n'
-                    "export VERSION\n"
-                    "\n"
-                    "# Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.\n"
-                    "# re.M + `^  ` (2-space indent) targets top-level url/sha256 only,\n"
-                    "# never the 4-space-indented fields inside `resource` blocks.\n"
-                    "python3 - <<'PY'\n"
-                    "import json, os, pathlib, re, urllib.request\n"
-                    'version = os.environ["VERSION"]\n'
-                    'meta = json.loads(\n'
-                    '    urllib.request.urlopen(\n'
-                    '        f"https://pypi.org/pypi/ghagen/{version}/json"\n'
-                    "    ).read()\n"
-                    ")\n"
-                    'sdist = next(f for f in meta["urls"] if f["packagetype"] == "sdist")\n'
-                    'formula = pathlib.Path("Formula/ghagen.rb")\n'
-                    "text = formula.read_text()\n"
-                    "text = re.sub(\n"
-                    '    r\'^  url "[^"]*"\',\n'
-                    "    f'  url \"{sdist[\"url\"]}\"',\n"
-                    "    text,\n"
-                    "    count=1,\n"
-                    "    flags=re.M,\n"
-                    ")\n"
-                    "text = re.sub(\n"
-                    '    r\'^  sha256 "[^"]*"\',\n'
-                    "    f'  sha256 \"{sdist[\"digests\"][\"sha256\"]}\"',\n"
-                    "    text,\n"
-                    "    count=1,\n"
-                    "    flags=re.M,\n"
-                    ")\n"
-                    "formula.write_text(text)\n"
-                    "PY\n"
-                    "\n"
-                    "# Stop if the formula didn't actually change (e.g. re-run of same release).\n"
-                    "if git diff --quiet Formula/ghagen.rb; then\n"
-                    '  echo "Formula/ghagen.rb already matches ${VERSION}, nothing to do."\n'
-                    "  exit 0\n"
-                    "fi\n"
-                    "\n"
-                    '# Commit, push to a branch, open PR via gh.\n'
-                    'git config user.name "github-actions[bot]"\n'
-                    "git config user.email "
-                    '"41898282+github-actions[bot]@users.noreply.github.com"\n'
-                    'BRANCH="bump-ghagen-${VERSION}"\n'
-                    'git checkout -b "$BRANCH"\n'
-                    "git add Formula/ghagen.rb\n"
-                    'git commit -m "ghagen ${VERSION}"\n'
-                    'git push origin "$BRANCH"\n'
-                    "gh pr create \\\n"
-                    "  --repo nathanjordan/homebrew-tap \\\n"
-                    '  --title "ghagen ${VERSION}" \\\n'
-                    '  --body "Automated bump by the ghagen release workflow." \\\n'
-                    '  --head "$BRANCH" \\\n'
-                    "  --base main"
-                ),
+                run="""
+                    # Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1
+                    VERSION="${TAG#ghagen-v}"
+                    VERSION="${VERSION#v}"
+                    export VERSION
+
+                    # Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.
+                    # re.M + `^  ` (2-space indent) targets top-level url/sha256 only,
+                    # never the 4-space-indented fields inside `resource` blocks.
+                    python3 - <<'PY'
+                    import json, os, pathlib, re, urllib.request
+                    version = os.environ["VERSION"]
+                    meta = json.loads(
+                        urllib.request.urlopen(
+                            f"https://pypi.org/pypi/ghagen/{version}/json"
+                        ).read()
+                    )
+                    sdist = next(f for f in meta["urls"] if f["packagetype"] == "sdist")
+                    formula = pathlib.Path("Formula/ghagen.rb")
+                    text = formula.read_text()
+                    text = re.sub(
+                        r'^  url "[^"]*"',
+                        f'  url "{sdist["url"]}"',
+                        text,
+                        count=1,
+                        flags=re.M,
+                    )
+                    text = re.sub(
+                        r'^  sha256 "[^"]*"',
+                        f'  sha256 "{sdist["digests"]["sha256"]}"',
+                        text,
+                        count=1,
+                        flags=re.M,
+                    )
+                    formula.write_text(text)
+                    PY
+
+                    # Stop if the formula didn't actually change (e.g. re-run of same release).
+                    if git diff --quiet Formula/ghagen.rb; then
+                      echo "Formula/ghagen.rb already matches ${VERSION}, nothing to do."
+                      exit 0
+                    fi
+
+                    # Commit, push to a branch, open PR via gh.
+                    git config user.name "github-actions[bot]"
+                    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                    BRANCH="bump-ghagen-${VERSION}"
+                    git checkout -b "$BRANCH"
+                    git add Formula/ghagen.rb
+                    git commit -m "ghagen ${VERSION}"
+                    git push origin "$BRANCH"
+                    gh pr create \\
+                      --repo nathanjordan/homebrew-tap \\
+                      --title "ghagen ${VERSION}" \\
+                      --body "Automated bump by the ghagen release workflow." \\
+                      --head "$BRANCH" \\
+                      --base main
+                """,
             ),
         ],
     )
@@ -353,12 +352,10 @@ def _docs_workflow() -> Workflow:
                     ),
                     Step(
                         name="Configure Git",
-                        run=(
-                            "git config user.name github-actions[bot]\n"
-                            "git config user.email "
-                            "41898282+github-actions[bot]"
-                            "@users.noreply.github.com"
-                        ),
+                        run="""
+                            git config user.name github-actions[bot]
+                            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+                        """,
                     ),
                     Step(
                         name="Deploy docs",
@@ -416,14 +413,13 @@ def _ghagen_check_action() -> Action:
                 ),
                 Step(
                     name="Install ghagen",
-                    run=(
-                        'if [ -n "${{ inputs.source }}" ]; then\n'
-                        '  pip install "${{ inputs.source }}"\n'
-                        "else\n"
-                        "  pip install ghagen${{ inputs.ghagen-version != ''"
-                        " && format('=={0}', inputs.ghagen-version) || '' }}\n"
-                        "fi"
-                    ),
+                    run="""
+                        if [ -n "${{ inputs.source }}" ]; then
+                          pip install "${{ inputs.source }}"
+                        else
+                          pip install ghagen${{ inputs.ghagen-version != '' && format('=={0}', inputs.ghagen-version) || '' }}
+                        fi
+                    """,
                     shell="bash",
                 ),
                 Step(

@@ -272,6 +272,83 @@ release = Job(
 `uses` on a `Job` is the reusable-workflow shorthand; such a job has no
 `steps` of its own and inherits its runner from the callee.
 
+## Multiline scripts
+
+`Step.run` auto-dedents triple-quoted strings, so you can write inline scripts
+with natural Python indentation:
+
+```python
+from ghagen import Step
+
+Step(
+    name="Build and test",
+    run="""
+        echo "Building..."
+        make build
+        echo "Testing..."
+        make test
+    """,
+)
+```
+
+The common leading whitespace from Python indentation is automatically removed.
+Relative indentation within the script is preserved:
+
+```python
+Step(
+    name="Deploy if ready",
+    run="""
+        if [ "$READY" = "true" ]; then
+            ./deploy.sh
+        else
+            echo "Not ready"
+        fi
+    """,
+)
+```
+
+For shell line continuations, use `\\` (double backslash) since `\` at end-of-line
+is a Python line continuation:
+
+```python
+Step(
+    name="Create PR",
+    run="""
+        gh pr create \\
+          --title "My PR" \\
+          --body "Automated PR"
+    """,
+)
+```
+
+For `github-script` and other actions that take script content via `with_`,
+use the `dedent` helper:
+
+```python
+from ghagen import Step, dedent
+
+Step(
+    uses="actions/github-script@v7",
+    with_={"script": dedent("""
+        const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: 'Automated issue',
+        });
+        console.log(`Created #${issue.data.number}`);
+    """)},
+)
+```
+
+Auto-dedent is enabled by default. To disable it project-wide, set
+`auto_dedent = false` in your config:
+
+```toml
+# .github/ghagen.toml
+[options]
+auto_dedent = false
+```
+
 ## Conditional jobs and steps
 
 `if_` (Python-safe alias for `if`) works on both `Job` and `Step`.
