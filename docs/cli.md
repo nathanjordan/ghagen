@@ -1,6 +1,6 @@
 # CLI Reference
 
-ghagen provides four commands: `synth`, `check`, `lint`, and `init`. All commands are invoked through the `ghagen` CLI, which is built with Typer.
+ghagen provides five commands: `synth`, `check`, `lint`, `pin`, and `init`. All commands are invoked through the `ghagen` CLI, which is built with Typer.
 
 ## ghagen synth
 
@@ -132,6 +132,51 @@ ghagen lint --list-rules
 # Disable specific rules
 ghagen lint --disable missing-timeout --disable unpinned-actions
 ```
+
+## ghagen pin
+
+Pin every `uses:` reference in your workflows to an exact commit SHA, recorded
+in `.github/ghagen.lock.toml`. When a lockfile is present, `ghagen synth`
+automatically rewrites `uses:` entries to the pinned SHA on emission, so your
+generated YAML is reproducible without hand-editing.
+
+```bash
+ghagen pin           # Resolve any refs missing from the lockfile
+ghagen pin --update  # Re-resolve every entry to the latest SHA
+ghagen pin --check   # Fail if the lockfile is out of sync (CI-friendly)
+ghagen pin --prune   # Drop lockfile entries no longer referenced
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
+| `--update` | Re-resolve every entry to its current SHA, not just the missing ones. |
+| `--check` | Verify the lockfile is in sync with the current code; exit 1 if stale. No network calls. |
+| `--prune` | Remove lockfile entries that are no longer referenced by any workflow. |
+| `--token TOKEN` | GitHub token used to resolve refs. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. Unauthenticated requests are limited to 60/hour. |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Lockfile is in sync (or was updated successfully) |
+| `1`  | Lockfile is stale (`--check`) or one or more refs failed to resolve |
+
+### CI usage
+
+Run `ghagen pin --check --prune` in CI to catch PRs that introduce a new
+`uses:` without updating the lockfile:
+
+```python
+Step(
+    name="ghagen pin --check",
+    run="ghagen pin --check --prune",
+)
+```
+
+`--check` does not make network calls, so it doesn't need a GitHub token.
 
 ## ghagen init
 

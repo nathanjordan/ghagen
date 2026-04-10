@@ -27,11 +27,9 @@ This creates `.github/ghagen_workflows.py` with a minimal CI workflow:
 ```python
 """GitHub Actions workflow definitions."""
 
-from ghagen import Workflow, Job, Step, On
-from ghagen.app import App
-from ghagen.models.trigger import PushTrigger, PRTrigger
+from ghagen import App, Job, On, PRTrigger, PushTrigger, Step, Workflow
 
-app = App(outdir=".github/workflows")
+app = App()
 
 ci = Workflow(
     name="CI",
@@ -50,48 +48,55 @@ ci = Workflow(
     },
 )
 
-app.add(ci, filename="ci.yml")
+app.add_workflow(ci, "ci.yml")
 ```
+
+`App()` defaults to the current directory as the repository root, and `add_workflow` writes to `.github/workflows/<filename>` relative to it.
 
 ## 3. Customize
 
 Edit the scaffold to match your project. Here are a few common modifications.
-
-### Add a matrix strategy
-
-```python
-from ghagen import Strategy, Matrix
-
-Job(
-    runs_on="ubuntu-latest",
-    strategy=Strategy(
-        matrix=Matrix(
-            include_extra={"python-version": ["3.11", "3.12", "3.13"]},
-        ),
-    ),
-    steps=[
-        checkout(),
-        setup_python(python_version="${{ matrix.python-version }}"),
-        Step(name="Test", run="pytest"),
-    ],
-)
-```
 
 ### Use step helpers
 
 ghagen provides factory functions for common actions so you don't have to remember exact action versions or input names:
 
 ```python
-from ghagen.steps import checkout, setup_python, setup_node, cache
+from ghagen import Step, cache, checkout, setup_python
 
 steps = [
     checkout(),
-    setup_python(python_version="3.12"),
-    cache(path="~/.cache/pip", key="pip-${{ hashFiles('requirements.txt') }}"),
+    setup_python(version="3.12"),
+    cache(
+        key="pip-${{ hashFiles('requirements.txt') }}",
+        path="~/.cache/pip",
+    ),
     Step(name="Install", run="pip install -r requirements.txt"),
     Step(name="Test", run="pytest"),
 ]
 ```
+
+### Add a matrix strategy
+
+```python
+from ghagen import Job, Matrix, Step, Strategy, checkout, setup_python
+
+Job(
+    runs_on="ubuntu-latest",
+    strategy=Strategy(
+        matrix=Matrix(
+            extras={"python-version": ["3.11", "3.12", "3.13"]},
+        ),
+    ),
+    steps=[
+        checkout(),
+        setup_python(version="${{ matrix.python-version }}"),
+        Step(name="Test", run="pytest"),
+    ],
+)
+```
+
+`Matrix.extras` holds the dynamic dimensions (anything that isn't `include` or `exclude`). See the [Cookbook](cookbook.md) for more matrix recipes.
 
 ## 4. Synthesize
 
@@ -101,7 +106,7 @@ Generate the YAML files:
 ghagen synth
 ```
 
-This reads your Python definitions and writes the corresponding YAML to `.github/workflows/`. The generated files include a header comment indicating they were produced by ghagen.
+This reads your Python definitions and writes the corresponding YAML to `.github/workflows/`. Each generated file starts with a header comment indicating it was produced by ghagen.
 
 ## 5. Keep in sync
 
@@ -114,11 +119,13 @@ ghagen check
 `ghagen check` exits with code 1 if any generated file differs from what the current definitions would produce. Add it to your CI workflow:
 
 ```python
+from ghagen import Job, Step, checkout, setup_python
+
 Job(
     runs_on="ubuntu-latest",
     steps=[
         checkout(),
-        setup_python(python_version="3.12"),
+        setup_python(version="3.12"),
         Step(name="Install ghagen", run="pip install ghagen"),
         Step(name="Check workflows", run="ghagen check"),
     ],
@@ -127,8 +134,10 @@ Job(
 
 ## 6. Next steps
 
-- [Concepts](concepts.md) -- Architecture and design principles
+- [Cookbook](cookbook.md) -- Recipes for matrix builds, caching, secrets, reusable workflows, and more
 - [DRY Patterns](dry-patterns.md) -- Reuse techniques for workflows, jobs, and steps
 - [Escape Hatches](escape-hatches.md) -- Handle anything the typed models don't cover
 - [Comments](comments.md) -- Add comments to your generated YAML
+- [Linting](linting.md) -- Catch common mistakes in your Python definitions
 - [CLI Reference](cli.md) -- Full command documentation
+- [FAQ](faq.md) -- Common questions

@@ -23,8 +23,7 @@ Get type safety, IDE autocomplete, DRY patterns, and version-controlled workflow
 Define your workflow in Python:
 
 ```python
-from ghagen import Workflow, Job, Step, On, App
-from ghagen.models.trigger import PushTrigger, PRTrigger
+from ghagen import App, Job, On, PRTrigger, PushTrigger, Step, Workflow
 
 workflow = Workflow(
     name="CI",
@@ -43,8 +42,8 @@ workflow = Workflow(
     },
 )
 
-app = App(outdir=".github/workflows")
-app.add(workflow, filename="ci.yml")
+app = App()
+app.add_workflow(workflow, "ci.yml")
 app.synth()
 ```
 
@@ -74,11 +73,13 @@ jobs:
 - **IDE autocomplete** and type checking for every field
 - **YAML comment support** — block, end-of-line, and field-level comments
 - **DRY helpers** — step factories (`checkout()`, `setup_python()`, etc.) and expression builder (`expr`)
-- **Escape hatches** — `Raw[T]`, `extras`, `post_process`, and `CommentedMap` passthrough for edge cases
-- **CLI** — `ghagen synth` to generate, `ghagen check` to verify freshness in CI
+- **Escape hatches** — graduated ways to inject arbitrary YAML when the typed models don't cover what you need
+- **Linting** — `ghagen lint` flags missing permissions, unpinned actions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model
+- **CLI** — `ghagen synth` to generate, `ghagen check` to verify freshness in CI, `ghagen pin` to lock actions to commit SHAs
 
 ## Next Steps
 
 - [Getting Started](getting-started.md) — step-by-step tutorial
-- [Concepts](concepts.md) — architecture overview
+- [Cookbook](cookbook.md) — recipes for common workflow patterns
+- [FAQ](faq.md) — quick answers to common questions
 - [API Reference](api/workflow.md) — full model documentation
