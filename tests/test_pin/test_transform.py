@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from ghagen.models.action import Action, CompositeRuns, DockerRuns
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -23,6 +24,10 @@ SAMPLE_TIME = datetime(2026, 4, 9, tzinfo=UTC)
 
 def _ctx() -> SynthContext:
     return SynthContext(workflow_key="ci", item_type="workflow", root=Path("."))
+
+
+def _action_ctx() -> SynthContext:
+    return SynthContext(workflow_key="action", item_type="action", root=Path("."))
 
 
 def _lockfile(**pins: str) -> Lockfile:
@@ -153,3 +158,62 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf, _ctx())
         assert result.jobs["build"].steps[0].run == "echo hello"
+
+
+class TestPinTransformAction:
+    """PinTransform should pin Step.uses inside composite actions too."""
+
+    def test_pins_composite_action_step_uses(self):
+        lf = _lockfile(**{"actions/setup-python@v5": SHA_SETUP_PY})
+        action = Action(
+            name="greet",
+            description="say hi",
+            runs=CompositeRuns(
+                steps=[
+                    Step(
+                        uses="actions/setup-python@v5",
+                        with_={"python-version": "3.13"},
+                    ),
+                    Step(run="echo hi", shell="bash"),
+                ],
+            ),
+        )
+        transform = PinTransform(lf)
+        result = transform(action, _action_ctx())
+        assert isinstance(result, Action)
+        assert isinstance(result.runs, CompositeRuns)
+        step = result.runs.steps[0]
+        assert isinstance(step, Step)
+        assert step.uses == f"actions/setup-python@{SHA_SETUP_PY}"
+        assert step.field_eol_comments.get("uses") == "v5"
+        # Run step is untouched.
+        run_step = result.runs.steps[1]
+        assert isinstance(run_step, Step)
+        assert run_step.run == "echo hi"
+
+    def test_composite_action_missing_entry_raises(self):
+        lf = _lockfile()
+        action = Action(
+            name="greet",
+            description="say hi",
+            runs=CompositeRuns(
+                steps=[Step(uses="actions/setup-python@v5")],
+            ),
+        )
+        transform = PinTransform(lf)
+        with pytest.raises(PinError, match="No lockfile entry"):
+            transform(action, _action_ctx())
+
+    def test_docker_action_is_passthrough(self):
+        """DockerRuns has no pinnable refs; transform must leave it alone."""
+        lf = _lockfile()
+        action = Action(
+            name="docker-action",
+            description="runs in a container",
+            runs=DockerRuns(image="docker://alpine:3"),
+        )
+        transform = PinTransform(lf)
+        result = transform(action, _action_ctx())
+        assert isinstance(result, Action)
+        assert isinstance(result.runs, DockerRuns)
+        assert result.runs.image == "docker://alpine:3"

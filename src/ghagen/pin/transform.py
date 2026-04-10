@@ -7,16 +7,12 @@ comment via ``field_eol_comments``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from ghagen.models._base import GhagenModel
+from ghagen.models.action import Action, CompositeRuns
 from ghagen.models.step import Step
 from ghagen.models.workflow import Workflow
 from ghagen.pin.lockfile import Lockfile
 from ghagen.transforms import SynthContext
-
-if TYPE_CHECKING:
-    from ghagen.models.action import Action
 
 
 class PinError(Exception):
@@ -38,6 +34,8 @@ class PinTransform:
     ) -> Workflow | Action:
         if isinstance(item, Workflow):
             self._pin_workflow(item)
+        elif isinstance(item, Action) and isinstance(item.runs, CompositeRuns):
+            self._pin_steps(item.runs.steps)
         return item
 
     def _pin_workflow(self, wf: Workflow) -> None:
@@ -53,14 +51,17 @@ class PinTransform:
                     job.uses = pinned  # type: ignore[assignment]
 
             # Step.uses — action references
-            steps = getattr(job, "steps", None) or []
-            for step in steps:
-                if not isinstance(step, Step):
-                    continue
-                if step.uses:
-                    pinned = self._pin_uses(step.uses, model=step)
-                    if pinned is not None:
-                        step.uses = pinned
+            self._pin_steps(getattr(job, "steps", None) or [])
+
+    def _pin_steps(self, steps: list[object]) -> None:
+        """Rewrite ``step.uses`` to its pinned SHA for each :class:`Step`."""
+        for step in steps:
+            if not isinstance(step, Step):
+                continue
+            if step.uses:
+                pinned = self._pin_uses(step.uses, model=step)
+                if pinned is not None:
+                    step.uses = pinned
 
     def _pin_uses(
         self, uses: str, model: GhagenModel | None = None

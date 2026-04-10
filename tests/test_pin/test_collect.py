@@ -5,6 +5,7 @@ from __future__ import annotations
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen.app import App
+from ghagen.models.action import Action, CompositeRuns, DockerRuns, NodeRuns
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -141,3 +142,97 @@ class TestCollectUsesRefs:
         )
         refs = collect_uses_refs(_make_app(wf))
         assert refs == set()
+
+
+class TestCollectFromActions:
+    """Composite action steps should be collected just like workflow steps."""
+
+    def test_composite_action_steps_collected(self):
+        action = Action(
+            name="greet",
+            description="say hi",
+            runs=CompositeRuns(
+                steps=[
+                    Step(uses="actions/setup-python@v5"),
+                    Step(uses="actions/checkout@v4"),
+                    Step(run="echo hi", shell="bash"),
+                ],
+            ),
+        )
+        app = App(lockfile=None)
+        app.add_action(action)
+        refs = collect_uses_refs(app)
+        assert refs == {
+            "actions/setup-python@v5",
+            "actions/checkout@v4",
+        }
+
+    def test_composite_action_skips_local_and_docker(self):
+        action = Action(
+            name="greet",
+            description="say hi",
+            runs=CompositeRuns(
+                steps=[
+                    Step(uses="./local-step"),
+                    Step(uses="docker://alpine:3"),
+                ],
+            ),
+        )
+        app = App(lockfile=None)
+        app.add_action(action)
+        refs = collect_uses_refs(app)
+        assert refs == set()
+
+    def test_docker_action_runs_not_scanned(self):
+        """DockerRuns has no pinnable refs — ``image`` is a docker:// URL."""
+        action = Action(
+            name="docker-action",
+            description="runs in a container",
+            runs=DockerRuns(image="docker://alpine:3"),
+        )
+        app = App(lockfile=None)
+        app.add_action(action)
+        refs = collect_uses_refs(app)
+        assert refs == set()
+
+    def test_node_action_runs_not_scanned(self):
+        """NodeRuns has no pinnable refs — ``main`` is a JS entrypoint path."""
+        action = Action(
+            name="node-action",
+            description="runs node",
+            runs=NodeRuns(using="node20", main="dist/index.js"),
+        )
+        app = App(lockfile=None)
+        app.add_action(action)
+        refs = collect_uses_refs(app)
+        assert refs == set()
+
+    def test_workflow_and_action_refs_merge(self):
+        """Refs from workflows and actions deduplicate into one set."""
+        wf = Workflow(
+            on=On(push=PushTrigger()),
+            jobs={
+                "build": Job(
+                    runs_on="ubuntu-latest",
+                    steps=[Step(uses="actions/checkout@v4")],
+                )
+            },
+        )
+        action = Action(
+            name="a",
+            description="d",
+            runs=CompositeRuns(
+                steps=[
+                    Step(uses="actions/checkout@v4"),  # duplicate
+                    Step(uses="actions/setup-python@v5"),
+                ],
+            ),
+        )
+        app = App(lockfile=None)
+        app.add_workflow(wf, "ci.yml")
+        app.add_action(action)
+        refs = collect_uses_refs(app)
+        assert refs == {
+            "actions/checkout@v4",
+            "actions/setup-python@v5",
+        }
