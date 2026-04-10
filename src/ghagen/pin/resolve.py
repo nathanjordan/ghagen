@@ -8,6 +8,7 @@ dependency.  Supports both lightweight tags and annotated tags
 from __future__ import annotations
 
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -136,6 +137,95 @@ def _dereference_tag(
         f"Tag {tag_sha} in {owner}/{repo} does not point to a commit "
         f"(type={obj.get('type')!r})"
     )
+
+
+def list_tags(
+    owner: str, repo: str, *, token: str | None = None
+) -> list[str]:
+    """List all tags for a repository via the GitHub API.
+
+    Uses paginated ``GET /repos/{owner}/{repo}/git/refs/tags``.
+    Returns tag names with the ``refs/tags/`` prefix stripped.
+
+    Args:
+        owner: Repository owner (e.g. ``"actions"``).
+        repo: Repository name (e.g. ``"checkout"``).
+        token: Optional GitHub personal access token.
+
+    Returns:
+        A list of tag name strings, e.g. ``["v1", "v2.0.0"]``.
+        Returns an empty list if the repo has no tags.
+
+    Raises:
+        ResolveError: On non-404 API errors (e.g. rate limiting).
+    """
+    url: str | None = (
+        f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags"
+    )
+    tags: list[str] = []
+    while url is not None:
+        try:
+            data, next_url = _api_get_page(url, token=token)
+        except _NotFoundError:
+            return []
+        for ref in data:
+            full_ref = ref.get("ref", "")
+            if full_ref.startswith("refs/tags/"):
+                tags.append(full_ref[len("refs/tags/"):])
+        url = next_url
+    return tags
+
+
+def _api_get_page(
+    url: str, *, token: str | None = None
+) -> tuple[list[dict], str | None]:
+    """Fetch one page from the GitHub API and return (data, next_url).
+
+    Returns the parsed JSON body and the URL of the next page (from
+    the ``Link`` header), or ``None`` when there are no more pages.
+    """
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "ghagen-pin",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = urllib.request.Request(url, headers=headers)  # noqa: S310
+    try:
+        with urllib.request.urlopen(req) as resp:  # noqa: S310
+            body = json.loads(resp.read())
+            next_url = _parse_next_link(resp.headers.get("Link"))
+            return body, next_url
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise _NotFoundError from exc
+        if exc.code == 403:
+            _warn_rate_limit(exc)
+        raise ResolveError(
+            f"GitHub API error {exc.code} for {url}: {exc.reason}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise ResolveError(f"Network error reaching GitHub API: {exc}") from exc
+
+
+def _parse_next_link(link_header: str | None) -> str | None:
+    """Extract the ``next`` URL from a GitHub ``Link`` header.
+
+    Example header value::
+
+        <https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next",
+        <https://api.github.com/repos/o/r/git/refs/tags?page=5>; rel="last"
+
+    Returns ``None`` when there is no ``next`` relation.
+    """
+    if not link_header:
+        return None
+    for part in link_header.split(","):
+        match = re.search(r'<([^>]+)>;\s*rel="next"', part)
+        if match:
+            return match.group(1)
+    return None
 
 
 def _warn_rate_limit(exc: urllib.error.HTTPError) -> None:
