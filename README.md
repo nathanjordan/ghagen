@@ -9,8 +9,18 @@ Generate GitHub Actions workflows from Python code.
 
 ## Install
 
+### Homebrew (macOS, Linux)
+
+```bash
+brew install nathanjordan/tap/ghagen
+```
+
+### pip / uv / pipx
+
 ```bash
 pip install ghagen
+uv tool install ghagen
+pipx install ghagen
 ```
 
 ## Example

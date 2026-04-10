@@ -42,3 +42,82 @@ jobs:
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
     timeout-minutes: 10
+  homebrew-bump:
+    name: Bump Homebrew tap
+    runs-on: ubuntu-latest
+    needs:
+    - release-please
+    - publish
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: read
+    steps:
+    - name: Check out nathanjordan/homebrew-tap
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      with:
+        repository: nathanjordan/homebrew-tap
+        token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        path: homebrew-tap
+    - name: Bump ghagen formula and open PR
+      run: |-
+        # Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1
+        VERSION="${TAG#ghagen-v}"
+        VERSION="${VERSION#v}"
+        export VERSION
+
+        # Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.
+        # re.M + `^  ` (2-space indent) targets top-level url/sha256 only,
+        # never the 4-space-indented fields inside `resource` blocks.
+        python3 - <<'PY'
+        import json, os, pathlib, re, urllib.request
+        version = os.environ["VERSION"]
+        meta = json.loads(
+            urllib.request.urlopen(
+                f"https://pypi.org/pypi/ghagen/{version}/json"
+            ).read()
+        )
+        sdist = next(f for f in meta["urls"] if f["packagetype"] == "sdist")
+        formula = pathlib.Path("Formula/ghagen.rb")
+        text = formula.read_text()
+        text = re.sub(
+            r'^  url "[^"]*"',
+            f'  url "{sdist["url"]}"',
+            text,
+            count=1,
+            flags=re.M,
+        )
+        text = re.sub(
+            r'^  sha256 "[^"]*"',
+            f'  sha256 "{sdist["digests"]["sha256"]}"',
+            text,
+            count=1,
+            flags=re.M,
+        )
+        formula.write_text(text)
+        PY
+
+        # Stop if the formula didn't actually change (e.g. re-run of same release).
+        if git diff --quiet Formula/ghagen.rb; then
+          echo "Formula/ghagen.rb already matches ${VERSION}, nothing to do."
+          exit 0
+        fi
+
+        # Commit, push to a branch, open PR via gh.
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        BRANCH="bump-ghagen-${VERSION}"
+        git checkout -b "$BRANCH"
+        git add Formula/ghagen.rb
+        git commit -m "ghagen ${VERSION}"
+        git push origin "$BRANCH"
+        gh pr create \
+          --repo nathanjordan/homebrew-tap \
+          --title "ghagen ${VERSION}" \
+          --body "Automated bump by the ghagen release workflow." \
+          --head "$BRANCH" \
+          --base main
+      env:
+        GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        TAG: ${{ needs.release-please.outputs.tag_name }}
+      working-directory: homebrew-tap
+    timeout-minutes: 10

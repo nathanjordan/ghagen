@@ -212,6 +212,107 @@ def _release_workflow() -> Workflow:
         ],
     )
 
+    # Bump the ghagen formula in nathanjordan/homebrew-tap after PyPI publish.
+    #
+    # Runs inside the Release workflow (not on release:published) because
+    # release-please creates releases via the default GITHUB_TOKEN, and
+    # GITHUB_TOKEN-originated events don't trigger new workflow runs.
+    #
+    # Uses the PinViz approach (nordstad/PinViz/blob/main/.github/workflows/
+    # brew-publish.yml): pull the sdist URL+sha256 from PyPI, regex-rewrite
+    # Formula/ghagen.rb, git push to a branch, open a PR via `gh`. We
+    # deliberately do *not* use `brew bump-formula-pr` or
+    # `dawidd6/action-homebrew-bump-formula` — the former has no working
+    # CI precedent and the latter is documented-broken for virtualenv
+    # formulae. Transitive `resource` stanzas are refreshed manually via
+    # `brew update-python-resources` when runtime deps actually change.
+    homebrew_bump_job = Job(
+        name="Bump Homebrew tap",
+        runs_on="ubuntu-latest",
+        timeout_minutes=10,
+        needs=["release-please", "publish"],
+        if_="needs.release-please.outputs.release_created == 'true'",
+        permissions=Permissions(contents=PermissionLevel.READ),
+        steps=[
+            Step(
+                name="Check out nathanjordan/homebrew-tap",
+                uses="actions/checkout@v4",
+                with_={
+                    "repository": "nathanjordan/homebrew-tap",
+                    "token": "${{ secrets.HOMEBREW_TAP_TOKEN }}",
+                    "path": "homebrew-tap",
+                },
+            ),
+            Step(
+                name="Bump ghagen formula and open PR",
+                working_directory="homebrew-tap",
+                env={
+                    "GH_TOKEN": "${{ secrets.HOMEBREW_TAP_TOKEN }}",
+                    "TAG": "${{ needs.release-please.outputs.tag_name }}",
+                },
+                run=(
+                    "# Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1\n"
+                    'VERSION="${TAG#ghagen-v}"\n'
+                    'VERSION="${VERSION#v}"\n'
+                    "export VERSION\n"
+                    "\n"
+                    "# Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.\n"
+                    "# re.M + `^  ` (2-space indent) targets top-level url/sha256 only,\n"
+                    "# never the 4-space-indented fields inside `resource` blocks.\n"
+                    "python3 - <<'PY'\n"
+                    "import json, os, pathlib, re, urllib.request\n"
+                    'version = os.environ["VERSION"]\n'
+                    'meta = json.loads(\n'
+                    '    urllib.request.urlopen(\n'
+                    '        f"https://pypi.org/pypi/ghagen/{version}/json"\n'
+                    "    ).read()\n"
+                    ")\n"
+                    'sdist = next(f for f in meta["urls"] if f["packagetype"] == "sdist")\n'
+                    'formula = pathlib.Path("Formula/ghagen.rb")\n'
+                    "text = formula.read_text()\n"
+                    "text = re.sub(\n"
+                    '    r\'^  url "[^"]*"\',\n'
+                    "    f'  url \"{sdist[\"url\"]}\"',\n"
+                    "    text,\n"
+                    "    count=1,\n"
+                    "    flags=re.M,\n"
+                    ")\n"
+                    "text = re.sub(\n"
+                    '    r\'^  sha256 "[^"]*"\',\n'
+                    "    f'  sha256 \"{sdist[\"digests\"][\"sha256\"]}\"',\n"
+                    "    text,\n"
+                    "    count=1,\n"
+                    "    flags=re.M,\n"
+                    ")\n"
+                    "formula.write_text(text)\n"
+                    "PY\n"
+                    "\n"
+                    "# Stop if the formula didn't actually change (e.g. re-run of same release).\n"
+                    "if git diff --quiet Formula/ghagen.rb; then\n"
+                    '  echo "Formula/ghagen.rb already matches ${VERSION}, nothing to do."\n'
+                    "  exit 0\n"
+                    "fi\n"
+                    "\n"
+                    '# Commit, push to a branch, open PR via gh.\n'
+                    'git config user.name "github-actions[bot]"\n'
+                    "git config user.email "
+                    '"41898282+github-actions[bot]@users.noreply.github.com"\n'
+                    'BRANCH="bump-ghagen-${VERSION}"\n'
+                    'git checkout -b "$BRANCH"\n'
+                    "git add Formula/ghagen.rb\n"
+                    'git commit -m "ghagen ${VERSION}"\n'
+                    'git push origin "$BRANCH"\n'
+                    "gh pr create \\\n"
+                    "  --repo nathanjordan/homebrew-tap \\\n"
+                    '  --title "ghagen ${VERSION}" \\\n'
+                    '  --body "Automated bump by the ghagen release workflow." \\\n'
+                    '  --head "$BRANCH" \\\n'
+                    "  --base main"
+                ),
+            ),
+        ],
+    )
+
     return Workflow(
         name="Release",
         on=On(
@@ -220,6 +321,7 @@ def _release_workflow() -> Workflow:
         jobs={
             "release-please": release_please_job,
             "publish": publish_job,
+            "homebrew-bump": homebrew_bump_job,
         },
     )
 
