@@ -232,6 +232,7 @@ def _release_workflow() -> Workflow:
         timeout_minutes=10,
         needs=["release-please", "publish"],
         if_="needs.release-please.outputs.release_created == 'true'",
+        environment=Environment(name="release"),
         permissions=Permissions(contents=PermissionLevel.READ),
         steps=[
             Step(

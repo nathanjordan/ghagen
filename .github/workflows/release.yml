@@ -51,6 +51,8 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: read
+    environment:
+      name: release
     steps:
     - name: Check out nathanjordan/homebrew-tap
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
