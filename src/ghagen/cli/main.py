@@ -251,15 +251,6 @@ def pin(
 
     lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
 
-    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
-    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not gh_token:
-        typer.echo(
-            "warning: no GitHub token found. Using unauthenticated requests "
-            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
-            err=True,
-        )
-
     # Collect all uses: refs from the app.
     refs = collect_uses_refs(ghagen_app)
 
@@ -268,6 +259,7 @@ def pin(
 
     if check_mode:
         # --check: verify lockfile covers all refs and nothing is stale.
+        # No network calls here, so no token is required.
         missing = refs - set(lockfile.pins)
         extra = set(lockfile.pins) - refs if prune else set()
         if missing or extra:
@@ -282,6 +274,16 @@ def pin(
             raise typer.Exit(1)
         typer.echo("Lockfile is in sync.")
         raise typer.Exit(0)
+
+    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN. Only the resolve path
+    # below needs a token; --check returned above.
+    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not gh_token:
+        typer.echo(
+            "warning: no GitHub token found. Using unauthenticated requests "
+            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
+            err=True,
+        )
 
     # Determine which refs need resolution.
     to_resolve = refs if update else refs - set(lockfile.pins)
