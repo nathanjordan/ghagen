@@ -36,19 +36,24 @@ class App:
         self,
         root: str | Path = ".",
         header: str | None = None,
-        source: str | None = None,
         lockfile: str | Path | None = ".github/ghagen.lock.toml",
         transforms: list[Transform] | None = None,
     ) -> None:
         """Initialize the App.
 
         Args:
-            root: Repository root directory. All registered paths are
-                resolved relative to this. Defaults to the current
-                working directory.
-            header: Custom header comment for generated files.
-                If ``None``, uses the default ghagen header.
-            source: Source file path to include in the header comment.
+            root: Repository root directory. All registered output
+                paths and the lockfile are resolved relative to this.
+                Defaults to the current working directory. Note that
+                ``{source_file}`` in the header is resolved separately,
+                via the nearest ancestor directory containing
+                ``.github/ghagen.toml``.
+            header: Custom header comment template for generated files.
+                If ``None``, uses ghagen's default template. May include
+                ``{variable}`` placeholders; see
+                :data:`ghagen.emitter.header.HEADER_VARIABLES` for the
+                full list (``source_file``, ``source_line``, ``tool``,
+                ``version``). Escape literal braces as ``{{`` / ``}}``.
             lockfile: Path to the pin lockfile, relative to *root*.
                 Set to ``None`` to disable lockfile auto-loading.
                 Defaults to ``".github/ghagen.lock.toml"``.
@@ -58,7 +63,6 @@ class App:
         """
         self.root = Path(root)
         self.header = header
-        self.source = source
         self.lockfile_path = Path(lockfile) if lockfile is not None else None
         self._items: list[tuple[_Item, Path]] = []
         self._transforms: list[Transform] = list(transforms or [])
@@ -145,11 +149,7 @@ class App:
         for item, rel_path in self._items:
             full = self.root / rel_path
             working = self._apply_transforms(item, rel_path, transforms)
-            working.to_yaml_file(
-                full,
-                header=self.header,
-                source=self.source,
-            )
+            working.to_yaml_file(full, header=self.header)
             written.append(full)
         return written
 
@@ -166,10 +166,7 @@ class App:
         for item, rel_path in self._items:
             full = self.root / rel_path
             working = self._apply_transforms(item, rel_path, transforms)
-            expected = working.to_yaml(
-                header=self.header,
-                source=self.source,
-            )
+            expected = working.to_yaml(header=self.header)
 
             if not full.exists():
                 stale.append((full, f"File does not exist: {full}"))

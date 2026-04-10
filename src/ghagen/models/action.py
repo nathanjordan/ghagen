@@ -23,7 +23,11 @@ from typing import Any, Literal
 from pydantic import Field
 from ruamel.yaml.comments import CommentedMap
 
-from ghagen.emitter.header import format_header
+from ghagen.emitter.header import (
+    DEFAULT_HEADER,
+    build_header_variables,
+    format_header,
+)
 from ghagen.emitter.key_order import (
     ACTION_INPUT_KEY_ORDER,
     ACTION_KEY_ORDER,
@@ -199,14 +203,16 @@ class Action(GhagenModel):
     def to_yaml(
         self,
         header: str | None = None,
-        source: str | None = None,
         include_header: bool = True,
     ) -> str:
         """Generate the complete YAML string for this action.
 
         Args:
-            header: Custom header comment text. If ``None``, uses default.
-            source: Optional source file path to include in header.
+            header: Custom header comment template. May contain
+                ``{variable}`` placeholders — see
+                :data:`ghagen.emitter.header.HEADER_VARIABLES` for the
+                full list. If ``None``, uses
+                :data:`~ghagen.emitter.header.DEFAULT_HEADER`.
             include_header: Whether to include the header comment.
 
         Returns:
@@ -218,27 +224,30 @@ class Action(GhagenModel):
         if self.comment:
             attach_comment(cm, list(cm.keys())[0], comment=self.comment)
 
-        header_str = format_header(header, source) if include_header else None
+        if include_header:
+            template = header if header is not None else DEFAULT_HEADER
+            variables = build_header_variables(self._source_location)
+            header_str = format_header(template, variables)
+        else:
+            header_str = None
+
         return dump_yaml(cm, header=header_str)
 
     def to_yaml_file(
         self,
         path: str | Path,
         header: str | None = None,
-        source: str | None = None,
         include_header: bool = True,
     ) -> None:
         """Write the action YAML to a file.
 
         Args:
             path: File path to write to.
-            header: Custom header comment text.
-            source: Optional source file path to include in header.
+            header: Custom header comment template. See
+                :meth:`to_yaml` for details.
             include_header: Whether to include the header comment.
         """
-        content = self.to_yaml(
-            header=header, source=source, include_header=include_header
-        )
+        content = self.to_yaml(header=header, include_header=include_header)
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
