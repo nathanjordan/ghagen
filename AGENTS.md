@@ -36,3 +36,5 @@ Think of this kind of like AWS CDK for Github Actions.
 
 - The ghagen.toml and pyproject.toml config structures should stay in sync and support the same
   functionality.
+- The ghagen tool is used in supporting github actions that are defined in this repo, so actions
+will need to be considered when making changes to the tool.
