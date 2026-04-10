@@ -57,8 +57,8 @@ def _ci_workflow() -> Workflow:
                         run="uv run ghagen lint --format=github",
                     ),
                     Step(
-                        name="ghagen pin --check",
-                        run="uv run ghagen pin --check --prune",
+                        name="ghagen deps check-synced",
+                        run="uv run ghagen deps check-synced --prune",
                         env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
                     ),
                 ],
@@ -101,7 +101,7 @@ def _ci_workflow() -> Workflow:
                     checkout(),
                     setup_uv(),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Verify workflows", run="uv run ghagen check"),
+                    Step(name="Verify workflows", run="uv run ghagen check-synced"),
                 ],
             ),
             "test-action": Job(
@@ -368,7 +368,7 @@ def _docs_workflow() -> Workflow:
 
 
 def _ghagen_check_action() -> Action:
-    """ghagen's own composite action wrapping ``ghagen check``.
+    """ghagen's own composite action wrapping ``ghagen check-synced``.
 
     Dogfooding: this is what currently lives at ``action.yml`` and is
     consumed by the ``test-action`` job in CI via ``uses: ./``.
@@ -424,7 +424,7 @@ def _ghagen_check_action() -> Action:
                 ),
                 Step(
                     name="Check workflows",
-                    run='ghagen check --config "${{ inputs.config }}"',
+                    run='ghagen check-synced --config "${{ inputs.config }}"',
                     shell="bash",
                 ),
             ],

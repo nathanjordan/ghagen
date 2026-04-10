@@ -75,7 +75,7 @@ jobs:
 - **DRY helpers** — step factories (`checkout()`, `setup_python()`, etc.) and expression builder (`expr`)
 - **Escape hatches** — graduated ways to inject arbitrary YAML when the typed models don't cover what you need
 - **Linting** — `ghagen lint` flags missing permissions, unpinned actions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model
-- **CLI** — `ghagen synth` to generate, `ghagen check` to verify freshness in CI, `ghagen pin` to lock actions to commit SHAs
+- **CLI** — `ghagen synth` to generate, `ghagen check-synced` to verify freshness in CI, `ghagen deps pin` to lock actions to commit SHAs
 
 ## Next Steps
 

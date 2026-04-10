@@ -1,6 +1,6 @@
 # CLI Reference
 
-ghagen provides five commands: `synth`, `check`, `lint`, `pin`, and `init`. All commands are invoked through the `ghagen` CLI, which is built with Typer.
+ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `lint`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`). All commands are invoked through the `ghagen` CLI, which is built with Typer.
 
 ## ghagen synth
 
@@ -51,12 +51,12 @@ ghagen synth
 ghagen synth --config workflows/generate.py
 ```
 
-## ghagen check
+## ghagen check-synced
 
 Verify that generated YAML files match the current Python definitions. Exits with code 0 if all files are up to date, or code 1 if any file is stale.
 
 ```bash
-ghagen check
+ghagen check-synced
 ```
 
 ### Options
@@ -71,22 +71,22 @@ This command follows the same config file resolution as `synth`.
 
 ```bash
 # Run in CI to catch stale workflows
-ghagen check
+ghagen check-synced
 
 # Check with explicit config
-ghagen check --config .github/ghagen_workflows.py
+ghagen check-synced --config .github/ghagen_workflows.py
 ```
 
 ### CI usage
 
-Add `ghagen check` to your CI pipeline to ensure that generated YAML files are never out of sync with their Python definitions:
+Add `ghagen check-synced` to your CI pipeline to ensure that generated YAML files are never out of sync with their Python definitions:
 
 ```yaml
 - name: Check workflow freshness
-  run: ghagen check
+  run: ghagen check-synced
 ```
 
-If someone edits a generated YAML file directly instead of updating the Python source, `ghagen check` will fail and the CI run will report the mismatch.
+If someone edits a generated YAML file directly instead of updating the Python source, `ghagen check-synced` will fail and the CI run will report the mismatch.
 
 ## ghagen lint
 
@@ -133,7 +133,7 @@ ghagen lint --list-rules
 ghagen lint --disable missing-timeout --disable unpinned-actions
 ```
 
-## ghagen pin
+## ghagen deps pin
 
 Pin every `uses:` reference in your workflows to an exact commit SHA, recorded
 in `.github/ghagen.lock.toml`. When a lockfile is present, `ghagen synth`
@@ -141,10 +141,9 @@ automatically rewrites `uses:` entries to the pinned SHA on emission, so your
 generated YAML is reproducible without hand-editing.
 
 ```bash
-ghagen pin           # Resolve any refs missing from the lockfile
-ghagen pin --update  # Re-resolve every entry to the latest SHA
-ghagen pin --check   # Fail if the lockfile is out of sync (CI-friendly)
-ghagen pin --prune   # Drop lockfile entries no longer referenced
+ghagen deps pin           # Resolve any refs missing from the lockfile
+ghagen deps pin --update  # Re-resolve every entry to the latest SHA
+ghagen deps pin --prune   # Drop lockfile entries no longer referenced
 ```
 
 ### Options
@@ -153,7 +152,6 @@ ghagen pin --prune   # Drop lockfile entries no longer referenced
 |---|---|
 | `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
 | `--update` | Re-resolve every entry to its current SHA, not just the missing ones. |
-| `--check` | Verify the lockfile is in sync with the current code; exit 1 if stale. No network calls. |
 | `--prune` | Remove lockfile entries that are no longer referenced by any workflow. |
 | `--token TOKEN` | GitHub token used to resolve refs. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. Unauthenticated requests are limited to 60/hour. |
 
@@ -162,21 +160,71 @@ ghagen pin --prune   # Drop lockfile entries no longer referenced
 | Code | Meaning |
 |------|---------|
 | `0`  | Lockfile is in sync (or was updated successfully) |
-| `1`  | Lockfile is stale (`--check`) or one or more refs failed to resolve |
+| `1`  | One or more refs failed to resolve |
+
+## ghagen deps check-synced
+
+Verify the lockfile is in sync with the current code. Exits with code 1 if the lockfile is stale. Does not make network calls.
+
+```bash
+ghagen deps check-synced
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
+| `--prune` | Also check for lockfile entries that are no longer referenced by any workflow. |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Lockfile is in sync |
+| `1`  | Lockfile is stale |
 
 ### CI usage
 
-Run `ghagen pin --check --prune` in CI to catch PRs that introduce a new
+Run `ghagen deps check-synced --prune` in CI to catch PRs that introduce a new
 `uses:` without updating the lockfile:
 
 ```python
 Step(
-    name="ghagen pin --check",
-    run="ghagen pin --check --prune",
+    name="Check lockfile sync",
+    run="ghagen deps check-synced --prune",
 )
 ```
 
-`--check` does not make network calls, so it doesn't need a GitHub token.
+`ghagen deps check-synced` does not make network calls, so it doesn't need a GitHub token.
+
+## ghagen deps upgrade
+
+Detect and apply updates to action dependencies in your workflows. By default,
+applies updates to Python source files (version bumps). Use `--check` for a
+dry-run report without modifying files.
+
+```bash
+ghagen deps upgrade              # Apply available updates to source files
+ghagen deps upgrade --check      # Report available updates without applying
+ghagen deps upgrade --check --json  # Machine-readable JSON report
+```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
+| `--check` | Report available updates without applying changes (dry-run mode). |
+| `--json` | Output results as JSON (only valid with `--check`). |
+| `--token TOKEN` | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. |
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | No updates available, or updates applied successfully |
+| `1`  | Updates available (`--check`) or one or more updates failed to apply |
 
 ## ghagen init
 

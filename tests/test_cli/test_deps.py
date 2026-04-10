@@ -1,4 +1,4 @@
-"""Tests for the ``ghagen pin`` CLI command."""
+"""Tests for the ``ghagen deps`` CLI subcommands."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ resolved_at = "2026-04-09T00:00:00+00:00"
 """
 
 
-def test_pin_check_passes_when_lockfile_in_sync(
+def test_deps_check_synced_passes_when_lockfile_in_sync(
     tmp_path: Path, monkeypatch: object
 ):
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
@@ -48,14 +48,14 @@ def test_pin_check_passes_when_lockfile_in_sync(
     lockfile.parent.mkdir(parents=True)
     lockfile.write_text(_LOCKFILE)
 
-    result = runner.invoke(app, ["pin", "--check", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
     assert result.exit_code == 0, result.output
     assert "Lockfile is in sync." in result.output
-    # --check never hits the network, so the no-token warning must NOT fire.
+    # check-synced never hits the network, so the no-token warning must NOT fire.
     assert "no GitHub token found" not in result.output
 
 
-def test_pin_check_fails_when_entry_missing(
+def test_deps_check_synced_fails_when_entry_missing(
     tmp_path: Path, monkeypatch: object
 ):
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
@@ -68,14 +68,14 @@ def test_pin_check_fails_when_entry_missing(
     lockfile.parent.mkdir(parents=True)
     lockfile.write_text("# empty\n")
 
-    result = runner.invoke(app, ["pin", "--check", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
     assert result.exit_code == 1
     assert "Missing lockfile entries" in result.output
     assert "actions/checkout@v4" in result.output
     assert "no GitHub token found" not in result.output
 
 
-def test_pin_check_fails_on_stale_entry_with_prune(
+def test_deps_check_synced_fails_on_stale_entry_with_prune(
     tmp_path: Path, monkeypatch: object
 ):
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
@@ -95,7 +95,7 @@ resolved_at = "2026-04-09T00:00:00+00:00"
 """
     )
 
-    result = runner.invoke(app, ["pin", "--check", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
     assert result.exit_code == 1
     assert "Stale lockfile entries" in result.output
     assert "actions/unused@v1" in result.output

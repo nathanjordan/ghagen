@@ -68,7 +68,7 @@ runs:
       set -euo pipefail
 
       JSON_FILE=$(mktemp)
-      ghagen outdated --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
+      ghagen deps upgrade --check --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
 
       VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
       LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
@@ -128,12 +128,12 @@ runs:
 
       # Apply version bumps if any
       if [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-        ghagen outdated --apply --mode versions --config "${{ inputs.config }}"
+        ghagen deps upgrade --mode versions --config "${{ inputs.config }}"
       fi
 
       # Refresh lockfile
       if [ "${{ steps.detect.outputs.lockfile_stale }}" != "0" ] || [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-        ghagen pin --config "${{ inputs.config }}" --update
+        ghagen deps pin --config "${{ inputs.config }}" --update
       fi
 
       # Check if there are actual changes
@@ -242,7 +242,7 @@ stale = d.get('lockfile_stale', [])
 if stale:
     lines.append('## Stale lockfile entries')
     lines.append('')
-    lines.append('Run \`ghagen pin --update\` to refresh.')
+    lines.append('Run \`ghagen deps pin --update\` to refresh.')
     lines.append('')
     for s in stale:
         lines.append(f'- [ ] \`{s[\"uses\"]}\` — SHA changed')

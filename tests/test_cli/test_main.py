@@ -68,7 +68,7 @@ app.add_workflow(ci, "ci.yml")
     assert "runs-on: ubuntu-latest" in content
 
     # Check should pass (files are in sync)
-    result = runner.invoke(app, ["check"])
+    result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 0
     assert "up-to-date" in result.output
 
@@ -127,7 +127,7 @@ app.add_action(greet)
     assert "name: Greet" in content
     assert "using: composite" in content
 
-    result = runner.invoke(app, ["check"])
+    result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 0
     assert "up-to-date" in result.output
 
@@ -158,7 +158,7 @@ app.add_workflow(ci, "ci.yml")
     (tmp_path / ".github" / "workflows" / "ci.yml").write_text("# stale content\n")
 
     # Check should fail
-    result = runner.invoke(app, ["check"])
+    result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 1
     assert "out of date" in result.output
 

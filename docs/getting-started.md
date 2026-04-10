@@ -113,10 +113,10 @@ This reads your Python definitions and writes the corresponding YAML to `.github
 Add a CI check to ensure your YAML files stay in sync with your Python definitions:
 
 ```bash
-ghagen check
+ghagen check-synced
 ```
 
-`ghagen check` exits with code 1 if any generated file differs from what the current definitions would produce. Add it to your CI workflow:
+`ghagen check-synced` exits with code 1 if any generated file differs from what the current definitions would produce. Add it to your CI workflow:
 
 ```python
 from ghagen import Job, Step, checkout, setup_python
@@ -127,7 +127,7 @@ Job(
         checkout(),
         setup_python(version="3.12"),
         Step(name="Install ghagen", run="pip install ghagen"),
-        Step(name="Check workflows", run="ghagen check"),
+        Step(name="Check workflows", run="ghagen check-synced"),
     ],
 )
 ```

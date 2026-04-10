@@ -14,7 +14,7 @@ Three reasons, in rough order of impact:
    blocks.
 3. **Linting and pinning.** `ghagen lint` flags missing permissions,
    unpinned actions, missing timeouts, and duplicate step ids at the exact
-   line that constructed the offending model. `ghagen pin` locks every
+   line that constructed the offending model. `ghagen deps pin` locks every
    action to a commit SHA.
 
 If your workflows are short and static, plain YAML is fine. If they grow,
@@ -27,10 +27,10 @@ ghagen emits the canonical GitHub Actions key order (`name` → `on` →
 Python. Your field order in a model doesn't matter for output — pick
 whichever order reads best in your source.
 
-## `ghagen check` is failing in CI. How do I fix it?
+## `ghagen check-synced` is failing in CI. How do I fix it?
 
 Run `ghagen synth` locally, commit the regenerated YAML, and push. `ghagen
-check` just compares the current Python definitions against the committed
+check-synced` just compares the current Python definitions against the committed
 YAML and reports any drift. The usual cause is someone hand-editing a file
 under `.github/workflows/` or forgetting to re-synth after changing
 `ghagen_workflows.py`.
@@ -65,17 +65,17 @@ typed.
 
 ## How do I pin actions to commit SHAs?
 
-Run `ghagen pin` to populate `.github/ghagen.lock.toml`. On subsequent
+Run `ghagen deps pin` to populate `.github/ghagen.lock.toml`. On subsequent
 `ghagen synth` calls, every `uses:` is rewritten to its pinned SHA. Wire
-`ghagen pin --check --prune` into CI to catch unpinned additions.
+`ghagen deps check-synced --prune` into CI to catch unpinned additions.
 
 ```bash
-ghagen pin          # First-time population
-ghagen pin --check  # Verify in CI (no network calls)
-ghagen pin --update # Periodically refresh to latest SHAs
+ghagen deps pin              # First-time population
+ghagen deps check-synced     # Verify in CI (no network calls)
+ghagen deps pin --update     # Periodically refresh to latest SHAs
 ```
 
-See the [CLI Reference](cli.md#ghagen-pin).
+See the [CLI Reference](cli.md#ghagen-deps-pin).
 
 ## Can I use ghagen for composite actions?
 
@@ -114,7 +114,7 @@ Or just `ghagen synth` and inspect the file under `.github/workflows/`.
 Yes. ghagen only touches files you register with `app.add_workflow()` or
 `app.add_action()`. Any other file in `.github/workflows/` is left alone —
 add a hand-written `weekly-report.yml` next to a ghagen-generated `ci.yml`
-and nothing breaks. `ghagen check` and `ghagen lint` similarly only reason
+and nothing breaks. `ghagen check-synced` and `ghagen lint` similarly only reason
 about workflows defined in your Python source.
 
 ## Why does `ghagen lint` warn about missing permissions by default?

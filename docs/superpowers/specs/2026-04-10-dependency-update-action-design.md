@@ -6,40 +6,40 @@ ghagen users pin GitHub Action versions in two places: Python source files (`Ste
 
 Renovate and Dependabot don't support ghagen's Python-based format. Renovate's custom manager (regex/JSONata) approach lacks lockfile maintenance support and `postUpgradeTasks` requires self-hosted Renovate. A proper Renovate manager would require upstreaming to their monorepo.
 
-This spec describes a self-contained solution: a new `ghagen outdated` CLI command for detecting updates, and a GitHub Action that automates creating PRs or issues for those updates.
+This spec describes a self-contained solution: a new `ghagen deps upgrade` CLI command for detecting and applying updates, and a GitHub Action that automates creating PRs or issues for those updates.
 
 ## Architecture
 
 Two components:
 
-1. **`ghagen outdated` CLI command** — core detection logic, usable standalone
-2. **Composite GitHub Action** — thin orchestration layer that installs ghagen, runs `outdated`, and creates PRs/issues
+1. **`ghagen deps upgrade` CLI command** — core detection and update logic, usable standalone
+2. **Composite GitHub Action** — thin orchestration layer that installs ghagen, runs `deps upgrade`, and creates PRs/issues
 
 ### Two Modes
 
 | Mode | What it does | Typical schedule |
 |------|-------------|-----------------|
-| `lockfile-maintenance` | Runs `ghagen pin --update` — refreshes SHAs for existing refs without changing Python source | Daily |
+| `lockfile-maintenance` | Runs `ghagen deps pin --update` — refreshes SHAs for existing refs without changing Python source | Daily |
 | `version-bumps` | Detects newer tags for referenced actions, updates Python source + re-pins | Weekly |
 
 Both modes default to creating PRs. Users can configure `output: issue` to file issues instead.
 
-## `ghagen outdated` CLI Command
+## `ghagen deps upgrade` CLI Command
 
 ### Interface
 
 ```
-ghagen outdated                      # Human-readable update report
-ghagen outdated --json               # Machine-readable JSON output
-ghagen outdated --mode lockfile      # SHA refresh opportunities only
-ghagen outdated --mode versions      # Newer tag versions only
-ghagen outdated --mode all           # Both (default)
-ghagen outdated --apply              # Apply updates to Python source files (version bumps only)
-ghagen outdated --token TOKEN        # GitHub token (defaults to $GITHUB_TOKEN, $GH_TOKEN)
-ghagen outdated --config PATH        # Path to ghagen config file
+ghagen deps upgrade                       # Apply updates to Python source files (version bumps)
+ghagen deps upgrade --check               # Human-readable update report (dry-run)
+ghagen deps upgrade --check --json        # Machine-readable JSON output
+ghagen deps upgrade --mode lockfile       # SHA refresh opportunities only
+ghagen deps upgrade --mode versions       # Newer tag versions only
+ghagen deps upgrade --mode all            # Both (default)
+ghagen deps upgrade --token TOKEN         # GitHub token (defaults to $GITHUB_TOKEN, $GH_TOKEN)
+ghagen deps upgrade --config PATH         # Path to ghagen config file
 ```
 
-`ghagen outdated` is **detection and reporting** by default. The `--apply` flag enables writes to user source files (replacing `uses=` strings with newer versions). Lockfile updates are always handled separately by `ghagen pin` / `ghagen pin --update` — `outdated` never writes to the lockfile.
+`ghagen deps upgrade` **applies updates** by default, writing to user source files (replacing `uses=` strings with newer versions). The `--check` flag switches to dry-run mode for detection and reporting only. Lockfile updates are always handled separately by `ghagen deps pin` / `ghagen deps pin --update` — `deps upgrade` never writes to the lockfile.
 
 ### Detection Flow
 
@@ -140,7 +140,7 @@ Uses targeted string replacement scoped to known user files. AST-based replaceme
 
 ### Location
 
-`update-action/action.yml` — a second composite action in the ghagen repo, separate from the existing `ghagen check` action at the repo root.
+`update-action/action.yml` — a second composite action in the ghagen repo, separate from the existing `ghagen check-synced` action at the repo root.
 
 ### Inputs
 
@@ -159,14 +159,14 @@ Uses targeted string replacement scoped to known user files. AST-based replaceme
 
 ### Action Flow
 
-1. **Setup**: Install Python, install ghagen (same pattern as existing `ghagen check` action)
-2. **Detect**: Run `ghagen outdated --json --mode <mode>` to find available updates
+1. **Setup**: Install Python, install ghagen (same pattern as existing `ghagen check-synced` action)
+2. **Detect**: Run `ghagen deps upgrade --check --json --mode <mode>` to find available updates
 3. **Exit early** if no updates found
 4. **For `output=pr`**:
    - For each update (or grouped if `group=true`):
      - Create branch from default branch
-     - Run `ghagen outdated --apply` (updates Python source for version bumps)
-     - Run `ghagen pin` (refreshes lockfile)
+     - Run `ghagen deps upgrade` (updates Python source for version bumps)
+     - Run `ghagen deps pin` (refreshes lockfile)
      - Commit changes with descriptive message
      - Open PR with update details and release notes links
 5. **For `output=issue`**:
@@ -246,7 +246,7 @@ Before creating a new PR or issue, the action should check if one already exists
 - `src/ghagen/pin/versions.py` — semver comparison with `packaging.version` wrapper
 - `src/ghagen/pin/sources.py` — `sys.modules` diffing for source file tracking
 - `src/ghagen/pin/update.py` — source file string replacement
-- `src/ghagen/cli/outdated.py` — `ghagen outdated` command implementation (or added to `main.py`)
+- `src/ghagen/cli/outdated.py` — `ghagen deps upgrade` command implementation (or added to `main.py`)
 - `update-action/action.yml` — composite GitHub Action definition
 - `tests/test_pin/test_versions.py` — version comparison tests
 - `tests/test_pin/test_sources.py` — source tracking tests
@@ -254,7 +254,7 @@ Before creating a new PR or issue, the action should check if one already exists
 - `tests/test_pin/test_outdated.py` — CLI command tests
 
 ### Modified files
-- `src/ghagen/cli/main.py` — register `outdated` subcommand
+- `src/ghagen/cli/main.py` — register `deps upgrade` subcommand
 - `src/ghagen/pin/resolve.py` — add `list_tags()` function
 
 ### Existing code to reuse
@@ -266,6 +266,6 @@ Before creating a new PR or issue, the action should check if one already exists
 ## Verification
 
 1. **Unit tests**: Version comparison, source tracking, source updating all tested in isolation
-2. **Integration test**: End-to-end `ghagen outdated` on a fixture app with known available updates
+2. **Integration test**: End-to-end `ghagen deps upgrade` on a fixture app with known available updates
 3. **Action test**: Run the composite action in a test repo with a ghagen config, verify it creates a PR with correct changes
 4. **Edge case tests**: Non-semver refs, helper-provided refs, multiple versions of same action, already-pinned SHAs

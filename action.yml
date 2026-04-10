@@ -37,5 +37,5 @@ runs:
       fi
     shell: bash
   - name: Check workflows
-    run: ghagen check --config "${{ inputs.config }}"
+    run: ghagen check-synced --config "${{ inputs.config }}"
     shell: bash

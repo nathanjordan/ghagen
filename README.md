@@ -77,7 +77,7 @@ jobs:
 - **DRY helpers** — step factories (`checkout()`, `setup_python()`, `setup_uv()`) and expression builder (`expr`)
 - **Escape hatches** — `Raw[T]`, `extras`, `post_process`, and `CommentedMap` passthrough for anything the typed API doesn't cover
 - **Linting** — `ghagen lint` catches common problems (missing `permissions`, unpinned actions, missing `timeout-minutes`, duplicate step ids) at the Python level with source-line precision
-- **CLI** — `ghagen synth` generates YAML, `ghagen check` verifies freshness in CI, `ghagen lint` runs rule-based checks, `ghagen init` scaffolds a starter config
+- **CLI** — `ghagen synth` generates YAML, `ghagen check-synced` verifies freshness in CI, `ghagen lint` runs rule-based checks, `ghagen init` scaffolds a starter config
 
 ## Quick Start
 
@@ -89,7 +89,7 @@ ghagen init
 ghagen synth
 
 # Verify workflows match Python definitions (for CI)
-ghagen check
+ghagen check-synced
 
 # Lint workflow definitions
 ghagen lint

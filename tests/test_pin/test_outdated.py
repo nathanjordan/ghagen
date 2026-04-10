@@ -1,4 +1,4 @@
-"""Tests for the ``ghagen outdated`` CLI command."""
+"""Tests for the ``ghagen deps upgrade`` CLI command."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ def _mock_track_user_files(app_loader):
     return set()
 
 
-class TestOutdatedVersionsMode:
+class TestUpgradeVersionsMode:
     """Tests for version bump detection."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -103,7 +103,7 @@ class TestOutdatedVersionsMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions"])
+        result = runner.invoke(app, ["deps", "upgrade", "--mode", "versions", "--check"])
         assert result.exit_code == 0, result.output
         assert "Version updates available" in result.output
         assert "actions/checkout@v4" in result.output
@@ -117,7 +117,9 @@ class TestOutdatedVersionsMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions", "--json"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+        )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert "version_bumps" in data
@@ -140,7 +142,9 @@ class TestOutdatedVersionsMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions", "--json"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+        )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         for bump in data["version_bumps"]:
@@ -149,7 +153,7 @@ class TestOutdatedVersionsMode:
                 assert len(bump["source_files"]) > 0
 
 
-class TestOutdatedLockfileMode:
+class TestUpgradeLockfileMode:
     """Tests for lockfile staleness detection."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -161,7 +165,9 @@ class TestOutdatedLockfileMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path, with_lockfile=True)
 
-        result = runner.invoke(app, ["outdated", "--mode", "lockfile"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "lockfile", "--check"]
+        )
         assert result.exit_code == 0, result.output
         assert "Stale lockfile entries" in result.output
         assert "actions/checkout@v4" in result.output
@@ -175,7 +181,9 @@ class TestOutdatedLockfileMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path, with_lockfile=True)
 
-        result = runner.invoke(app, ["outdated", "--mode", "lockfile", "--json"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "lockfile", "--json", "--check"]
+        )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert "lockfile_stale" in data
@@ -212,13 +220,15 @@ app.add_workflow(ci, "ci.yml")
 """
         )
 
-        result = runner.invoke(app, ["outdated", "--mode", "lockfile", "--json"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "lockfile", "--json", "--check"]
+        )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert data["lockfile_stale"] == []
 
 
-class TestOutdatedAllMode:
+class TestUpgradeAllMode:
     """Tests for the default 'all' mode."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -231,7 +241,7 @@ class TestOutdatedAllMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path, with_lockfile=True)
 
-        result = runner.invoke(app, ["outdated", "--json"])
+        result = runner.invoke(app, ["deps", "upgrade", "--json", "--check"])
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert "version_bumps" in data
@@ -239,12 +249,12 @@ class TestOutdatedAllMode:
         assert "helper_provided" in data
 
 
-class TestOutdatedApply:
-    """Tests for the --apply flag."""
+class TestUpgradeApply:
+    """Tests for the default apply behavior."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_apply_modifies_source_files(
+    def test_upgrade_modifies_source_files(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
         monkeypatch.chdir(tmp_path)
@@ -252,7 +262,7 @@ class TestOutdatedApply:
         _setup_project(tmp_path)
 
         result = runner.invoke(
-            app, ["outdated", "--mode", "versions", "--apply"]
+            app, ["deps", "upgrade", "--mode", "versions"]
         )
         assert result.exit_code == 0, result.output
         assert "Applied version bumps" in result.output
@@ -262,6 +272,25 @@ class TestOutdatedApply:
         config_content = (tmp_path / "ghagen_config.py").read_text()
         assert "actions/checkout@v5" in config_content
         assert "actions/setup-python@v6" in config_content
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    def test_check_flag_does_not_modify_source_files(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        _setup_project(tmp_path)
+
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
+        assert result.exit_code == 0, result.output
+
+        # Verify the config file was NOT modified
+        config_content = (tmp_path / "ghagen_config.py").read_text()
+        assert "actions/checkout@v4" in config_content
+        assert "actions/setup-python@v5" in config_content
 
 
 _HELPER_CONFIG = """\
@@ -284,7 +313,7 @@ app.add_workflow(ci, "ci.yml")
 """
 
 
-class TestOutdatedHelperRefs:
+class TestUpgradeHelperRefs:
     """Tests for helper-provided refs reported separately."""
 
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
@@ -300,7 +329,7 @@ class TestOutdatedHelperRefs:
         config_path.write_text(_HELPER_CONFIG)
 
         result = runner.invoke(
-            app, ["outdated", "--mode", "versions", "--json"]
+            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
         )
 
         assert result.exit_code == 0, result.output
@@ -321,7 +350,7 @@ class TestOutdatedHelperRefs:
         config_path.write_text(_HELPER_CONFIG)
 
         result = runner.invoke(
-            app, ["outdated", "--mode", "versions"]
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
         )
 
         assert result.exit_code == 0, result.output
@@ -329,7 +358,7 @@ class TestOutdatedHelperRefs:
         assert "ghagen built-in" in result.output
 
 
-class TestOutdatedNoUpdates:
+class TestUpgradeNoUpdates:
     """Tests for the clean exit when everything is up to date."""
 
     def test_no_updates_human_output(self, tmp_path, monkeypatch):
@@ -354,7 +383,9 @@ class TestOutdatedNoUpdates:
                 side_effect=mock_tags_up_to_date,
             ),
         ):
-            result = runner.invoke(app, ["outdated", "--mode", "versions"])
+            result = runner.invoke(
+                app, ["deps", "upgrade", "--mode", "versions", "--check"]
+            )
 
         assert result.exit_code == 0, result.output
         assert "Everything is up to date" in result.output
@@ -382,7 +413,7 @@ class TestOutdatedNoUpdates:
             ),
         ):
             result = runner.invoke(
-                app, ["outdated", "--mode", "versions", "--json"]
+                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
             )
 
         assert result.exit_code == 0, result.output
@@ -391,7 +422,7 @@ class TestOutdatedNoUpdates:
         assert data["helper_provided"] == []
 
 
-class TestOutdatedNonSemver:
+class TestUpgradeNonSemver:
     """Tests for non-semver refs handled gracefully."""
 
     def test_non_semver_skipped_in_versions_mode(self, tmp_path, monkeypatch):
@@ -428,7 +459,7 @@ app.add_workflow(ci, "ci.yml")
             patch("ghagen.pin.resolve.list_tags", side_effect=mock_tags),
         ):
             result = runner.invoke(
-                app, ["outdated", "--mode", "versions", "--json"]
+                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
             )
 
         assert result.exit_code == 0, result.output
@@ -437,7 +468,7 @@ app.add_workflow(ci, "ci.yml")
         assert data["version_bumps"] == []
 
 
-class TestOutdatedTokenHandling:
+class TestUpgradeTokenHandling:
     """Tests for token resolution."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -450,7 +481,9 @@ class TestOutdatedTokenHandling:
         monkeypatch.delenv("GH_TOKEN", raising=False)
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
         assert "no GitHub token found" in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -463,7 +496,9 @@ class TestOutdatedTokenHandling:
         monkeypatch.delenv("GH_TOKEN", raising=False)
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
         assert "no GitHub token found" not in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
@@ -476,11 +511,13 @@ class TestOutdatedTokenHandling:
         monkeypatch.setenv("GH_TOKEN", "gh-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "versions"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
         assert "no GitHub token found" not in result.output
 
 
-class TestOutdatedErrorHandling:
+class TestUpgradeErrorHandling:
     """Tests for error handling."""
 
     def test_invalid_mode(self, tmp_path, monkeypatch):
@@ -488,7 +525,7 @@ class TestOutdatedErrorHandling:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["outdated", "--mode", "invalid"])
+        result = runner.invoke(app, ["deps", "upgrade", "--mode", "invalid"])
         assert result.exit_code == 2
         assert "unknown --mode value" in result.output
 
@@ -512,7 +549,7 @@ class TestOutdatedErrorHandling:
             "ghagen.pin.resolve.list_tags", side_effect=mock_tags_with_error
         ):
             result = runner.invoke(
-                app, ["outdated", "--mode", "versions", "--json"]
+                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
             )
 
         assert result.exit_code == 0, result.output
@@ -523,7 +560,7 @@ class TestOutdatedErrorHandling:
         assert "actions/setup-python@v5" in uses_list
 
 
-class TestOutdatedNoRefs:
+class TestUpgradeNoRefs:
     """Test behavior when there are no pinnable refs."""
 
     def test_no_refs_human(self, tmp_path, monkeypatch):
@@ -552,7 +589,7 @@ app.add_workflow(ci, "ci.yml")
             "ghagen.pin.sources.track_user_files",
             side_effect=_mock_track_user_files,
         ):
-            result = runner.invoke(app, ["outdated"])
+            result = runner.invoke(app, ["deps", "upgrade", "--check"])
 
         assert result.exit_code == 0, result.output
         assert "Everything is up to date" in result.output
@@ -583,7 +620,7 @@ app.add_workflow(ci, "ci.yml")
             "ghagen.pin.sources.track_user_files",
             side_effect=_mock_track_user_files,
         ):
-            result = runner.invoke(app, ["outdated", "--json"])
+            result = runner.invoke(app, ["deps", "upgrade", "--json", "--check"])
 
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)

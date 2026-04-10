@@ -29,8 +29,8 @@ jobs:
       uses: rhysd/actionlint@393031adb9afb225ee52ae2ccd7a5af5525e03e8  # v1.7.11
     - name: ghagen lint
       run: uv run ghagen lint --format=github
-    - name: ghagen pin --check
-      run: uv run ghagen pin --check --prune
+    - name: ghagen deps check-synced
+      run: uv run ghagen deps check-synced --prune
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 10
@@ -87,7 +87,7 @@ jobs:
     - name: Sync
       run: uv sync
     - name: Verify workflows
-      run: uv run ghagen check
+      run: uv run ghagen check-synced
     timeout-minutes: 10
   test-action:
     name: Test action
