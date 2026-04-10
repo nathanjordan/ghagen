@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.0.0](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.2.1...ghagen-v1.0.0) (2026-04-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **emitter:** configurable header with source-file templating
+* add action.yml generation and redesign App API ([#4](https://github.com/nathanjordan/ghagen/issues/4))
+
+### feat\
+
+* add action.yml generation and redesign App API ([#4](https://github.com/nathanjordan/ghagen/issues/4)) ([10914bb](https://github.com/nathanjordan/ghagen/commit/10914bb8768d2a4fc390a3c86dca6f80c80c5805))
+
+
+### Features
+
+* add `ghagen pin` command with SHA lockfile ([#7](https://github.com/nathanjordan/ghagen/issues/7)) ([a138ee0](https://github.com/nathanjordan/ghagen/commit/a138ee06b858e376ed4948bf893dc5b2937510b9))
+* add CI job to test composite action via uses: ./ ([f02a3ed](https://github.com/nathanjordan/ghagen/commit/f02a3ed27b9d930fab150fac3ba19daef6df82bb))
+* add ghagen lint command with rule engine ([#5](https://github.com/nathanjordan/ghagen/issues/5)) ([3e7d3da](https://github.com/nathanjordan/ghagen/commit/3e7d3da76db019d83da87a7c56be976fa625b557))
+* **cli:** add `entrypoint` key to .github/ghagen.toml ([16f5156](https://github.com/nathanjordan/ghagen/commit/16f5156ff68ff0e3aa9788b2af504b1104e0be2f))
+* **emitter:** configurable header with source-file templating ([64bb6d9](https://github.com/nathanjordan/ghagen/commit/64bb6d9141c05f52c0510f3260c1966bdd81f06b))
+* **emitter:** fix seq-item comments and auto-wrap multiline strings ([#9](https://github.com/nathanjordan/ghagen/issues/9)) ([5fd0bda](https://github.com/nathanjordan/ghagen/commit/5fd0bdaf380cdcd16800fddec5688f0aecbef378))
+* **lint:** add duplicate-step-ids rule and drop mutable-defaults ([#6](https://github.com/nathanjordan/ghagen/issues/6)) ([1d5874d](https://github.com/nathanjordan/ghagen/commit/1d5874d952b377536c23e5ff49e5db75ce5497cd))
+* **pin:** pin composite action steps alongside workflows ([dbd9aa4](https://github.com/nathanjordan/ghagen/commit/dbd9aa400357a75702eec03aa73b1382701108d1))
+
+
+### Bug Fixes
+
+* **pin:** skip token warning in --check mode ([4c09391](https://github.com/nathanjordan/ghagen/commit/4c09391cb34ab771d6bf2634eb04d584c4e98d1e))
+
+
+### Documentation
+
+* **roadmap:** mark action pinning as done ([#8](https://github.com/nathanjordan/ghagen/issues/8)) ([1149723](https://github.com/nathanjordan/ghagen/commit/114972386a2d0931b5c7a580d33f1b5e1394e49d))
+
 ## [0.2.1](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.2.0...ghagen-v0.2.1) (2026-04-07)
 
 
