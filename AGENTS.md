@@ -1,7 +1,8 @@
 # ghagen
 
-ghagen is a Github Actions code generator. It facilitates writing actions in Python which are then
-transformed into YAML files in the .github/ directory (configurable).
+ghagen is a Github Actions code generator. It facilitates writing actions in Python or
+Typescript/Javascript which are then transformed into YAML files in the .github/ directory
+(configurable).
 
 Think of this kind of like AWS CDK for Github Actions.
 
@@ -15,12 +16,12 @@ Think of this kind of like AWS CDK for Github Actions.
 
 ## Functionality
 
-- Specify Github Actions as structured Python, allows for:
+- Specify Github Actions as structured Python/Typescript/Javascript, allows for:
   - Type checking
   - Code reuse
   - DRY
   - Abstractions
-- Ensure Python and generated YAML specs are in sync
+- Ensure Python/Javascript/Typescript and generated YAML specs are in sync
   - Check functionality that can run as git hook and/or github action in CI
 - Action dependency version management (eg. `uses: org/tool@v2`)
   - github actions are versioned code (essentially packages)
@@ -34,8 +35,8 @@ Think of this kind of like AWS CDK for Github Actions.
 
 ## Agent Instructions
 
-- The ghagen.toml and pyproject.toml config structures should stay in sync and support the same
-  functionality.
+- The ghagen.toml and pyproject.toml/package.json config structures should stay in sync and support
+  the same functionality.
 - The ghagen tool is used in supporting github actions that are defined in this repo, so actions
 will need to be considered when making changes to the tool.
 - Update documentation when making any user-facing changes.
