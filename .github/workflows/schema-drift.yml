@@ -26,11 +26,11 @@ jobs:
         uv run python -m ghagen.schema.codegen
     - name: Check for drift
       run: |-
-        if ! git diff --exit-code src/ghagen/schema/snapshot/; then
+        if ! git diff --exit-code packages/python/src/ghagen/schema/snapshot/; then
           echo "::warning::Schema drift detected"
           gh issue create \
             --title "GitHub Actions schema drift detected" \
-            --body "$(git diff src/ghagen/schema/snapshot/)" \
+            --body "$(git diff packages/python/src/ghagen/schema/snapshot/)" \
             --label schema-drift
         fi
       env:

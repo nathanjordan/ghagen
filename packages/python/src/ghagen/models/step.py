@@ -16,7 +16,7 @@ from ghagen.models.common import ShellType
 
 
 def _maybe_dedent_run(v: Any) -> Any:
-    """Auto-dedent ``run`` strings when :data:`ghagen._dedent.auto_dedent` is enabled."""
+    """Auto-dedent ``run`` strings when auto_dedent is enabled."""
     if isinstance(v, str) and _dedent_mod.auto_dedent:
         return dedent_script(v)
     return v

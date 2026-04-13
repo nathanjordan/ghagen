@@ -47,7 +47,7 @@ def _ci_workflow() -> Workflow:
                     checkout(),
                     setup_uv(),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Ruff check", run="uv run ruff check src/ tests/"),
+                    Step(name="Ruff check", run="uv run ruff check packages/python/src/ packages/python/tests/"),
                     Step(
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.11",
@@ -71,7 +71,7 @@ def _ci_workflow() -> Workflow:
                     checkout(),
                     setup_uv(),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Pyright", run="uv run pyright src/"),
+                    Step(name="Pyright", run="uv run pyright packages/python/src/"),
                 ],
             ),
             "test": Job(
@@ -151,11 +151,11 @@ def _schema_drift_workflow() -> Workflow:
                     Step(
                         name="Check for drift",
                         run="""
-                            if ! git diff --exit-code src/ghagen/schema/snapshot/; then
+                            if ! git diff --exit-code packages/python/src/ghagen/schema/snapshot/; then
                               echo "::warning::Schema drift detected"
                               gh issue create \\
                                 --title "GitHub Actions schema drift detected" \\
-                                --body "$(git diff src/ghagen/schema/snapshot/)" \\
+                                --body "$(git diff packages/python/src/ghagen/schema/snapshot/)" \\
                                 --label schema-drift
                             fi
                         """,

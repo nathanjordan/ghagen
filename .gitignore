@@ -38,3 +38,7 @@ uv.lock
 
 # MkDocs
 site/
+
+# Node / TypeScript
+node_modules/
+dist/
