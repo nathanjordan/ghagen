@@ -103,7 +103,9 @@ class TestUpgradeVersionsMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(app, ["deps", "upgrade", "--mode", "versions", "--check"])
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
         assert result.exit_code == 0, result.output
         assert "Version updates available" in result.output
         assert "actions/checkout@v4" in result.output

@@ -24,7 +24,7 @@ jobs:
     - name: Sync
       run: uv sync
     - name: Ruff check
-      run: uv run ruff check src/ tests/
+      run: uv run ruff check packages/python/src/ packages/python/tests/
     - name: actionlint
       uses: rhysd/actionlint@393031adb9afb225ee52ae2ccd7a5af5525e03e8  # v1.7.11
     - name: ghagen lint
@@ -47,7 +47,7 @@ jobs:
     - name: Sync
       run: uv sync
     - name: Pyright
-      run: uv run pyright src/
+      run: uv run pyright packages/python/src/
     timeout-minutes: 10
   test:
     name: Test (Python ${{ matrix.python-version }})

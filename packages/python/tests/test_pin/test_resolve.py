@@ -8,8 +8,8 @@ import pytest
 
 from ghagen.pin.resolve import (
     ResolveError,
-    _ParsedUses,
     _parse_next_link,
+    _ParsedUses,
     list_tags,
     parse_uses,
     resolve_ref,

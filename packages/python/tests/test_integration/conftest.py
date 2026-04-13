@@ -10,15 +10,21 @@ import jsonschema
 import pytest
 from ruamel.yaml import YAML
 
-SNAPSHOT_DIR = (
-    Path(__file__).parent.parent.parent
-    / "src"
-    / "ghagen"
-    / "schema"
-    / "snapshot"
-)
-WORKFLOW_SCHEMA_PATH = SNAPSHOT_DIR / "workflow_schema.json"
-ACTION_SCHEMA_PATH = SNAPSHOT_DIR / "action_schema.json"
+
+def _repo_root() -> Path:
+    """Walk up to find the repo root (directory containing fixtures/)."""
+    d = Path(__file__).resolve().parent
+    while d != d.parent:
+        if (d / "fixtures").is_dir():
+            return d
+        d = d.parent
+    raise RuntimeError("Cannot find repo root (directory containing fixtures/)")
+
+
+REPO_ROOT = _repo_root()
+FIXTURES_DIR = REPO_ROOT / "fixtures"
+WORKFLOW_SCHEMA_PATH = FIXTURES_DIR / "schema" / "workflow_schema.json"
+ACTION_SCHEMA_PATH = FIXTURES_DIR / "schema" / "action_schema.json"
 
 
 @pytest.fixture(scope="session")

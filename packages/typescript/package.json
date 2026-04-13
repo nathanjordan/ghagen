@@ -1,0 +1,48 @@
+{
+  "name": "ghagen",
+  "version": "0.0.1",
+  "description": "Generate GitHub Actions workflow YAML from TypeScript/JavaScript code",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "github-actions",
+    "ci",
+    "cd",
+    "yaml",
+    "workflow",
+    "code-generation"
+  ],
+  "author": "Nathan Jordan <nathan.m.jordan@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nathanjordan/ghagen",
+    "directory": "packages/typescript"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "yaml": "^2.8.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

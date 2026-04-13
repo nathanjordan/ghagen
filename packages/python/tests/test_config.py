@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ghagen.config import GhagenOptions, load_options
+from ghagen.config import load_options
 
 
 @pytest.fixture()
