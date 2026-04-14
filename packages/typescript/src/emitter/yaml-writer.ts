@@ -1,0 +1,266 @@
+import { Document, Scalar, YAMLMap, YAMLSeq, Pair } from "yaml";
+import type { Model, ModelMeta } from "../models/_base.js";
+import { isModel, isRaw } from "../models/_base.js";
+import { formatHeader } from "./header.js";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
+export interface ToYamlOptions {
+  /** Custom header comment template. Supports `{tool}` and `{version}` placeholders. */
+  header?: string | null;
+  /** Whether to include the header comment. Defaults to true. */
+  includeHeader?: boolean;
+}
+
+/**
+ * Serialize a workflow or action model to a YAML string.
+ */
+export function toYaml(
+  model: Model,
+  options?: ToYamlOptions,
+): string {
+  const doc = new Document();
+  doc.contents = modelToYamlMap(model);
+
+  if (options?.includeHeader !== false) {
+    doc.commentBefore = formatHeader(options?.header);
+  }
+
+  // Attach top-level block comment if set (prepend before any existing field comment)
+  if (model._meta.comment && doc.contents instanceof YAMLMap) {
+    const firstPair = doc.contents.items[0];
+    if (firstPair) {
+      const key =
+        firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
+      const existing = key.commentBefore;
+      key.commentBefore = existing
+        ? `${model._meta.comment}\n${existing}`
+        : model._meta.comment;
+      firstPair.key = key;
+    }
+  }
+
+  // Attach top-level EOL comment to the last value
+  if (model._meta.eolComment && doc.contents instanceof YAMLMap) {
+    const items = doc.contents.items;
+    const lastPair = items[items.length - 1] as Pair | undefined;
+    if (lastPair) {
+      const val =
+        lastPair.value instanceof Scalar
+          ? lastPair.value
+          : new Scalar(lastPair.value);
+      val.comment = model._meta.eolComment;
+      lastPair.value = val;
+    }
+  }
+
+  return doc.toString({
+    lineWidth: 0,
+    commentString: (comment: string) =>
+      comment
+        .split("\n")
+        .map((line) => (line ? `# ${line}` : "#"))
+        .join("\n"),
+  });
+}
+
+/**
+ * Serialize a model to a YAML file.
+ */
+export function toYamlFile(
+  model: Model,
+  path: string,
+  options?: ToYamlOptions,
+): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, toYaml(model, options));
+}
+
+/**
+ * Convert a Model to a YAMLMap with canonical key ordering,
+ * comment attachment, extras merging, and postProcess support.
+ */
+export function modelToYamlMap(model: Model): YAMLMap {
+  const map = new YAMLMap();
+  const { _data, _meta, _keyOrder } = model;
+
+  // Collect all keys and sort by canonical order
+  const orderedKeys = getOrderedKeys(Object.keys(_data), _keyOrder);
+
+  // Add data fields in order
+  for (const key of orderedKeys) {
+    const value = _data[key];
+    const pair = new Pair(new Scalar(key), toYamlValue(value));
+    map.items.push(pair);
+  }
+
+  // Merge extras after schema fields
+  if (_meta.extras) {
+    for (const [key, value] of Object.entries(_meta.extras)) {
+      const pair = new Pair(new Scalar(key), toYamlValue(value));
+      map.items.push(pair);
+    }
+  }
+
+  // Attach field-level comments
+  attachFieldComments(map, _meta);
+
+  // Run postProcess callback
+  if (_meta.postProcess) {
+    _meta.postProcess(map);
+  }
+
+  return map;
+}
+
+/**
+ * Convert any value to a YAML node.
+ */
+function toYamlValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  // Raw values — unwrap and emit as plain scalar
+  if (isRaw(value)) {
+    const scalar = new Scalar(value.value);
+    scalar.type = Scalar.PLAIN;
+    return scalar;
+  }
+
+  // Nested Model — recurse
+  if (isModel(value)) {
+    const childMap = modelToYamlMap(value);
+
+    // Attach block comment from the nested model's meta
+    if (value._meta.comment && childMap.items.length > 0) {
+      const firstPair = childMap.items[0] as Pair;
+      const key =
+        firstPair.key instanceof Scalar
+          ? firstPair.key
+          : new Scalar(firstPair.key);
+      key.commentBefore = value._meta.comment;
+      firstPair.key = key;
+    }
+
+    // Attach EOL comment to the last value in the map
+    if (value._meta.eolComment && childMap.items.length > 0) {
+      const lastPair = childMap.items[childMap.items.length - 1] as Pair;
+      const val =
+        lastPair.value instanceof Scalar
+          ? lastPair.value
+          : new Scalar(lastPair.value);
+      val.comment = value._meta.eolComment;
+      lastPair.value = val;
+    }
+
+    return childMap;
+  }
+
+  // Arrays
+  if (Array.isArray(value)) {
+    const seq = new YAMLSeq();
+    for (let i = 0; i < value.length; i++) {
+      const item = value[i];
+      const node = toYamlValue(item);
+
+      // If the item is a Model with a comment, attach it to the seq entry
+      if (isModel(item) && item._meta.comment && node instanceof YAMLMap) {
+        // Comment is already attached to the first key inside modelToYamlMap's caller above.
+        // For sequence items, we need to set commentBefore on the map node itself.
+        (node as YAMLMap).commentBefore = item._meta.comment;
+        // Remove the duplicate from the first key if it was set
+        const firstPair = (node as YAMLMap).items[0] as Pair | undefined;
+        if (firstPair && firstPair.key instanceof Scalar) {
+          firstPair.key.commentBefore = null;
+        }
+      }
+
+      seq.add(node);
+    }
+    return seq;
+  }
+
+  // Plain objects (Record<string, unknown>)
+  if (typeof value === "object" && value !== null) {
+    const map = new YAMLMap();
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) continue;
+      const pair = new Pair(new Scalar(k), toYamlValue(v));
+      map.items.push(pair);
+    }
+    return map;
+  }
+
+  // Strings — use block literal for multiline
+  if (typeof value === "string" && value.includes("\n")) {
+    const scalar = new Scalar(value);
+    scalar.type = Scalar.BLOCK_LITERAL;
+    return scalar;
+  }
+
+  // Primitives (string, number, boolean)
+  return value;
+}
+
+/**
+ * Sort keys by canonical order: ordered keys first (in specified order),
+ * then remaining keys alphabetically.
+ */
+function getOrderedKeys(
+  keys: string[],
+  keyOrder: readonly string[],
+): string[] {
+  const orderSet = new Set(keyOrder);
+  const ordered: string[] = [];
+  const remaining: string[] = [];
+
+  // Add keys that appear in the canonical order
+  for (const key of keyOrder) {
+    if (keys.includes(key)) {
+      ordered.push(key);
+    }
+  }
+
+  // Add remaining keys alphabetically
+  for (const key of keys) {
+    if (!orderSet.has(key)) {
+      remaining.push(key);
+    }
+  }
+  remaining.sort();
+
+  return [...ordered, ...remaining];
+}
+
+/**
+ * Attach field-level comments (block and EOL) to map pairs.
+ */
+function attachFieldComments(map: YAMLMap, meta: ModelMeta): void {
+  const { fieldComments, fieldEolComments } = meta;
+
+  if (!fieldComments && !fieldEolComments) return;
+
+  for (const pair of map.items as Pair[]) {
+    const keyName =
+      pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);
+
+    // Block comment before this field
+    if (fieldComments && keyName in fieldComments) {
+      const key =
+        pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
+      key.commentBefore = fieldComments[keyName];
+      pair.key = key;
+    }
+
+    // End-of-line comment on this field's value
+    if (fieldEolComments && keyName in fieldEolComments) {
+      const val =
+        pair.value instanceof Scalar
+          ? pair.value
+          : new Scalar(pair.value);
+      val.comment = fieldEolComments[keyName];
+      pair.value = val;
+    }
+  }
+}
