@@ -1,6 +1,6 @@
 {
   "name": "ghagen",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Generate GitHub Actions workflow YAML from TypeScript/JavaScript code",
   "type": "module",
   "main": "dist/index.js",
