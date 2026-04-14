@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.3.0...ghagen-v0.3.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* **release:** correct release-please output key for TypeScript package ([2967da0](https://github.com/nathanjordan/ghagen/commit/2967da0489daed0f95e266321df074ce02cff9f4))
+* **release:** reset TypeScript manifest to 0.1.0 for re-release ([ab1f20a](https://github.com/nathanjordan/ghagen/commit/ab1f20aff62cc54fb1ec026a1b8986923c6ffce4))
+
 ## [0.3.0](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.2.1...ghagen-v0.3.0) (2026-04-14)
 
 
