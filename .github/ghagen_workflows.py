@@ -180,6 +180,8 @@ def _release_workflow() -> Workflow:
         outputs={
             "release_created": "${{ steps.release.outputs.release_created }}",
             "tag_name": "${{ steps.release.outputs.tag_name }}",
+            "ts_release_created": "${{ steps.release.outputs['packages--typescript--release_created'] }}",
+            "ts_tag_name": "${{ steps.release.outputs['packages--typescript--tag_name'] }}",
         },
         steps=[
             Step(
@@ -313,6 +315,46 @@ def _release_workflow() -> Workflow:
         ],
     )
 
+    npm_publish_job = Job(
+        name="Publish to npm",
+        runs_on="ubuntu-latest",
+        timeout_minutes=10,
+        needs="release-please",
+        if_="needs.release-please.outputs.ts_release_created == 'true'",
+        environment=Environment(name="release"),
+        permissions=Permissions(
+            contents=PermissionLevel.READ,
+            id_token=PermissionLevel.WRITE,
+        ),
+        steps=[
+            checkout(),
+            Step(
+                name="Setup Node.js",
+                uses="actions/setup-node@v4",
+                with_={
+                    "node-version": "20",
+                    "registry-url": "https://registry.npmjs.org",
+                },
+            ),
+            Step(
+                name="Install dependencies",
+                run="npm install",
+                working_directory="packages/typescript",
+            ),
+            Step(
+                name="Build",
+                run="npm run build",
+                working_directory="packages/typescript",
+            ),
+            Step(
+                name="Publish to npm",
+                run="npm publish --provenance",
+                working_directory="packages/typescript",
+                env={"NODE_AUTH_TOKEN": "${{ secrets.NPM_TOKEN }}"},
+            ),
+        ],
+    )
+
     return Workflow(
         name="Release",
         on=On(
@@ -321,6 +363,7 @@ def _release_workflow() -> Workflow:
         jobs={
             "release-please": release_please_job,
             "publish": publish_job,
+            "npm-publish": npm_publish_job,
             "homebrew-bump": homebrew_bump_job,
         },
     )

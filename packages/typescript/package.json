@@ -1,6 +1,6 @@
 {
   "name": "ghagen",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Generate GitHub Actions workflow YAML from TypeScript/JavaScript code",
   "type": "module",
   "main": "dist/index.js",
@@ -32,6 +32,13 @@
     "type": "git",
     "url": "https://github.com/nathanjordan/ghagen",
     "directory": "packages/typescript"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "engines": {
     "node": ">=20"

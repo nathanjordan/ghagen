@@ -6,6 +6,11 @@
     ".": {
       "package-name": "ghagen",
       "bootstrap-sha": "1885543804ca0b70f0fe500042a8b86ecfd37186"
+    },
+    "packages/typescript": {
+      "package-name": "ghagen",
+      "release-type": "node",
+      "component": "ghagen-js"
     }
   }
 }

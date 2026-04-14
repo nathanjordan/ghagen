@@ -19,6 +19,8 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      ts_release_created: ${{ steps.release.outputs['packages--typescript--release_created'] }}
+      ts_tag_name: ${{ steps.release.outputs['packages--typescript--tag_name'] }}
     timeout-minutes: 10
   publish:
     name: Publish to PyPI
@@ -41,6 +43,38 @@ jobs:
       run: uv build
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
+    timeout-minutes: 10
+  npm-publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.ts_release_created == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: release
+    steps:
+    - name: Checkout
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      with:
+        fetch-depth: 1
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+      with:
+        node-version: '20'
+        registry-url: https://registry.npmjs.org
+    - name: Install dependencies
+      run: npm install
+      working-directory: packages/typescript
+    - name: Build
+      run: npm run build
+      working-directory: packages/typescript
+    - name: Publish to npm
+      run: npm publish --provenance
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      working-directory: packages/typescript
     timeout-minutes: 10
   homebrew-bump:
     name: Bump Homebrew tap
