@@ -45,23 +45,34 @@ export function toYaml(
     const items = doc.contents.items;
     const lastPair = items[items.length - 1] as Pair | undefined;
     if (lastPair) {
-      const val =
-        lastPair.value instanceof Scalar
-          ? lastPair.value
-          : new Scalar(lastPair.value);
-      val.comment = model._meta.eolComment;
-      lastPair.value = val;
+      if (lastPair.value instanceof Scalar || lastPair.value instanceof YAMLMap || lastPair.value instanceof YAMLSeq) {
+        (lastPair.value as Scalar | YAMLMap | YAMLSeq).comment = model._meta.eolComment;
+      } else {
+        const val = new Scalar(lastPair.value);
+        val.comment = model._meta.eolComment;
+        lastPair.value = val;
+      }
     }
   }
 
-  return doc.toString({
+  let result = doc.toString({
     lineWidth: 0,
+    indentSeq: false,
+    singleQuote: true,
     commentString: (comment: string) =>
       comment
         .split("\n")
         .map((line) => (line ? `# ${line}` : "#"))
         .join("\n"),
   });
+
+  // Add extra space before inline comments to match ruamel.yaml convention
+  // (yaml library uses 1 space before #, ruamel.yaml uses 2).
+  // Only match when preceded by a non-whitespace, non-colon character
+  // to avoid affecting block comments (indented #) and key comments (on: #).
+  result = result.replace(/([^\s:]) (# )/g, "$1  $2");
+
+  return result;
 }
 
 /**
@@ -143,15 +154,15 @@ function toYamlValue(value: unknown): unknown {
       firstPair.key = key;
     }
 
-    // Attach EOL comment to the last value in the map
+    // Attach EOL comment to the first value in the map (the entry-point line)
     if (value._meta.eolComment && childMap.items.length > 0) {
-      const lastPair = childMap.items[childMap.items.length - 1] as Pair;
+      const firstPair = childMap.items[0] as Pair;
       const val =
-        lastPair.value instanceof Scalar
-          ? lastPair.value
-          : new Scalar(lastPair.value);
+        firstPair.value instanceof Scalar
+          ? firstPair.value
+          : new Scalar(firstPair.value);
       val.comment = value._meta.eolComment;
-      lastPair.value = val;
+      firstPair.value = val;
     }
 
     return childMap;
@@ -205,7 +216,7 @@ function toYamlValue(value: unknown): unknown {
 
 /**
  * Sort keys by canonical order: ordered keys first (in specified order),
- * then remaining keys alphabetically.
+ * then remaining keys in their original insertion order.
  */
 function getOrderedKeys(
   keys: string[],
@@ -222,13 +233,12 @@ function getOrderedKeys(
     }
   }
 
-  // Add remaining keys alphabetically
+  // Add remaining keys in insertion order
   for (const key of keys) {
     if (!orderSet.has(key)) {
       remaining.push(key);
     }
   }
-  remaining.sort();
 
   return [...ordered, ...remaining];
 }
@@ -255,12 +265,19 @@ function attachFieldComments(map: YAMLMap, meta: ModelMeta): void {
 
     // End-of-line comment on this field's value
     if (fieldEolComments && keyName in fieldEolComments) {
-      const val =
-        pair.value instanceof Scalar
-          ? pair.value
-          : new Scalar(pair.value);
-      val.comment = fieldEolComments[keyName];
-      pair.value = val;
+      if (pair.value instanceof YAMLMap || pair.value instanceof YAMLSeq) {
+        // For complex values, set comment on the key so it appears on the key line
+        const key =
+          pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
+        key.comment = fieldEolComments[keyName];
+        pair.key = key;
+      } else if (pair.value instanceof Scalar) {
+        pair.value.comment = fieldEolComments[keyName];
+      } else {
+        const val = new Scalar(pair.value);
+        val.comment = fieldEolComments[keyName];
+        pair.value = val;
+      }
     }
   }
 }

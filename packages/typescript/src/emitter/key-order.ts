@@ -1,11 +1,4 @@
-export const ON_KEY_ORDER = [
-  "push",
-  "pull_request",
-  "pull_request_target",
-  "workflow_dispatch",
-  "workflow_call",
-  "schedule",
-] as const;
+export const ON_KEY_ORDER = [] as const;
 
 export const WORKFLOW_KEY_ORDER = [
   "name",

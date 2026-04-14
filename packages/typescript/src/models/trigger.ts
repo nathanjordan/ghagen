@@ -215,5 +215,11 @@ export function on(input: WithMeta<OnInput>): OnModel {
     }
   }
 
-  return createModel("on", yamlData, meta, ON_KEY_ORDER) as OnModel;
+  // Sort keys alphabetically (matching Python behavior — no explicit ON_KEY_ORDER)
+  const sortedData: Record<string, unknown> = {};
+  for (const key of Object.keys(yamlData).sort()) {
+    sortedData[key] = yamlData[key];
+  }
+
+  return createModel("on", sortedData, meta, ON_KEY_ORDER) as OnModel;
 }
