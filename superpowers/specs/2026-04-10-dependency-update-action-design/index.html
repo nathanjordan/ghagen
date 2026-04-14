@@ -1,0 +1,1564 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Generate GitHub Actions workflows from Python">
+      
+      
+      
+        <link rel="canonical" href="https://nathanjordan.github.io/ghagen/superpowers/specs/2026-04-10-dependency-update-action-design/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>ghagen Dependency Update Action — Design Spec - ghagen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ghagen-dependency-update-action-design-spec" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="ghagen" class="md-header__button md-logo" aria-label="ghagen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 18v2h4v-2zm0-4v2h10v-2zm6 4v2h4v-2zm6-4v2h4v-2zm0 4v2h4v-2zM2 22V8l5 4V8l5 4V8l5 4 1-10h3l1 10v10z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ghagen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ghagen Dependency Update Action — Design Spec
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nathanjordan/ghagen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nathanjordan/ghagen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="ghagen" class="md-nav__button md-logo" aria-label="ghagen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 18v2h4v-2zm0-4v2h10v-2zm6 4v2h4v-2zm6-4v2h4v-2zm0 4v2h4v-2zM2 22V8l5 4V8l5 4V8l5 4 1-10h3l1 10v10z"/></svg>
+
+    </a>
+    ghagen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nathanjordan/ghagen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nathanjordan/ghagen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cookbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../dry-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DRY Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../escape-hatches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Escape Hatches
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../comments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../linting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/step/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/triggers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Helpers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two Modes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ghagen-deps-upgrade-cli-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ghagen deps upgrade CLI Command
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ghagen deps upgrade CLI Command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detection-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Detection Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-format-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Format (JSON)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#version-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version Comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#discovering-available-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovering Available Tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#source-tracking-via-sysmodules-diffing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source Tracking via sys.modules Diffing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#source-updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source Updating
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#github-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Action
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GitHub Action">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#location" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Location
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#action-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Action Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pr-content-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PR Content Template
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-user-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example User Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#edge-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edge Cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Edge Cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#non-semver-refs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-semver refs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker-based-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker-based actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-path-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local path actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#already-pinned-shas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Already-pinned SHAs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reusable-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusable workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multiple-versions-of-same-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple versions of same action
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rate-limiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limiting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#existing-prsissues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Existing PRs/issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#files-to-createmodify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Files to Create/Modify
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Files to Create/Modify">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modified-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modified files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#existing-code-to-reuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Existing code to reuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="ghagen-dependency-update-action-design-spec">ghagen Dependency Update Action — Design Spec<a class="headerlink" href="#ghagen-dependency-update-action-design-spec" title="Permanent link">&para;</a></h1>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>ghagen users pin GitHub Action versions in two places: Python source files (<code>Step(uses="actions/checkout@v4")</code>) and a lockfile (<code>.github/ghagen.lock.toml</code>) that maps refs to commit SHAs. Currently there is no automated way to detect or apply updates to these dependencies.</p>
+<p>Renovate and Dependabot don't support ghagen's Python-based format. Renovate's custom manager (regex/JSONata) approach lacks lockfile maintenance support and <code>postUpgradeTasks</code> requires self-hosted Renovate. A proper Renovate manager would require upstreaming to their monorepo.</p>
+<p>This spec describes a self-contained solution: a new <code>ghagen deps upgrade</code> CLI command for detecting and applying updates, and a GitHub Action that automates creating PRs or issues for those updates.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>Two components:</p>
+<ol>
+<li><strong><code>ghagen deps upgrade</code> CLI command</strong> — core detection and update logic, usable standalone</li>
+<li><strong>Composite GitHub Action</strong> — thin orchestration layer that installs ghagen, runs <code>deps upgrade</code>, and creates PRs/issues</li>
+</ol>
+<h3 id="two-modes">Two Modes<a class="headerlink" href="#two-modes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What it does</th>
+<th>Typical schedule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lockfile-maintenance</code></td>
+<td>Runs <code>ghagen deps pin --update</code> — refreshes SHAs for existing refs without changing Python source</td>
+<td>Daily</td>
+</tr>
+<tr>
+<td><code>version-bumps</code></td>
+<td>Detects newer tags for referenced actions, updates Python source + re-pins</td>
+<td>Weekly</td>
+</tr>
+</tbody>
+</table>
+<p>Both modes default to creating PRs. Users can configure <code>output: issue</code> to file issues instead.</p>
+<h2 id="ghagen-deps-upgrade-cli-command"><code>ghagen deps upgrade</code> CLI Command<a class="headerlink" href="#ghagen-deps-upgrade-cli-command" title="Permanent link">&para;</a></h2>
+<h3 id="interface">Interface<a class="headerlink" href="#interface" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ghagen deps upgrade                       # Apply updates to Python source files (version bumps)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ghagen deps upgrade --check               # Human-readable update report (dry-run)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>ghagen deps upgrade --check --json        # Machine-readable JSON output
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>ghagen deps upgrade --mode lockfile       # SHA refresh opportunities only
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>ghagen deps upgrade --mode versions       # Newer tag versions only
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>ghagen deps upgrade --mode all            # Both (default)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>ghagen deps upgrade --token TOKEN         # GitHub token (defaults to $GITHUB_TOKEN, $GH_TOKEN)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>ghagen deps upgrade --config PATH         # Path to ghagen config file
+</code></pre></div>
+<p><code>ghagen deps upgrade</code> <strong>applies updates</strong> by default, writing to user source files (replacing <code>uses=</code> strings with newer versions). The <code>--check</code> flag switches to dry-run mode for detection and reporting only. Lockfile updates are always handled separately by <code>ghagen deps pin</code> / <code>ghagen deps pin --update</code> — <code>deps upgrade</code> never writes to the lockfile.</p>
+<h3 id="detection-flow">Detection Flow<a class="headerlink" href="#detection-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Load the ghagen <code>App</code> from the config file</li>
+<li>Collect all <code>uses</code> refs via existing <code>collect_uses_refs()</code> from <code>src/ghagen/pin/collect.py</code></li>
+<li>Tag each ref with its <strong>source origin</strong> (user file vs ghagen helper — see Source Tracking below)</li>
+<li>For each ref, query the GitHub Tags API to discover available versions</li>
+<li>Compare current ref against available tags using semver ordering</li>
+<li>Report updates grouped by severity (major/minor/patch) and origin</li>
+</ol>
+<h3 id="output-format-json">Output Format (JSON)<a class="headerlink" href="#output-format-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;version_bumps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">&quot;uses&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;actions/checkout@v4&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;current&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v4&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;latest&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v5&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;severity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;major&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">&quot;origin&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">&quot;source_file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.github/ghagen_workflows.py&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">&quot;release_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/actions/checkout/releases/tag/v5&quot;</span><span class="w">  </span><span class="c1">// best-effort, null if no GitHub Release exists for the tag</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="nt">&quot;lockfile_stale&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">&quot;uses&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;actions/checkout@v4&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">      </span><span class="nt">&quot;current_sha&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;34e114876b0b11c390a56381ad16ebd13914f8d5&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">      </span><span class="nt">&quot;latest_sha&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;8f4b7f84864484a7bf31766abe9204da3cbe65b3&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="nt">&quot;origin&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">      </span><span class="nt">&quot;source_file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.github/ghagen_workflows.py&quot;</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span><span class="nt">&quot;helper_provided&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">      </span><span class="nt">&quot;uses&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;actions/setup-python@v5&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">      </span><span class="nt">&quot;current&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v5&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">      </span><span class="nt">&quot;latest&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v6&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">      </span><span class="nt">&quot;severity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;major&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">      </span><span class="nt">&quot;helper&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;setup_python()&quot;</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="p">}</span>
+</code></pre></div>
+<p>Helper-provided refs are reported separately — they cannot be auto-updated and require a ghagen version upgrade.</p>
+<h3 id="version-comparison">Version Comparison<a class="headerlink" href="#version-comparison" title="Permanent link">&para;</a></h3>
+<p>New module: <code>src/ghagen/pin/versions.py</code></p>
+<ul>
+<li>Thin wrapper around <code>packaging.version.Version</code></li>
+<li>Strips <code>v</code> prefix, pads single-segment tags (<code>v4</code> → <code>4.0.0</code>)</li>
+<li>Classifies updates as major/minor/patch</li>
+<li>Non-semver refs (<code>@main</code>, <code>@release/v1</code>) are skipped for version bumps, eligible for SHA refresh only</li>
+<li>Handles tag formats: <code>v1</code>, <code>v1.2</code>, <code>v1.2.3</code>, <code>prefix-v1.0.0</code>, <code>prefix/v1.0.0</code></li>
+</ul>
+<h3 id="discovering-available-tags">Discovering Available Tags<a class="headerlink" href="#discovering-available-tags" title="Permanent link">&para;</a></h3>
+<p>New function in <code>src/ghagen/pin/resolve.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_tags</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">repo</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;List all tags for a repository via the GitHub API.&quot;&quot;&quot;</span>
+</code></pre></div>
+<p>Uses <code>GET /repos/{owner}/{repo}/git/refs/tags</code> (paginated). Reuses existing <code>_api_get()</code> infrastructure.</p>
+<h3 id="source-tracking-via-sysmodules-diffing">Source Tracking via <code>sys.modules</code> Diffing<a class="headerlink" href="#source-tracking-via-sysmodules-diffing" title="Permanent link">&para;</a></h3>
+<p>New module: <code>src/ghagen/pin/sources.py</code></p>
+<p>Determines which Python files contain each <code>uses</code> ref:</p>
+<ol>
+<li>Snapshot <code>sys.modules</code> keys before loading the app</li>
+<li>Load the app (imports config file and all its transitive dependencies)</li>
+<li>Diff <code>sys.modules</code> to find newly imported modules</li>
+<li>Filter to <strong>user files only</strong>: exclude stdlib, <code>site-packages/</code>, and <code>ghagen</code> package files</li>
+<li>Search those user files for each <code>uses</code> string literal</li>
+<li>Tag each ref as <code>"user"</code> (found in user file) or <code>"helper"</code> (only in ghagen source)</li>
+</ol>
+<p>This handles any import pattern (relative, absolute, dynamic) and naturally distinguishes user-controlled refs from helper-provided refs.</p>
+<h3 id="source-updating">Source Updating<a class="headerlink" href="#source-updating" title="Permanent link">&para;</a></h3>
+<p>New module: <code>src/ghagen/pin/update.py</code></p>
+<p>Given a mapping of <code>old_uses → new_uses</code> (e.g., <code>"actions/checkout@v4" → "actions/checkout@v5"</code>):</p>
+<ol>
+<li>For each update, search only the identified user source files (from source tracking)</li>
+<li>Replace the exact string literal (the full <code>uses</code> value including <code>@ref</code>)</li>
+<li>Skip helper-provided refs entirely</li>
+</ol>
+<p>Uses targeted string replacement scoped to known user files. AST-based replacement is not needed for v1 since <code>"actions/checkout@v4"</code> is a sufficiently unique string within the known file set.</p>
+<h2 id="github-action">GitHub Action<a class="headerlink" href="#github-action" title="Permanent link">&para;</a></h2>
+<h3 id="location">Location<a class="headerlink" href="#location" title="Permanent link">&para;</a></h3>
+<p><code>update-action/action.yml</code> — a second composite action in the ghagen repo, separate from the existing <code>ghagen check-synced</code> action at the repo root.</p>
+<h3 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td><code>all</code></td>
+<td><code>lockfile</code>, <code>versions</code>, or <code>all</code></td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td><code>pr</code></td>
+<td><code>pr</code> or <code>issue</code></td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td><code>.github/ghagen_workflows.py</code></td>
+<td>Path to ghagen config file</td>
+</tr>
+<tr>
+<td><code>python-version</code></td>
+<td><code>3.13</code></td>
+<td>Python version to use</td>
+</tr>
+<tr>
+<td><code>ghagen-version</code></td>
+<td><code>''</code> (latest)</td>
+<td>Pin ghagen version</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td><code>${{ github.token }}</code></td>
+<td>GitHub token for API calls + PR/issue creation</td>
+</tr>
+<tr>
+<td><code>labels</code></td>
+<td><code>''</code></td>
+<td>Comma-separated labels for PRs/issues</td>
+</tr>
+<tr>
+<td><code>branch-prefix</code></td>
+<td><code>ghagen-update/</code></td>
+<td>Branch name prefix for PRs</td>
+</tr>
+<tr>
+<td><code>commit-message-prefix</code></td>
+<td><code>''</code></td>
+<td>Optional prefix (e.g., <code>chore(deps):</code>)</td>
+</tr>
+<tr>
+<td><code>group</code></td>
+<td><code>false</code></td>
+<td>Group all updates into a single PR/issue</td>
+</tr>
+</tbody>
+</table>
+<h3 id="action-flow">Action Flow<a class="headerlink" href="#action-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Setup</strong>: Install Python, install ghagen (same pattern as existing <code>ghagen check-synced</code> action)</li>
+<li><strong>Detect</strong>: Run <code>ghagen deps upgrade --check --json --mode &lt;mode&gt;</code> to find available updates</li>
+<li><strong>Exit early</strong> if no updates found</li>
+<li><strong>For <code>output=pr</code></strong>:</li>
+<li>For each update (or grouped if <code>group=true</code>):<ul>
+<li>Create branch from default branch</li>
+<li>Run <code>ghagen deps upgrade</code> (updates Python source for version bumps)</li>
+<li>Run <code>ghagen deps pin</code> (refreshes lockfile)</li>
+<li>Commit changes with descriptive message</li>
+<li>Open PR with update details and release notes links</li>
+</ul>
+</li>
+<li><strong>For <code>output=issue</code></strong>:</li>
+<li>Open issue listing all available updates with details</li>
+<li>Include severity, current → latest version, release notes links</li>
+<li>Include helper-provided refs as informational (upgrade ghagen to get these)</li>
+</ol>
+<h3 id="pr-content-template">PR Content Template<a class="headerlink" href="#pr-content-template" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gu">## ghagen dependency update</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Updates <span class="sb">`actions/checkout`</span> from <span class="sb">`v4`</span> to <span class="sb">`v5`</span>.
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="gu">### Changes</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">-</span><span class="w"> </span><span class="sb">`.github/ghagen_workflows.py`</span>: <span class="sb">`actions/checkout@v4`</span> → <span class="sb">`actions/checkout@v5`</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">-</span><span class="w"> </span><span class="sb">`.github/ghagen.lock.toml`</span>: SHA updated
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="gu">### Release notes</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="k">-</span><span class="w"> </span>[<span class="nt">actions/checkout v5</span>](<span class="na">https://github.com/actions/checkout/releases/tag/v5</span>)
+</code></pre></div>
+<h3 id="example-user-workflow">Example User Workflow<a class="headerlink" href="#example-user-workflow" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dependency Updates</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">on</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cron</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;0</span><span class="nv"> </span><span class="s">6</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">1&#39;</span><span class="w">  </span><span class="c1"># Weekly Monday 6am</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">workflow_dispatch</span><span class="p">:</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nt">jobs</span><span class="p">:</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="nt">update</span><span class="p">:</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nt">permissions</span><span class="p">:</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">      </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">      </span><span class="nt">pull-requests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">      </span><span class="nt">issues</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v4</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nathanjordan/ghagen/update-action@v1</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">          </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">all</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">          </span><span class="nt">output</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pr</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">          </span><span class="nt">token</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.GITHUB_TOKEN }}</span>
+</code></pre></div>
+<h2 id="edge-cases">Edge Cases<a class="headerlink" href="#edge-cases" title="Permanent link">&para;</a></h2>
+<h3 id="non-semver-refs">Non-semver refs<a class="headerlink" href="#non-semver-refs" title="Permanent link">&para;</a></h3>
+<p>Refs like <code>@main</code> or <code>@release/v1</code> are not semver-parseable. These are eligible for lockfile maintenance (SHA refresh) but skipped for version bumps. Matches Renovate's behavior.</p>
+<h3 id="docker-based-actions">Docker-based actions<a class="headerlink" href="#docker-based-actions" title="Permanent link">&para;</a></h3>
+<p><code>docker://</code> refs are already skipped by <code>collect_uses_refs()</code> (<code>_is_pinnable()</code> returns false). No change needed.</p>
+<h3 id="local-path-actions">Local path actions<a class="headerlink" href="#local-path-actions" title="Permanent link">&para;</a></h3>
+<p><code>./</code> refs are already skipped by <code>collect_uses_refs()</code>. No change needed.</p>
+<h3 id="already-pinned-shas">Already-pinned SHAs<a class="headerlink" href="#already-pinned-shas" title="Permanent link">&para;</a></h3>
+<p>Refs that are already 40-char SHAs are skipped by <code>collect_uses_refs()</code>. No change needed.</p>
+<h3 id="reusable-workflows">Reusable workflows<a class="headerlink" href="#reusable-workflows" title="Permanent link">&para;</a></h3>
+<p><code>Job.uses</code> refs (e.g., <code>octo-org/repo/.github/workflows/ci.yml@v1</code>) are collected by <code>collect_uses_refs()</code> and follow the same update logic. The <code>parse_uses()</code> function already handles the <code>owner/repo/path@ref</code> format.</p>
+<h3 id="multiple-versions-of-same-action">Multiple versions of same action<a class="headerlink" href="#multiple-versions-of-same-action" title="Permanent link">&para;</a></h3>
+<p>A user might reference <code>actions/checkout@v3</code> in one place and <code>actions/checkout@v4</code> in another. Each is tracked independently as a separate <code>uses</code> string. Updates are proposed for each independently.</p>
+<h3 id="rate-limiting">Rate limiting<a class="headerlink" href="#rate-limiting" title="Permanent link">&para;</a></h3>
+<p>The GitHub Tags API is called once per unique <code>owner/repo</code>. With authentication, the limit is 5000 req/hr. For repos with many action dependencies, requests should be batched and cached per <code>owner/repo</code> (don't re-fetch tags for the same repo).</p>
+<h3 id="existing-prsissues">Existing PRs/issues<a class="headerlink" href="#existing-prsissues" title="Permanent link">&para;</a></h3>
+<p>Before creating a new PR or issue, the action should check if one already exists for the same update (by branch name or issue title) to avoid duplicates.</p>
+<h2 id="files-to-createmodify">Files to Create/Modify<a class="headerlink" href="#files-to-createmodify" title="Permanent link">&para;</a></h2>
+<h3 id="new-files">New files<a class="headerlink" href="#new-files" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>src/ghagen/pin/versions.py</code> — semver comparison with <code>packaging.version</code> wrapper</li>
+<li><code>src/ghagen/pin/sources.py</code> — <code>sys.modules</code> diffing for source file tracking</li>
+<li><code>src/ghagen/pin/update.py</code> — source file string replacement</li>
+<li><code>src/ghagen/cli/outdated.py</code> — <code>ghagen deps upgrade</code> command implementation (or added to <code>main.py</code>)</li>
+<li><code>update-action/action.yml</code> — composite GitHub Action definition</li>
+<li><code>tests/test_pin/test_versions.py</code> — version comparison tests</li>
+<li><code>tests/test_pin/test_sources.py</code> — source tracking tests</li>
+<li><code>tests/test_pin/test_update.py</code> — source update tests</li>
+<li><code>tests/test_pin/test_outdated.py</code> — CLI command tests</li>
+</ul>
+<h3 id="modified-files">Modified files<a class="headerlink" href="#modified-files" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>src/ghagen/cli/main.py</code> — register <code>deps upgrade</code> subcommand</li>
+<li><code>src/ghagen/pin/resolve.py</code> — add <code>list_tags()</code> function</li>
+</ul>
+<h3 id="existing-code-to-reuse">Existing code to reuse<a class="headerlink" href="#existing-code-to-reuse" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>src/ghagen/pin/collect.py</code> — <code>collect_uses_refs()</code> for gathering all action refs</li>
+<li><code>src/ghagen/pin/resolve.py</code> — <code>parse_uses()</code>, <code>_api_get()</code>, <code>resolve_ref()</code> for GitHub API access</li>
+<li><code>src/ghagen/pin/lockfile.py</code> — <code>read_lockfile()</code>, <code>write_lockfile()</code>, <code>Lockfile</code>, <code>PinEntry</code> models</li>
+<li><code>src/ghagen/cli/main.py</code> — <code>_find_config()</code>, <code>_load_app()</code> for config loading, <code>pin()</code> command pattern</li>
+</ul>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Unit tests</strong>: Version comparison, source tracking, source updating all tested in isolation</li>
+<li><strong>Integration test</strong>: End-to-end <code>ghagen deps upgrade</code> on a fixture app with known available updates</li>
+<li><strong>Action test</strong>: Run the composite action in a test repo with a ghagen config, verify it creates a PR with correct changes</li>
+<li><strong>Edge case tests</strong>: Non-semver refs, helper-provided refs, multiple versions of same action, already-pinned SHAs</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.code.copy", "content.code.annotate", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
