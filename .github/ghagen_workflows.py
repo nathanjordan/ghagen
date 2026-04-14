@@ -180,8 +180,8 @@ def _release_workflow() -> Workflow:
         outputs={
             "release_created": "${{ steps.release.outputs.release_created }}",
             "tag_name": "${{ steps.release.outputs.tag_name }}",
-            "ts_release_created": "${{ steps.release.outputs['packages--typescript--release_created'] }}",
-            "ts_tag_name": "${{ steps.release.outputs['packages--typescript--tag_name'] }}",
+            "ts_release_created": "${{ steps.release.outputs['packages/typescript--release_created'] }}",
+            "ts_tag_name": "${{ steps.release.outputs['packages/typescript--tag_name'] }}",
         },
         steps=[
             Step(
