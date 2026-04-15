@@ -12,9 +12,9 @@
     "fmt:check": "oxfmt --check ."
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.34.0",
-    "astro": "^5.7.0",
-    "sharp": "^0.33.0"
+    "@astrojs/starlight": "^0.38.3",
+    "astro": "^6.1.6",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "oxfmt": "^0.45.0",
@@ -22,8 +22,5 @@
     "starlight-typedoc": "^0.21.0",
     "typedoc": "^0.28.0",
     "typedoc-plugin-markdown": "^4.6.0"
-  },
-  "overrides": {
-    "@astrojs/sitemap": "3.6.1"
   }
 }
