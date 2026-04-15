@@ -15,10 +15,7 @@ export interface ToYamlOptions {
 /**
  * Serialize a workflow or action model to a YAML string.
  */
-export function toYaml(
-  model: Model,
-  options?: ToYamlOptions,
-): string {
+export function toYaml(model: Model, options?: ToYamlOptions): string {
   const doc = new Document();
   doc.contents = modelToYamlMap(model);
 
@@ -30,12 +27,9 @@ export function toYaml(
   if (model._meta.comment && doc.contents instanceof YAMLMap) {
     const firstPair = doc.contents.items[0];
     if (firstPair) {
-      const key =
-        firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
+      const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
       const existing = key.commentBefore;
-      key.commentBefore = existing
-        ? `${model._meta.comment}\n${existing}`
-        : model._meta.comment;
+      key.commentBefore = existing ? `${model._meta.comment}\n${existing}` : model._meta.comment;
       firstPair.key = key;
     }
   }
@@ -45,7 +39,11 @@ export function toYaml(
     const items = doc.contents.items;
     const lastPair = items[items.length - 1] as Pair | undefined;
     if (lastPair) {
-      if (lastPair.value instanceof Scalar || lastPair.value instanceof YAMLMap || lastPair.value instanceof YAMLSeq) {
+      if (
+        lastPair.value instanceof Scalar ||
+        lastPair.value instanceof YAMLMap ||
+        lastPair.value instanceof YAMLSeq
+      ) {
         (lastPair.value as Scalar | YAMLMap | YAMLSeq).comment = model._meta.eolComment;
       } else {
         const val = new Scalar(lastPair.value);
@@ -78,11 +76,7 @@ export function toYaml(
 /**
  * Serialize a model to a YAML file.
  */
-export function toYamlFile(
-  model: Model,
-  path: string,
-  options?: ToYamlOptions,
-): void {
+export function toYamlFile(model: Model, path: string, options?: ToYamlOptions): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, toYaml(model, options));
 }
@@ -146,10 +140,7 @@ function toYamlValue(value: unknown): unknown {
     // Attach block comment from the nested model's meta
     if (value._meta.comment && childMap.items.length > 0) {
       const firstPair = childMap.items[0] as Pair;
-      const key =
-        firstPair.key instanceof Scalar
-          ? firstPair.key
-          : new Scalar(firstPair.key);
+      const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
       key.commentBefore = value._meta.comment;
       firstPair.key = key;
     }
@@ -157,10 +148,7 @@ function toYamlValue(value: unknown): unknown {
     // Attach EOL comment to the first value in the map (the entry-point line)
     if (value._meta.eolComment && childMap.items.length > 0) {
       const firstPair = childMap.items[0] as Pair;
-      const val =
-        firstPair.value instanceof Scalar
-          ? firstPair.value
-          : new Scalar(firstPair.value);
+      const val = firstPair.value instanceof Scalar ? firstPair.value : new Scalar(firstPair.value);
       val.comment = value._meta.eolComment;
       firstPair.value = val;
     }
@@ -218,10 +206,7 @@ function toYamlValue(value: unknown): unknown {
  * Sort keys by canonical order: ordered keys first (in specified order),
  * then remaining keys in their original insertion order.
  */
-function getOrderedKeys(
-  keys: string[],
-  keyOrder: readonly string[],
-): string[] {
+function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
   const orderSet = new Set(keyOrder);
   const ordered: string[] = [];
   const remaining: string[] = [];
@@ -252,13 +237,11 @@ function attachFieldComments(map: YAMLMap, meta: ModelMeta): void {
   if (!fieldComments && !fieldEolComments) return;
 
   for (const pair of map.items as Pair[]) {
-    const keyName =
-      pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);
+    const keyName = pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);
 
     // Block comment before this field
     if (fieldComments && keyName in fieldComments) {
-      const key =
-        pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
+      const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
       key.commentBefore = fieldComments[keyName];
       pair.key = key;
     }
@@ -267,8 +250,7 @@ function attachFieldComments(map: YAMLMap, meta: ModelMeta): void {
     if (fieldEolComments && keyName in fieldEolComments) {
       if (pair.value instanceof YAMLMap || pair.value instanceof YAMLSeq) {
         // For complex values, set comment on the key so it appears on the key line
-        const key =
-          pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
+        const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
         key.comment = fieldEolComments[keyName];
         pair.key = key;
       } else if (pair.value instanceof Scalar) {

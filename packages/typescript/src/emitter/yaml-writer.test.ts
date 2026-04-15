@@ -5,11 +5,7 @@ import { tmpdir } from "node:os";
 import { YAMLMap, Scalar, Pair } from "yaml";
 import { toYaml, toYamlFile, modelToYamlMap } from "./yaml-writer.js";
 import { createModel, raw } from "../models/_base.js";
-import {
-  STEP_KEY_ORDER,
-  WORKFLOW_KEY_ORDER,
-  JOB_KEY_ORDER,
-} from "./key-order.js";
+import { JOB_KEY_ORDER } from "./key-order.js";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -64,25 +60,16 @@ describe("modelToYamlMap() key ordering", () => {
       JOB_KEY_ORDER,
     );
     const map = modelToYamlMap(m);
-    const keys = map.items.map((p: Pair) =>
-      p.key instanceof Scalar ? p.key.value : p.key,
-    );
+    const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
     // JOB_KEY_ORDER puts name, runs-on, ... env, ... steps
     expect(keys.indexOf("name")).toBeLessThan(keys.indexOf("runs-on"));
     expect(keys.indexOf("runs-on")).toBeLessThan(keys.indexOf("steps"));
   });
 
   it("merges extras after schema fields", () => {
-    const m = createModel(
-      "test",
-      { name: "ci" },
-      { extras: { "x-custom": true } },
-      ["name"],
-    );
+    const m = createModel("test", { name: "ci" }, { extras: { "x-custom": true } }, ["name"]);
     const map = modelToYamlMap(m);
-    const keys = map.items.map((p: Pair) =>
-      p.key instanceof Scalar ? p.key.value : p.key,
-    );
+    const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
     expect(keys).toEqual(["name", "x-custom"]);
   });
 });
@@ -92,25 +79,17 @@ describe("modelToYamlMap() key ordering", () => {
 // ---------------------------------------------------------------------------
 describe("comments", () => {
   it("fieldComments adds a block comment before the field", () => {
-    const m = simpleModel(
-      { name: "ci" },
-      { fieldComments: { name: "The workflow name" } },
-    );
+    const m = simpleModel({ name: "ci" }, { fieldComments: { name: "The workflow name" } });
     const yaml = toYaml(m, { includeHeader: false });
     const lines = yaml.split("\n");
-    const commentIdx = lines.findIndex((l) =>
-      l.includes("# The workflow name"),
-    );
+    const commentIdx = lines.findIndex((l) => l.includes("# The workflow name"));
     const fieldIdx = lines.findIndex((l) => l.startsWith("name:"));
     expect(commentIdx).toBeGreaterThanOrEqual(0);
     expect(commentIdx).toBeLessThan(fieldIdx);
   });
 
   it("fieldEolComments adds an EOL comment on the field value", () => {
-    const m = simpleModel(
-      { name: "ci" },
-      { fieldEolComments: { name: "inline note" } },
-    );
+    const m = simpleModel({ name: "ci" }, { fieldEolComments: { name: "inline note" } });
     const yaml = toYaml(m, { includeHeader: false });
     expect(yaml).toMatch(/name: ci\s+# inline note/);
   });
@@ -126,10 +105,7 @@ describe("comments", () => {
   });
 
   it("model-level eolComment attaches to the last value", () => {
-    const m = simpleModel(
-      { alpha: 1, zulu: 2 },
-      { eolComment: "end of block" },
-    );
+    const m = simpleModel({ alpha: 1, zulu: 2 }, { eolComment: "end of block" });
     const yaml = toYaml(m, { includeHeader: false });
     expect(yaml).toMatch(/zulu: 2\s+# end of block/);
   });

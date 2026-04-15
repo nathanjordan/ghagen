@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  raw,
-  isRaw,
-  createModel,
-  isModel,
-  extractMeta,
-  mapFields,
-} from "./_base.js";
+import { raw, isRaw, createModel, isModel, extractMeta, mapFields } from "./_base.js";
 
 // ---------------------------------------------------------------------------
 // raw()

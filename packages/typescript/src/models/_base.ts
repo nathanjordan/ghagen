@@ -22,9 +22,7 @@ export function raw<T>(value: T): Raw<T> {
 
 /** Type guard for Raw values. */
 export function isRaw(value: unknown): value is Raw<unknown> {
-  return (
-    typeof value === "object" && value !== null && RAW_BRAND in value
-  );
+  return typeof value === "object" && value !== null && RAW_BRAND in value;
 }
 
 // ---- Comment / metadata ----
@@ -58,9 +56,7 @@ const META_KEYS = new Set<string>([
 ]);
 
 /** Split a WithMeta<T> input into [dataFields, meta]. */
-export function extractMeta<T extends object>(
-  input: T,
-): [Omit<T, keyof ModelMeta>, ModelMeta] {
+export function extractMeta<T extends object>(input: T): [Omit<T, keyof ModelMeta>, ModelMeta] {
   const data: Record<string, unknown> = {};
   const meta: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -178,9 +174,7 @@ export function createModel(
 
 /** Type guard for Model values. */
 export function isModel(value: unknown): value is Model {
-  return (
-    typeof value === "object" && value !== null && MODEL_BRAND in value
-  );
+  return typeof value === "object" && value !== null && MODEL_BRAND in value;
 }
 
 /**

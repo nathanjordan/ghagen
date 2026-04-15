@@ -10,21 +10,9 @@ This tutorial walks you through creating your first GitHub Actions workflow with
 ## 1. Install
 
 <Tabs syncKey="lang">
-  <TabItem label="Python (pip)">
-    ```bash
-    pip install ghagen
-    ```
-  </TabItem>
-  <TabItem label="Python (uv)">
-    ```bash
-    uv add ghagen --dev
-    ```
-  </TabItem>
-  <TabItem label="TypeScript">
-    ```bash
-    npm install @ghagen/ghagen
-    ```
-  </TabItem>
+  <TabItem label="Python (pip)">```bash pip install ghagen ```</TabItem>
+  <TabItem label="Python (uv)">```bash uv add ghagen --dev ```</TabItem>
+  <TabItem label="TypeScript">```bash npm install @ghagen/ghagen ```</TabItem>
 </Tabs>
 
 ## 2. Initialize
@@ -67,6 +55,7 @@ This tutorial walks you through creating your first GitHub Actions workflow with
     ```
 
     `App()` defaults to the current directory as the repository root, and `add_workflow` writes to `.github/workflows/<filename>` relative to it.
+
   </TabItem>
   <TabItem label="TypeScript">
     Create a workflow definition file, for example `.github/workflows.ts`:
@@ -98,6 +87,7 @@ This tutorial walks you through creating your first GitHub Actions workflow with
     ```
 
     `toYamlFile` writes the workflow YAML to the specified path.
+
   </TabItem>
 </Tabs>
 
@@ -125,6 +115,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
         Step(name="Test", run="pytest"),
     ]
     ```
+
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
@@ -137,6 +128,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
       step({ name: "Test", run: "pytest" }),
     ];
     ```
+
   </TabItem>
 </Tabs>
 
@@ -163,6 +155,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
     ```
 
     `Matrix.extras` holds the dynamic dimensions (anything that isn't `include` or `exclude`). See the [Cookbook](./cookbook/) for more matrix recipes.
+
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
@@ -184,6 +177,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
     ```
 
     Dynamic matrix dimensions are top-level keys in `matrix_`. See the [Cookbook](./cookbook/) for more matrix recipes.
+
   </TabItem>
 </Tabs>
 
@@ -198,6 +192,7 @@ Generate the YAML files:
     ```
 
     This reads your Python definitions and writes the corresponding YAML to `.github/workflows/`. Each generated file starts with a header comment indicating it was produced by ghagen.
+
   </TabItem>
   <TabItem label="TypeScript">
     ```bash
@@ -205,6 +200,7 @@ Generate the YAML files:
     ```
 
     This runs your TypeScript definitions and writes the corresponding YAML to the paths specified in your `toYamlFile` calls.
+
   </TabItem>
 </Tabs>
 
@@ -233,6 +229,7 @@ Add a CI check to ensure your YAML files stay in sync with your definitions:
         ],
     )
     ```
+
   </TabItem>
   <TabItem label="TypeScript">
     Run the workflow script and check for uncommitted changes:
@@ -243,6 +240,7 @@ Add a CI check to ensure your YAML files stay in sync with your definitions:
     ```
 
     Add this as a CI step to catch drift between your TypeScript definitions and the committed YAML.
+
   </TabItem>
 </Tabs>
 
@@ -252,6 +250,6 @@ Add a CI check to ensure your YAML files stay in sync with your definitions:
 - [DRY Patterns](./guides/dry-patterns/) -- Reuse techniques for workflows, jobs, and steps
 - [Escape Hatches](./guides/escape-hatches/) -- Handle anything the typed models don't cover
 - [Comments](./guides/comments/) -- Add comments to your generated YAML
-- [Linting](./python/linting/) -- Catch common mistakes in your definitions *(Python)*
-- [CLI Reference](./python/cli/) -- Full command documentation *(Python)*
+- [Linting](./python/linting/) -- Catch common mistakes in your definitions _(Python)_
+- [CLI Reference](./python/cli/) -- Full command documentation _(Python)_
 - [FAQ](./faq/) -- Common questions

@@ -50,12 +50,9 @@ const ALL_KEY_ORDERS = {
 };
 
 describe("key order constants", () => {
-  it.each(Object.entries(ALL_KEY_ORDERS))(
-    "%s has no duplicate entries",
-    (_name, order) => {
-      expect(new Set(order).size).toBe(order.length);
-    },
-  );
+  it.each(Object.entries(ALL_KEY_ORDERS))("%s has no duplicate entries", (_name, order) => {
+    expect(new Set(order).size).toBe(order.length);
+  });
 
   it("WORKFLOW_KEY_ORDER starts with 'name' and ends with 'jobs'", () => {
     expect(WORKFLOW_KEY_ORDER[0]).toBe("name");

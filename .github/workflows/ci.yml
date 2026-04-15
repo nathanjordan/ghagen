@@ -81,6 +81,35 @@ jobs:
     - name: Verify workflows
       run: uv run ghagen check-synced
     timeout-minutes: 10
+  ts-lint:
+    name: TypeScript lint & format
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+    - name: Setup Node.js
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6
+      with:
+        node-version: '24'
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
+    - name: Install docs deps
+      run: npm ci
+      working-directory: docs
+    - name: oxlint (typescript)
+      run: npm run lint
+      working-directory: packages/typescript
+    - name: oxlint (docs)
+      run: npm run lint
+      working-directory: docs
+    - name: oxfmt check (typescript)
+      run: npm run fmt:check
+      working-directory: packages/typescript
+    - name: oxfmt check (docs)
+      run: npm run fmt:check
+      working-directory: docs
+    timeout-minutes: 10
   test-action:
     name: Test action
     runs-on: ubuntu-latest

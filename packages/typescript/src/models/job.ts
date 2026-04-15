@@ -1,13 +1,29 @@
-import type { NormalJob as SchemaJob, Concurrency as SchemaConcurrency, Environment as SchemaEnvironment } from "../generated/workflow-types.js";
 import type {
-  JobModel, StepModel, PermissionsModel, ContainerModel, ServiceModel,
-  StrategyModel, MatrixModel, ConcurrencyModel, DefaultsModel, EnvironmentModel,
-  WithMeta, Raw, Model,
+  Concurrency as SchemaConcurrency,
+  Environment as SchemaEnvironment,
+} from "../generated/workflow-types.js";
+import type {
+  JobModel,
+  StepModel,
+  PermissionsModel,
+  ContainerModel,
+  ServiceModel,
+  StrategyModel,
+  MatrixModel,
+  ConcurrencyModel,
+  DefaultsModel,
+  EnvironmentModel,
+  WithMeta,
+  Raw,
 } from "./_base.js";
 import { createModel, extractMeta, mapFields, isModel } from "./_base.js";
 import {
-  JOB_KEY_ORDER, STRATEGY_KEY_ORDER, MATRIX_KEY_ORDER,
-  CONCURRENCY_KEY_ORDER, DEFAULTS_KEY_ORDER, ENVIRONMENT_KEY_ORDER,
+  JOB_KEY_ORDER,
+  STRATEGY_KEY_ORDER,
+  MATRIX_KEY_ORDER,
+  CONCURRENCY_KEY_ORDER,
+  DEFAULTS_KEY_ORDER,
+  ENVIRONMENT_KEY_ORDER,
 } from "../emitter/key-order.js";
 import type { PermissionsInput } from "./permissions.js";
 import { permissions } from "./permissions.js";
@@ -24,7 +40,12 @@ export interface MatrixInput {
 
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
-  return createModel("matrix", data as Record<string, unknown>, meta, MATRIX_KEY_ORDER) as MatrixModel;
+  return createModel(
+    "matrix",
+    data as Record<string, unknown>,
+    meta,
+    MATRIX_KEY_ORDER,
+  ) as MatrixModel;
 }
 
 export interface StrategyInput {
@@ -33,18 +54,14 @@ export interface StrategyInput {
   maxParallel?: number;
 }
 
-const STRATEGY_FIELD_MAP = {
-  matrix_: "matrix",
-  failFast: "fail-fast",
-  maxParallel: "max-parallel",
-} as const;
-
 export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
   const [rawData, meta] = extractMeta(input);
   const data = rawData as StrategyInput;
   const normalized: Record<string, unknown> = {};
   if (data.matrix_ !== undefined) {
-    normalized["matrix"] = isModel(data.matrix_) ? data.matrix_ : matrix(data.matrix_ as MatrixInput);
+    normalized["matrix"] = isModel(data.matrix_)
+      ? data.matrix_
+      : matrix(data.matrix_ as MatrixInput);
   }
   if (data.failFast !== undefined) normalized["fail-fast"] = data.failFast;
   if (data.maxParallel !== undefined) normalized["max-parallel"] = data.maxParallel;
@@ -87,7 +104,8 @@ export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
   if (data.run) {
     const runData: Record<string, unknown> = {};
     if (data.run.shell !== undefined) runData["shell"] = data.run.shell;
-    if (data.run.workingDirectory !== undefined) runData["working-directory"] = data.run.workingDirectory;
+    if (data.run.workingDirectory !== undefined)
+      runData["working-directory"] = data.run.workingDirectory;
     yamlData["run"] = runData;
   }
   return createModel("defaults", yamlData, meta, DEFAULTS_KEY_ORDER) as DefaultsModel;

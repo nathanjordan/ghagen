@@ -61,14 +61,7 @@ export type { PermissionsInput } from "./models/permissions.js";
 export { container, service } from "./models/container.js";
 export type { ContainerInput } from "./models/container.js";
 
-export {
-  job,
-  strategy,
-  matrix,
-  concurrency,
-  defaults,
-  environment,
-} from "./models/job.js";
+export { job, strategy, matrix, concurrency, defaults, environment } from "./models/job.js";
 export type {
   JobInput,
   JobOutputInput,

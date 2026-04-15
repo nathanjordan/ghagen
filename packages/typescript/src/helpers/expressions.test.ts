@@ -11,9 +11,7 @@ describe("expr", () => {
   });
 
   it("wraps an expression with operators", () => {
-    expect(expr`github.ref == 'refs/heads/main'`).toBe(
-      "${{ github.ref == 'refs/heads/main' }}",
-    );
+    expect(expr`github.ref == 'refs/heads/main'`).toBe("${{ github.ref == 'refs/heads/main' }}");
   });
 
   it("supports interpolation", () => {

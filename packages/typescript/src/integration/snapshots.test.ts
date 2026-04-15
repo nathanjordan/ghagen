@@ -71,14 +71,23 @@ describe("snapshot tests", () => {
       branding: branding({ icon: "heart", color: "purple" }),
       inputs: {
         who: actionInputDef({ description: "Who to greet", required: true, default: "world" }),
-        shout: actionInputDef({ description: "Uppercase the greeting", required: false, default: "false" }),
+        shout: actionInputDef({
+          description: "Uppercase the greeting",
+          required: false,
+          default: "false",
+        }),
       },
       outputs: {
-        message: actionOutputDef({ description: "The greeting message", value: "${{ steps.greet.outputs.text }}" }),
+        message: actionOutputDef({
+          description: "The greeting message",
+          value: "${{ steps.greet.outputs.text }}",
+        }),
       },
       runs: compositeRuns({
         using: "composite",
-        steps: [step({ id: "greet", name: "Greet", run: "echo Hello, ${{ inputs.who }}", shell: "bash" })],
+        steps: [
+          step({ id: "greet", name: "Greet", run: "echo Hello, ${{ inputs.who }}", shell: "bash" }),
+        ],
       }),
     });
     expect(toYaml(a, { includeHeader: false })).toBe(loadFixture("composite_action.yml"));
@@ -169,7 +178,10 @@ describe("snapshot tests", () => {
         lint: job({
           name: "Lint",
           runsOn: "ubuntu-latest",
-          steps: [step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }), step({ name: "Ruff", run: "ruff check ." })],
+          steps: [
+            step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
+            step({ name: "Ruff", run: "ruff check ." }),
+          ],
         }),
         test: job({
           name: "Test",
@@ -178,7 +190,11 @@ describe("snapshot tests", () => {
           strategy: { matrix_: { "python-version": ["3.11", "3.12", "3.13"] } },
           steps: [
             step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
-            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
+            step({
+              name: "Set up Python",
+              uses: "actions/setup-python@v6",
+              with_: { "python-version": "${{ matrix.python-version }}" },
+            }),
             step({ name: "Test", run: "python -m pytest" }),
           ],
         }),
@@ -224,7 +240,11 @@ describe("snapshot tests", () => {
           },
           steps: [
             step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
-            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
+            step({
+              name: "Set up Python",
+              uses: "actions/setup-python@v6",
+              with_: { "python-version": "${{ matrix.python-version }}" },
+            }),
             step({ name: "Install deps", run: "pip install -e '.[test]'" }),
             step({ name: "Test", run: "python -m pytest" }),
           ],

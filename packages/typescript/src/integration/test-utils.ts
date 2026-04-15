@@ -4,15 +4,9 @@ import { parse } from "yaml";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
-export const FIXTURES_DIR = resolve(
-  import.meta.dirname,
-  "../../../../fixtures/expected",
-);
+export const FIXTURES_DIR = resolve(import.meta.dirname, "../../../../fixtures/expected");
 
-export const SCHEMA_DIR = resolve(
-  import.meta.dirname,
-  "../../../../fixtures/schema",
-);
+export const SCHEMA_DIR = resolve(import.meta.dirname, "../../../../fixtures/schema");
 
 export function loadFixture(name: string): string {
   return readFileSync(resolve(FIXTURES_DIR, name), "utf-8");
@@ -23,9 +17,7 @@ export function parseYaml(yamlStr: string): unknown {
 }
 
 function createValidator(schemaFile: string) {
-  const schema = JSON.parse(
-    readFileSync(resolve(SCHEMA_DIR, schemaFile), "utf-8"),
-  );
+  const schema = JSON.parse(readFileSync(resolve(SCHEMA_DIR, schemaFile), "utf-8"));
   const ajv = new Ajv({ strict: false, allErrors: true });
   addFormats(ajv);
   return ajv.compile(schema);

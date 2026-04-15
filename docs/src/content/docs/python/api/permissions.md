@@ -22,21 +22,21 @@ permissions = Permissions(
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `actions` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `actions` scope. |
-| `checks` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `checks` scope. |
-| `contents` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `contents` scope. |
-| `deployments` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `deployments` scope. |
-| `discussions` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `discussions` scope. |
-| `id_token` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `id-token` scope. Serialized as `id-token`. |
-| `issues` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `issues` scope. |
-| `packages` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `packages` scope. |
-| `pages` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `pages` scope. |
-| `pull_requests` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `pull-requests` scope. Serialized as `pull-requests`. |
-| `repository_projects` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `repository-projects` scope. Serialized as `repository-projects`. |
-| `security_events` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `security-events` scope. Serialized as `security-events`. |
-| `statuses` | `PermissionLevel \| Raw[str] \| None` | `None` | Permission for the `statuses` scope. |
+| Parameter             | Type                                  | Default | Description                                                                          |
+| --------------------- | ------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `actions`             | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `actions` scope.                                                  |
+| `checks`              | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `checks` scope.                                                   |
+| `contents`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `contents` scope.                                                 |
+| `deployments`         | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `deployments` scope.                                              |
+| `discussions`         | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `discussions` scope.                                              |
+| `id_token`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `id-token` scope. Serialized as `id-token`.                       |
+| `issues`              | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `issues` scope.                                                   |
+| `packages`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `packages` scope.                                                 |
+| `pages`               | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `pages` scope.                                                    |
+| `pull_requests`       | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `pull-requests` scope. Serialized as `pull-requests`.             |
+| `repository_projects` | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `repository-projects` scope. Serialized as `repository-projects`. |
+| `security_events`     | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `security-events` scope. Serialized as `security-events`.         |
+| `statuses`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `statuses` scope.                                                 |
 
 ## PermissionLevel
 
@@ -46,11 +46,11 @@ An enum of valid permission access levels.
 from ghagen.models.common import PermissionLevel
 ```
 
-| Value | String |
-|-------|--------|
-| `PermissionLevel.READ` | `"read"` |
+| Value                   | String    |
+| ----------------------- | --------- |
+| `PermissionLevel.READ`  | `"read"`  |
 | `PermissionLevel.WRITE` | `"write"` |
-| `PermissionLevel.NONE` | `"none"` |
+| `PermissionLevel.NONE`  | `"none"`  |
 
 ## PermissionsValue
 

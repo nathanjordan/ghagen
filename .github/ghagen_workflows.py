@@ -101,6 +101,21 @@ def _ci_workflow() -> Workflow:
                     Step(name="Verify workflows", run="uv run ghagen check-synced"),
                 ],
             ),
+            "ts-lint": Job(
+                name="TypeScript lint & format",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
+                    Step(name="oxlint (typescript)", run="npm run lint", working_directory="packages/typescript"),
+                    Step(name="oxlint (docs)", run="npm run lint", working_directory="docs"),
+                    Step(name="oxfmt check (typescript)", run="npm run fmt:check", working_directory="packages/typescript"),
+                    Step(name="oxfmt check (docs)", run="npm run fmt:check", working_directory="docs"),
+                ],
+            ),
             "test-action": Job(
                 name="Test action",
                 runs_on="ubuntu-latest",

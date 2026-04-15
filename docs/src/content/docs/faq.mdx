@@ -21,7 +21,7 @@ Three reasons, in rough order of impact:
 3. **Linting and pinning.** `ghagen lint` flags missing permissions, unpinned
    actions, missing timeouts, and duplicate step ids at the exact line that
    constructed the offending model. `ghagen deps pin` locks every action to a
-   commit SHA. *(Python CLI)*
+   commit SHA. _(Python CLI)_
 
 If your workflows are short and static, plain YAML is fine. If they grow,
 ghagen pays for itself quickly.
@@ -78,6 +78,7 @@ validation on that single field without affecting the rest of the model:
 
     Job(runs_on=Raw("${{ matrix.os }}"))
     ```
+
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
@@ -85,6 +86,7 @@ validation on that single field without affecting the rest of the model:
 
     job({ runsOn: raw("${{ matrix.os }}") });
     ```
+
   </TabItem>
 </Tabs>
 
@@ -126,6 +128,7 @@ Yes. Define an action and register it:
 
     Actions and workflows can share the same `App`. See the "Composite action
     alongside your workflows" recipe in the [Cookbook](./cookbook/).
+
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
@@ -143,6 +146,7 @@ Yes. Define an action and register it:
     ```
 
     See the "Composite action alongside your workflows" recipe in the [Cookbook](./cookbook/).
+
   </TabItem>
 </Tabs>
 
@@ -158,6 +162,7 @@ Yes. Define an action and register it:
     ```
 
     Or just `ghagen synth` and inspect the file under `.github/workflows/`.
+
   </TabItem>
   <TabItem label="TypeScript">
     Use `toYaml()` to print the YAML to stdout:
@@ -167,6 +172,7 @@ Yes. Define an action and register it:
 
     console.log(toYaml(ci));
     ```
+
   </TabItem>
 </Tabs>
 

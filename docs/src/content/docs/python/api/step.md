@@ -30,19 +30,19 @@ deploy = Step(
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `id` | `str \| None` | `None` | Unique identifier for the step. Used to reference step outputs in expressions (e.g., `steps.<id>.outputs`). |
-| `name` | `str \| None` | `None` | Display name for the step. |
-| `if_` | `str \| None` | `None` | Conditional expression that must evaluate to true for this step to run. Serialized as `if`. |
-| `uses` | `str \| None` | `None` | Action to use (e.g., `"actions/checkout@v4"`). Mutually exclusive with `run`. |
-| `run` | `str \| None` | `None` | Shell command(s) to run. Multi-line strings are automatically dedented. Mutually exclusive with `uses`. |
-| `with_` | `dict[str, Any] \| None` | `None` | Input parameters for the action specified by `uses`. Serialized as `with`. |
-| `env` | `dict[str, str] \| None` | `None` | Environment variables for this step. |
-| `shell` | `ShellType \| Raw[str] \| None` | `None` | Shell to use for `run` commands. See [ShellType](#shelltype). |
-| `working_directory` | `str \| None` | `None` | Working directory for `run` commands. Serialized as `working-directory`. |
-| `continue_on_error` | `bool \| str \| None` | `None` | Allow the job to continue when this step fails. Serialized as `continue-on-error`. |
-| `timeout_minutes` | `int \| None` | `None` | Maximum minutes the step can run before being cancelled. Serialized as `timeout-minutes`. |
+| Parameter           | Type                            | Default | Description                                                                                                 |
+| ------------------- | ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `id`                | `str \| None`                   | `None`  | Unique identifier for the step. Used to reference step outputs in expressions (e.g., `steps.<id>.outputs`). |
+| `name`              | `str \| None`                   | `None`  | Display name for the step.                                                                                  |
+| `if_`               | `str \| None`                   | `None`  | Conditional expression that must evaluate to true for this step to run. Serialized as `if`.                 |
+| `uses`              | `str \| None`                   | `None`  | Action to use (e.g., `"actions/checkout@v4"`). Mutually exclusive with `run`.                               |
+| `run`               | `str \| None`                   | `None`  | Shell command(s) to run. Multi-line strings are automatically dedented. Mutually exclusive with `uses`.     |
+| `with_`             | `dict[str, Any] \| None`        | `None`  | Input parameters for the action specified by `uses`. Serialized as `with`.                                  |
+| `env`               | `dict[str, str] \| None`        | `None`  | Environment variables for this step.                                                                        |
+| `shell`             | `ShellType \| Raw[str] \| None` | `None`  | Shell to use for `run` commands. See [ShellType](#shelltype).                                               |
+| `working_directory` | `str \| None`                   | `None`  | Working directory for `run` commands. Serialized as `working-directory`.                                    |
+| `continue_on_error` | `bool \| str \| None`           | `None`  | Allow the job to continue when this step fails. Serialized as `continue-on-error`.                          |
+| `timeout_minutes`   | `int \| None`                   | `None`  | Maximum minutes the step can run before being cancelled. Serialized as `timeout-minutes`.                   |
 
 ### Inherited parameters
 
@@ -58,13 +58,13 @@ from ghagen.models.common import ShellType
 step = Step(run="echo hello", shell=ShellType.BASH)
 ```
 
-| Value | String |
-|-------|--------|
-| `ShellType.BASH` | `"bash"` |
-| `ShellType.PWSH` | `"pwsh"` |
+| Value              | String     |
+| ------------------ | ---------- |
+| `ShellType.BASH`   | `"bash"`   |
+| `ShellType.PWSH`   | `"pwsh"`   |
 | `ShellType.PYTHON` | `"python"` |
-| `ShellType.SH` | `"sh"` |
-| `ShellType.CMD` | `"cmd"` |
+| `ShellType.SH`     | `"sh"`     |
+| `ShellType.CMD`    | `"cmd"`    |
 
 ## StepList
 

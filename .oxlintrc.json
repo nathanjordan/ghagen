@@ -1,0 +1,16 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "plugins": ["typescript"],
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "**/generated/**"
+  ]
+}

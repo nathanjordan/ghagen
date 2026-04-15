@@ -35,10 +35,10 @@ ghagen lint --disable missing-timeout
 
 Exit codes:
 
-| Code | Meaning |
-|------|---------|
+| Code | Meaning                                                      |
+| ---- | ------------------------------------------------------------ |
 | `0`  | No error-severity violations (warnings may still be present) |
-| `1`  | At least one error-severity violation found |
+| `1`  | At least one error-severity violation found                  |
 | `2`  | Configuration error (malformed TOML, unknown severity, etc.) |
 
 ## Built-in rules

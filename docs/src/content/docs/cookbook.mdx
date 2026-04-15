@@ -3,7 +3,7 @@ title: Cookbook
 description: Practical recipes for common workflow patterns
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 Practical recipes for common workflow patterns. Every snippet is valid code against the current ghagen API -- copy, adapt, and run `ghagen synth`.
 
@@ -19,7 +19,7 @@ the `matrix_` object. `include` and `exclude` are typed fields in both.
 from ghagen import Job, Matrix, Step, Strategy, checkout, setup_python
 
 test = Job(
-    name="Test (Python ${{ matrix.python-version }})",
+name="Test (Python ${{ matrix.python-version }})",
     runs_on="ubuntu-latest",
     timeout_minutes=15,
     strategy=Strategy(
@@ -30,11 +30,12 @@ test = Job(
     steps=[
         checkout(),
         setup_python(version="${{ matrix.python-version }}"),
-        Step(name="Install", run="pip install -e '.[dev]'"),
-        Step(name="Test", run="pytest"),
-    ],
+Step(name="Install", run="pip install -e '.[dev]'"),
+Step(name="Test", run="pytest"),
+],
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -56,7 +57,8 @@ const test = job({
     step({ name: "Test", run: "pytest" }),
   ],
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -71,8 +73,8 @@ const test = job({
 from ghagen import Job, Matrix, Raw, Step, Strategy, checkout, setup_python
 
 Job(
-    name="Cross-platform test",
-    runs_on=Raw("${{ matrix.os }}"),
+name="Cross-platform test",
+runs_on=Raw("${{ matrix.os }}"),
     timeout_minutes=20,
     strategy=Strategy(
         matrix=Matrix(
@@ -88,10 +90,11 @@ Job(
     steps=[
         checkout(),
         setup_python(version="${{ matrix.python-version }}"),
-        Step(name="Test", run="pytest"),
-    ],
+Step(name="Test", run="pytest"),
+],
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -114,7 +117,8 @@ job({
     step({ name: "Test", run: "pytest" }),
   ],
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -130,17 +134,18 @@ emission. In TypeScript, use `step()` with the `actions/cache` action directly.
 from ghagen import Step, cache, checkout, setup_python
 
 steps = [
-    checkout(),
-    setup_python(version="3.12"),
-    cache(
-        key="pip-${{ hashFiles('requirements.txt') }}",
-        path="~/.cache/pip",
-        restore_keys=["pip-"],
-    ),
-    Step(name="Install", run="pip install -r requirements.txt"),
-    Step(name="Test", run="pytest"),
+checkout(),
+setup_python(version="3.12"),
+cache(
+key="pip-${{ hashFiles('requirements.txt') }}",
+path="~/.cache/pip",
+restore_keys=["pip-"],
+),
+Step(name="Install", run="pip install -r requirements.txt"),
+Step(name="Test", run="pytest"),
 ]
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -161,7 +166,8 @@ const steps = [
   step({ name: "Install", run: "pip install -r requirements.txt" }),
   step({ name: "Test", run: "pytest" }),
 ];
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -176,30 +182,31 @@ of strings) and can read their outputs via `needs.<job>.outputs.*`.
 from ghagen import Job, Step, checkout
 
 jobs = {
-    "build": Job(
-        runs_on="ubuntu-latest",
-        timeout_minutes=10,
-        outputs={"version": "${{ steps.ver.outputs.value }}"},
-        steps=[
-            checkout(),
-            Step(
-                id="ver",
-                name="Compute version",
-                run="echo 'value=1.2.3' >> $GITHUB_OUTPUT",
-            ),
-        ],
-    ),
-    "release": Job(
-        runs_on="ubuntu-latest",
-        needs="build",
-        if_="github.ref == 'refs/heads/main'",
-        timeout_minutes=10,
-        steps=[
-            Step(run="echo Releasing ${{ needs.build.outputs.version }}"),
-        ],
-    ),
+"build": Job(
+runs*on="ubuntu-latest",
+timeout_minutes=10,
+outputs={"version": "${{ steps.ver.outputs.value }}"},
+steps=[
+checkout(),
+Step(
+id="ver",
+name="Compute version",
+run="echo 'value=1.2.3' >> $GITHUB_OUTPUT",
+),
+],
+),
+"release": Job(
+runs_on="ubuntu-latest",
+needs="build",
+if*="github.ref == 'refs/heads/main'",
+timeout_minutes=10,
+steps=[
+Step(run="echo Releasing ${{ needs.build.outputs.version }}"),
+],
+),
 }
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -229,7 +236,8 @@ const jobs = {
     ],
   }),
 };
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -245,26 +253,27 @@ actions directly. `needs` ensures the producer finishes first.
 from ghagen import Job, Step, checkout, download_artifact, upload_artifact
 
 jobs = {
-    "build": Job(
-        runs_on="ubuntu-latest",
-        timeout_minutes=15,
-        steps=[
-            checkout(),
-            Step(name="Build wheel", run="python -m build"),
-            upload_artifact(name="dist", path="dist/"),
-        ],
-    ),
-    "publish": Job(
-        runs_on="ubuntu-latest",
-        needs="build",
-        timeout_minutes=10,
-        steps=[
-            download_artifact(name="dist", path="dist/"),
-            Step(name="Publish", run="twine upload dist/*"),
-        ],
-    ),
+"build": Job(
+runs_on="ubuntu-latest",
+timeout_minutes=15,
+steps=[
+checkout(),
+Step(name="Build wheel", run="python -m build"),
+upload_artifact(name="dist", path="dist/"),
+],
+),
+"publish": Job(
+runs_on="ubuntu-latest",
+needs="build",
+timeout_minutes=10,
+steps=[
+download_artifact(name="dist", path="dist/"),
+Step(name="Publish", run="twine upload dist/*"),
+],
+),
 }
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -298,7 +307,8 @@ const jobs = {
     ],
   }),
 };
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -318,22 +328,23 @@ through your code.
 from ghagen import Job, Step, checkout, expr
 
 Job(
-    name="Publish release notes",
-    runs_on="ubuntu-latest",
-    timeout_minutes=10,
-    env={
-        "GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"]),
-        "RELEASE_CHANNEL": "stable",
-    },
-    steps=[
-        checkout(),
-        Step(
-            name="Comment on release",
-            run="gh release edit ${{ github.ref_name }} --notes-file NOTES.md",
-        ),
-    ],
+name="Publish release notes",
+runs_on="ubuntu-latest",
+timeout_minutes=10,
+env={
+"GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"]),
+"RELEASE_CHANNEL": "stable",
+},
+steps=[
+checkout(),
+Step(
+name="Comment on release",
+run="gh release edit ${{ github.ref_name }} --notes-file NOTES.md",
+),
+],
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -355,7 +366,8 @@ job({
     }),
   ],
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -378,23 +390,24 @@ from ghagen import (
 )
 
 nightly = Workflow(
-    name="Nightly Build",
-    on=On(
-        schedule=[ScheduleTrigger(cron="0 9 * * *")],
-        workflow_dispatch=WorkflowDispatchTrigger(),
-    ),
-    jobs={
-        "build": Job(
-            runs_on="ubuntu-latest",
-            timeout_minutes=30,
-            steps=[
-                checkout(),
-                Step(name="Nightly build", run="make nightly"),
-            ],
-        ),
-    },
+name="Nightly Build",
+on=On(
+schedule=[ScheduleTrigger(cron="0 9 * * *")],
+workflow_dispatch=WorkflowDispatchTrigger(),
+),
+jobs={
+"build": Job(
+runs_on="ubuntu-latest",
+timeout_minutes=30,
+steps=[
+checkout(),
+Step(name="Nightly build", run="make nightly"),
+],
+),
+},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -420,7 +433,8 @@ const nightly = workflow({
     }),
   },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -446,32 +460,33 @@ from ghagen import (
 from ghagen.models.trigger import WorkflowCallInput
 
 deploy = Workflow(
-    name="Deploy",
-    on=On(
-        workflow_call=WorkflowCallTrigger(
-            inputs={
-                "environment": WorkflowCallInput(
-                    description="Target environment",
-                    required=True,
-                    type="string",
-                ),
-            },
-        ),
-    ),
-    permissions=Permissions(contents="read", id_token="write"),
-    jobs={
-        "deploy": Job(
-            runs_on="ubuntu-latest",
-            environment="${{ inputs.environment }}",
-            timeout_minutes=15,
-            steps=[
-                checkout(),
-                Step(name="Deploy", run="./deploy.sh"),
-            ],
-        ),
-    },
+name="Deploy",
+on=On(
+workflow_call=WorkflowCallTrigger(
+inputs={
+"environment": WorkflowCallInput(
+description="Target environment",
+required=True,
+type="string",
+),
+},
+),
+),
+permissions=Permissions(contents="read", id_token="write"),
+jobs={
+"deploy": Job(
+runs_on="ubuntu-latest",
+environment="${{ inputs.environment }}",
+timeout_minutes=15,
+steps=[
+checkout(),
+Step(name="Deploy", run="./deploy.sh"),
+],
+),
+},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -506,7 +521,8 @@ const deploy = workflow({
     }),
   },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -521,12 +537,13 @@ A job that references the reusable workflow via `uses`. Such a job has no
 from ghagen import Job, expr
 
 release = Job(
-    name="Deploy to production",
-    uses="./.github/workflows/deploy.yml",
-    with_={"environment": "production"},
-    secrets={"DEPLOY_KEY": str(expr.secrets["DEPLOY_KEY"])},
+name="Deploy to production",
+uses="./.github/workflows/deploy.yml",
+with\_={"environment": "production"},
+secrets={"DEPLOY_KEY": str(expr.secrets["DEPLOY_KEY"])},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -538,7 +555,8 @@ const release = job({
   with_: { environment: "production" },
   secrets: { DEPLOY_KEY: secrets.DEPLOY_KEY },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -557,15 +575,16 @@ handle multiline strings naturally -- no dedent needed.
 from ghagen import Step
 
 Step(
-    name="Build and test",
-    run="""
-        echo "Building..."
-        make build
-        echo "Testing..."
-        make test
-    """,
+name="Build and test",
+run="""
+echo "Building..."
+make build
+echo "Testing..."
+make test
+""",
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -578,7 +597,8 @@ make build
 echo "Testing..."
 make test`,
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -652,17 +672,18 @@ this naturally:
 from ghagen import Step, dedent
 
 Step(
-    uses="actions/github-script@v7",
-    with_={"script": dedent("""
-        const issue = await github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: 'Automated issue',
-        });
-        console.log(`Created #${issue.data.number}`);
-    """)},
+uses="actions/github-script@v7",
+with\_={"script": dedent("""
+const issue = await github.rest.issues.create({
+owner: context.repo.owner,
+repo: context.repo.repo,
+title: 'Automated issue',
+});
+console.log(`Created #${issue.data.number}`);
+""")},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -679,7 +700,8 @@ step({
 console.log(\`Created #\${issue.data.number}\`);`,
   },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -704,21 +726,22 @@ in both languages.
 from ghagen import Job, Step, checkout
 
 Job(
-    name="Deploy",
-    runs_on="ubuntu-latest",
-    timeout_minutes=15,
-    if_="github.event_name == 'push' && github.ref == 'refs/heads/main'",
-    steps=[
-        checkout(),
-        Step(name="Build", run="make build"),
-        Step(
-            name="Smoke test (main only)",
-            run="./smoke-test.sh",
-            if_="github.ref == 'refs/heads/main'",
-        ),
-    ],
+name="Deploy",
+runs*on="ubuntu-latest",
+timeout_minutes=15,
+if*="github.event*name == 'push' && github.ref == 'refs/heads/main'",
+steps=[
+checkout(),
+Step(name="Build", run="make build"),
+Step(
+name="Smoke test (main only)",
+run="./smoke-test.sh",
+if*="github.ref == 'refs/heads/main'",
+),
+],
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -739,7 +762,8 @@ job({
     }),
   ],
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -763,30 +787,31 @@ from ghagen import (
 )
 
 check_action = Action(
-    name="My Check",
-    description="Run the project's canonical checks",
-    branding=Branding(icon="check-circle", color="green"),
-    inputs={
-        "config": ActionInput(
-            description="Path to config file",
-            required=False,
-            default="config.toml",
-        ),
-    },
-    runs=CompositeRuns(
-        steps=[
-            Step(
-                name="Run checks",
-                run='mycheck --config "${{ inputs.config }}"',
-                shell="bash",
-            ),
-        ],
-    ),
+name="My Check",
+description="Run the project's canonical checks",
+branding=Branding(icon="check-circle", color="green"),
+inputs={
+"config": ActionInput(
+description="Path to config file",
+required=False,
+default="config.toml",
+),
+},
+runs=CompositeRuns(
+steps=[
+Step(
+name="Run checks",
+run='mycheck --config "${{ inputs.config }}"',
+shell="bash",
+),
+],
+),
 )
 
 app = App()
-app.add_action(check_action)   # -> ./action.yml
-```
+app.add_action(check_action) # -> ./action.yml
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -819,7 +844,8 @@ const checkAction = action({
 });
 
 toYamlFile(checkAction, "action.yml");
-```
+````
+
 </TabItem>
 </Tabs>
 

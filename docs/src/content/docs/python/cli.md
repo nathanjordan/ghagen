@@ -15,8 +15,8 @@ ghagen synth
 
 ### Options
 
-| Option | Description |
-|---|---|
+| Option          | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
 | `--config PATH` | Path to the configuration file. Defaults to auto-detection. |
 
 ### Config file resolution
@@ -64,8 +64,8 @@ ghagen check-synced
 
 ### Options
 
-| Option | Description |
-|---|---|
+| Option          | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
 | `--config PATH` | Path to the configuration file. Defaults to auto-detection. |
 
 This command follows the same config file resolution as `synth`.
@@ -102,19 +102,19 @@ ghagen lint
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--config PATH`, `-c` | Path to the `ghagen_workflows.py` config file. |
-| `--format {human,json,github}`, `-f` | Output format. Defaults to `human`. |
-| `--disable RULE_ID` | Disable a rule by ID. Can be repeated. |
-| `--list-rules` | Print all available rules with their descriptions and exit. |
+| Option                               | Description                                                 |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `--config PATH`, `-c`                | Path to the `ghagen_workflows.py` config file.              |
+| `--format {human,json,github}`, `-f` | Output format. Defaults to `human`.                         |
+| `--disable RULE_ID`                  | Disable a rule by ID. Can be repeated.                      |
+| `--list-rules`                       | Print all available rules with their descriptions and exit. |
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
+| Code | Meaning                                                      |
+| ---- | ------------------------------------------------------------ |
 | `0`  | No error-severity violations (warnings may still be present) |
-| `1`  | At least one error-severity violation found |
+| `1`  | At least one error-severity violation found                  |
 | `2`  | Configuration error (malformed TOML, unknown severity, etc.) |
 
 ### Example
@@ -151,19 +151,19 @@ ghagen deps pin --prune   # Drop lockfile entries no longer referenced
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
-| `--update` | Re-resolve every entry to its current SHA, not just the missing ones. |
-| `--prune` | Remove lockfile entries that are no longer referenced by any workflow. |
-| `--token TOKEN` | GitHub token used to resolve refs. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. Unauthenticated requests are limited to 60/hour. |
+| Option                | Description                                                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                                                                        |
+| `--update`            | Re-resolve every entry to its current SHA, not just the missing ones.                                                              |
+| `--prune`             | Remove lockfile entries that are no longer referenced by any workflow.                                                             |
+| `--token TOKEN`       | GitHub token used to resolve refs. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. Unauthenticated requests are limited to 60/hour. |
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
+| Code | Meaning                                           |
+| ---- | ------------------------------------------------- |
 | `0`  | Lockfile is in sync (or was updated successfully) |
-| `1`  | One or more refs failed to resolve |
+| `1`  | One or more refs failed to resolve                |
 
 ## ghagen deps check-synced
 
@@ -175,17 +175,17 @@ ghagen deps check-synced
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
-| `--prune` | Also check for lockfile entries that are no longer referenced by any workflow. |
+| Option                | Description                                                                    |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                    |
+| `--prune`             | Also check for lockfile entries that are no longer referenced by any workflow. |
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
+| Code | Meaning             |
+| ---- | ------------------- |
 | `0`  | Lockfile is in sync |
-| `1`  | Lockfile is stale |
+| `1`  | Lockfile is stale   |
 
 ### CI usage
 
@@ -215,18 +215,18 @@ ghagen deps upgrade --check --json  # Machine-readable JSON report
 
 ### Options
 
-| Option | Description |
-|---|---|
-| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection. |
-| `--check` | Report available updates without applying changes (dry-run mode). |
-| `--json` | Output results as JSON (only valid with `--check`). |
-| `--token TOKEN` | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. |
+| Option                | Description                                                                     |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                     |
+| `--check`             | Report available updates without applying changes (dry-run mode).               |
+| `--json`              | Output results as JSON (only valid with `--check`).                             |
+| `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. |
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
-| `0`  | No updates available, or updates applied successfully |
+| Code | Meaning                                                              |
+| ---- | -------------------------------------------------------------------- |
+| `0`  | No updates available, or updates applied successfully                |
 | `1`  | Updates available (`--check`) or one or more updates failed to apply |
 
 ## ghagen init
@@ -239,8 +239,8 @@ ghagen init
 
 ### Options
 
-| Option | Description |
-|---|---|
+| Option          | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
 | `--outdir PATH` | Directory to create the config file in. Defaults to `.github`. |
 
 ### Example

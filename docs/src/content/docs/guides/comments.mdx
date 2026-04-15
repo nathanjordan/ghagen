@@ -180,16 +180,16 @@ name: Commented Workflow
 on: # trigger configuration
   push:
     branches:
-    - main
+      - main
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    -  # fast Python linter
-      name: Ruff
-      run: ruff check .
+      - uses: actions/checkout@v4
+      - # fast Python linter
+        name: Ruff
+        run: ruff check .
 ```
 
 ## Header comments
@@ -207,12 +207,12 @@ The `{source_file}` path is resolved relative to the directory containing `.gith
 
 Pass a template to `App(header=...)` to override the default. Templates use [`str.format_map`](https://docs.python.org/3/library/stdtypes.html#str.format_map) syntax -- no extra dependencies -- so you can reference a fixed set of variables:
 
-| Variable        | Description                                                                 |
-| --------------- | --------------------------------------------------------------------------- |
-| `{source_file}` | Python file that defined this item, relative to the app root.              |
-| `{source_line}` | Line number where the `Workflow` / `Action` was constructed.               |
-| `{tool}`        | The string `ghagen`.                                                        |
-| `{version}`     | The installed ghagen version (e.g. `0.2.1`).                               |
+| Variable        | Description                                                   |
+| --------------- | ------------------------------------------------------------- |
+| `{source_file}` | Python file that defined this item, relative to the app root. |
+| `{source_line}` | Line number where the `Workflow` / `Action` was constructed.  |
+| `{tool}`        | The string `ghagen`.                                          |
+| `{version}`     | The installed ghagen version (e.g. `0.2.1`).                  |
 
 Example:
 

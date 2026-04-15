@@ -57,11 +57,7 @@ export const TRIGGER_KEY_ORDER = [
   "types",
 ] as const;
 
-export const STRATEGY_KEY_ORDER = [
-  "matrix",
-  "fail-fast",
-  "max-parallel",
-] as const;
+export const STRATEGY_KEY_ORDER = ["matrix", "fail-fast", "max-parallel"] as const;
 
 export const MATRIX_KEY_ORDER = ["include", "exclude"] as const;
 
@@ -74,10 +70,7 @@ export const CONTAINER_KEY_ORDER = [
   "options",
 ] as const;
 
-export const CONCURRENCY_KEY_ORDER = [
-  "group",
-  "cancel-in-progress",
-] as const;
+export const CONCURRENCY_KEY_ORDER = ["group", "cancel-in-progress"] as const;
 
 export const DEFAULTS_KEY_ORDER = ["run"] as const;
 
@@ -97,10 +90,7 @@ export const PERMISSIONS_KEY_ORDER = [
   "statuses",
 ] as const;
 
-export const WORKFLOW_DISPATCH_KEY_ORDER = [
-  "description",
-  "inputs",
-] as const;
+export const WORKFLOW_DISPATCH_KEY_ORDER = ["description", "inputs"] as const;
 
 export const WORKFLOW_DISPATCH_INPUT_KEY_ORDER = [
   "description",
@@ -110,11 +100,7 @@ export const WORKFLOW_DISPATCH_INPUT_KEY_ORDER = [
   "options",
 ] as const;
 
-export const WORKFLOW_CALL_KEY_ORDER = [
-  "inputs",
-  "outputs",
-  "secrets",
-] as const;
+export const WORKFLOW_CALL_KEY_ORDER = ["inputs", "outputs", "secrets"] as const;
 
 export const ENVIRONMENT_KEY_ORDER = ["name", "url"] as const;
 
@@ -153,11 +139,4 @@ export const DOCKER_RUNS_KEY_ORDER = [
   "post-if",
 ] as const;
 
-export const NODE_RUNS_KEY_ORDER = [
-  "using",
-  "main",
-  "pre",
-  "post",
-  "pre-if",
-  "post-if",
-] as const;
+export const NODE_RUNS_KEY_ORDER = ["using", "main", "pre", "post", "pre-if", "post-if"] as const;

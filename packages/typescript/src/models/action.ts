@@ -1,6 +1,4 @@
-import type {
-  HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction,
-} from "../generated/action-types.js";
+import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../generated/action-types.js";
 import type {
   ActionModel,
   ActionInputModel,
@@ -158,9 +156,7 @@ const ACTION_FIELD_MAP = {
 // ---------------------------------------------------------------------------
 
 /** Create an action input definition model. */
-export function actionInputDef(
-  input: WithMeta<ActionInputDefInput>,
-): ActionInputModel {
+export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
   return createModel(
     "actionInput",
@@ -171,9 +167,7 @@ export function actionInputDef(
 }
 
 /** Create an action output definition model. */
-export function actionOutputDef(
-  input: WithMeta<ActionOutputDefInput>,
-): ActionOutputModel {
+export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOutputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
   return createModel(
     "actionOutput",
@@ -195,9 +189,7 @@ export function branding(input: WithMeta<BrandingInput>): BrandingModel {
 }
 
 /** Create a composite runs model. */
-export function compositeRuns(
-  input: WithMeta<CompositeRunsInput>,
-): CompositeRunsModel {
+export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
   return createModel(
     "compositeRuns",
@@ -208,9 +200,7 @@ export function compositeRuns(
 }
 
 /** Create a Docker runs model. */
-export function dockerRuns(
-  input: WithMeta<DockerRunsInput>,
-): DockerRunsModel {
+export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
   return createModel(
     "dockerRuns",

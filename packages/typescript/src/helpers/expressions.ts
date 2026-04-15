@@ -7,10 +7,7 @@
  * // produces: if: "${{ github.ref == 'refs/heads/main' }}"
  * ```
  */
-export function expr(
-  strings: TemplateStringsArray,
-  ...values: unknown[]
-): string {
+export function expr(strings: TemplateStringsArray, ...values: unknown[]): string {
   const inner = String.raw(strings, ...values);
   return `\${{ ${inner} }}`;
 }
@@ -24,14 +21,11 @@ export function expr(
  * // produces: TOKEN: "${{ secrets.GITHUB_TOKEN }}"
  * ```
  */
-export const secrets: Record<string, string> = new Proxy(
-  {} as Record<string, string>,
-  {
-    get(_, key: string) {
-      return `\${{ secrets.${key} }}`;
-    },
+export const secrets: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get(_, key: string) {
+    return `\${{ secrets.${key} }}`;
   },
-);
+});
 
 /**
  * Proxy for accessing GitHub context values as expressions.
@@ -42,14 +36,11 @@ export const secrets: Record<string, string> = new Proxy(
  * // produces: REF: "${{ github.ref }}"
  * ```
  */
-export const github: Record<string, string> = new Proxy(
-  {} as Record<string, string>,
-  {
-    get(_, key: string) {
-      return `\${{ github.${key} }}`;
-    },
+export const github: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get(_, key: string) {
+    return `\${{ github.${key} }}`;
   },
-);
+});
 
 /**
  * Proxy for accessing environment variable expressions.
@@ -60,11 +51,8 @@ export const github: Record<string, string> = new Proxy(
  * // produces: run: "echo ${{ vars.MY_VAR }}"
  * ```
  */
-export const vars: Record<string, string> = new Proxy(
-  {} as Record<string, string>,
-  {
-    get(_, key: string) {
-      return `\${{ vars.${key} }}`;
-    },
+export const vars: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get(_, key: string) {
+    return `\${{ vars.${key} }}`;
   },
-);
+});

@@ -1,9 +1,14 @@
 import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../generated/workflow-types.js";
 import type {
-  WorkflowModel, OnModel, PermissionsModel, ConcurrencyModel, DefaultsModel,
-  WithMeta, Raw,
+  WorkflowModel,
+  OnModel,
+  PermissionsModel,
+  ConcurrencyModel,
+  DefaultsModel,
+  WithMeta,
+  Raw,
 } from "./_base.js";
-import { createModel, extractMeta, mapFields, isModel } from "./_base.js";
+import { createModel, extractMeta, isModel } from "./_base.js";
 import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
 import type { JobModel } from "./_base.js";
 import type { OnInput } from "./trigger.js";

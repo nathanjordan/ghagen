@@ -1,9 +1,19 @@
 import type {
-  OnModel, PushTriggerModel, PRTriggerModel, ScheduleTriggerModel,
-  WorkflowDispatchModel, WorkflowCallModel, WithMeta, Model,
+  OnModel,
+  PushTriggerModel,
+  PRTriggerModel,
+  ScheduleTriggerModel,
+  WorkflowDispatchModel,
+  WorkflowCallModel,
+  WithMeta,
 } from "./_base.js";
 import { createModel, extractMeta, mapFields, isModel } from "./_base.js";
-import { ON_KEY_ORDER, TRIGGER_KEY_ORDER, WORKFLOW_DISPATCH_KEY_ORDER, WORKFLOW_CALL_KEY_ORDER } from "../emitter/key-order.js";
+import {
+  ON_KEY_ORDER,
+  TRIGGER_KEY_ORDER,
+  WORKFLOW_DISPATCH_KEY_ORDER,
+  WORKFLOW_CALL_KEY_ORDER,
+} from "../emitter/key-order.js";
 
 export interface PushTriggerInput {
   branches?: string[];
@@ -62,7 +72,12 @@ export interface ScheduleTriggerInput {
 
 export function scheduleTrigger(input: WithMeta<ScheduleTriggerInput>): ScheduleTriggerModel {
   const [data, meta] = extractMeta(input);
-  return createModel("scheduleTrigger", data as Record<string, unknown>, meta, []) as ScheduleTriggerModel;
+  return createModel(
+    "scheduleTrigger",
+    data as Record<string, unknown>,
+    meta,
+    [],
+  ) as ScheduleTriggerModel;
 }
 
 export interface WorkflowDispatchInputDef {
@@ -79,7 +94,12 @@ export interface WorkflowDispatchInput {
 
 export function workflowDispatch(input: WithMeta<WorkflowDispatchInput>): WorkflowDispatchModel {
   const [data, meta] = extractMeta(input);
-  return createModel("workflowDispatch", data as Record<string, unknown>, meta, WORKFLOW_DISPATCH_KEY_ORDER) as WorkflowDispatchModel;
+  return createModel(
+    "workflowDispatch",
+    data as Record<string, unknown>,
+    meta,
+    WORKFLOW_DISPATCH_KEY_ORDER,
+  ) as WorkflowDispatchModel;
 }
 
 export interface WorkflowCallInputDef {
@@ -107,7 +127,12 @@ export interface WorkflowCallInput {
 
 export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
   const [data, meta] = extractMeta(input);
-  return createModel("workflowCall", data as Record<string, unknown>, meta, WORKFLOW_CALL_KEY_ORDER) as WorkflowCallModel;
+  return createModel(
+    "workflowCall",
+    data as Record<string, unknown>,
+    meta,
+    WORKFLOW_CALL_KEY_ORDER,
+  ) as WorkflowCallModel;
 }
 
 export interface OnInput {
@@ -194,7 +219,10 @@ export function on(input: WithMeta<OnInput>): OnModel {
     // Auto-wrap plain objects with appropriate factory for typed triggers
     if (camelKey === "push" && !isModel(value)) {
       yamlData[yamlKey] = pushTrigger(value as PushTriggerInput);
-    } else if ((camelKey === "pullRequest" || camelKey === "pullRequestTarget") && !isModel(value)) {
+    } else if (
+      (camelKey === "pullRequest" || camelKey === "pullRequestTarget") &&
+      !isModel(value)
+    ) {
       yamlData[yamlKey] = prTrigger(value as PRTriggerInput);
     } else if (camelKey === "workflowDispatch") {
       if (typeof value === "boolean" || value === null) {
@@ -208,7 +236,7 @@ export function on(input: WithMeta<OnInput>): OnModel {
       yamlData[yamlKey] = workflowCall(value as WorkflowCallInput);
     } else if (camelKey === "schedule" && Array.isArray(value)) {
       yamlData[yamlKey] = value.map((item) =>
-        isModel(item) ? item : scheduleTrigger(item as ScheduleTriggerInput)
+        isModel(item) ? item : scheduleTrigger(item as ScheduleTriggerInput),
       );
     } else {
       yamlData[yamlKey] = value;

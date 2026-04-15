@@ -17,10 +17,10 @@ Two components:
 
 ### Two Modes
 
-| Mode | What it does | Typical schedule |
-|------|-------------|-----------------|
-| `lockfile-maintenance` | Runs `ghagen deps pin --update` — refreshes SHAs for existing refs without changing Python source | Daily |
-| `version-bumps` | Detects newer tags for referenced actions, updates Python source + re-pins | Weekly |
+| Mode                   | What it does                                                                                      | Typical schedule |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | ---------------- |
+| `lockfile-maintenance` | Runs `ghagen deps pin --update` — refreshes SHAs for existing refs without changing Python source | Daily            |
+| `version-bumps`        | Detects newer tags for referenced actions, updates Python source + re-pins                        | Weekly           |
 
 Both modes default to creating PRs. Users can configure `output: issue` to file issues instead.
 
@@ -62,7 +62,7 @@ ghagen deps upgrade --config PATH         # Path to ghagen config file
       "severity": "major",
       "origin": "user",
       "source_file": ".github/ghagen_workflows.py",
-      "release_url": "https://github.com/actions/checkout/releases/tag/v5"  // best-effort, null if no GitHub Release exists for the tag
+      "release_url": "https://github.com/actions/checkout/releases/tag/v5" // best-effort, null if no GitHub Release exists for the tag
     }
   ],
   "lockfile_stale": [
@@ -144,18 +144,18 @@ Uses targeted string replacement scoped to known user files. AST-based replaceme
 
 ### Inputs
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `mode` | `all` | `lockfile`, `versions`, or `all` |
-| `output` | `pr` | `pr` or `issue` |
-| `config` | `.github/ghagen_workflows.py` | Path to ghagen config file |
-| `python-version` | `3.13` | Python version to use |
-| `ghagen-version` | `''` (latest) | Pin ghagen version |
-| `token` | `${{ github.token }}` | GitHub token for API calls + PR/issue creation |
-| `labels` | `''` | Comma-separated labels for PRs/issues |
-| `branch-prefix` | `ghagen-update/` | Branch name prefix for PRs |
-| `commit-message-prefix` | `''` | Optional prefix (e.g., `chore(deps):`) |
-| `group` | `false` | Group all updates into a single PR/issue |
+| Input                   | Default                       | Description                                    |
+| ----------------------- | ----------------------------- | ---------------------------------------------- |
+| `mode`                  | `all`                         | `lockfile`, `versions`, or `all`               |
+| `output`                | `pr`                          | `pr` or `issue`                                |
+| `config`                | `.github/ghagen_workflows.py` | Path to ghagen config file                     |
+| `python-version`        | `3.13`                        | Python version to use                          |
+| `ghagen-version`        | `''` (latest)                 | Pin ghagen version                             |
+| `token`                 | `${{ github.token }}`         | GitHub token for API calls + PR/issue creation |
+| `labels`                | `''`                          | Comma-separated labels for PRs/issues          |
+| `branch-prefix`         | `ghagen-update/`              | Branch name prefix for PRs                     |
+| `commit-message-prefix` | `''`                          | Optional prefix (e.g., `chore(deps):`)         |
+| `group`                 | `false`                       | Group all updates into a single PR/issue       |
 
 ### Action Flow
 
@@ -182,10 +182,12 @@ Uses targeted string replacement scoped to known user files. AST-based replaceme
 Updates `actions/checkout` from `v4` to `v5`.
 
 ### Changes
+
 - `.github/ghagen_workflows.py`: `actions/checkout@v4` → `actions/checkout@v5`
 - `.github/ghagen.lock.toml`: SHA updated
 
 ### Release notes
+
 - [actions/checkout v5](https://github.com/actions/checkout/releases/tag/v5)
 ```
 
@@ -195,7 +197,7 @@ Updates `actions/checkout` from `v4` to `v5`.
 name: Dependency Updates
 on:
   schedule:
-    - cron: '0 6 * * 1'  # Weekly Monday 6am
+    - cron: "0 6 * * 1" # Weekly Monday 6am
   workflow_dispatch:
 
 jobs:
@@ -217,32 +219,41 @@ jobs:
 ## Edge Cases
 
 ### Non-semver refs
+
 Refs like `@main` or `@release/v1` are not semver-parseable. These are eligible for lockfile maintenance (SHA refresh) but skipped for version bumps. Matches Renovate's behavior.
 
 ### Docker-based actions
+
 `docker://` refs are already skipped by `collect_uses_refs()` (`_is_pinnable()` returns false). No change needed.
 
 ### Local path actions
+
 `./` refs are already skipped by `collect_uses_refs()`. No change needed.
 
 ### Already-pinned SHAs
+
 Refs that are already 40-char SHAs are skipped by `collect_uses_refs()`. No change needed.
 
 ### Reusable workflows
+
 `Job.uses` refs (e.g., `octo-org/repo/.github/workflows/ci.yml@v1`) are collected by `collect_uses_refs()` and follow the same update logic. The `parse_uses()` function already handles the `owner/repo/path@ref` format.
 
 ### Multiple versions of same action
+
 A user might reference `actions/checkout@v3` in one place and `actions/checkout@v4` in another. Each is tracked independently as a separate `uses` string. Updates are proposed for each independently.
 
 ### Rate limiting
+
 The GitHub Tags API is called once per unique `owner/repo`. With authentication, the limit is 5000 req/hr. For repos with many action dependencies, requests should be batched and cached per `owner/repo` (don't re-fetch tags for the same repo).
 
 ### Existing PRs/issues
+
 Before creating a new PR or issue, the action should check if one already exists for the same update (by branch name or issue title) to avoid duplicates.
 
 ## Files to Create/Modify
 
 ### New files
+
 - `src/ghagen/pin/versions.py` — semver comparison with `packaging.version` wrapper
 - `src/ghagen/pin/sources.py` — `sys.modules` diffing for source file tracking
 - `src/ghagen/pin/update.py` — source file string replacement
@@ -254,10 +265,12 @@ Before creating a new PR or issue, the action should check if one already exists
 - `tests/test_pin/test_outdated.py` — CLI command tests
 
 ### Modified files
+
 - `src/ghagen/cli/main.py` — register `deps upgrade` subcommand
 - `src/ghagen/pin/resolve.py` — add `list_tags()` function
 
 ### Existing code to reuse
+
 - `src/ghagen/pin/collect.py` — `collect_uses_refs()` for gathering all action refs
 - `src/ghagen/pin/resolve.py` — `parse_uses()`, `_api_get()`, `resolve_ref()` for GitHub API access
 - `src/ghagen/pin/lockfile.py` — `read_lockfile()`, `write_lockfile()`, `Lockfile`, `PinEntry` models

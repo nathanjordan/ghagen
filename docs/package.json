@@ -5,19 +5,25 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "lint": "oxlint src astro.config.mjs",
+    "lint:fix": "oxlint src astro.config.mjs --fix",
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check ."
   },
   "dependencies": {
-    "astro": "^5.7.0",
     "@astrojs/starlight": "^0.34.0",
+    "astro": "^5.7.0",
     "sharp": "^0.33.0"
   },
-  "overrides": {
-    "@astrojs/sitemap": "3.6.1"
-  },
   "devDependencies": {
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "starlight-typedoc": "^0.21.0",
     "typedoc": "^0.28.0",
     "typedoc-plugin-markdown": "^4.6.0"
+  },
+  "overrides": {
+    "@astrojs/sitemap": "3.6.1"
   }
 }

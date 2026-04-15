@@ -29,10 +29,7 @@ describe("workflow schema validation", () => {
       jobs: {
         test: job({
           runsOn: "ubuntu-latest",
-          steps: [
-            step({ uses: "actions/checkout@v4" }),
-            step({ name: "Test", run: "npm test" }),
-          ],
+          steps: [step({ uses: "actions/checkout@v4" }), step({ name: "Test", run: "npm test" })],
         }),
       },
     });
@@ -49,10 +46,7 @@ describe("workflow schema validation", () => {
           strategy: {
             matrix_: { "node-version": ["18", "20", "22"] },
           },
-          steps: [
-            step({ uses: "actions/checkout@v4" }),
-            step({ name: "Test", run: "npm test" }),
-          ],
+          steps: [step({ uses: "actions/checkout@v4" }), step({ name: "Test", run: "npm test" })],
         }),
       },
     });
@@ -87,7 +81,11 @@ describe("workflow schema validation", () => {
           },
           steps: [
             step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
-            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
+            step({
+              name: "Set up Python",
+              uses: "actions/setup-python@v6",
+              with_: { "python-version": "${{ matrix.python-version }}" },
+            }),
             step({ name: "Build", run: "make build" }),
           ],
         }),
@@ -157,10 +155,7 @@ describe("workflow schema validation", () => {
           services: {
             db: { image: "postgres:16", env: { POSTGRES_PASSWORD: "test" }, ports: [5432] },
           },
-          steps: [
-            step({ uses: "actions/checkout@v4" }),
-            step({ name: "Test", run: "npm test" }),
-          ],
+          steps: [step({ uses: "actions/checkout@v4" }), step({ name: "Test", run: "npm test" })],
         }),
       },
     });
@@ -177,7 +172,10 @@ describe("action schema validation", () => {
         name: actionInputDef({ description: "A name", required: true }),
       },
       outputs: {
-        result: actionOutputDef({ description: "The result", value: "${{ steps.run.outputs.result }}" }),
+        result: actionOutputDef({
+          description: "The result",
+          value: "${{ steps.run.outputs.result }}",
+        }),
       },
       runs: compositeRuns({
         using: "composite",
