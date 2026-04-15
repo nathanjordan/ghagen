@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.2](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.3.1...ghagen-v0.3.2) (2026-04-15)
+
+
+### Bug Fixes
+
+* **release:** rename npm package to @ghagen/ghagen for scoped publishing ([a60cc87](https://github.com/nathanjordan/ghagen/commit/a60cc87fcf36230c2f5a12a72a284b67ffa5912f))
+
+
+### Documentation
+
+* migrate from MkDocs to Astro Starlight with TypeScript support ([580dda1](https://github.com/nathanjordan/ghagen/commit/580dda175c5e7d4791d6ef1cc8e5ffd6e54b686e))
+
 ## [0.3.1](https://github.com/nathanjordan/ghagen/compare/ghagen-v0.3.0...ghagen-v0.3.1) (2026-04-14)
 
 
