@@ -189,6 +189,23 @@ def _release_workflow() -> Workflow:
                 id="release",
                 uses="googleapis/release-please-action@v4",
             ),
+            Step(
+                name="Checkout",
+                if_="steps.release.outputs.release_created == 'true'",
+                uses="actions/checkout@v4",
+            ),
+            Step(
+                name="Update major version tag",
+                if_="steps.release.outputs.release_created == 'true'",
+                run="""
+                    TAG="${{ steps.release.outputs.tag_name }}"
+                    MAJOR="${TAG%%.*}"
+                    git config user.name "github-actions[bot]"
+                    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                    git tag -fa "$MAJOR" -m "Update $MAJOR tag to $TAG"
+                    git push origin "$MAJOR" --force
+                """,
+            ),
         ],
     )
 
@@ -254,9 +271,8 @@ def _release_workflow() -> Workflow:
                     "TAG": "${{ needs.release-please.outputs.tag_name }}",
                 },
                 run="""
-                    # Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1
-                    VERSION="${TAG#ghagen-v}"
-                    VERSION="${VERSION#v}"
+                    # Strip tag prefix: v0.2.1 -> 0.2.1
+                    VERSION="${TAG#v}"
                     export VERSION
 
                     # Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.

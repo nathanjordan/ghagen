@@ -16,6 +16,18 @@ jobs:
     - id: release
       name: Release Please
       uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38  # v4
+    - name: Checkout
+      if: steps.release.outputs.release_created == 'true'
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+    - name: Update major version tag
+      if: steps.release.outputs.release_created == 'true'
+      run: |-
+        TAG="${{ steps.release.outputs.tag_name }}"
+        MAJOR="${TAG%%.*}"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git tag -fa "$MAJOR" -m "Update $MAJOR tag to $TAG"
+        git push origin "$MAJOR" --force
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -96,9 +108,8 @@ jobs:
         path: homebrew-tap
     - name: Bump ghagen formula and open PR
       run: |-
-        # Strip release-please tag prefix: ghagen-v0.2.1 -> 0.2.1
-        VERSION="${TAG#ghagen-v}"
-        VERSION="${VERSION#v}"
+        # Strip tag prefix: v0.2.1 -> 0.2.1
+        VERSION="${TAG#v}"
         export VERSION
 
         # Fetch sdist URL + sha256 from PyPI and rewrite Formula/ghagen.rb.
