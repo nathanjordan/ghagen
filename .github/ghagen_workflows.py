@@ -50,7 +50,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Ruff check", run="uv run ruff check packages/python/src/ packages/python/tests/"),
                     Step(
                         name="actionlint",
-                        uses="rhysd/actionlint@v1.7.11",
+                        uses="rhysd/actionlint@v1.7.12",
                     ),
                     Step(
                         name="ghagen lint",
@@ -192,7 +192,7 @@ def _release_workflow() -> Workflow:
             Step(
                 name="Checkout",
                 if_="steps.release.outputs.release_created == 'true'",
-                uses="actions/checkout@v4",
+                uses="actions/checkout@v6",
             ),
             Step(
                 name="Update major version tag",
@@ -256,7 +256,7 @@ def _release_workflow() -> Workflow:
         steps=[
             Step(
                 name="Check out nathanjordan/homebrew-tap",
-                uses="actions/checkout@v4",
+                uses="actions/checkout@v6",
                 with_={
                     "repository": "nathanjordan/homebrew-tap",
                     "token": "${{ secrets.HOMEBREW_TAP_TOKEN }}",
@@ -346,9 +346,9 @@ def _release_workflow() -> Workflow:
             checkout(),
             Step(
                 name="Setup Node.js",
-                uses="actions/setup-node@v4",
+                uses="actions/setup-node@v6",
                 with_={
-                    "node-version": "20",
+                    "node-version": "24",
                     "registry-url": "https://registry.npmjs.org",
                 },
             ),
@@ -407,8 +407,8 @@ def _docs_workflow() -> Workflow:
                     checkout(),
                     Step(
                         name="Setup Node.js",
-                        uses="actions/setup-node@v4",
-                        with_={"node-version": "20"},
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
                     ),
                     Step(
                         name="Install dependencies",
@@ -485,7 +485,7 @@ def _ghagen_check_action() -> Action:
         runs=CompositeRuns(
             steps=[
                 Step(
-                    uses="actions/setup-python@v5",
+                    uses="actions/setup-python@v6",
                     with_={"python-version": "${{ inputs.python-version }}"},
                 ),
                 Step(

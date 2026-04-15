@@ -44,8 +44,8 @@ resolved_at = "2026-04-09T00:00:00+00:00"
 """
 
 # Common mock values
-_CHECKOUT_TAGS = ["v1", "v2", "v3", "v4", "v5"]
-_SETUP_PYTHON_TAGS = ["v4", "v5", "v5.1.0", "v6"]
+_CHECKOUT_TAGS = ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]
+_SETUP_PYTHON_TAGS = ["v4", "v5", "v5.1.0", "v6", "v7"]
 _NEW_CHECKOUT_SHA = "f" * 40
 _NEW_SETUP_PY_SHA = "e" * 40
 
@@ -272,8 +272,8 @@ class TestUpgradeApply:
 
         # Verify the config file was actually modified
         config_content = (tmp_path / "ghagen_config.py").read_text()
-        assert "actions/checkout@v5" in config_content
-        assert "actions/setup-python@v6" in config_content
+        assert "actions/checkout@v7" in config_content
+        assert "actions/setup-python@v7" in config_content
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)

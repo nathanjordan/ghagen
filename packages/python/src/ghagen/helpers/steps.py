@@ -7,10 +7,10 @@ from typing import Any
 from ghagen.models.step import Step
 
 # Action version constants
-_CHECKOUT = "actions/checkout@v4"
-_SETUP_PYTHON = "actions/setup-python@v5"
-_SETUP_NODE = "actions/setup-node@v4"
-_SETUP_UV = "astral-sh/setup-uv@v4"
+_CHECKOUT = "actions/checkout@v6"
+_SETUP_PYTHON = "actions/setup-python@v6"
+_SETUP_NODE = "actions/setup-node@v6"
+_SETUP_UV = "astral-sh/setup-uv@v7"
 _CACHE = "actions/cache@v4"
 _UPLOAD_ARTIFACT = "actions/upload-artifact@v4"
 _DOWNLOAD_ARTIFACT = "actions/download-artifact@v4"
@@ -33,7 +33,7 @@ def checkout(
     fetch_depth: int | None = 1,
     **kwargs: Any,
 ) -> Step:
-    """Create a checkout step using ``actions/checkout@v4``.
+    """Create a checkout step using ``actions/checkout@v6``.
 
     Args:
         ref: Git reference to check out (branch, tag, or SHA).
@@ -67,7 +67,7 @@ def setup_python(
     cache: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a Python setup step using ``actions/setup-python@v5``.
+    """Create a Python setup step using ``actions/setup-python@v6``.
 
     Args:
         version: Python version string (e.g., ``"3.12"`` or
@@ -99,7 +99,7 @@ def setup_node(
     cache: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a Node.js setup step using ``actions/setup-node@v4``.
+    """Create a Node.js setup step using ``actions/setup-node@v6``.
 
     Args:
         version: Node.js version string (e.g., ``"20"``).
@@ -129,7 +129,7 @@ def setup_uv(
     version: str | None = None,
     **kwargs: Any,
 ) -> Step:
-    """Create a uv setup step using ``astral-sh/setup-uv@v4``.
+    """Create a uv setup step using ``astral-sh/setup-uv@v7``.
 
     Args:
         version: Specific uv version to install. If ``None``, uses the

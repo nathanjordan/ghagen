@@ -19,7 +19,7 @@ from ghagen.models.step import Step
 def test_checkout_defaults():
     step = checkout()
     assert isinstance(step, Step)
-    assert step.uses == "actions/checkout@v4"
+    assert step.uses == "actions/checkout@v6"
     assert step.name == "Checkout"
     cm = step.to_commented_map()
     assert cm["with"]["fetch-depth"] == 1
@@ -69,7 +69,7 @@ def test_checkout_extra_with():
 def test_setup_python_basic():
     step = setup_python("3.12")
     assert isinstance(step, Step)
-    assert step.uses == "actions/setup-python@v5"
+    assert step.uses == "actions/setup-python@v6"
     assert step.name == "Set up Python"
     cm = step.to_commented_map()
     assert cm["with"]["python-version"] == "3.12"
@@ -93,7 +93,7 @@ def test_setup_python_no_cache():
 def test_setup_node_basic():
     step = setup_node("20")
     assert isinstance(step, Step)
-    assert step.uses == "actions/setup-node@v4"
+    assert step.uses == "actions/setup-node@v6"
     assert step.name == "Set up Node.js"
     cm = step.to_commented_map()
     assert cm["with"]["node-version"] == "20"
@@ -111,7 +111,7 @@ def test_setup_node_with_cache():
 def test_setup_uv_defaults():
     step = setup_uv()
     assert isinstance(step, Step)
-    assert step.uses == "astral-sh/setup-uv@v4"
+    assert step.uses == "astral-sh/setup-uv@v7"
     assert step.name == "Set up uv"
     # No version means with_ is None
     assert step.with_ is None
