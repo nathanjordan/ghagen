@@ -36,8 +36,10 @@ uv.lock
 # Claude Code
 .claude/
 
-# MkDocs
-site/
+# Astro / Starlight docs
+docs/dist/
+docs/.astro/
+docs/src/content/docs/typescript/api/
 
 # Node / TypeScript
 node_modules/

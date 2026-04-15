@@ -1,9 +1,12 @@
-# Linting
+---
+title: Linting
+description: Rule-based checks for ghagen workflow definitions
+---
 
 `ghagen lint` runs rule-based checks against your workflow definitions
 **at the Python source level**. Violations point at the exact line in
-your `ghagen_workflows.py` that constructed the offending model — not a
-line number in a generated file — so you can jump straight to the fix.
+your `ghagen_workflows.py` that constructed the offending model -- not a
+line number in a generated file -- so you can jump straight to the fix.
 
 This is complementary to tools like
 [actionlint](https://github.com/rhysd/actionlint), which lints the
@@ -77,7 +80,7 @@ Step(uses="actions/checkout@v4")
 Step(uses="actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11")
 ```
 
-Local `./` references and `docker://` images are skipped — they are
+Local `./` references and `docker://` images are skipped -- they are
 pinned by other means.
 
 ### `missing-timeout` (warning)
@@ -104,7 +107,7 @@ resolves to just one of the matching steps. Step ids are scoped per-job,
 so the same id in two different jobs is fine.
 
 Severity is `error` (not warning) because this is a correctness bug, not
-a hardening concern — `ghagen lint` exits with code 1 when any
+a hardening concern -- `ghagen lint` exits with code 1 when any
 duplicates are found.
 
 ```python
@@ -132,7 +135,7 @@ Job(
 Lint behavior is configured via a TOML file. Two locations are checked,
 in precedence order:
 
-1. **`.github/ghagen.toml`** (preferred — lives next to `ghagen_workflows.py`)
+1. **`.github/ghagen.toml`** (preferred -- lives next to `ghagen_workflows.py`)
 2. **`pyproject.toml`** `[tool.ghagen.lint]` section (fallback for Python projects)
 
 If both exist, `.github/ghagen.toml` wins and a warning is printed to
@@ -196,6 +199,6 @@ Job(
 
 The following are intentionally out of scope for v1:
 
-- **YAML-level linting** — use `actionlint` for that.
-- **User-defined rules** — all rules are built-in. A public rule API may
+- **YAML-level linting** -- use `actionlint` for that.
+- **User-defined rules** -- all rules are built-in. A public rule API may
   come later once the built-in rule shape is proven.

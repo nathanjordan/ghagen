@@ -1,0 +1,135 @@
+---
+title: ghagen
+description: Generate GitHub Actions workflows from typed Python or TypeScript code. Get type safety, IDE autocomplete, DRY patterns, and version-controlled workflow generation.
+hero:
+  tagline: Generate GitHub Actions workflows from typed Python or TypeScript code.
+  actions:
+    - text: Get Started
+      link: ./getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/nathanjordan/ghagen
+      icon: external
+      variant: minimal
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+## Quick Install
+
+<Tabs syncKey="lang">
+  <TabItem label="Python (pip)">
+    ```bash
+    pip install ghagen
+    ```
+  </TabItem>
+  <TabItem label="Python (uv)">
+    ```bash
+    uv add ghagen
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```bash
+    npm install ghagen
+    ```
+  </TabItem>
+</Tabs>
+
+## Example
+
+Define your workflow in code:
+
+<Tabs syncKey="lang">
+  <TabItem label="Python">
+    ```python
+    from ghagen import App, Job, On, PRTrigger, PushTrigger, Step, Workflow
+
+    workflow = Workflow(
+        name="CI",
+        on=On(
+            push=PushTrigger(branches=["main"]),
+            pull_request=PRTrigger(branches=["main"]),
+        ),
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                steps=[
+                    Step(uses="actions/checkout@v4"),
+                    Step(name="Run tests", run="python -m pytest"),
+                ],
+            ),
+        },
+    )
+
+    app = App()
+    app.add_workflow(workflow, "ci.yml")
+    app.synth()
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```typescript
+    import {
+      workflow, job, step, on,
+      pushTrigger, prTrigger, toYamlFile,
+    } from "ghagen";
+
+    const ci = workflow({
+      name: "CI",
+      on: on({
+        push: pushTrigger({ branches: ["main"] }),
+        pullRequest: prTrigger({ branches: ["main"] }),
+      }),
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          steps: [
+            step({ uses: "actions/checkout@v4" }),
+            step({ name: "Run tests", run: "python -m pytest" }),
+          ],
+        }),
+      },
+    });
+
+    toYamlFile(ci, ".github/workflows/ci.yml");
+    ```
+  </TabItem>
+</Tabs>
+
+ghagen generates clean, readable YAML:
+
+```yaml
+name: CI
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - main
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: python -m pytest
+```
+
+## Features
+
+- **Typed models** for workflows, jobs, steps, triggers, and permissions
+- **IDE autocomplete** and type checking for every field
+- **YAML comment support** -- block, end-of-line, and field-level comments
+- **DRY helpers** -- step factories (`checkout()`, `setupPython()`, etc.) and expression builders
+- **Escape hatches** -- graduated ways to inject arbitrary YAML when the typed models don't cover what you need
+- **Linting** -- flags missing permissions, unpinned actions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model *(Python)*
+- **CLI** -- `ghagen synth` to generate, `ghagen check-synced` to verify freshness in CI, `ghagen deps pin` to lock actions to commit SHAs *(Python)*
+
+## Next Steps
+
+- [Getting Started](./getting-started/) -- step-by-step tutorial
+- [Cookbook](./cookbook/) -- recipes for common workflow patterns
+- [FAQ](./faq/) -- quick answers to common questions
+- [Python API Reference](./python/api/) -- full Python model documentation
+- [TypeScript API Reference](./typescript/api/) -- full TypeScript API documentation

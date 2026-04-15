@@ -378,31 +378,49 @@ def _docs_workflow() -> Workflow:
             workflow_dispatch=WorkflowDispatchTrigger(),
         ),
         permissions=Permissions(
-            contents=PermissionLevel.WRITE,
+            contents=PermissionLevel.READ,
+            pages=PermissionLevel.WRITE,
+            id_token=PermissionLevel.WRITE,
         ),
         jobs={
-            "deploy": Job(
-                name="Deploy docs",
+            "build": Job(
+                name="Build docs",
                 runs_on="ubuntu-latest",
                 timeout_minutes=15,
                 steps=[
                     checkout(),
-                    setup_uv(),
-                    setup_python(version="3.13"),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v4",
+                        with_={"node-version": "20"},
+                    ),
                     Step(
                         name="Install dependencies",
-                        run="uv sync",
+                        run="npm ci",
+                        working_directory="docs",
                     ),
                     Step(
-                        name="Configure Git",
-                        run="""
-                            git config user.name github-actions[bot]
-                            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-                        """,
+                        name="Build docs",
+                        run="npm run build",
+                        working_directory="docs",
                     ),
                     Step(
-                        name="Deploy docs",
-                        run="uv run mkdocs gh-deploy --force",
+                        name="Upload Pages artifact",
+                        uses="actions/upload-pages-artifact@v3",
+                        with_={"path": "docs/dist"},
+                    ),
+                ],
+            ),
+            "deploy": Job(
+                name="Deploy docs",
+                runs_on="ubuntu-latest",
+                needs="build",
+                timeout_minutes=5,
+                environment=Environment(name="github-pages"),
+                steps=[
+                    Step(
+                        name="Deploy to GitHub Pages",
+                        uses="actions/deploy-pages@v4",
                     ),
                 ],
             ),

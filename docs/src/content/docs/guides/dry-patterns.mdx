@@ -1,0 +1,321 @@
+---
+title: DRY Patterns
+description: Common patterns for reducing duplication in ghagen workflow definitions
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+ghagen definitions are plain code, so standard techniques for reducing duplication work naturally. This guide covers common patterns for keeping your workflow code concise and maintainable.
+
+## Step factories
+
+ghagen ships with factory functions for frequently used GitHub Actions. Each returns a step and accepts additional fields that are passed through, so you can add `if` conditions, environment variables, or any other field.
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+from ghagen import (
+    cache,
+    checkout,
+    download_artifact,
+    setup_node,
+    setup_python,
+    setup_uv,
+    upload_artifact,
+)
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+import { checkout, setupNode, setupPython } from "ghagen";
+// Note: cache, upload_artifact, download_artifact, setup_uv
+// are not yet available as helpers in TypeScript. Use step() directly.
+```
+</TabItem>
+</Tabs>
+
+### Usage
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+steps = [
+    checkout(),
+    setup_python(version="3.12"),
+    cache(key="pip-${{ hashFiles('requirements.txt') }}", path="~/.cache/pip"),
+    Step(name="Install deps", run="pip install -r requirements.txt"),
+    Step(name="Test", run="pytest"),
+    upload_artifact(name="coverage", path="htmlcov/"),
+]
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+import { step, checkout, setupPython } from "ghagen";
+
+const steps = [
+  checkout(),
+  setupPython({ version: "3.12" }),
+  step({
+    name: "Cache pip",
+    uses: "actions/cache@v4",
+    with_: { key: "pip-${{ hashFiles('requirements.txt') }}", path: "~/.cache/pip" },
+  }),
+  step({ name: "Install deps", run: "pip install -r requirements.txt" }),
+  step({ name: "Test", run: "pytest" }),
+  step({
+    name: "Upload coverage",
+    uses: "actions/upload-artifact@v4",
+    with_: { name: "coverage", path: "htmlcov/" },
+  }),
+];
+```
+</TabItem>
+</Tabs>
+
+### Passing extra fields
+
+Since factories forward extra fields to the underlying step, you can add any supported field:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+checkout(name="Checkout with submodules", with_={"submodules": "recursive"})
+setup_python(version="3.12", if_="github.event_name == 'push'")
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+checkout({ name: "Checkout with submodules", with_: { submodules: "recursive" } })
+setupPython({ version: "3.12", if_: "github.event_name == 'push'" })
+```
+</TabItem>
+</Tabs>
+
+## Job template functions
+
+Define a function that returns a job to create reusable job templates:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+from ghagen import Job, Step, checkout
+
+def lint_job(tool: str, cmd: str) -> Job:
+    return Job(
+        name=f"Lint ({tool})",
+        runs_on="ubuntu-latest",
+        steps=[
+            checkout(),
+            Step(name=tool, run=cmd),
+        ],
+    )
+```
+
+Use it to stamp out multiple jobs without repeating the structure:
+
+```python
+jobs = {
+    "ruff": lint_job("Ruff", "ruff check ."),
+    "mypy": lint_job("Mypy", "mypy src/"),
+    "black": lint_job("Black", "black --check ."),
+}
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+import { job, step, checkout } from "ghagen";
+import type { JobModel } from "ghagen";
+
+function lintJob(tool: string, cmd: string): JobModel {
+  return job({
+    name: `Lint (${tool})`,
+    runsOn: "ubuntu-latest",
+    steps: [
+      checkout(),
+      step({ name: tool, run: cmd }),
+    ],
+  });
+}
+
+const jobs = {
+  ruff: lintJob("Ruff", "ruff check ."),
+  mypy: lintJob("Mypy", "mypy src/"),
+  black: lintJob("Black", "black --check ."),
+};
+```
+</TabItem>
+</Tabs>
+
+You can parameterize anything -- runner labels, Python versions, dependency install commands, or entire step lists.
+
+## Shared constants
+
+Extract repeated values into variables to ensure consistency and simplify updates:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+RUNNER = "ubuntu-latest"
+PYTHON_VERSION = "3.12"
+CHECKOUT_ACTION = "actions/checkout@v4"
+SETUP_PYTHON_ACTION = "actions/setup-python@v5"
+
+Job(
+    runs_on=RUNNER,
+    steps=[
+        Step(uses=CHECKOUT_ACTION),
+        Step(uses=SETUP_PYTHON_ACTION, with_={"python-version": PYTHON_VERSION}),
+    ],
+)
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+import { job, step } from "ghagen";
+
+const RUNNER = "ubuntu-latest";
+const PYTHON_VERSION = "3.12";
+const CHECKOUT_ACTION = "actions/checkout@v4";
+const SETUP_PYTHON_ACTION = "actions/setup-python@v5";
+
+job({
+  runsOn: RUNNER,
+  steps: [
+    step({ uses: CHECKOUT_ACTION }),
+    step({ uses: SETUP_PYTHON_ACTION, with_: { "python-version": PYTHON_VERSION } }),
+  ],
+});
+```
+</TabItem>
+</Tabs>
+
+When a new action version is released, update the constant in one place.
+
+## Loops
+
+Use iteration to generate repetitive structures:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+services = ["api", "web", "worker"]
+
+jobs = {
+    f"build-{svc}": Job(
+        name=f"Build {svc}",
+        runs_on="ubuntu-latest",
+        steps=[
+            checkout(),
+            Step(name="Build", run=f"docker build -t {svc} ./services/{svc}"),
+        ],
+    )
+    for svc in services
+}
+```
+
+This works equally well for generating step lists:
+
+```python
+linters = [("ruff", "ruff check ."), ("mypy", "mypy src/")]
+
+steps = [checkout()] + [
+    Step(name=name, run=cmd) for name, cmd in linters
+]
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+import { job, step, checkout } from "ghagen";
+
+const services = ["api", "web", "worker"];
+
+const jobs = Object.fromEntries(
+  services.map((svc) => [
+    `build-${svc}`,
+    job({
+      name: `Build ${svc}`,
+      runsOn: "ubuntu-latest",
+      steps: [
+        checkout(),
+        step({ name: "Build", run: `docker build -t ${svc} ./services/${svc}` }),
+      ],
+    }),
+  ])
+);
+```
+</TabItem>
+</Tabs>
+
+## Composable workflows
+
+You are not limited to a single file. Split workflow definitions across modules and compose them together:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+# .github/ghagen_workflows.py
+from ghagen import App
+from .ci import ci_workflow
+from .deploy import deploy_workflow
+from .release import release_workflow
+
+app = App()
+
+app.add_workflow(ci_workflow, "ci.yml")
+app.add_workflow(deploy_workflow, "deploy.yml")
+app.add_workflow(release_workflow, "release.yml")
+```
+
+Each module defines and exports its own `Workflow` object. This keeps individual files focused and easy to navigate, while the top-level file serves as the manifest of all generated workflows.
+
+You can also share helper functions, step lists, and job templates across modules by importing from a common utilities module:
+
+```python
+# .github/common.py
+from ghagen import Step, checkout, setup_python
+
+RUNNER = "ubuntu-latest"
+
+def python_setup_steps(version: str = "3.12"):
+    return [
+        checkout(),
+        setup_python(version=version),
+        Step(name="Install deps", run="pip install -e '.[dev]'"),
+    ]
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+// .github/workflows.ts
+import { toYamlFile } from "ghagen";
+import { ciWorkflow } from "./ci.js";
+import { deployWorkflow } from "./deploy.js";
+import { releaseWorkflow } from "./release.js";
+
+toYamlFile(ciWorkflow, ".github/workflows/ci.yml");
+toYamlFile(deployWorkflow, ".github/workflows/deploy.yml");
+toYamlFile(releaseWorkflow, ".github/workflows/release.yml");
+```
+
+Each module defines and exports its own workflow object. This keeps individual files focused and easy to navigate, while the top-level file calls `toYamlFile()` for each workflow.
+
+You can also share helper functions, step lists, and job templates across modules by importing from a common utilities module:
+
+```typescript
+// .github/common.ts
+import { step, checkout, setupPython } from "ghagen";
+import type { StepModel } from "ghagen";
+
+const RUNNER = "ubuntu-latest";
+
+function pythonSetupSteps(version = "3.12"): StepModel[] {
+  return [
+    checkout(),
+    setupPython({ version }),
+    step({ name: "Install deps", run: "pip install -e '.[dev]'" }),
+  ];
+}
+```
+</TabItem>
+</Tabs>

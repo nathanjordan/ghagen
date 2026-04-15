@@ -1,4 +1,7 @@
-# CLI Reference
+---
+title: CLI Reference
+description: ghagen CLI command documentation
+---
 
 ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `lint`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`). All commands are invoked through the `ghagen` CLI, which is built with Typer.
 
@@ -91,7 +94,7 @@ If someone edits a generated YAML file directly instead of updating the Python s
 ## ghagen lint
 
 Run rule-based checks against your workflow definitions. See the
-[Linting guide](linting.md) for rule descriptions and configuration.
+[Linting guide](../linting/) for rule descriptions and configuration.
 
 ```bash
 ghagen lint
@@ -250,4 +253,4 @@ ghagen init
 ghagen init --outdir workflows
 ```
 
-The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command. See [Getting Started](getting-started.md) for the full scaffold content.
+The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command. See [Getting Started](../../getting-started/) for the full scaffold content.
