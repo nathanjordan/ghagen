@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.2.0...ghagen-js-v0.2.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **release:** rename npm package to @ghagen/ghagen for scoped publishing ([a60cc87](https://github.com/nathanjordan/ghagen/commit/a60cc87fcf36230c2f5a12a72a284b67ffa5912f))
+
 ## [0.2.0](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.1.0...ghagen-js-v0.2.0) (2026-04-14)
 
 
