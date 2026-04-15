@@ -81,7 +81,7 @@ validation on that single field without affecting the rest of the model:
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
-    import { job, raw } from "ghagen";
+    import { job, raw } from "@ghagen/ghagen";
 
     job({ runsOn: raw("${{ matrix.os }}") });
     ```
@@ -129,7 +129,7 @@ Yes. Define an action and register it:
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
-    import { action, compositeRuns, step, toYamlFile } from "ghagen";
+    import { action, compositeRuns, step, toYamlFile } from "@ghagen/ghagen";
 
     const myAction = action({
       name: "My Action",
@@ -163,7 +163,7 @@ Yes. Define an action and register it:
     Use `toYaml()` to print the YAML to stdout:
 
     ```typescript
-    import { toYaml } from "ghagen";
+    import { toYaml } from "@ghagen/ghagen";
 
     console.log(toYaml(ci));
     ```

@@ -25,7 +25,7 @@ Step(name="Custom shell", run="echo hello", shell=Raw("custom-shell"))
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step, raw } from "ghagen";
+import { job, step, raw } from "@ghagen/ghagen";
 
 // Use an expression where a literal runner label is expected
 job({ runsOn: raw("${{ matrix.os }}") });
@@ -60,7 +60,7 @@ Job(
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job } from "ghagen";
+import { job } from "@ghagen/ghagen";
 
 job({
   runsOn: "ubuntu-latest",
@@ -116,7 +116,7 @@ Workflow(..., post_process=add_debug_step)
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { workflow, job, step, on, pushTrigger } from "ghagen";
+import { workflow, job, step, on, pushTrigger } from "@ghagen/ghagen";
 import type { YAMLMap } from "yaml";
 
 workflow({

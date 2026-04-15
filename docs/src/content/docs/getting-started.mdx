@@ -22,7 +22,7 @@ This tutorial walks you through creating your first GitHub Actions workflow with
   </TabItem>
   <TabItem label="TypeScript">
     ```bash
-    npm install ghagen
+    npm install @ghagen/ghagen
     ```
   </TabItem>
 </Tabs>
@@ -75,7 +75,7 @@ This tutorial walks you through creating your first GitHub Actions workflow with
     import {
       workflow, job, step, on,
       pushTrigger, prTrigger, toYamlFile,
-    } from "ghagen";
+    } from "@ghagen/ghagen";
 
     const ci = workflow({
       name: "CI",
@@ -128,7 +128,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
-    import { step, checkout, setupPython } from "ghagen";
+    import { step, checkout, setupPython } from "@ghagen/ghagen";
 
     const steps = [
       checkout(),
@@ -166,7 +166,7 @@ ghagen provides factory functions for common actions so you don't have to rememb
   </TabItem>
   <TabItem label="TypeScript">
     ```typescript
-    import { job, step, strategy, checkout, setupPython } from "ghagen";
+    import { job, step, strategy, checkout, setupPython } from "@ghagen/ghagen";
 
     job({
       runsOn: "ubuntu-latest",

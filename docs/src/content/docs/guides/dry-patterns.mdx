@@ -27,7 +27,7 @@ from ghagen import (
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { checkout, setupNode, setupPython } from "ghagen";
+import { checkout, setupNode, setupPython } from "@ghagen/ghagen";
 // Note: cache, upload_artifact, download_artifact, setup_uv
 // are not yet available as helpers in TypeScript. Use step() directly.
 ```
@@ -51,7 +51,7 @@ steps = [
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { step, checkout, setupPython } from "ghagen";
+import { step, checkout, setupPython } from "@ghagen/ghagen";
 
 const steps = [
   checkout(),
@@ -124,8 +124,8 @@ jobs = {
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step, checkout } from "ghagen";
-import type { JobModel } from "ghagen";
+import { job, step, checkout } from "@ghagen/ghagen";
+import type { JobModel } from "@ghagen/ghagen";
 
 function lintJob(tool: string, cmd: string): JobModel {
   return job({
@@ -172,7 +172,7 @@ Job(
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step } from "ghagen";
+import { job, step } from "@ghagen/ghagen";
 
 const RUNNER = "ubuntu-latest";
 const PYTHON_VERSION = "3.12";
@@ -226,7 +226,7 @@ steps = [checkout()] + [
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step, checkout } from "ghagen";
+import { job, step, checkout } from "@ghagen/ghagen";
 
 const services = ["api", "web", "worker"];
 
@@ -288,7 +288,7 @@ def python_setup_steps(version: str = "3.12"):
 <TabItem label="TypeScript">
 ```typescript
 // .github/workflows.ts
-import { toYamlFile } from "ghagen";
+import { toYamlFile } from "@ghagen/ghagen";
 import { ciWorkflow } from "./ci.js";
 import { deployWorkflow } from "./deploy.js";
 import { releaseWorkflow } from "./release.js";
@@ -304,8 +304,8 @@ You can also share helper functions, step lists, and job templates across module
 
 ```typescript
 // .github/common.ts
-import { step, checkout, setupPython } from "ghagen";
-import type { StepModel } from "ghagen";
+import { step, checkout, setupPython } from "@ghagen/ghagen";
+import type { StepModel } from "@ghagen/ghagen";
 
 const RUNNER = "ubuntu-latest";
 

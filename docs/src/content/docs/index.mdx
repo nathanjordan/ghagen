@@ -31,7 +31,7 @@ import { Tabs, TabItem } from "@astrojs/starlight/components";
   </TabItem>
   <TabItem label="TypeScript">
     ```bash
-    npm install ghagen
+    npm install @ghagen/ghagen
     ```
   </TabItem>
 </Tabs>
@@ -72,7 +72,7 @@ Define your workflow in code:
     import {
       workflow, job, step, on,
       pushTrigger, prTrigger, toYamlFile,
-    } from "ghagen";
+    } from "@ghagen/ghagen";
 
     const ci = workflow({
       name: "CI",
