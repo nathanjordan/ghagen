@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ghagen.pin.sources import classify_refs, locate_uses_refs, track_user_files
+from ghagen.pin.sources import locate_uses_refs, track_user_files
 
 
 class TestTrackUserFiles:
@@ -169,49 +169,3 @@ class TestLocateUsesRefs:
         assert result == {}
 
 
-class TestClassifyRefs:
-    def test_all_user_refs(self):
-        refs = {"actions/checkout@v4", "actions/setup-python@v5"}
-        locations = {
-            "actions/checkout@v4": [Path("/a.py")],
-            "actions/setup-python@v5": [Path("/b.py")],
-        }
-        user, helper = classify_refs(refs, locations)
-        assert user == locations
-        assert helper == set()
-
-    def test_all_helper_refs(self):
-        refs = {"actions/checkout@v4", "actions/setup-python@v5"}
-        locations: dict[str, list[Path]] = {}
-        user, helper = classify_refs(refs, locations)
-        assert user == {}
-        assert helper == refs
-
-    def test_mixed_refs(self):
-        refs = {
-            "actions/checkout@v4",
-            "actions/setup-python@v5",
-            "custom/action@v1",
-        }
-        locations = {
-            "custom/action@v1": [Path("/user_wf.py")],
-        }
-        user, helper = classify_refs(refs, locations)
-        assert user == {"custom/action@v1": [Path("/user_wf.py")]}
-        assert helper == {"actions/checkout@v4", "actions/setup-python@v5"}
-
-    def test_empty_refs(self):
-        user, helper = classify_refs(set(), {})
-        assert user == {}
-        assert helper == set()
-
-    def test_ignores_extra_locations(self):
-        """Refs in locations but not in refs are excluded from both results."""
-        refs = {"actions/checkout@v4"}
-        locations = {
-            "actions/checkout@v4": [Path("/a.py")],
-            "extra/ref@v1": [Path("/b.py")],  # not in refs
-        }
-        user, helper = classify_refs(refs, locations)
-        assert user == {"actions/checkout@v4": [Path("/a.py")]}
-        assert helper == set()

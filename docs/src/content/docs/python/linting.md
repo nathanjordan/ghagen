@@ -177,15 +177,15 @@ Add `ghagen lint` to your pipeline with `--format=github` to get inline
 PR annotations:
 
 ```python
-from ghagen import Job, Step, Workflow, checkout, setup_uv
+from ghagen import Job, Step
 
 Job(
     name="Lint",
     runs_on="ubuntu-latest",
     timeout_minutes=10,
     steps=[
-        checkout(),
-        setup_uv(),
+        Step(name="Checkout", uses="actions/checkout@v6"),
+        Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
         Step(name="Sync", run="uv sync"),
         Step(
             name="ghagen lint",

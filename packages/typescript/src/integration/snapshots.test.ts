@@ -15,8 +15,6 @@ import {
   dockerRuns,
   nodeRuns,
 } from "../models/action.js";
-import { checkout, setupPython } from "../helpers/steps.js";
-
 describe("snapshot tests", () => {
   it("ci_basic.yml", () => {
     const w = workflow({
@@ -171,7 +169,7 @@ describe("snapshot tests", () => {
         lint: job({
           name: "Lint",
           runsOn: "ubuntu-latest",
-          steps: [checkout(), step({ name: "Ruff", run: "ruff check ." })],
+          steps: [step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }), step({ name: "Ruff", run: "ruff check ." })],
         }),
         test: job({
           name: "Test",
@@ -179,8 +177,8 @@ describe("snapshot tests", () => {
           needs: "lint",
           strategy: { matrix_: { "python-version": ["3.11", "3.12", "3.13"] } },
           steps: [
-            checkout(),
-            setupPython({ version: "${{ matrix.python-version }}" }),
+            step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
+            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
             step({ name: "Test", run: "python -m pytest" }),
           ],
         }),
@@ -193,7 +191,7 @@ describe("snapshot tests", () => {
             db: { image: "postgres:16", env: { POSTGRES_PASSWORD: "test" }, ports: [5432] },
           },
           steps: [
-            checkout(),
+            step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
             step({ name: "Test with DB", run: "python -m pytest --db" }),
           ],
         }),
@@ -225,8 +223,8 @@ describe("snapshot tests", () => {
             failFast: false,
           },
           steps: [
-            checkout(),
-            setupPython({ version: "${{ matrix.python-version }}" }),
+            step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
+            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
             step({ name: "Install deps", run: "pip install -e '.[test]'" }),
             step({ name: "Test", run: "python -m pytest" }),
           ],

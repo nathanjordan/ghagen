@@ -13,8 +13,6 @@ import {
   dockerRuns,
   nodeRuns,
 } from "../models/action.js";
-import { checkout, setupPython } from "../helpers/steps.js";
-
 function workflowYaml(w: ReturnType<typeof workflow>): string {
   return toYaml(w, { includeHeader: false });
 }
@@ -88,8 +86,8 @@ describe("workflow schema validation", () => {
             redis: { image: "redis:7", ports: [6379] },
           },
           steps: [
-            checkout(),
-            setupPython({ version: "${{ matrix.python-version }}" }),
+            step({ name: "Checkout", uses: "actions/checkout@v6", with_: { "fetch-depth": 1 } }),
+            step({ name: "Set up Python", uses: "actions/setup-python@v6", with_: { "python-version": "${{ matrix.python-version }}" } }),
             step({ name: "Build", run: "make build" }),
           ],
         }),

@@ -125,7 +125,6 @@ class TestUpgradeVersionsMode:
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert "version_bumps" in data
-        assert "helper_provided" in data
         bumps = data["version_bumps"]
         assert len(bumps) >= 1
         # Check structure of a bump entry
@@ -248,7 +247,6 @@ class TestUpgradeAllMode:
         data = json.loads(result.output)
         assert "version_bumps" in data
         assert "lockfile_stale" in data
-        assert "helper_provided" in data
 
 
 class TestUpgradeApply:
@@ -293,71 +291,6 @@ class TestUpgradeApply:
         config_content = (tmp_path / "ghagen_config.py").read_text()
         assert "actions/checkout@v4" in config_content
         assert "actions/setup-python@v5" in config_content
-
-
-_HELPER_CONFIG = """\
-from ghagen import App, Job, On, PushTrigger, Workflow
-from ghagen.helpers.steps import checkout, setup_python
-
-app = App()
-ci = Workflow(
-    name="CI",
-    on=On(push=PushTrigger(branches=["main"])),
-    jobs={"test": Job(
-        runs_on="ubuntu-latest",
-        steps=[
-            checkout(),
-            setup_python("3.13"),
-        ],
-    )},
-)
-app.add_workflow(ci, "ci.yml")
-"""
-
-
-class TestUpgradeHelperRefs:
-    """Tests for helper-provided refs reported separately."""
-
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_helper_refs_in_json(
-        self, mock_tags, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
-
-        # Config that uses helpers — the uses strings live in ghagen source,
-        # not in the config file, so they should be classified as helper refs.
-        config_path = tmp_path / "ghagen_config.py"
-        config_path.write_text(_HELPER_CONFIG)
-
-        result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
-        )
-
-        assert result.exit_code == 0, result.output
-        data = json.loads(result.output)
-        assert len(data["helper_provided"]) >= 1
-        for hp in data["helper_provided"]:
-            assert "helper" in hp
-            assert hp["helper"] == "ghagen built-in"
-
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_helper_refs_in_human_output(
-        self, mock_tags, tmp_path, monkeypatch
-    ):
-        monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
-
-        config_path = tmp_path / "ghagen_config.py"
-        config_path.write_text(_HELPER_CONFIG)
-
-        result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions", "--check"]
-        )
-
-        assert result.exit_code == 0, result.output
-        assert "Helper-provided action updates" in result.output
-        assert "ghagen built-in" in result.output
 
 
 class TestUpgradeNoUpdates:
@@ -421,7 +354,6 @@ class TestUpgradeNoUpdates:
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert data["version_bumps"] == []
-        assert data["helper_provided"] == []
 
 
 class TestUpgradeNonSemver:
@@ -629,5 +561,4 @@ app.add_workflow(ci, "ci.yml")
         assert data == {
             "version_bumps": [],
             "lockfile_stale": [],
-            "helper_provided": [],
         }

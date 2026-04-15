@@ -125,33 +125,3 @@ def locate_uses_refs(
             result[ref] = sorted(matching)
 
     return result
-
-
-def classify_refs(
-    refs: set[str], ref_locations: dict[str, list[Path]]
-) -> tuple[dict[str, list[Path]], set[str]]:
-    """Split refs into user-controlled and helper-only groups.
-
-    Args:
-        refs: All collected ``uses:`` reference strings.
-        ref_locations: Mapping from :func:`locate_uses_refs` — refs found
-            in user source files.
-
-    Returns:
-        A 2-tuple of:
-
-        - **user_refs**: dict mapping each user-controlled ref to its file
-          locations (subset of *ref_locations* that appears in *refs*).
-        - **helper_refs**: set of refs present in *refs* but absent from
-          *ref_locations* — these originate from ghagen built-in helpers.
-    """
-    user_refs: dict[str, list[Path]] = {}
-    helper_refs: set[str] = set()
-
-    for ref in refs:
-        if ref in ref_locations:
-            user_refs[ref] = ref_locations[ref]
-        else:
-            helper_refs.add(ref)
-
-    return user_refs, helper_refs

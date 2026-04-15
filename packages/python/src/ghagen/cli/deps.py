@@ -187,7 +187,7 @@ def deps_upgrade(
     from ghagen.pin.collect import collect_uses_refs
     from ghagen.pin.lockfile import read_lockfile
     from ghagen.pin.resolve import ResolveError, list_tags, parse_uses, resolve_ref
-    from ghagen.pin.sources import classify_refs, locate_uses_refs, track_user_files
+    from ghagen.pin.sources import locate_uses_refs, track_user_files
     from ghagen.pin.update import apply_updates
     from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
 
@@ -235,7 +235,7 @@ def deps_upgrade(
         if json:
             typer.echo(
                 json_mod.dumps(
-                    {"version_bumps": [], "lockfile_stale": [], "helper_provided": []},
+                    {"version_bumps": [], "lockfile_stale": []},
                     indent=2,
                 )
             )
@@ -243,13 +243,11 @@ def deps_upgrade(
             typer.echo("Everything is up to date.")
         raise typer.Exit(0)
 
-    # Classify refs into user-controlled vs helper-provided.
+    # Locate refs in user source files.
     ref_locations = locate_uses_refs(refs, user_files)
-    user_refs, helper_refs = classify_refs(refs, ref_locations)
 
     # --- Version bump detection ---
     version_bumps: list[dict] = []
-    helper_provided: list[dict] = []
 
     check_versions = mode in ("versions", "all")
     check_lockfile = mode in ("lockfile", "all")
@@ -293,29 +291,18 @@ def deps_upgrade(
 
                 severity = classify_bump(current_ver, latest_ver)
 
-                if uses in user_refs:
-                    version_bumps.append(
-                        {
-                            "uses": uses,
-                            "current": current_ref,
-                            "latest": latest_tag,
-                            "severity": severity,
-                            "origin": "user",
-                            "source_files": [
-                                str(p) for p in user_refs[uses]
-                            ],
-                        }
-                    )
-                elif uses in helper_refs:
-                    helper_provided.append(
-                        {
-                            "uses": uses,
-                            "current": current_ref,
-                            "latest": latest_tag,
-                            "severity": severity,
-                            "helper": "ghagen built-in",
-                        }
-                    )
+                bump_entry: dict = {
+                    "uses": uses,
+                    "current": current_ref,
+                    "latest": latest_tag,
+                    "severity": severity,
+                    "origin": "user",
+                }
+                if uses in ref_locations:
+                    bump_entry["source_files"] = [
+                        str(p) for p in ref_locations[uses]
+                    ]
+                version_bumps.append(bump_entry)
 
     # --- Lockfile staleness detection ---
     lockfile_stale: list[dict] = []
@@ -346,16 +333,15 @@ def deps_upgrade(
                 continue
 
             if current_sha != entry.sha:
-                origin = "user" if uses in user_refs else "helper"
                 stale_entry: dict = {
                     "uses": uses,
                     "current_sha": entry.sha,
                     "latest_sha": current_sha,
-                    "origin": origin,
+                    "origin": "user",
                 }
-                if uses in user_refs:
+                if uses in ref_locations:
                     stale_entry["source_files"] = [
-                        str(p) for p in user_refs[uses]
+                        str(p) for p in ref_locations[uses]
                     ]
                 lockfile_stale.append(stale_entry)
 
@@ -372,11 +358,11 @@ def deps_upgrade(
                 typer.echo(f"  modified {f}")
 
     # --- Output ---
-    if not version_bumps and not lockfile_stale and not helper_provided:
+    if not version_bumps and not lockfile_stale:
         if json:
             typer.echo(
                 json_mod.dumps(
-                    {"version_bumps": [], "lockfile_stale": [], "helper_provided": []},
+                    {"version_bumps": [], "lockfile_stale": []},
                     indent=2,
                 )
             )
@@ -390,17 +376,14 @@ def deps_upgrade(
             result["version_bumps"] = version_bumps
         if check_lockfile:
             result["lockfile_stale"] = lockfile_stale
-        if check_versions:
-            result["helper_provided"] = helper_provided
         typer.echo(json_mod.dumps(result, indent=2))
     else:
-        _print_human_report(version_bumps, lockfile_stale, helper_provided)
+        _print_human_report(version_bumps, lockfile_stale)
 
 
 def _print_human_report(
     version_bumps: list[dict],
     lockfile_stale: list[dict],
-    helper_provided: list[dict],
 ) -> None:
     """Print a human-readable upgrade report."""
     if version_bumps:
@@ -428,15 +411,4 @@ def _print_human_report(
             typer.echo(
                 f"    latest SHA:  {entry['latest_sha'][:12]}..."
             )
-        typer.echo("")
-
-    if helper_provided:
-        typer.echo("Helper-provided action updates:")
-        typer.echo("")
-        for hp in helper_provided:
-            severity_tag = f"[{hp['severity']}]"
-            typer.echo(
-                f"  {hp['uses']}  →  {hp['latest']}  {severity_tag}"
-            )
-            typer.echo(f"    provided by: {hp['helper']}")
         typer.echo("")

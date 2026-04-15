@@ -4,15 +4,6 @@ from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
 from ghagen.helpers.expressions import expr
-from ghagen.helpers.steps import (
-    cache,
-    checkout,
-    download_artifact,
-    setup_node,
-    setup_python,
-    setup_uv,
-    upload_artifact,
-)
 from ghagen.lint import LintConfig, Severity, SourceLocation, Violation
 from ghagen.models.action import (
     Action,
@@ -75,11 +66,4 @@ __all__ = [
     "Transform",
     # Helpers
     "expr",
-    "cache",
-    "checkout",
-    "download_artifact",
-    "setup_node",
-    "setup_python",
-    "setup_uv",
-    "upload_artifact",
 ]

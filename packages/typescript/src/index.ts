@@ -109,11 +109,4 @@ export { toYaml, toYamlFile } from "./emitter/yaml-writer.js";
 export type { ToYamlOptions } from "./emitter/yaml-writer.js";
 
 // Helpers
-export { checkout, setupNode, setupPython } from "./helpers/steps.js";
-export type {
-  CheckoutOptions,
-  SetupNodeOptions,
-  SetupPythonOptions,
-} from "./helpers/steps.js";
-
 export { expr, secrets, github, vars } from "./helpers/expressions.js";

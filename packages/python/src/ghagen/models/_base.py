@@ -23,7 +23,6 @@ from ghagen.emitter.yaml_writer import (
 _INTERNAL_FRAME_MARKERS: tuple[str, ...] = (
     "/pydantic/",
     "/ghagen/models/",
-    "/ghagen/helpers/",
     "/ghagen/emitter/",
 )
 

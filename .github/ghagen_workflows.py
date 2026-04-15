@@ -20,10 +20,7 @@ from ghagen import (
     Strategy,
     Workflow,
     WorkflowDispatchTrigger,
-    checkout,
     expr,
-    setup_python,
-    setup_uv,
 )
 from ghagen.models.common import PermissionLevel
 from ghagen.models.job import Environment
@@ -44,8 +41,8 @@ def _ci_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
-                    checkout(),
-                    setup_uv(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Ruff check", run="uv run ruff check packages/python/src/ packages/python/tests/"),
                     Step(
@@ -68,8 +65,8 @@ def _ci_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
-                    checkout(),
-                    setup_uv(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Pyright", run="uv run pyright packages/python/src/"),
                 ],
@@ -86,9 +83,9 @@ def _ci_workflow() -> Workflow:
                     ),
                 ),
                 steps=[
-                    checkout(),
-                    setup_uv(),
-                    setup_python(version="${{ matrix.python-version }}"),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
+                    Step(name="Set up Python", uses="actions/setup-python@v6", with_={"python-version": "${{ matrix.python-version }}"}),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Test", run="uv run pytest"),
                 ],
@@ -98,8 +95,8 @@ def _ci_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
-                    checkout(),
-                    setup_uv(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Verify workflows", run="uv run ghagen check-synced"),
                 ],
@@ -109,7 +106,7 @@ def _ci_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
-                    checkout(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(
                         name="Test composite action",
                         uses="./",
@@ -138,8 +135,8 @@ def _schema_drift_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
-                    checkout(),
-                    setup_uv(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(
                         name="Fetch schema and regenerate",
@@ -221,8 +218,8 @@ def _release_workflow() -> Workflow:
             id_token=PermissionLevel.WRITE,
         ),
         steps=[
-            checkout(),
-            setup_uv(),
+            Step(name="Checkout", uses="actions/checkout@v6"),
+            Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
             Step(name="Build", run="uv build"),
             Step(
                 name="Publish to PyPI",
@@ -343,7 +340,7 @@ def _release_workflow() -> Workflow:
             id_token=PermissionLevel.WRITE,
         ),
         steps=[
-            checkout(),
+            Step(name="Checkout", uses="actions/checkout@v6"),
             Step(
                 name="Setup Node.js",
                 uses="actions/setup-node@v6",
@@ -404,7 +401,7 @@ def _docs_workflow() -> Workflow:
                 runs_on="ubuntu-latest",
                 timeout_minutes=15,
                 steps=[
-                    checkout(),
+                    Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(
                         name="Setup Node.js",
                         uses="actions/setup-node@v6",

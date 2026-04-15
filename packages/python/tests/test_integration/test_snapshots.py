@@ -27,8 +27,6 @@ from ghagen import (
     Strategy,
     Workflow,
     WorkflowDispatchTrigger,
-    checkout,
-    setup_python,
 )
 from ghagen.models.common import PermissionLevel
 from ghagen.models.job import Concurrency
@@ -90,9 +88,15 @@ def test_matrix_complex(snapshot: Snapshot):
                     fail_fast=False,
                 ),
                 steps=[
-                    checkout(),
-                    setup_python(
-                        version="${{ matrix.python-version }}",
+                    Step(
+                        name="Checkout",
+                        uses="actions/checkout@v6",
+                        with_={"fetch-depth": 1},
+                    ),
+                    Step(
+                        name="Set up Python",
+                        uses="actions/setup-python@v6",
+                        with_={"python-version": "${{ matrix.python-version }}"},
                     ),
                     Step(name="Install deps", run="pip install -e '.[test]'"),
                     Step(name="Test", run="python -m pytest"),
@@ -249,7 +253,11 @@ def test_full_featured(snapshot: Snapshot):
                 name="Lint",
                 runs_on="ubuntu-latest",
                 steps=[
-                    checkout(),
+                    Step(
+                        name="Checkout",
+                        uses="actions/checkout@v6",
+                        with_={"fetch-depth": 1},
+                    ),
                     Step(name="Ruff", run="ruff check ."),
                 ],
             ),
@@ -263,8 +271,16 @@ def test_full_featured(snapshot: Snapshot):
                     ),
                 ),
                 steps=[
-                    checkout(),
-                    setup_python(version="${{ matrix.python-version }}"),
+                    Step(
+                        name="Checkout",
+                        uses="actions/checkout@v6",
+                        with_={"fetch-depth": 1},
+                    ),
+                    Step(
+                        name="Set up Python",
+                        uses="actions/setup-python@v6",
+                        with_={"python-version": "${{ matrix.python-version }}"},
+                    ),
                     Step(name="Test", run="python -m pytest"),
                 ],
             ),
@@ -281,7 +297,11 @@ def test_full_featured(snapshot: Snapshot):
                     ),
                 },
                 steps=[
-                    checkout(),
+                    Step(
+                        name="Checkout",
+                        uses="actions/checkout@v6",
+                        with_={"fetch-depth": 1},
+                    ),
                     Step(name="Test with DB", run="python -m pytest --db"),
                 ],
             ),
