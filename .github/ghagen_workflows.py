@@ -434,7 +434,7 @@ def _docs_workflow() -> Workflow:
                     ),
                     Step(
                         name="Upload Pages artifact",
-                        uses="actions/upload-pages-artifact@v3",
+                        uses="actions/upload-pages-artifact@v5",
                         with_={"path": "docs/dist"},
                     ),
                 ],
@@ -448,7 +448,7 @@ def _docs_workflow() -> Workflow:
                 steps=[
                     Step(
                         name="Deploy to GitHub Pages",
-                        uses="actions/deploy-pages@v4",
+                        uses="actions/deploy-pages@v5",
                     ),
                 ],
             ),
