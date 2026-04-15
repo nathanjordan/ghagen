@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.2.1...ghagen-js-v0.3.0) (2026-04-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* checkout(), setup_python(), setup_uv(), setup_node(), cache(), upload_artifact(), download_artifact() helpers removed. Use Step(uses=...) directly.
+
+### feat\
+
+* remove predefined step helpers in favor of direct Step() usage ([869ff2f](https://github.com/nathanjordan/ghagen/commit/869ff2f6235e027cbf6776df114ae4159ee807a4))
+
+
+### Features
+
+* add oxlint and oxfmt for TypeScript and docs packages ([688c77e](https://github.com/nathanjordan/ghagen/commit/688c77eb0e01e831b66b5f788fd262e285ba444d))
+
 ## [0.2.1](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.2.0...ghagen-js-v0.2.1) (2026-04-15)
 
 ### Bug Fixes
