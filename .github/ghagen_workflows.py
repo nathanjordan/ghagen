@@ -423,6 +423,11 @@ def _docs_workflow() -> Workflow:
                         with_={"node-version": "24"},
                     ),
                     Step(
+                        name="Install TypeScript package dependencies",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
+                    Step(
                         name="Install dependencies",
                         run="npm ci",
                         working_directory="docs",
