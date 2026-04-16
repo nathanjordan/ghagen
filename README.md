@@ -7,14 +7,6 @@ Generate GitHub Actions workflows from Python or TypeScript code.
 [![Python](https://img.shields.io/pypi/pyversions/ghagen)](https://pypi.org/project/ghagen/)
 [![License](https://img.shields.io/github/license/nathanjordan/ghagen)](LICENSE)
 
-> [!NOTE]
-> **You probably don't need this.** If your GitHub Actions setup is relatively
-> simple, ghagen is not worth the added complexity — [actionlint][actionlint]
-> and [Renovate][renovate]/[Dependabot][dependabot] will serve you well. Reach
-> for ghagen when keeping track of workflows by hand becomes painful, or when
-> you want the extra assurances a real programming language provides (types,
-> tests, refactoring tools).
-
 ## Features
 
 - **Typed models** — Pydantic (Python) and factory functions (TypeScript) with full IDE autocomplete
@@ -23,6 +15,14 @@ Generate GitHub Actions workflows from Python or TypeScript code.
 - **Escape hatches** — `Raw`/`raw()`, `extras`, and passthrough for anything the typed API doesn't cover
 - **Linting** _(Python)_ — catches missing `permissions`, unpinned actions, missing `timeout-minutes`, and duplicate step ids with source-line precision
 - **CLI** _(Python)_ — `ghagen synth` generates YAML, `ghagen check-synced` verifies freshness in CI, `ghagen lint` runs rule-based checks, `ghagen deps pin` locks actions to commit SHAs
+
+> [!NOTE]
+> **You probably don't need this.** If your GitHub Actions setup is relatively
+> simple, ghagen is not worth the added complexity — [actionlint][actionlint]
+> and [Renovate][renovate]/[Dependabot][dependabot] will serve you well. Reach
+> for ghagen when keeping track of workflows by hand becomes painful, or when
+> you want the extra assurances a real programming language provides (types,
+> tests, refactoring tools).
 
 ## Quickstart
 
