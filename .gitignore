@@ -44,3 +44,6 @@ docs/src/content/docs/typescript/api/
 # Node / TypeScript
 node_modules/
 dist/
+
+# Worktrees
+.worktrees/
