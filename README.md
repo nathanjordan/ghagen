@@ -90,7 +90,7 @@ npm install --save-dev @ghagen/ghagen
 ```
 
 ```typescript
-import { workflow, job, step, on, pushTrigger, toYamlFile } from "@ghagen/ghagen";
+import { App, workflow, job, step, on, pushTrigger } from "@ghagen/ghagen";
 
 const ci = workflow({
   name: "CI",
@@ -103,11 +103,13 @@ const ci = workflow({
   },
 });
 
-toYamlFile(ci, ".github/workflows/ci.yml");
+const app = new App();
+app.addWorkflow(ci, "ci.yml");
+await app.synth();
 ```
 
 ```bash
-npx tsx .github/workflows.ts
+npx ghagen synth
 ```
 
 ### GitHub Action
@@ -128,7 +130,7 @@ jobs:
 ```
 
 `v0` is a rolling major tag. The Action is a drift check for the Python path; TypeScript users
-should run their script and `git diff --exit-code .github/workflows/` instead.
+can run `npx ghagen check-synced` instead.
 
 ## Example output
 
@@ -150,9 +152,9 @@ jobs:
 
 ## FAQ
 
-**Python or TypeScript — which should I pick?** Match your repo's primary language. The Python
-package is more featureful today (CLI, `ghagen lint`, `ghagen deps pin` for SHA pinning); the
-TypeScript package covers the core modeling and YAML emission.
+**Python or TypeScript — which should I pick?** Match your repo's primary language. Both packages
+have the same feature set: CLI (`synth`, `check-synced`, `lint`, `deps pin`), SHA pinning, and
+linting.
 
 **Can I mix ghagen-generated workflows with hand-written YAML?** Yes. ghagen only touches files you
 explicitly register. Any other file in `.github/workflows/` is left alone — drop a hand-written
@@ -168,7 +170,7 @@ rest of the model fully typed.
 
 **How do I pin actions to commit SHAs?** Run `ghagen deps pin` to populate
 `.github/ghagen.lock.toml`; subsequent `ghagen synth` calls rewrite every `uses:` to its pinned SHA.
-Wire `ghagen deps check-synced` into CI to catch unpinned additions. _(Python CLI only.)_
+Wire `ghagen deps check-synced` into CI to catch unpinned additions.
 
 _More questions? See the [full FAQ](https://nathanjordan.github.io/ghagen/faq/)._
 
