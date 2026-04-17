@@ -103,3 +103,64 @@ export type { ToYamlOptions } from "./emitter/yaml-writer.js";
 
 // Helpers
 export { expr, secrets, github, vars } from "./helpers/expressions.js";
+
+// Source location
+export type { SourceLocation } from "./_source_location.js";
+
+// Utilities
+export { findAppRoot } from "./paths.js";
+export { loadOptions, type GhagenOptions } from "./config.js";
+export { dedentScript, getAutoDedent, setAutoDedent } from "./_dedent.js";
+
+// Model utilities
+export { cloneModel } from "./models/_base.js";
+
+// App
+export { App, WORKFLOWS_DIR, type AppOptions } from "./app.js";
+
+// Transforms
+export type { Transform, SynthContext, SynthItem } from "./transforms.js";
+
+// Pin subsystem
+export {
+  DEFAULT_LOCKFILE_PATH,
+  Lockfile,
+  type PinEntry,
+  readLockfile,
+  writeLockfile,
+  ResolveError,
+  type ParsedUses,
+  type ResolveOptions,
+  parseUses,
+  resolveRef,
+  listTags,
+  type BumpSeverity,
+  type ParsedTag,
+  parseTag,
+  classifyBump,
+  findLatestTag,
+  collectUsesRefs,
+  PinError,
+  type PinTransform,
+  pinTransform,
+} from "./pin/index.js";
+
+// Lint subsystem
+export {
+  runLint,
+  loadLintConfig,
+  type LintConfig,
+  type LoadLintConfigResult,
+  formatHuman,
+  formatJson,
+  formatGithub,
+  type Severity,
+  type Violation,
+  SEVERITY_VALUES,
+  ALL_RULES,
+  type Rule,
+  type RuleMeta,
+  type RuleContext,
+  rule,
+  makeRuleContext,
+} from "./lint/index.js";

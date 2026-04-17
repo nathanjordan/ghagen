@@ -1,4 +1,5 @@
 import type { YAMLMap } from "yaml";
+import { captureSourceLocation, type SourceLocation } from "../_source_location.js";
 
 // ---- Raw<T> escape hatch ----
 
@@ -80,6 +81,13 @@ export interface Model {
   readonly _data: Record<string, unknown>;
   readonly _meta: ModelMeta;
   readonly _keyOrder: readonly string[];
+  /**
+   * Source file/line that constructed this model, captured via stack
+   * walking at factory call time. Skips frames inside `/ghagen/` and
+   * `/node_modules/` so the location reflects user code. May be `null`
+   * when the model is constructed entirely from inside ghagen internals.
+   */
+  readonly _sourceLocation: SourceLocation | null;
 }
 
 // Branded subtypes for type safety in function signatures
@@ -156,20 +164,29 @@ export interface NodeRunsModel extends Model {
   readonly _kind: "nodeRuns";
 }
 
-/** Create a frozen model object. */
+/**
+ * Create a model object.
+ *
+ * The returned object is intentionally NOT frozen — `_data` and `_meta`
+ * must remain runtime-mutable so synthesis-time transforms (like
+ * `PinTransform`) can rewrite fields after a `cloneModel` deep copy.
+ * Public types keep `readonly` modifiers so external consumers don't
+ * accidentally mutate models.
+ */
 export function createModel(
   kind: string,
   data: Record<string, unknown>,
   meta: ModelMeta,
   keyOrder: readonly string[],
 ): Model {
-  return Object.freeze({
+  return {
     [MODEL_BRAND]: true as const,
     _kind: kind,
     _data: data,
     _meta: meta,
     _keyOrder: keyOrder,
-  });
+    _sourceLocation: captureSourceLocation(),
+  };
 }
 
 /** Type guard for Model values. */
@@ -192,4 +209,90 @@ export function mapFields(
     }
   }
   return result;
+}
+
+// ---- cloneModel ----
+
+/**
+ * Deep-clone a Model so synthesis-time transforms can mutate it without
+ * touching the user's original.
+ *
+ * `structuredClone` is intentionally NOT used because:
+ *   - it silently drops Symbol-keyed properties (would lose `MODEL_BRAND`
+ *     and `RAW_BRAND`), and
+ *   - it throws on functions (would crash on `_meta.postProcess`).
+ *
+ * Functions and the `_sourceLocation` reference are passed through by
+ * reference; everything else (Models, Raw values, plain objects, arrays)
+ * is cloned.
+ */
+export function cloneModel<M extends Model>(model: M): M {
+  return cloneValueInternal(model) as M;
+}
+
+function cloneValueInternal(value: unknown): unknown {
+  // Primitives (and null/undefined)
+  if (value === null || value === undefined) return value;
+  const t = typeof value;
+  if (t !== "object" && t !== "function") return value;
+
+  // Functions are passed by reference (no way to deep-clone a closure)
+  if (t === "function") return value;
+
+  // Raw<T> — preserve the symbol brand
+  if (isRaw(value)) {
+    return { [RAW_BRAND]: true as const, value: cloneValueInternal(value.value) };
+  }
+
+  // Model — recurse into _data and _meta; preserve _sourceLocation by reference
+  if (isModel(value)) {
+    const m = value as Model;
+    return {
+      [MODEL_BRAND]: true as const,
+      _kind: m._kind,
+      _data: cloneRecord(m._data),
+      _meta: cloneMeta(m._meta),
+      _keyOrder: m._keyOrder,
+      _sourceLocation: m._sourceLocation,
+    };
+  }
+
+  // Date — recreate
+  if (value instanceof Date) {
+    return new Date(value.getTime());
+  }
+
+  // Array — recurse
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneValueInternal(item));
+  }
+
+  // Plain object — recurse
+  return cloneRecord(value as Record<string, unknown>);
+}
+
+function cloneRecord(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = cloneValueInternal(v);
+  }
+  return out;
+}
+
+function cloneMeta(meta: ModelMeta): ModelMeta {
+  const out: ModelMeta = {};
+  if (meta.comment !== undefined) out.comment = meta.comment;
+  if (meta.eolComment !== undefined) out.eolComment = meta.eolComment;
+  if (meta.fieldComments !== undefined) {
+    out.fieldComments = { ...meta.fieldComments };
+  }
+  if (meta.fieldEolComments !== undefined) {
+    out.fieldEolComments = { ...meta.fieldEolComments };
+  }
+  if (meta.extras !== undefined) {
+    out.extras = cloneRecord(meta.extras);
+  }
+  // postProcess is a function — pass by reference.
+  if (meta.postProcess !== undefined) out.postProcess = meta.postProcess;
+  return out;
 }

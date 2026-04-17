@@ -79,9 +79,16 @@ describe("createModel()", () => {
     expect(m._keyOrder).toEqual(order);
   });
 
-  it("returns a frozen object", () => {
+  it("returns a non-frozen object so transforms can mutate _data", () => {
     const m = createModel("step", {}, {}, []);
-    expect(Object.isFrozen(m)).toBe(true);
+    expect(Object.isFrozen(m)).toBe(false);
+  });
+
+  it("captures a source location at the call site", () => {
+    const m = createModel("step", {}, {}, []);
+    expect(m._sourceLocation).not.toBeNull();
+    expect(m._sourceLocation?.file).toContain("_base.test");
+    expect(typeof m._sourceLocation?.line).toBe("number");
   });
 });
 

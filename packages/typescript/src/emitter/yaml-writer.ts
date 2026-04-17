@@ -20,7 +20,7 @@ export function toYaml(model: Model, options?: ToYamlOptions): string {
   doc.contents = modelToYamlMap(model);
 
   if (options?.includeHeader !== false) {
-    doc.commentBefore = formatHeader(options?.header);
+    doc.commentBefore = formatHeader(options?.header, model._sourceLocation);
   }
 
   // Attach top-level block comment if set (prepend before any existing field comment)
