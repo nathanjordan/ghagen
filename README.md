@@ -23,7 +23,7 @@ programming language, we should instead realize that configuration is indeed a p
 problem. AWS CDK took the correct approach here: use a programming language to define configuration.
 This is the `ghagen` is supposed to solve but for Github actions.
 
-Another problem is that Github actions have package dependencies (ie. `uses: "setup-node@v2")
+Another problem is that Github actions have package dependencies (ie. `uses: "setup-node@v2"`)
 without a lockfile to pin to specific versions. This means you'll have potentially different action
 versions running anytime you run your workflow, which makes the build process non-hermetic and opens
 an avenue for security risks in the event of package takeovers. Fortunately some tools have been
@@ -34,7 +34,7 @@ does so using a lockfile that you can update when you want via a cli command.
 
 - **Dual language support** - The tool comes in two flavors depending on your
    constraints/preferences: Python and Javascript/Typescript.
-- **Typed models** — IDE autocomplete and type checking which prevents typos or unsupported values.
+- **Typed models** — type checking and IDE autocomplete which prevents typos or unsupported values.
 - **YAML comments** — Add comments to the generated yaml for additional documentation/clarity
 - **Helpers** — expression builder (`expr`) ensures you are using supported template variables
 - **Escape hatches** — Break out of the type system when you want to. You're not stuck with the
@@ -46,7 +46,7 @@ schema if new features come out or you need to override something.
 - **Version pinning** — Prevent surprises and security risks by ensuring the same actions run every
   time.
 
-> [!NOTE] **Do you really need this?** If your GitHub Actions setup is relatively simple, ghagen
+> [!NOTE] **You might not need this** if your GitHub Actions setup is relatively simple, ghagen
 > might not be worth the added complexity — [actionlint][actionlint]
 > [renovate][renovate]/[dependabot][dependabot] and [ratchet][ratchet] can cover a lot of common
 > issues. Reach for ghagen when keeping track of workflows by hand becomes painful, or when you want
@@ -129,8 +129,8 @@ jobs:
           ghagen-version: ""                   # optional; empty = latest
 ```
 
-`v0` is a rolling major tag. The Action is a drift check for the Python path; TypeScript users
-can run `npx ghagen check-synced` instead.
+`v0` is a rolling major tag. The Action is a drift check for the Python path; TypeScript users can
+run `npx ghagen check-synced` instead.
 
 ## Example output
 
@@ -152,17 +152,17 @@ jobs:
 
 ## FAQ
 
-**Python or TypeScript — which should I pick?** Match your repo's primary language. Both packages
-have the same feature set: CLI (`synth`, `check-synced`, `lint`, `deps pin`), SHA pinning, and
-linting.
+**Python or TypeScript — which should I pick?** Pick whatever you're comfortable with or fits with
+your project. Both Python and Typescript/Javscript implementations have feature parity and are
+interchangeable.
 
 **Can I mix ghagen-generated workflows with hand-written YAML?** Yes. ghagen only touches files you
 explicitly register. Any other file in `.github/workflows/` is left alone — drop a hand-written
 `weekly-report.yml` next to a ghagen-generated `ci.yml` and nothing breaks.
 
 **What does the GitHub Action do?** It runs `ghagen check-synced` against your Python config and
-fails the build if the generated YAML doesn't match what the current definitions would produce. It's
-a drift check, not a code generator.
+fails the build if the generated YAML doesn't match what the current definitions would produce. It
+prevents changes made to the Python/JS code from not making it into the YAML spec.
 
 **How do I handle something ghagen's models don't cover?** Use `extras` on any model for arbitrary
 keys, or `Raw` / `raw()` to drop an expression into a field that expects a literal. Both leave the
