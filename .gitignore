@@ -36,6 +36,9 @@ uv.lock
 # Claude Code
 .claude/
 
+# Conductor
+.conductor/
+
 # Astro / Starlight docs
 docs/dist/
 docs/.astro/
