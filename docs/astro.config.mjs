@@ -50,7 +50,7 @@ export default defineConfig({
       ],
       plugins: [
         starlightTypeDoc({
-          entryPoints: ["../packages/typescript/src/index.ts"],
+          entryPoints: ["../packages/typescript/src/_docs-api.ts"],
           tsconfig: "../packages/typescript/tsconfig.json",
           output: "typescript/api",
           sidebar: {

@@ -85,7 +85,7 @@ Since factories forward extra fields to the underlying step, you can add any sup
 ```python
 checkout(name="Checkout with submodules", with_={"submodules": "recursive"})
 setup_python(version="3.12", if_="github.event_name == 'push'")
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
@@ -115,7 +115,7 @@ Step(name=tool, run=cmd),
 ],
 )
 
-````
+```
 
 Use it to stamp out multiple jobs without repeating the structure:
 
@@ -125,7 +125,7 @@ jobs = {
     "mypy": lint_job("Mypy", "mypy src/"),
     "black": lint_job("Black", "black --check ."),
 }
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
@@ -174,7 +174,7 @@ Job(
         Step(uses=SETUP_PYTHON_ACTION, with_={"python-version": PYTHON_VERSION}),
     ],
 )
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
@@ -194,7 +194,7 @@ step({ uses: SETUP_PYTHON_ACTION, with_: { "python-version": PYTHON_VERSION } })
 ],
 });
 
-````
+```
 </TabItem>
 </Tabs>
 
@@ -220,7 +220,7 @@ jobs = {
     )
     for svc in services
 }
-````
+```
 
 This works equally well for generating step lists:
 
@@ -274,7 +274,7 @@ app = App()
 app.add_workflow(ci_workflow, "ci.yml")
 app.add_workflow(deploy_workflow, "deploy.yml")
 app.add_workflow(release_workflow, "release.yml")
-````
+```
 
 Each module defines and exports its own `Workflow` object. This keeps individual files focused and easy to navigate, while the top-level file serves as the manifest of all generated workflows.
 
@@ -307,7 +307,7 @@ toYamlFile(ciWorkflow, ".github/workflows/ci.yml");
 toYamlFile(deployWorkflow, ".github/workflows/deploy.yml");
 toYamlFile(releaseWorkflow, ".github/workflows/release.yml");
 
-````
+```
 
 Each module defines and exports its own workflow object. This keeps individual files focused and easy to navigate, while the top-level file calls `toYamlFile()` for each workflow.
 

@@ -66,12 +66,3 @@ step = Step(run="echo hello", shell=ShellType.BASH)
 | `ShellType.SH`     | `"sh"`     |
 | `ShellType.CMD`    | `"cmd"`    |
 
-## StepList
-
-A type alias for step lists that accept both typed and raw entries:
-
-```python
-StepList = list[Step | CommentedMap]
-```
-
-This is the type used by `Job.steps`, allowing you to mix typed `Step` objects with raw `CommentedMap` entries for full flexibility.

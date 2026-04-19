@@ -42,7 +42,7 @@ All models also accept these inherited parameters from the base class:
 | Parameter            | Type               | Default | Description                                                                                |
 | -------------------- | ------------------ | ------- | ------------------------------------------------------------------------------------------ |
 | `extras`             | `dict[str, Any]`   | `{}`    | Arbitrary key/value pairs merged into YAML output for fields not covered by the typed API. |
-| `post_process`       | `Callable \| None` | `None`  | Callback to modify the `CommentedMap` before emission.                                     |
+| `post_process`       | `Callable \| None` | `None`  | Callback to modify the YAML mapping before emission. See [Escape Hatches](/guides/escape-hatches/). |
 | `comment`            | `str \| None`      | `None`  | Block comment emitted above this node in the YAML output.                                  |
 | `eol_comment`        | `str \| None`      | `None`  | End-of-line comment for this node.                                                         |
 | `field_comments`     | `dict[str, str]`   | `{}`    | Per-field block comments, keyed by YAML alias.                                             |
@@ -70,10 +70,6 @@ Write the workflow YAML to a file. Creates parent directories if they don't exis
 | `path`           | `str \| Path` | required | File path to write to.                                       |
 | `header`         | `str \| None` | `None`   | Custom header comment template. See `to_yaml()` for details. |
 | `include_header` | `bool`        | `True`   | Whether to include the header comment.                       |
-
-#### `to_commented_map() -> CommentedMap`
-
-Serialize this model to a `ruamel.yaml.comments.CommentedMap` with canonical key ordering, merged extras, and attached comments. This is the lower-level method used by `to_yaml()`.
 
 ## Defaults
 

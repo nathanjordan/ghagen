@@ -21,7 +21,7 @@ anchors](https://github.blog/changelog/2025-09-18-actions-yaml-anchors-and-non-p
 This is the wrong approach: instead of trying to turn YAML, a configuration language, into a
 programming language, we should instead realize that configuration is indeed a programming language
 problem. AWS CDK took the correct approach here: use a programming language to define configuration.
-This is the `ghagen` is supposed to solve but for Github actions.
+This is the problem `ghagen` is supposed to solve but for Github actions.
 
 Another problem is that Github actions have package dependencies (ie. `uses: "setup-node@v2"`)
 without a lockfile to pin to specific versions. This means you'll have potentially different action

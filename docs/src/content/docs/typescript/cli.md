@@ -3,7 +3,7 @@ title: CLI Reference
 description: ghagen CLI command documentation for TypeScript
 ---
 
-ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `lint`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`). All commands are invoked through the `ghagen` CLI, which is built with Commander.
+ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `lint`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`).
 
 ## Installation
 
