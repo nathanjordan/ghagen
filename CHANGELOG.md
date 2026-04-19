@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0](https://github.com/nathanjordan/ghagen/compare/v0.4.0...v0.5.0) (2026-04-19)
+
+
+### Features
+
+* **typescript:** add App, CLI, pin, lint, and config subsystems ([9553551](https://github.com/nathanjordan/ghagen/commit/95535511ecc3a0b2f5c9f2a5e65ed90f75bb54e9))
+
+
+### Bug Fixes
+
+* **docs:** install TypeScript package deps before docs build ([35c429b](https://github.com/nathanjordan/ghagen/commit/35c429bb3e8959eb7d2cf3dcec5076d9d04db99f))
+* **release:** single approval gate, clean up tags and changelogs ([1bb0b4e](https://github.com/nathanjordan/ghagen/commit/1bb0b4e461c6e75e75f7b43fcda4d563a51b8ed6))
+
+
+### Documentation
+
+* add Why section and expand Features list in README ([8d84fc9](https://github.com/nathanjordan/ghagen/commit/8d84fc9f5eeae6d84760a195d5b0e8af467f9ab2))
+* bring TypeScript documentation to parity with Python ([bda81e4](https://github.com/nathanjordan/ghagen/commit/bda81e458ba3a4ee0a334f97334c3b69e63b43ab))
+* fix typos and improve README clarity ([2b92acb](https://github.com/nathanjordan/ghagen/commit/2b92acbe4addb0ce3f77b3cbb330e453149cd2b6))
+* move "you probably don't need this" note below features ([39461f5](https://github.com/nathanjordan/ghagen/commit/39461f5da7e1b8c212f873310e08c2b6a8615b59))
+* remove dependency update action design spec ([6e4f632](https://github.com/nathanjordan/ghagen/commit/6e4f632b5fabd9dacbfbcc610b63fa4d7959ff1e))
+* restructure README with per-tool quickstarts and inline FAQ ([1dba769](https://github.com/nathanjordan/ghagen/commit/1dba769875aea916141774018a0ba56c0640936f))
+* trim completed items from ROADMAP and reformat ([a42bf61](https://github.com/nathanjordan/ghagen/commit/a42bf61b9c80d73a4115b6135492041947c3b304))
+* update README to reflect TypeScript App/synth parity ([5f89560](https://github.com/nathanjordan/ghagen/commit/5f895606d7eb1e237944bda4755517ae7481f567))
+
 ## [0.4.0](https://github.com/nathanjordan/ghagen/compare/v0.3.2...v0.4.0) (2026-04-15)
 
 
