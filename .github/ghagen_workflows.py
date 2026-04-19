@@ -221,11 +221,29 @@ def _release_workflow() -> Workflow:
         ],
     )
 
+    approve_release_job = Job(
+        name="Approve Release",
+        runs_on="ubuntu-latest",
+        timeout_minutes=5,
+        needs="release-please",
+        if_=(
+            "needs.release-please.outputs.release_created == 'true'"
+            " || needs.release-please.outputs.ts_release_created == 'true'"
+        ),
+        environment=Environment(name="release-gate"),
+        steps=[
+            Step(
+                name="Approve",
+                run='echo "Release approved"',
+            ),
+        ],
+    )
+
     publish_job = Job(
         name="Publish to PyPI",
         runs_on="ubuntu-latest",
         timeout_minutes=10,
-        needs="release-please",
+        needs=["release-please", "approve-release"],
         if_="needs.release-please.outputs.release_created == 'true'",
         environment=Environment(name="release"),
         permissions=Permissions(
@@ -249,21 +267,16 @@ def _release_workflow() -> Workflow:
     # release-please creates releases via the default GITHUB_TOKEN, and
     # GITHUB_TOKEN-originated events don't trigger new workflow runs.
     #
-    # Uses the PinViz approach (nordstad/PinViz/blob/main/.github/workflows/
-    # brew-publish.yml): pull the sdist URL+sha256 from PyPI, regex-rewrite
-    # Formula/ghagen.rb, git push to a branch, open a PR via `gh`. We
-    # deliberately do *not* use `brew bump-formula-pr` or
-    # `dawidd6/action-homebrew-bump-formula` — the former has no working
-    # CI precedent and the latter is documented-broken for virtualenv
-    # formulae. Transitive `resource` stanzas are refreshed manually via
-    # `brew update-python-resources` when runtime deps actually change.
+    # Pulls the sdist URL+sha256 from PyPI, regex-rewrites Formula/ghagen.rb,
+    # and pushes directly to main. Transitive `resource` stanzas are refreshed
+    # manually via `brew update-python-resources` when runtime deps change.
     homebrew_bump_job = Job(
         name="Bump Homebrew tap",
         runs_on="ubuntu-latest",
         timeout_minutes=10,
-        needs=["release-please", "publish"],
+        needs=["release-please", "approve-release", "publish"],
         if_="needs.release-please.outputs.release_created == 'true'",
-        environment=Environment(name="release"),
+        environment=Environment(name="release-homebrew"),
         permissions=Permissions(contents=PermissionLevel.READ),
         steps=[
             Step(
@@ -276,10 +289,9 @@ def _release_workflow() -> Workflow:
                 },
             ),
             Step(
-                name="Bump ghagen formula and open PR",
+                name="Bump ghagen formula",
                 working_directory="homebrew-tap",
                 env={
-                    "GH_TOKEN": "${{ secrets.HOMEBREW_TAP_TOKEN }}",
                     "TAG": "${{ needs.release-please.outputs.tag_name }}",
                 },
                 run="""
@@ -324,20 +336,12 @@ def _release_workflow() -> Workflow:
                       exit 0
                     fi
 
-                    # Commit, push to a branch, open PR via gh.
+                    # Commit and push directly to main.
                     git config user.name "github-actions[bot]"
                     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                    BRANCH="bump-ghagen-${VERSION}"
-                    git checkout -b "$BRANCH"
                     git add Formula/ghagen.rb
                     git commit -m "ghagen ${VERSION}"
-                    git push origin "$BRANCH"
-                    gh pr create \\
-                      --repo nathanjordan/homebrew-tap \\
-                      --title "ghagen ${VERSION}" \\
-                      --body "Automated bump by the ghagen release workflow." \\
-                      --head "$BRANCH" \\
-                      --base main
+                    git push origin main
                 """,
             ),
         ],
@@ -347,9 +351,9 @@ def _release_workflow() -> Workflow:
         name="Publish to npm",
         runs_on="ubuntu-latest",
         timeout_minutes=10,
-        needs="release-please",
+        needs=["release-please", "approve-release"],
         if_="needs.release-please.outputs.ts_release_created == 'true'",
-        environment=Environment(name="release"),
+        environment=Environment(name="release-npm"),
         permissions=Permissions(
             contents=PermissionLevel.READ,
             id_token=PermissionLevel.WRITE,
@@ -390,6 +394,7 @@ def _release_workflow() -> Workflow:
         ),
         jobs={
             "release-please": release_please_job,
+            "approve-release": approve_release_job,
             "publish": publish_job,
             "npm-publish": npm_publish_job,
             "homebrew-bump": homebrew_bump_job,

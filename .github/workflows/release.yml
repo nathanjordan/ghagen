@@ -34,10 +34,23 @@ jobs:
       ts_release_created: ${{ steps.release.outputs['packages/typescript--release_created'] }}
       ts_tag_name: ${{ steps.release.outputs['packages/typescript--tag_name'] }}
     timeout-minutes: 10
+  approve-release:
+    name: Approve Release
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true' || needs.release-please.outputs.ts_release_created == 'true'
+    environment:
+      name: release-gate
+    steps:
+    - name: Approve
+      run: echo "Release approved"
+    timeout-minutes: 5
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: release-please
+    needs:
+    - release-please
+    - approve-release
     if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: read
@@ -57,13 +70,15 @@ jobs:
   npm-publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    needs: release-please
+    needs:
+    - release-please
+    - approve-release
     if: needs.release-please.outputs.ts_release_created == 'true'
     permissions:
       contents: read
       id-token: write
     environment:
-      name: release
+      name: release-npm
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -89,12 +104,13 @@ jobs:
     runs-on: ubuntu-latest
     needs:
     - release-please
+    - approve-release
     - publish
     if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: read
     environment:
-      name: release
+      name: release-homebrew
     steps:
     - name: Check out nathanjordan/homebrew-tap
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -102,7 +118,7 @@ jobs:
         repository: nathanjordan/homebrew-tap
         token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         path: homebrew-tap
-    - name: Bump ghagen formula and open PR
+    - name: Bump ghagen formula
       run: |-
         # Strip tag prefix: v0.2.1 -> 0.2.1
         VERSION="${TAG#v}"
@@ -145,22 +161,13 @@ jobs:
           exit 0
         fi
 
-        # Commit, push to a branch, open PR via gh.
+        # Commit and push directly to main.
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        BRANCH="bump-ghagen-${VERSION}"
-        git checkout -b "$BRANCH"
         git add Formula/ghagen.rb
         git commit -m "ghagen ${VERSION}"
-        git push origin "$BRANCH"
-        gh pr create \
-          --repo nathanjordan/homebrew-tap \
-          --title "ghagen ${VERSION}" \
-          --body "Automated bump by the ghagen release workflow." \
-          --head "$BRANCH" \
-          --base main
+        git push origin main
       env:
-        GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         TAG: ${{ needs.release-please.outputs.tag_name }}
       working-directory: homebrew-tap
     timeout-minutes: 10
