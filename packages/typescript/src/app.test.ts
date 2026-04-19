@@ -118,7 +118,7 @@ describe("App", () => {
       "[options]\nauto_dedent = false\n",
     );
     // Constructing an App reads options and toggles auto-dedent.
-    new App({ root: tmp });
+    const _app = new App({ root: tmp });
     // Subsequent step() should NOT dedent.
     const indented = "\n        echo hi\n        echo bye\n    ";
     const s = step({ run: indented });

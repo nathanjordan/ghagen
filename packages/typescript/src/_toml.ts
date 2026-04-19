@@ -14,12 +14,12 @@ export function loadToml(path: string): Record<string, unknown> {
   try {
     text = readFileSync(path, "utf8");
   } catch (err) {
-    throw new Error(`${path}: failed to read TOML file: ${(err as Error).message}`);
+    throw new Error(`${path}: failed to read TOML file: ${(err as Error).message}`, { cause: err });
   }
   try {
     return parse(text) as Record<string, unknown>;
   } catch (err) {
-    throw new Error(`${path}: failed to parse TOML: ${(err as Error).message}`);
+    throw new Error(`${path}: failed to parse TOML: ${(err as Error).message}`, { cause: err });
   }
 }
 

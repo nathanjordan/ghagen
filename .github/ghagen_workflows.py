@@ -55,7 +55,7 @@ def _ci_workflow() -> Workflow:
                     ),
                     Step(
                         name="ghagen deps check-synced",
-                        run="uv run ghagen deps check-synced --prune",
+                        run="uv run ghagen deps check-synced",
                         env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
                     ),
                 ],

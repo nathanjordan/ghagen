@@ -89,6 +89,7 @@ function extractFromPackageJson(path: string): LintConfig | null {
   } catch (err) {
     throw new Error(
       `${path}: failed to parse JSON: ${(err as Error).message}`,
+      { cause: err },
     );
   }
   if (typeof raw !== "object" || raw === null) return null;
@@ -150,7 +151,7 @@ export function loadLintConfig(
     warnings.push(
       "lint config found in multiple locations:\n" +
         `  - ${ghagenToml} (used)\n` +
-        `  - ${packageJson} \"ghagen.lint\" (ignored)\n` +
+        `  - ${packageJson} "ghagen.lint" (ignored)\n` +
         "Remove one to silence this warning.",
     );
     chosen = ghagenConfig;

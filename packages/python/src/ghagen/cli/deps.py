@@ -27,7 +27,7 @@ def deps_pin(
         False, "--update", help="Re-resolve all entries to latest SHAs"
     ),
     prune: bool = typer.Option(
-        False, "--prune", help="Remove lockfile entries not referenced in code"
+        True, "--prune/--no-prune", help="Remove lockfile entries not referenced in code"
     ),
     token: str | None = typer.Option(
         None, "--token", help="GitHub token (default: $GITHUB_TOKEN)"
@@ -121,8 +121,8 @@ def deps_check_synced(
         None, "--config", "-c", help="Path to config file"
     ),
     prune: bool = typer.Option(
-        False,
-        "--prune",
+        True,
+        "--prune/--no-prune",
         help="Also flag stale lockfile entries not referenced in code",
     ),
 ) -> None:

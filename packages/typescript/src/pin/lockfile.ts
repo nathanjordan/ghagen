@@ -81,6 +81,7 @@ export function readLockfile(path: string): Lockfile {
   } catch (err) {
     throw new Error(
       `${path}: failed to parse lockfile TOML: ${(err as Error).message}`,
+      { cause: err },
     );
   }
 

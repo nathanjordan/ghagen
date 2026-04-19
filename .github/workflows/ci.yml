@@ -28,7 +28,7 @@ jobs:
     - name: ghagen lint
       run: uv run ghagen lint --format=github
     - name: ghagen deps check-synced
-      run: uv run ghagen deps check-synced --prune
+      run: uv run ghagen deps check-synced
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 10

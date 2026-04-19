@@ -48,7 +48,7 @@ def test_deps_check_synced_passes_when_lockfile_in_sync(
     lockfile.parent.mkdir(parents=True)
     lockfile.write_text(_LOCKFILE)
 
-    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced"])
     assert result.exit_code == 0, result.output
     assert "Lockfile is in sync." in result.output
     # check-synced never hits the network, so the no-token warning must NOT fire.
@@ -68,7 +68,7 @@ def test_deps_check_synced_fails_when_entry_missing(
     lockfile.parent.mkdir(parents=True)
     lockfile.write_text("# empty\n")
 
-    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced"])
     assert result.exit_code == 1
     assert "Missing lockfile entries" in result.output
     assert "actions/checkout@v4" in result.output
@@ -95,7 +95,7 @@ resolved_at = "2026-04-09T00:00:00+00:00"
 """
     )
 
-    result = runner.invoke(app, ["deps", "check-synced", "--prune"])
+    result = runner.invoke(app, ["deps", "check-synced"])
     assert result.exit_code == 1
     assert "Stale lockfile entries" in result.output
     assert "actions/unused@v1" in result.output

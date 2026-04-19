@@ -36,7 +36,7 @@ function ensureLockfilePath(app: App): string {
 interface PinOpts {
   config?: string;
   update?: boolean;
-  prune?: boolean;
+  prune: boolean;
   token?: string;
 }
 
@@ -44,8 +44,8 @@ interface PinOpts {
  * Resolve action references to commit SHAs and write them to the lockfile.
  *
  * By default only new (unpinned) references are resolved. Pass `--update` to
- * re-resolve all entries, and `--prune` to remove stale entries that are no
- * longer referenced in code.
+ * re-resolve all entries. Stale entries no longer referenced in code are pruned
+ * automatically; pass `--no-prune` to keep them.
  */
 async function depsPin(opts: PinOpts): Promise<void> {
   const configPath = findConfig(opts.config);
@@ -117,14 +117,15 @@ async function depsPin(opts: PinOpts): Promise<void> {
 
 interface CheckSyncedOpts {
   config?: string;
-  prune?: boolean;
+  prune: boolean;
 }
 
 /**
  * Verify the lockfile is in sync with the current action references.
  *
  * Exits with code 1 if any references are missing from the lockfile or
- * (when `--prune` is set) if the lockfile contains stale entries.
+ * if the lockfile contains stale entries. Pass `--no-prune` to ignore stale
+ * entries.
  */
 async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const configPath = findConfig(opts.config);
@@ -407,7 +408,7 @@ export function buildDepsCommand(): Command {
     .description("Pin action references to commit SHAs in a lockfile.")
     .option("-c, --config <path>", "Path to config file")
     .option("--update", "Re-resolve all entries to latest SHAs")
-    .option("--prune", "Remove lockfile entries not referenced in code")
+    .option("--no-prune", "Keep stale lockfile entries not referenced in code")
     .option("--token <token>", "GitHub token (default: $GITHUB_TOKEN)")
     .action(async (opts: PinOpts) => depsPin(opts));
 
@@ -415,7 +416,7 @@ export function buildDepsCommand(): Command {
     .command("check-synced")
     .description("Verify lockfile is in sync with code (exit 1 if stale).")
     .option("-c, --config <path>", "Path to config file")
-    .option("--prune", "Also flag stale lockfile entries not referenced in code")
+    .option("--no-prune", "Ignore stale lockfile entries not referenced in code")
     .action(async (opts: CheckSyncedOpts) => depsCheckSynced(opts));
 
   deps

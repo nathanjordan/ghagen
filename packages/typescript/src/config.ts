@@ -55,6 +55,7 @@ function extractFromPackageJson(path: string): GhagenOptions | null {
   } catch (err) {
     throw new Error(
       `${path}: failed to parse JSON: ${(err as Error).message}`,
+      { cause: err },
     );
   }
   if (typeof raw !== "object" || raw === null) return null;
