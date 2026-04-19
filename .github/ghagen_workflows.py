@@ -124,7 +124,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(
                         name="Test composite action",
-                        uses="./",
+                        uses="./check-synth",
                         with_={"source": "."},
                     ),
                 ],
@@ -469,8 +469,8 @@ def _docs_workflow() -> Workflow:
 def _ghagen_check_action() -> Action:
     """ghagen's own composite action wrapping ``ghagen check-synced``.
 
-    Dogfooding: this is what currently lives at ``action.yml`` and is
-    consumed by the ``test-action`` job in CI via ``uses: ./``.
+    Dogfooding: this is what currently lives at ``check-synth/action.yml`` and is
+    consumed by the ``test-action`` job in CI via ``uses: ./check-synth``.
     """
     return Action(
         name="ghagen Check",
@@ -538,5 +538,5 @@ def create_app() -> App:
     app.add_workflow(_schema_drift_workflow(), "schema-drift.yml")
     app.add_workflow(_release_workflow(), "release.yml")
     app.add_workflow(_docs_workflow(), "docs.yml")
-    app.add_action(_ghagen_check_action())
+    app.add_action(_ghagen_check_action(), dir="check-synth")
     return app

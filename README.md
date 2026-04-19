@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: nathanjordan/ghagen@v0
+      - uses: nathanjordan/ghagen/check-synth@v0
         with:
           config: .github/ghagen_workflows.py  # optional; default shown
           python-version: "3.13"               # optional; default shown
