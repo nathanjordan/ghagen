@@ -20,9 +20,19 @@ const CONFIG_SEARCH_PATHS: readonly string[] = [
   "ghagen.config.mjs",
 ];
 
-/** Raised when no config file can be located. */
+/**
+ * Error type thrown by CLI commands to signal a non-zero exit code.
+ *
+ * When caught by the top-level CLI runner, `exitCode` is forwarded to
+ * `process.exit()` and `message` (if non-empty) is written to stderr.
+ */
 export class CliError extends Error {
+  /** Process exit code returned when this error propagates to the CLI entry point. */
   readonly exitCode: number;
+  /**
+   * @param message - Human-readable error text written to stderr (pass `""` for silent exits).
+   * @param exitCode - Process exit code (default `1`).
+   */
   constructor(message: string, exitCode = 1) {
     super(message);
     this.name = "CliError";
@@ -91,7 +101,16 @@ export function findConfig(cliFlag?: string, cwd: string = process.cwd()): strin
   );
 }
 
-/** Load the user's `App` from the resolved config file. */
+/**
+ * Load the user's {@link App} from the resolved config file.
+ *
+ * Uses `jiti` for on-the-fly TypeScript/ESM transpilation so the CLI
+ * can import `.ts` config files without a separate build step.
+ *
+ * @param configPath - Absolute path to the workflow config file.
+ * @returns The {@link App} instance exported by the config module.
+ * @throws {@link CliError} if the module cannot be loaded or does not export an `App`.
+ */
 export async function loadApp(configPath: string): Promise<App> {
   const jiti = createJiti(import.meta.url, { moduleCache: false });
   let mod: unknown;

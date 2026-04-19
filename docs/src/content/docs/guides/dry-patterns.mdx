@@ -27,9 +27,12 @@ from ghagen import (
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { checkout, setupNode, setupPython } from "@ghagen/ghagen";
-// Note: cache, upload_artifact, download_artifact, setup_uv
-// are not yet available as helpers in TypeScript. Use step() directly.
+import { step } from "@ghagen/ghagen";
+
+// Use step() directly to call any action:
+step({ uses: "actions/checkout@v4" })
+step({ uses: "actions/setup-node@v4", with_: { "node-version": "20" } })
+step({ uses: "actions/setup-python@v5", with_: { "python-version": "3.12" } })
 ```
 </TabItem>
 </Tabs>
@@ -51,26 +54,25 @@ steps = [
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { step, checkout, setupPython } from "@ghagen/ghagen";
+import { step } from "@ghagen/ghagen";
 
 const steps = [
-checkout(),
-setupPython({ version: "3.12" }),
-step({
-name: "Cache pip",
-uses: "actions/cache@v4",
-with_: { key: "pip-${{ hashFiles('requirements.txt') }}", path: "~/.cache/pip" },
-}),
-step({ name: "Install deps", run: "pip install -r requirements.txt" }),
-step({ name: "Test", run: "pytest" }),
-step({
-name: "Upload coverage",
-uses: "actions/upload-artifact@v4",
-with_: { name: "coverage", path: "htmlcov/" },
-}),
+  step({ uses: "actions/checkout@v4" }),
+  step({ uses: "actions/setup-python@v5", with_: { "python-version": "3.12" } }),
+  step({
+    name: "Cache pip",
+    uses: "actions/cache@v4",
+    with_: { key: "pip-${{ hashFiles('requirements.txt') }}", path: "~/.cache/pip" },
+  }),
+  step({ name: "Install deps", run: "pip install -r requirements.txt" }),
+  step({ name: "Test", run: "pytest" }),
+  step({
+    name: "Upload coverage",
+    uses: "actions/upload-artifact@v4",
+    with_: { name: "coverage", path: "htmlcov/" },
+  }),
 ];
-
-````
+```
 </TabItem>
 </Tabs>
 
@@ -88,8 +90,8 @@ setup_python(version="3.12", if_="github.event_name == 'push'")
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-checkout({ name: "Checkout with submodules", with_: { submodules: "recursive" } })
-setupPython({ version: "3.12", if_: "github.event_name == 'push'" })
+step({ uses: "actions/checkout@v4", name: "Checkout with submodules", with_: { submodules: "recursive" } })
+step({ uses: "actions/setup-python@v5", with_: { "python-version": "3.12" }, if_: "github.event_name == 'push'" })
 ```
 </TabItem>
 </Tabs>
@@ -128,27 +130,26 @@ jobs = {
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step, checkout } from "@ghagen/ghagen";
+import { job, step } from "@ghagen/ghagen";
 import type { JobModel } from "@ghagen/ghagen";
 
 function lintJob(tool: string, cmd: string): JobModel {
-return job({
-name: `Lint (${tool})`,
-runsOn: "ubuntu-latest",
-steps: [
-checkout(),
-step({ name: tool, run: cmd }),
-],
-});
+  return job({
+    name: `Lint (${tool})`,
+    runsOn: "ubuntu-latest",
+    steps: [
+      step({ uses: "actions/checkout@v4" }),
+      step({ name: tool, run: cmd }),
+    ],
+  });
 }
 
 const jobs = {
-ruff: lintJob("Ruff", "ruff check ."),
-mypy: lintJob("Mypy", "mypy src/"),
-black: lintJob("Black", "black --check ."),
+  ruff: lintJob("Ruff", "ruff check ."),
+  mypy: lintJob("Mypy", "mypy src/"),
+  black: lintJob("Black", "black --check ."),
 };
-
-````
+```
 </TabItem>
 </Tabs>
 
@@ -234,25 +235,24 @@ steps = [checkout()] + [
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
-import { job, step, checkout } from "@ghagen/ghagen";
+import { job, step } from "@ghagen/ghagen";
 
 const services = ["api", "web", "worker"];
 
 const jobs = Object.fromEntries(
-services.map((svc) => [
-`build-${svc}`,
-job({
-name: `Build ${svc}`,
-runsOn: "ubuntu-latest",
-steps: [
-checkout(),
-step({ name: "Build", run: `docker build -t ${svc} ./services/${svc}` }),
-],
-}),
-])
+  services.map((svc) => [
+    `build-${svc}`,
+    job({
+      name: `Build ${svc}`,
+      runsOn: "ubuntu-latest",
+      steps: [
+        step({ uses: "actions/checkout@v4" }),
+        step({ name: "Build", run: `docker build -t ${svc} ./services/${svc}` }),
+      ],
+    }),
+  ])
 );
-
-````
+```
 </TabItem>
 </Tabs>
 
@@ -315,19 +315,19 @@ You can also share helper functions, step lists, and job templates across module
 
 ```typescript
 // .github/common.ts
-import { step, checkout, setupPython } from "@ghagen/ghagen";
+import { step } from "@ghagen/ghagen";
 import type { StepModel } from "@ghagen/ghagen";
 
 const RUNNER = "ubuntu-latest";
 
 function pythonSetupSteps(version = "3.12"): StepModel[] {
   return [
-    checkout(),
-    setupPython({ version }),
+    step({ uses: "actions/checkout@v4" }),
+    step({ uses: "actions/setup-python@v5", with_: { "python-version": version } }),
     step({ name: "Install deps", run: "pip install -e '.[dev]'" }),
   ];
 }
-````
+```
 
 </TabItem>
 </Tabs>

@@ -232,13 +232,9 @@ Emits:
 # Edit the Python source and run `ghagen synth` instead of hand-editing this file.
 ```
 
-Multiline templates are fine -- every line gets a leading `# `. To include a literal `{` or `}` in the header, double it as `{{` or `}}` (standard Python format-string escaping). Using an unknown variable like `{oops}` raises a clear error at synth time listing every valid name.
+Multiline templates are fine -- every line gets a leading `# `. To include a literal `{` or `}` in the header, double it as `{{` or `}}` (standard Python format-string escaping). TypeScript uses the same `{variable}` template syntax with the same escaping rules. Using an unknown variable like `{oops}` raises a clear error at synth time listing every valid name.
 
 To skip the header entirely on a single `to_yaml()` call, pass `include_header=False` -- this is what ghagen's own snapshot tests use to decouple body assertions from header text.
-
-:::note
-Header comments are a Python CLI feature. The TypeScript package does not currently support automatic header generation.
-:::
 
 ## Known limitations
 

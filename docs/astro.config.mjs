@@ -40,7 +40,11 @@ export default defineConfig({
         },
         {
           label: "TypeScript",
-          items: [typeDocSidebarGroup],
+          items: [
+            { label: "CLI Reference", slug: "typescript/cli" },
+            { label: "Linting", slug: "typescript/linting" },
+            typeDocSidebarGroup,
+          ],
         },
         { label: "FAQ", slug: "faq" },
       ],

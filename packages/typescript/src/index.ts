@@ -1,3 +1,20 @@
+/**
+ * ghagen - Generate GitHub Actions workflow YAML from TypeScript/JavaScript.
+ *
+ * Core concepts:
+ *
+ * - **Factory functions** ({@link workflow}, {@link job}, {@link step}, etc.)
+ *   create immutable model objects
+ * - **Models** are serialized to YAML via {@link toYaml} / {@link toYamlFile}
+ * - **{@link App}** coordinates multi-file synthesis with transforms and
+ *   lockfile pinning
+ * - **Helpers** ({@link expr}, {@link secrets}, {@link github}, {@link vars})
+ *   build GitHub Actions expressions
+ * - **{@link raw | Raw\<T\>}** bypasses type constraints for escape-hatch scenarios
+ *
+ * @packageDocumentation
+ */
+
 // Models
 export { raw, isRaw, isModel } from "./models/_base.js";
 export type {

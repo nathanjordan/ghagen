@@ -31,6 +31,12 @@ function plural(n: number, word: string): string {
 
 // ---------------------------------------------------------------- human
 
+/**
+ * Format violations as human-readable terminal output.
+ *
+ * @param violations - The lint violations to format.
+ * @returns Multi-line string with file locations, messages, and a summary count.
+ */
 export function formatHuman(violations: readonly Violation[]): string {
   if (violations.length === 0) return "No violations found.\n";
 
@@ -83,6 +89,15 @@ function violationToJson(v: Violation): JsonViolation {
   };
 }
 
+/**
+ * Format violations as a machine-readable JSON string.
+ *
+ * The output schema matches the Python implementation for cross-language
+ * compatibility.
+ *
+ * @param violations - The lint violations to format.
+ * @returns Pretty-printed JSON with `violations` array and `summary` counts.
+ */
 export function formatJson(violations: readonly Violation[]): string {
   const { errors, warnings } = counts(violations);
   const payload = {
@@ -110,6 +125,15 @@ function escapeProperty(value: string): string {
     .split(",").join("%2C");
 }
 
+/**
+ * Format violations as GitHub Actions workflow-command annotations.
+ *
+ * Each violation becomes a `::error` or `::warning` line that GitHub
+ * renders as an inline annotation on the PR diff.
+ *
+ * @param violations - The lint violations to format.
+ * @returns Newline-delimited workflow commands, or `""` if there are no violations.
+ */
 export function formatGithub(violations: readonly Violation[]): string {
   if (violations.length === 0) return "";
 

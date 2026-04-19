@@ -57,6 +57,7 @@ interface SynthOpts {
   config?: string;
 }
 
+/** Synthesize workflow YAML files from the user's config and write them to disk. */
 async function cmdSynth(opts: SynthOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
@@ -65,6 +66,7 @@ async function cmdSynth(opts: SynthOpts): Promise<void> {
   process.stdout.write(`Synthesized ${written.length} file(s).\n`);
 }
 
+/** Verify that generated YAML files are up-to-date with the config (exit 1 if stale). */
 async function cmdCheckSynced(opts: SynthOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
@@ -88,6 +90,7 @@ interface LintOpts {
   listRules?: boolean;
 }
 
+/** Run lint rules against the user's workflow definitions and emit violations. */
 async function cmdLint(opts: LintOpts): Promise<void> {
   if (opts.listRules) {
     for (const ruleFn of ALL_RULES) {
@@ -135,6 +138,7 @@ interface InitOpts {
   outdir: string;
 }
 
+/** Scaffold a minimal ghagen config file into the target directory. */
 async function cmdInit(opts: InitOpts): Promise<void> {
   const target = resolve(process.cwd(), opts.outdir, "ghagen.workflows.ts");
   if (existsSync(target)) {

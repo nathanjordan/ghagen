@@ -32,12 +32,39 @@ import { container, service } from "./container.js";
 
 // ---- Strategy / Matrix ----
 
+/**
+ * Input for strategy matrix configuration. Dynamic dimensions (user-defined
+ * keys like `"os"` or `"node-version"`) are set as additional properties on
+ * this object. Use `include` and `exclude` to add or remove specific
+ * combinations.
+ *
+ * In Python, dynamic dimensions are passed via the `extras` parameter.
+ * In TypeScript, they are set directly as index-signature properties.
+ */
 export interface MatrixInput {
+  /** Additional matrix combinations to include. */
   include?: Array<Record<string, unknown>>;
+  /** Matrix combinations to exclude. */
   exclude?: Array<Record<string, unknown>>;
+  /** Dynamic matrix dimensions (e.g., `{ "node-version": ["18", "20"] }`). */
   [key: string]: unknown;
 }
 
+/**
+ * Create a matrix model for strategy configuration.
+ *
+ * @param input - Matrix dimensions, include/exclude lists, and optional model metadata.
+ * @returns A `MatrixModel` for use inside a `StrategyInput`.
+ *
+ * @example
+ * ```ts
+ * matrix({
+ *   "node-version": ["18", "20"],
+ *   os: ["ubuntu-latest", "macos-latest"],
+ *   include: [{ os: "ubuntu-latest", experimental: true }],
+ * })
+ * ```
+ */
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
   return createModel(
@@ -48,12 +75,36 @@ export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   ) as MatrixModel;
 }
 
+/**
+ * Input for job strategy configuration including matrix builds, fail-fast
+ * behavior, and parallelism limits.
+ */
 export interface StrategyInput {
+  /** Matrix configuration. Accepts a pre-built `MatrixModel` or an inline `MatrixInput`. The trailing `_` avoids the reserved word; it is stripped during emission. */
   matrix_?: MatrixModel | MatrixInput;
+  /** Whether to cancel all in-progress jobs if any matrix job fails. Serialized as `fail-fast`. */
   failFast?: boolean;
+  /** Maximum number of matrix jobs to run in parallel. Serialized as `max-parallel`. */
   maxParallel?: number;
 }
 
+/**
+ * Create a strategy model for controlling matrix builds.
+ *
+ * @param input - Strategy properties and optional model metadata.
+ * @returns A `StrategyModel` for use in a `JobInput`.
+ *
+ * @example
+ * ```ts
+ * strategy({
+ *   matrix_: {
+ *     "node-version": ["18", "20"],
+ *     os: ["ubuntu-latest", "macos-latest"],
+ *   },
+ *   failFast: false,
+ * })
+ * ```
+ */
 export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
   const [rawData, meta] = extractMeta(input);
   const data = rawData as StrategyInput;
@@ -70,8 +121,14 @@ export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
 
 // ---- Concurrency ----
 
+/**
+ * Input for concurrency configuration. Prevents concurrent runs in the
+ * same group. Can be used at the workflow or job level.
+ */
 export interface ConcurrencyInput {
+  /** Concurrency group name. Supports GitHub Actions expressions. */
   group: string;
+  /** Whether to cancel in-progress runs when a new run is queued. Serialized as `cancel-in-progress`. */
   cancelInProgress?: boolean;
 }
 
@@ -80,6 +137,20 @@ const CONCURRENCY_FIELD_MAP = {
   cancelInProgress: "cancel-in-progress",
 } as const satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>;
 
+/**
+ * Create a concurrency model that prevents concurrent runs in the same group.
+ *
+ * @param input - Concurrency properties and optional model metadata.
+ * @returns A `ConcurrencyModel` for use in a workflow or job.
+ *
+ * @example
+ * ```ts
+ * concurrency({
+ *   group: "deploy-${{ github.ref }}",
+ *   cancelInProgress: true,
+ * })
+ * ```
+ */
 export function concurrency(input: WithMeta<ConcurrencyInput>): ConcurrencyModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, CONCURRENCY_FIELD_MAP);
@@ -88,15 +159,38 @@ export function concurrency(input: WithMeta<ConcurrencyInput>): ConcurrencyModel
 
 // ---- Defaults ----
 
+/**
+ * Input for default shell and working directory settings for `run` steps.
+ */
 export interface DefaultsRunInput {
+  /** Default shell for run steps (e.g., `"bash"`, `"pwsh"`). */
   shell?: string;
+  /** Default working directory. Serialized as `working-directory`. */
   workingDirectory?: string;
 }
 
+/**
+ * Input for default settings applied to all `run` steps in a job or workflow.
+ */
 export interface DefaultsInput {
+  /** Default run step settings. */
   run?: DefaultsRunInput;
 }
 
+/**
+ * Create a defaults model for setting default shell and working directory
+ * for all `run` steps.
+ *
+ * @param input - Default run settings and optional model metadata.
+ * @returns A `DefaultsModel` for use in a workflow or job.
+ *
+ * @example
+ * ```ts
+ * defaults({
+ *   run: { shell: "bash", workingDirectory: "./src" },
+ * })
+ * ```
+ */
 export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
   const [rawData, meta] = extractMeta(input);
   const data = rawData as DefaultsInput;
@@ -113,8 +207,13 @@ export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
 
 // ---- Environment ----
 
+/**
+ * Input for job deployment environment configuration.
+ */
 export interface EnvironmentInput {
+  /** The environment name. */
   name: string;
+  /** The environment URL. */
   url?: string;
 }
 
@@ -123,6 +222,17 @@ const ENVIRONMENT_FIELD_MAP = {
   url: "url",
 } as const satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>;
 
+/**
+ * Create an environment model for deployment environment configuration.
+ *
+ * @param input - Environment properties and optional model metadata.
+ * @returns An `EnvironmentModel` for use in a `JobInput`.
+ *
+ * @example
+ * ```ts
+ * environment({ name: "production", url: "https://example.com" })
+ * ```
+ */
 export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, ENVIRONMENT_FIELD_MAP);
@@ -131,33 +241,62 @@ export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel
 
 // ---- Job output ----
 
+/**
+ * Input for a job output definition, used when a downstream job needs to
+ * consume this job's outputs.
+ */
 export interface JobOutputInput {
+  /** Description of the output. */
   description?: string;
+  /** The output value, typically a step output expression (e.g., `"${{ steps.build.outputs.url }}"`). */
   value: string;
 }
 
 // ---- Job ----
 
+/**
+ * Input for defining a single job within a GitHub Actions workflow. A job
+ * can either run steps directly or call a reusable workflow via `uses`.
+ */
 export interface JobInput {
+  /** Display name for the job. */
   name?: string;
+  /** Runner label(s) for this job (e.g., `"ubuntu-latest"`). Serialized as `runs-on`. Use `Raw<string>` via `raw()` for expression values. */
   runsOn?: string | string[] | Raw<string>;
+  /** Job ID(s) that must complete before this job runs. */
   needs?: string | string[];
+  /** Conditional expression that must evaluate to true for this job to run. Serialized as `if`. The trailing `_` avoids the reserved word; it is stripped during emission. */
   if_?: string;
+  /** Token permissions for this job. Accepts a `PermissionsModel`, an inline `PermissionsInput`, a string shorthand, or a `Raw<string>`. */
   permissions?: PermissionsModel | PermissionsInput | "read-all" | "write-all" | Raw<string>;
+  /** Deployment environment. Can be a string (name only), an `EnvironmentModel`, or an inline `EnvironmentInput`. */
   environment?: string | EnvironmentModel | EnvironmentInput;
+  /** Matrix strategy configuration. Accepts a `StrategyModel` or an inline `StrategyInput`. */
   strategy?: StrategyModel | StrategyInput;
+  /** Environment variables for all steps in this job. */
   env?: Record<string, string>;
+  /** Default settings for `run` steps. Accepts a `DefaultsModel` or an inline `DefaultsInput`. */
   defaults?: DefaultsModel | DefaultsInput;
+  /** Steps to run in this job. */
   steps?: StepModel[];
+  /** Job outputs, accessible by downstream jobs. Values are typically step output expressions. */
   outputs?: Record<string, string>;
+  /** Maximum minutes the job can run before being cancelled. Serialized as `timeout-minutes`. */
   timeoutMinutes?: number;
+  /** Allow the workflow to continue when this job fails. Serialized as `continue-on-error`. */
   continueOnError?: boolean | string;
+  /** Concurrency group for this job. Can be a string (group name), a `ConcurrencyModel`, or an inline `ConcurrencyInput`. */
   concurrency?: string | ConcurrencyModel | ConcurrencyInput;
+  /** Service containers for the job. Values can be `ServiceModel` objects, `ContainerInput` objects, or image strings. */
   services?: Record<string, ServiceModel | ContainerInput | string>;
+  /** Container to run the job in. Can be a `ContainerModel`, a `ContainerInput`, or an image string. */
   container?: ContainerModel | ContainerInput | string;
   // Reusable workflow job fields
+  /** Reusable workflow reference (e.g., `"org/repo/.github/workflows/ci.yml@main"`). Mutually exclusive with `steps`. */
   uses?: string;
+  /** Input parameters for the reusable workflow. Serialized as `with`. The trailing `_` avoids the reserved word; it is stripped during emission. */
   with_?: Record<string, unknown>;
+  /** Secrets to pass to the reusable workflow. Can be a dict or `"inherit"`. */
   secrets?: Record<string, string> | "inherit";
 }
 
@@ -183,6 +322,27 @@ const JOB_FIELD_MAP = {
   secrets: "secrets",
 } as const;
 
+/**
+ * Create a job model for use in a workflow's `jobs` map. Plain-object values
+ * for `permissions`, `environment`, `strategy`, `defaults`, `concurrency`,
+ * `container`, and `services` entries are automatically wrapped with their
+ * respective factory functions.
+ *
+ * @param input - Job properties and optional model metadata.
+ * @returns A `JobModel` for use in a `WorkflowInput.jobs` map.
+ *
+ * @example
+ * ```ts
+ * job({
+ *   name: "Test",
+ *   runsOn: "ubuntu-latest",
+ *   steps: [
+ *     step({ uses: "actions/checkout@v4" }),
+ *     step({ name: "Run tests", run: "npm test" }),
+ *   ],
+ * })
+ * ```
+ */
 export function job(input: WithMeta<JobInput>): JobModel {
   const [data, meta] = extractMeta(input);
   const yamlData: Record<string, unknown> = {};

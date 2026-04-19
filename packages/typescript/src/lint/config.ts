@@ -8,9 +8,11 @@ import { loadToml } from "../_toml.js";
 import type { Severity } from "./violation.js";
 import { SEVERITY_VALUES } from "./violation.js";
 
-/** Configuration controlling which rules run at what severity. */
+/** Configuration controlling which lint rules run and at what severity. */
 export interface LintConfig {
+  /** Rule IDs to skip entirely (e.g. from `--disable` or `[lint].disable`). */
   readonly disable: ReadonlySet<string>;
+  /** Per-rule severity overrides (keys are rule IDs, values are `"error"` or `"warning"`). */
   readonly severity: ReadonlyMap<string, Severity>;
 }
 
@@ -106,8 +108,11 @@ function extractFromPackageJson(path: string): LintConfig | null {
   };
 }
 
+/** Result of loading and merging lint configuration from all sources. */
 export interface LoadLintConfigResult {
+  /** The merged lint configuration ready for use by the lint runner. */
   readonly config: LintConfig;
+  /** Non-fatal warnings encountered during config loading (e.g. duplicate config sources). */
   readonly warnings: readonly string[];
 }
 

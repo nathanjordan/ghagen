@@ -44,7 +44,24 @@ export interface ModelMeta {
   postProcess?: (node: YAMLMap) => void;
 }
 
-/** Intersect schema fields with optional metadata. */
+/**
+ * Intersect schema fields with optional metadata.
+ *
+ * Every factory function accepts `WithMeta<SomeInput>`, allowing callers to
+ * attach comments, extras, and post-processing hooks alongside the regular
+ * input fields.
+ *
+ * @example
+ * ```ts
+ * // Metadata fields mix directly into the input object:
+ * const s = step({
+ *   name: "Build",
+ *   run: "npm run build",
+ *   comment: "Compile the project",
+ *   fieldEolComments: { run: "requires Node 20" },
+ * });
+ * ```
+ */
 export type WithMeta<T> = T & ModelMeta;
 
 const META_KEYS = new Set<string>([
@@ -91,75 +108,100 @@ export interface Model {
 }
 
 // Branded subtypes for type safety in function signatures
+
+/** Branded model type produced by the {@link step} factory. */
 export interface StepModel extends Model {
   readonly _kind: "step";
 }
+/** Branded model type produced by the {@link job} factory. */
 export interface JobModel extends Model {
   readonly _kind: "job";
 }
+/** Branded model type produced by the {@link workflow} factory. */
 export interface WorkflowModel extends Model {
   readonly _kind: "workflow";
 }
+/** Branded model type produced by the {@link action} factory. */
 export interface ActionModel extends Model {
   readonly _kind: "action";
 }
+/** Branded model type produced by the {@link on} factory. */
 export interface OnModel extends Model {
   readonly _kind: "on";
 }
+/** Branded model type produced by the {@link pushTrigger} factory. */
 export interface PushTriggerModel extends Model {
   readonly _kind: "pushTrigger";
 }
+/** Branded model type produced by the {@link prTrigger} factory. */
 export interface PRTriggerModel extends Model {
   readonly _kind: "prTrigger";
 }
+/** Branded model type produced by the {@link scheduleTrigger} factory. */
 export interface ScheduleTriggerModel extends Model {
   readonly _kind: "scheduleTrigger";
 }
+/** Branded model type produced by the {@link workflowDispatch} factory. */
 export interface WorkflowDispatchModel extends Model {
   readonly _kind: "workflowDispatch";
 }
+/** Branded model type produced by the {@link workflowCall} factory. */
 export interface WorkflowCallModel extends Model {
   readonly _kind: "workflowCall";
 }
+/** Branded model type produced by the {@link permissions} factory. */
 export interface PermissionsModel extends Model {
   readonly _kind: "permissions";
 }
+/** Branded model type produced by the {@link strategy} factory. */
 export interface StrategyModel extends Model {
   readonly _kind: "strategy";
 }
+/** Branded model type produced by the {@link matrix} factory. */
 export interface MatrixModel extends Model {
   readonly _kind: "matrix";
 }
+/** Branded model type produced by the {@link concurrency} factory. */
 export interface ConcurrencyModel extends Model {
   readonly _kind: "concurrency";
 }
+/** Branded model type produced by the {@link defaults} factory. */
 export interface DefaultsModel extends Model {
   readonly _kind: "defaults";
 }
+/** Branded model type produced by the {@link environment} factory. */
 export interface EnvironmentModel extends Model {
   readonly _kind: "environment";
 }
+/** Branded model type produced by the {@link container} factory. */
 export interface ContainerModel extends Model {
   readonly _kind: "container";
 }
+/** Branded model type produced by the {@link service} factory. */
 export interface ServiceModel extends Model {
   readonly _kind: "service";
 }
+/** Branded model type produced by the {@link actionInputDef} factory. */
 export interface ActionInputModel extends Model {
   readonly _kind: "actionInput";
 }
+/** Branded model type produced by the {@link actionOutputDef} factory. */
 export interface ActionOutputModel extends Model {
   readonly _kind: "actionOutput";
 }
+/** Branded model type produced by the {@link branding} factory. */
 export interface BrandingModel extends Model {
   readonly _kind: "branding";
 }
+/** Branded model type produced by the {@link compositeRuns} factory. */
 export interface CompositeRunsModel extends Model {
   readonly _kind: "compositeRuns";
 }
+/** Branded model type produced by the {@link dockerRuns} factory. */
 export interface DockerRunsModel extends Model {
   readonly _kind: "dockerRuns";
 }
+/** Branded model type produced by the {@link nodeRuns} factory. */
 export interface NodeRunsModel extends Model {
   readonly _kind: "nodeRuns";
 }

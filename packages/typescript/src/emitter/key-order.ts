@@ -1,3 +1,13 @@
+/**
+ * Canonical key orderings for GitHub Actions YAML output.
+ *
+ * Each array defines the order in which keys appear in the generated YAML
+ * for a given model type, matching the conventional ordering used in
+ * GitHub Actions documentation and examples.
+ *
+ * @module
+ */
+
 export const ON_KEY_ORDER = [] as const;
 
 export const WORKFLOW_KEY_ORDER = [

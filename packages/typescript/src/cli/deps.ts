@@ -40,6 +40,13 @@ interface PinOpts {
   token?: string;
 }
 
+/**
+ * Resolve action references to commit SHAs and write them to the lockfile.
+ *
+ * By default only new (unpinned) references are resolved. Pass `--update` to
+ * re-resolve all entries, and `--prune` to remove stale entries that are no
+ * longer referenced in code.
+ */
 async function depsPin(opts: PinOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
@@ -113,6 +120,12 @@ interface CheckSyncedOpts {
   prune?: boolean;
 }
 
+/**
+ * Verify the lockfile is in sync with the current action references.
+ *
+ * Exits with code 1 if any references are missing from the lockfile or
+ * (when `--prune` is set) if the lockfile contains stale entries.
+ */
 async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
@@ -167,6 +180,13 @@ interface LockfileStale {
   source_files?: string[];
 }
 
+/**
+ * Detect and optionally apply upgrades to action dependencies.
+ *
+ * Checks for newer version tags (`--mode versions`), stale lockfile SHAs
+ * (`--mode lockfile`), or both (`--mode all`). By default upgrades are
+ * applied in-place; pass `--check` for a dry-run report.
+ */
 async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const mode = opts.mode ?? "all";
   if (mode !== "versions" && mode !== "lockfile" && mode !== "all") {
