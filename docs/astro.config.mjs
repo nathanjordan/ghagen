@@ -18,10 +18,10 @@ export default defineConfig({
       ],
       sidebar: [
         { label: "Home", link: "/" },
-        { label: "Cookbook", slug: "cookbook" },
         {
           label: "Guides",
           items: [
+            { label: "Cookbook", slug: "guides/cookbook" },
             { label: "DRY Patterns", slug: "guides/dry-patterns" },
             { label: "Escape Hatches", slug: "guides/escape-hatches" },
             { label: "Comments", slug: "guides/comments" },
@@ -59,6 +59,11 @@ export default defineConfig({
           },
           typeDoc: {
             skipErrorChecking: true,
+            categorizeByGroup: false,
+            navigation: {
+              includeGroups: false,
+              includeCategories: false,
+            },
           },
         }),
       ],

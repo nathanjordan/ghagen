@@ -1,3 +1,4 @@
+import type { YAMLMap } from "yaml";
 import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
@@ -277,8 +278,8 @@ export interface JobInput {
   env?: Record<string, string>;
   /** Default settings for `run` steps. Accepts a `DefaultsModel` or an inline `DefaultsInput`. */
   defaults?: DefaultsModel | DefaultsInput;
-  /** Steps to run in this job. */
-  steps?: StepModel[];
+  /** Steps to run in this job. Items can be `StepModel` objects or raw `YAMLMap` nodes for passthrough. */
+  steps?: (StepModel | YAMLMap)[];
   /** Job outputs, accessible by downstream jobs. Values are typically step output expressions. */
   outputs?: Record<string, string>;
   /** Maximum minutes the job can run before being cancelled. Serialized as `timeout-minutes`. */

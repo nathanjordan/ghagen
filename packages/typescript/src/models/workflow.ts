@@ -1,3 +1,4 @@
+import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../generated/workflow-types.js";
 import type {
   WorkflowModel,
@@ -40,8 +41,8 @@ export interface WorkflowInput {
   defaults?: DefaultsModel | DefaultsInput;
   /** Concurrency group configuration. Can be a string (group name), a `ConcurrencyModel`, or an inline `ConcurrencyInput`. */
   concurrency?: string | ConcurrencyModel | ConcurrencyInput;
-  /** Map of job IDs to job definitions. At least one job is required. */
-  jobs: Record<string, JobModel>;
+  /** Map of job IDs to job definitions. At least one job is required. Values can be `JobModel` objects or raw `YAMLMap` nodes for passthrough. */
+  jobs: Record<string, JobModel | YAMLMap>;
 }
 
 const WORKFLOW_FIELD_MAP = {

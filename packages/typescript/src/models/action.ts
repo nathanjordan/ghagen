@@ -1,3 +1,4 @@
+import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../generated/action-types.js";
 import type {
   ActionModel,
@@ -84,8 +85,8 @@ export interface BrandingInput {
 export interface CompositeRunsInput {
   /** Must be `"composite"` to indicate a composite action. */
   using: "composite";
-  /** Ordered list of steps that make up the composite action. */
-  steps: StepModel[];
+  /** Ordered list of steps that make up the composite action. Items can be `StepModel` objects or raw `YAMLMap` nodes for passthrough. */
+  steps: (StepModel | YAMLMap)[];
 }
 
 /**

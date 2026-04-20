@@ -82,8 +82,8 @@ Define your workflow in code:
   <TabItem label="TypeScript">
     ```typescript
     import {
-      workflow, job, step, on,
-      pushTrigger, prTrigger, toYamlFile,
+      App, workflow, job, step, on,
+      pushTrigger, prTrigger,
     } from "@ghagen/ghagen";
 
     const ci = workflow({
@@ -103,7 +103,9 @@ Define your workflow in code:
       },
     });
 
-    toYamlFile(ci, ".github/workflows/ci.yml");
+    const app = new App();
+    app.addWorkflow(ci, "ci.yml");
+    await app.synth();
     ```
 
   </TabItem>
@@ -141,6 +143,6 @@ jobs:
 
 ## Next Steps
 
-- [Cookbook](./cookbook/) -- recipes for common workflow patterns
+- [Cookbook](./guides/cookbook/) -- recipes for common workflow patterns
 - [Python API Reference](./python/api/) -- full Python model documentation
 - [TypeScript API Reference](./typescript/api/) -- full TypeScript API documentation

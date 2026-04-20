@@ -174,7 +174,31 @@ Typed models and raw YAML nodes can be mixed freely in the same workflow -- use 
 
 </TabItem>
 <TabItem label="TypeScript">
-The TypeScript package doesn't support raw YAML passthrough in the same way as Python's `CommentedMap`. Use `extras` and `postProcess` instead for cases that need full control over YAML output.
+```typescript
+import { workflow, job, step, on, pushTrigger } from "@ghagen/ghagen";
+import { YAMLMap, Pair, Scalar } from "yaml";
+
+const rawJob = new YAMLMap();
+rawJob.items.push(new Pair(new Scalar("runs-on"), "ubuntu-latest"));
+rawJob.items.push(
+  new Pair(new Scalar("steps"), [{ run: "echo 'raw job'" }]),
+);
+
+workflow({
+  name: "Mixed",
+  on: on({ push: pushTrigger({ branches: ["main"] }) }),
+  jobs: {
+    raw: rawJob,
+    typed: job({
+      runsOn: "ubuntu-latest",
+      steps: [step({ uses: "actions/checkout@v4" })],
+    }),
+  },
+});
+```
+
+Typed models and raw `YAMLMap` nodes can be mixed freely in the same workflow -- use typed models where they fit and drop down to a `YAMLMap` only for the sections that need escape. This is the TypeScript equivalent of Python's `CommentedMap`.
+
 </TabItem>
 </Tabs>
 
@@ -187,6 +211,6 @@ Use this decision guide to pick the right escape hatch:
 | A field rejects your value (expression, custom enum)             | `raw()`                            |
 | You need a YAML key that has no corresponding model field        | `extras`                           |
 | You need conditional logic or complex mutations at emission time | `postProcess`                      |
-| You need full control over a section of YAML                     | Raw YAML passthrough (Python only) |
+| You need full control over a section of YAML                     | Raw YAML passthrough               |
 
 **Start with `raw()`** and escalate only if it doesn't solve your problem. The lighter the escape hatch, the more type safety and IDE support you retain.

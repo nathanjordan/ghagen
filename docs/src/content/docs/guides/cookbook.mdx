@@ -769,10 +769,9 @@ job({
 
 ## Composite action alongside your workflows
 
-You can emit composite actions as well as workflows. In Python, use
-`app.add_action()` and the action is written to `action.yml` (or
-`<dir>/action.yml`) next to your repo root. In TypeScript, call
-`toYamlFile()` directly.
+You can emit composite actions as well as workflows. Use `app.add_action()`
+and the action is written to `action.yml` (or `<dir>/action.yml`) next to
+your repo root.
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
@@ -816,8 +815,8 @@ app.add_action(check_action) # -> ./action.yml
 <TabItem label="TypeScript">
 ```typescript
 import {
-  action, actionInputDef, branding,
-  compositeRuns, step, toYamlFile,
+  App, action, actionInputDef, branding,
+  compositeRuns, step,
 } from "@ghagen/ghagen";
 
 const checkAction = action({
@@ -843,7 +842,9 @@ const checkAction = action({
   }),
 });
 
-toYamlFile(checkAction, "action.yml");
+const app = new App();
+app.addAction(checkAction);
+await app.synth();
 ```
 
 </TabItem>
