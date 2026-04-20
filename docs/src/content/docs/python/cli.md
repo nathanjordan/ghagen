@@ -133,7 +133,7 @@ ghagen lint --format=github
 ghagen lint --list-rules
 
 # Disable specific rules
-ghagen lint --disable missing-timeout --disable unpinned-actions
+ghagen lint --disable missing-timeout
 ```
 
 ## ghagen deps pin
@@ -253,4 +253,4 @@ ghagen init
 ghagen init --outdir workflows
 ```
 
-The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command. See [Getting Started](../../getting-started/) for the full scaffold content.
+The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.

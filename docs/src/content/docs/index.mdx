@@ -4,10 +4,6 @@ description: Generate GitHub Actions workflows from typed Python or TypeScript c
 hero:
   tagline: Generate GitHub Actions workflows from typed Python or TypeScript code.
   actions:
-    - text: Get Started
-      link: ./getting-started/
-      icon: right-arrow
-      variant: primary
     - text: View on GitHub
       link: https://github.com/nathanjordan/ghagen
       icon: external
@@ -29,9 +25,24 @@ import { Tabs, TabItem } from "@astrojs/starlight/components";
     uv add ghagen
     ```
   </TabItem>
-  <TabItem label="TypeScript">
+  <TabItem label="npm">
     ```
     npm install @ghagen/ghagen
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```
+    yarn add @ghagen/ghagen
+    ```
+  </TabItem>
+  <TabItem label="pnpm">
+    ```
+    pnpm add @ghagen/ghagen
+    ```
+  </TabItem>
+  <TabItem label="bun">
+    ```
+    bun add @ghagen/ghagen
     ```
   </TabItem>
 </Tabs>
@@ -125,13 +136,11 @@ jobs:
 - **YAML comment support** -- block, end-of-line, and field-level comments
 - **DRY helpers** -- step factories (`checkout()`, `setupPython()`, etc.) and expression builders
 - **Escape hatches** -- graduated ways to inject arbitrary YAML when the typed models don't cover what you need
-- **Linting** -- flags missing permissions, unpinned actions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model
+- **Linting** -- flags missing permissions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model
 - **CLI** -- `ghagen synth` to generate, `ghagen check-synced` to verify freshness in CI, `ghagen deps pin` to lock actions to commit SHAs
 
 ## Next Steps
 
-- [Getting Started](./getting-started/) -- step-by-step tutorial
 - [Cookbook](./cookbook/) -- recipes for common workflow patterns
-- [FAQ](./faq/) -- quick answers to common questions
 - [Python API Reference](./python/api/) -- full Python model documentation
 - [TypeScript API Reference](./typescript/api/) -- full TypeScript API documentation

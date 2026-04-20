@@ -71,24 +71,6 @@ workflow({
 })
 ```
 
-### `unpinned-actions` (warning)
-
-Flags `step.uses` that points at a mutable ref (`@main`, `@master`,
-`@latest`, or no ref at all). Version tags (`@v4`, `@v4.1.2`) and commit
-SHAs are accepted.
-
-```typescript
-// Triggers the rule
-step({ uses: "actions/checkout@main" })
-
-// Passes
-step({ uses: "actions/checkout@v4" })
-step({ uses: "actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11" })
-```
-
-Local `./` references and `docker://` images are skipped -- they are
-pinned by other means.
-
 ### `missing-timeout` (warning)
 
 Flags jobs without `timeoutMinutes`. GitHub's default job timeout is 6
@@ -157,7 +139,6 @@ disable = ["missing-timeout"]
 [lint.severity]
 # Override the default severity of a rule
 missing-permissions = "error"
-unpinned-actions = "error"
 ```
 
 ### Example `package.json` fallback
@@ -179,7 +160,7 @@ CLI flags layer on top of the config file:
 
 ```bash
 # Union with any disables in the config file
-npx ghagen lint --disable unpinned-actions
+npx ghagen lint --disable missing-permissions
 ```
 
 ## CI integration

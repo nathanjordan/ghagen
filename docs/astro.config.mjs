@@ -17,7 +17,6 @@ export default defineConfig({
       ],
       sidebar: [
         { label: "Home", link: "/" },
-        { label: "Getting Started", slug: "getting-started" },
         { label: "Cookbook", slug: "cookbook" },
         {
           label: "Guides",
@@ -46,7 +45,6 @@ export default defineConfig({
             typeDocSidebarGroup,
           ],
         },
-        { label: "FAQ", slug: "faq" },
       ],
       plugins: [
         starlightTypeDoc({
