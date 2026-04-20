@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import starlightThemeRapide from "starlight-theme-rapide";
 import starlightTypeDoc, { typeDocSidebarGroup } from "starlight-typedoc";
 
 export default defineConfig({
@@ -47,6 +48,7 @@ export default defineConfig({
         },
       ],
       plugins: [
+        starlightThemeRapide(),
         starlightTypeDoc({
           entryPoints: ["../packages/typescript/src/_docs-api.ts"],
           tsconfig: "../packages/typescript/tsconfig.json",
