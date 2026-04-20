@@ -57,6 +57,9 @@ export default defineConfig({
             label: "API Reference",
             collapsed: true,
           },
+          typeDoc: {
+            skipErrorChecking: true,
+          },
         }),
       ],
     }),
