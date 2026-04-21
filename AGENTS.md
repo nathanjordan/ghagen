@@ -40,3 +40,14 @@ Think of this kind of like AWS CDK for Github Actions.
 - The ghagen tool is used in supporting github actions that are defined in this repo, so actions
 will need to be considered when making changes to the tool.
 - Update documentation when making any user-facing changes.
+- **ALWAYS** make sure lint/format/type/test checks pass before completing a task.
+
+## Common Commands
+
+```sh
+scripts/lint.sh # lint
+scripts/fmt.sh # format
+scripts/typecheck.sh # check types
+scripts/test.sh # tests
+uv run ghagen check-synced # check GHA workflow files synced
+```

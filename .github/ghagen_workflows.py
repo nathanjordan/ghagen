@@ -45,6 +45,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Ruff check", run="uv run ruff check packages/python/src/ packages/python/tests/"),
+                    Step(name="Ruff format check", run="uv run ruff format --check packages/python/src/ packages/python/tests/"),
                     Step(
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.12",
@@ -67,8 +68,11 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
                     Step(name="Sync", run="uv sync"),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(name="Pyright", run="uv run pyright packages/python/src/"),
+                    Step(name="tsc", run="npm run typecheck", working_directory="packages/typescript"),
                 ],
             ),
             "test": Job(

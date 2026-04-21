@@ -11,3 +11,12 @@ npm run lint --prefix "$REPO_ROOT/packages/typescript"
 
 echo "==> oxlint (docs)"
 npm run lint --prefix "$REPO_ROOT/docs"
+
+echo "==> actionlint"
+actionlint
+
+echo "==> ghagen lint"
+uv run ghagen lint
+
+echo "==> ghagen deps check-synced"
+uv run ghagen deps check-synced
