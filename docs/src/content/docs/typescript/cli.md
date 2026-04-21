@@ -209,7 +209,7 @@ Run `ghagen deps check-synced --prune` in CI to catch PRs that introduce a new
 step({
   name: "Check lockfile sync",
   run: "npx ghagen deps check-synced --prune",
-})
+});
 ```
 
 `ghagen deps check-synced` does not make network calls, so it doesn't need a GitHub token.

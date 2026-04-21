@@ -39,12 +39,12 @@ print(workflow.to_yaml())
 
 All models also accept these inherited parameters from the base class:
 
-| Parameter            | Type               | Default | Description                                                                                |
-| -------------------- | ------------------ | ------- | ------------------------------------------------------------------------------------------ |
-| `extras`             | `dict[str, Any]`   | `{}`    | Arbitrary key/value pairs merged into YAML output for fields not covered by the typed API. |
-| `post_process`       | `Callable \| None` | `None`  | Callback to modify the YAML mapping before emission. See [Escape Hatches](/guides/escape-hatches/). |
-| `comment`            | `str \| None`      | `None`  | Block comment emitted above this node in the YAML output.                                  |
-| `eol_comment`        | `str \| None`      | `None`  | End-of-line comment for this node.                                                         |
+| Parameter      | Type               | Default | Description                                                                                         |
+| -------------- | ------------------ | ------- | --------------------------------------------------------------------------------------------------- |
+| `extras`       | `dict[str, Any]`   | `{}`    | Arbitrary key/value pairs merged into YAML output for fields not covered by the typed API.          |
+| `post_process` | `Callable \| None` | `None`  | Callback to modify the YAML mapping before emission. See [Escape Hatches](/guides/escape-hatches/). |
+| `comment`      | `str \| None`      | `None`  | Block comment emitted above this node in the YAML output.                                           |
+| `eol_comment`  | `str \| None`      | `None`  | End-of-line comment for this node.                                                                  |
 
 Per-field comments are attached by wrapping individual field values with `with_comment()` or `with_eol_comment()`. See [Comments](/guides/comments/).
 

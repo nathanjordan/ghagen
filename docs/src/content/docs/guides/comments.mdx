@@ -74,7 +74,7 @@ Generated YAML:
 
 ```yaml
 - name: Ruff
-  run: ruff check .  # fast Python linter
+  run: ruff check . # fast Python linter
 ```
 
 ### Field-level block comments
@@ -87,11 +87,12 @@ Wrap a field value with `with_comment()` / `withComment()` to add a comment abov
 from ghagen import with_comment
 
 Workflow(
-    name=with_comment("CI", "The name shown in the GitHub UI"),
-    on=On(push=PushTrigger(branches=["main"])),
-    jobs={...},
+name=with_comment("CI", "The name shown in the GitHub UI"),
+on=On(push=PushTrigger(branches=["main"])),
+jobs={...},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -102,7 +103,8 @@ workflow({
   on: { push: { branches: ["main"] } },
   jobs: { ... },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -123,11 +125,12 @@ Wrap a field value with `with_eol_comment()` / `withEolComment()` to add an end-
 from ghagen import with_eol_comment
 
 Workflow(
-    name="CI",
-    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
-    jobs={...},
+name="CI",
+on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
+jobs={...},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -138,7 +141,8 @@ workflow({
   on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
   jobs: { ... },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -146,7 +150,7 @@ Generated YAML:
 
 ```yaml
 name: CI
-on:  # trigger configuration
+on: # trigger configuration
   push:
     branches:
       - main
@@ -155,16 +159,12 @@ on:  # trigger configuration
 Both `with_comment` and `with_eol_comment` are chainable — you can wrap a value with both a block comment and an EOL comment:
 
 <Tabs syncKey="lang">
-<TabItem label="Python">
-```python
-name=with_eol_comment(with_comment("CI", "Block comment"), "EOL comment")
-```
-</TabItem>
-<TabItem label="TypeScript">
-```typescript
-name: withEolComment(withComment("CI", "Block comment"), "EOL comment")
-```
-</TabItem>
+  <TabItem label="Python">
+    ```python name=with_eol_comment(with_comment("CI", "Block comment"), "EOL comment") ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```typescript name: withEolComment(withComment("CI", "Block comment"), "EOL comment") ```
+  </TabItem>
 </Tabs>
 
 ## Full example
@@ -177,25 +177,26 @@ Here is a workflow that uses all four comment types:
 from ghagen import with_comment, with_eol_comment
 
 Workflow(
-    name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
-    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
-    jobs={
-        "lint": Job(
-            name="Lint",
-            runs_on="ubuntu-latest",
-            comment="Run linters before tests",
-            steps=[
-                Step(uses="actions/checkout@v4"),
-                Step(
-                    name="Ruff",
-                    run="ruff check .",
-                    eol_comment="fast Python linter",
-                ),
-            ],
-        ),
-    },
+name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
+on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
+jobs={
+"lint": Job(
+name="Lint",
+runs_on="ubuntu-latest",
+comment="Run linters before tests",
+steps=[
+Step(uses="actions/checkout@v4"),
+Step(
+name="Ruff",
+run="ruff check .",
+eol_comment="fast Python linter",
+),
+],
+),
+},
 )
-```
+
+````
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
@@ -220,7 +221,8 @@ workflow({
     }),
   },
 });
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -259,12 +261,12 @@ The `{source_file}` path is resolved relative to the directory containing `.gith
 
 Pass a template to `App(header=...)` to override the default. Templates use `{variable}` placeholder syntax so you can reference a fixed set of variables:
 
-| Variable        | Description                                                        |
-| --------------- | ------------------------------------------------------------------ |
-| `{source_file}` | Source file that defined this item, relative to the app root.      |
-| `{source_line}` | Line number where the `Workflow` / `Action` was constructed.       |
-| `{tool}`        | The string `ghagen`.                                               |
-| `{version}`     | The installed ghagen version (e.g. `0.2.1`).                       |
+| Variable        | Description                                                   |
+| --------------- | ------------------------------------------------------------- |
+| `{source_file}` | Source file that defined this item, relative to the app root. |
+| `{source_line}` | Line number where the `Workflow` / `Action` was constructed.  |
+| `{tool}`        | The string `ghagen`.                                          |
+| `{version}`     | The installed ghagen version (e.g. `0.2.1`).                  |
 
 Example:
 

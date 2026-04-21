@@ -65,4 +65,3 @@ step = Step(run="echo hello", shell=ShellType.BASH)
 | `ShellType.PYTHON` | `"python"` |
 | `ShellType.SH`     | `"sh"`     |
 | `ShellType.CMD`    | `"cmd"`    |
-

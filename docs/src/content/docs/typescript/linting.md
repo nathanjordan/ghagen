@@ -104,18 +104,15 @@ job({
   runsOn: "ubuntu-latest",
   steps: [
     step({ id: "build", run: "make" }),
-    step({ id: "build", run: "make test" }),  // duplicate!
+    step({ id: "build", run: "make test" }), // duplicate!
   ],
-})
+});
 
 // Passes
 job({
   runsOn: "ubuntu-latest",
-  steps: [
-    step({ id: "build", run: "make" }),
-    step({ id: "test", run: "make test" }),
-  ],
-})
+  steps: [step({ id: "build", run: "make" }), step({ id: "test", run: "make test" })],
+});
 ```
 
 ## Configuration
@@ -184,7 +181,7 @@ job({
       run: "npx ghagen lint --format=github",
     }),
   ],
-})
+});
 ```
 
 ## What's not covered
