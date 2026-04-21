@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.5.0](https://github.com/nathanjordan/ghagen/compare/v0.4.0...v0.5.0) (2026-04-21)
+
+
+### Features
+
+* add CI/local parity for lint, format, and type checks ([eb40f1b](https://github.com/nathanjordan/ghagen/commit/eb40f1b4e35491e8805c75948bd30eceb570b179))
+* add top-level lint/fmt/test scripts and simplify pre-commit hooks ([f07bc1a](https://github.com/nathanjordan/ghagen/commit/f07bc1a91529451dc8d4d2dbf5d6794219da9b80))
+* **docs:** render TypeScript API members as HTML tables ([b986b5a](https://github.com/nathanjordan/ghagen/commit/b986b5a8818f8e1f25caf8e6b7f1e97fbdc7ae67))
+* replace field_comments/field_eol_comments with withComment/withEolComment wrappers ([6eb57bb](https://github.com/nathanjordan/ghagen/commit/6eb57bbb067fe1e816e92695a8cb470b32cdfdfe))
+* **typescript:** add App, CLI, pin, lint, and config subsystems ([9553551](https://github.com/nathanjordan/ghagen/commit/95535511ecc3a0b2f5c9f2a5e65ed90f75bb54e9))
+
+
+### Bug Fixes
+
+* **ci:** resolve pyright, ruff, and oxfmt failures ([66d8a8e](https://github.com/nathanjordan/ghagen/commit/66d8a8e22232c3de760d265225051ccb59b69171))
+* **deps:** prune stale lockfile entries by default and fix oxlint errors ([752cd22](https://github.com/nathanjordan/ghagen/commit/752cd224140c9fc94e1c69fabb68f86006807f25))
+* **docs:** apply oxfmt formatting to docs content files ([8b133ae](https://github.com/nathanjordan/ghagen/commit/8b133ae4eb8da0c22e1effeed696842dc2367906))
+* **docs:** install TypeScript package deps before docs build ([35c429b](https://github.com/nathanjordan/ghagen/commit/35c429bb3e8959eb7d2cf3dcec5076d9d04db99f))
+* **docs:** skip TypeDoc error checking during build ([a8207e4](https://github.com/nathanjordan/ghagen/commit/a8207e41e9e50401797f3e5373d9d17183f19036))
+* **release:** single approval gate, clean up tags and changelogs ([1bb0b4e](https://github.com/nathanjordan/ghagen/commit/1bb0b4e461c6e75e75f7b43fcda4d563a51b8ed6))
+
+
+### Documentation
+
+* add local docs server instructions to AGENTS.md ([7487e50](https://github.com/nathanjordan/ghagen/commit/7487e5075ca49fed49926c8b7e2bc258875f46ff))
+* add Why section and expand Features list in README ([8d84fc9](https://github.com/nathanjordan/ghagen/commit/8d84fc9f5eeae6d84760a195d5b0e8af467f9ab2))
+* bring TypeScript documentation to parity with Python ([bda81e4](https://github.com/nathanjordan/ghagen/commit/bda81e458ba3a4ee0a334f97334c3b69e63b43ab))
+* clean up documentation for developer audience ([e32768c](https://github.com/nathanjordan/ghagen/commit/e32768c9d82f730bdc1d2ed3d7b5f68d0c3fc4cf))
+* clean up TypeScript API pages with concise formatting ([09fa292](https://github.com/nathanjordan/ghagen/commit/09fa2926b934e313ba175628c29a292a64e7aa81))
+* fix typos and improve README clarity ([2b92acb](https://github.com/nathanjordan/ghagen/commit/2b92acbe4addb0ce3f77b3cbb330e453149cd2b6))
+* flatten TypeScript API sidebar into a single list ([e12c722](https://github.com/nathanjordan/ghagen/commit/e12c722fa5f8a3fb0ab0be97a4c7208b843d0ec3))
+* improve examples, navigation, and add raw YAML passthrough ([224fa75](https://github.com/nathanjordan/ghagen/commit/224fa7508c5f480c233e2604bce3b11d70f6b16e))
+* move "Why" section from README to docs home page ([893b5a8](https://github.com/nathanjordan/ghagen/commit/893b5a83106346992dae919844d4c22bfde2ca70))
+* move "you probably don't need this" note below features ([39461f5](https://github.com/nathanjordan/ghagen/commit/39461f5da7e1b8c212f873310e08c2b6a8615b59))
+* remove dependency update action design spec ([6e4f632](https://github.com/nathanjordan/ghagen/commit/6e4f632b5fabd9dacbfbcc610b63fa4d7959ff1e))
+* remove getting-started, FAQ, and unpinned-actions references ([2b062f4](https://github.com/nathanjordan/ghagen/commit/2b062f4e804ece7d56f687563bd8ad04c652e637))
+* restructure README with per-tool quickstarts and inline FAQ ([1dba769](https://github.com/nathanjordan/ghagen/commit/1dba769875aea916141774018a0ba56c0640936f))
+* switch Starlight theme to rapide ([0e8a58b](https://github.com/nathanjordan/ghagen/commit/0e8a58b092bd8261ed98e08c9126d7473495ca72))
+* trim completed items from ROADMAP and reformat ([a42bf61](https://github.com/nathanjordan/ghagen/commit/a42bf61b9c80d73a4115b6135492041947c3b304))
+* update README to reflect TypeScript App/synth parity ([5f89560](https://github.com/nathanjordan/ghagen/commit/5f895606d7eb1e237944bda4755517ae7481f567))
+
 ## [0.4.0](https://github.com/nathanjordan/ghagen/compare/v0.3.2...v0.4.0) (2026-04-15)
 
 
