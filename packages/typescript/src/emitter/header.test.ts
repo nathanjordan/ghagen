@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildHeaderVariables,
-  DEFAULT_HEADER,
-  formatHeader,
-  HEADER_VARIABLES,
-} from "./header.js";
+import { buildHeaderVariables, DEFAULT_HEADER, formatHeader, HEADER_VARIABLES } from "./header.js";
 
 describe("formatHeader()", () => {
   it("uses the default template when called with no template", () => {
@@ -29,10 +24,10 @@ describe("formatHeader()", () => {
   });
 
   it("substitutes {source_file} and {source_line}", () => {
-    const result = formatHeader(
-      "from {source_file}:{source_line}",
-      { file: "/repo/.github/workflows.ts", line: 42 },
-    );
+    const result = formatHeader("from {source_file}:{source_line}", {
+      file: "/repo/.github/workflows.ts",
+      line: 42,
+    });
     // Without an app root in /repo, source_file falls back to abs path.
     expect(result).toContain(":42");
     expect(result).toContain("workflows.ts");

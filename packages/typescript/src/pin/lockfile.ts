@@ -79,10 +79,9 @@ export function readLockfile(path: string): Lockfile {
   try {
     raw = parse(text) as Record<string, unknown>;
   } catch (err) {
-    throw new Error(
-      `${path}: failed to parse lockfile TOML: ${(err as Error).message}`,
-      { cause: err },
-    );
+    throw new Error(`${path}: failed to parse lockfile TOML: ${(err as Error).message}`, {
+      cause: err,
+    });
   }
 
   const pinsRaw = (raw["pins"] ?? {}) as Record<string, unknown>;
@@ -103,14 +102,10 @@ export function readLockfile(path: string): Lockfile {
     } else if (typeof resolvedAt === "string") {
       resolvedDate = new Date(resolvedAt);
       if (Number.isNaN(resolvedDate.getTime())) {
-        throw new Error(
-          `${path}: pin ${uses}: invalid 'resolved_at' timestamp: ${resolvedAt}`,
-        );
+        throw new Error(`${path}: pin ${uses}: invalid 'resolved_at' timestamp: ${resolvedAt}`);
       }
     } else {
-      throw new Error(
-        `${path}: pin ${uses}: 'resolved_at' must be a string or datetime`,
-      );
+      throw new Error(`${path}: pin ${uses}: 'resolved_at' must be a string or datetime`);
     }
     pins.set(uses, { sha, resolvedAt: resolvedDate });
   }

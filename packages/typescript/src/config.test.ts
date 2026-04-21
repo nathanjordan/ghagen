@@ -19,10 +19,7 @@ describe("loadOptions()", () => {
 
   it("reads [options] from .github/ghagen.toml", () => {
     mkdirSync(join(tmp, ".github"), { recursive: true });
-    writeFileSync(
-      join(tmp, ".github", "ghagen.toml"),
-      "[options]\nauto_dedent = false\n",
-    );
+    writeFileSync(join(tmp, ".github", "ghagen.toml"), "[options]\nauto_dedent = false\n");
     expect(loadOptions(tmp)).toEqual({ autoDedent: false });
   });
 
@@ -36,10 +33,7 @@ describe("loadOptions()", () => {
 
   it("ghagen.toml takes precedence over package.json", () => {
     mkdirSync(join(tmp, ".github"), { recursive: true });
-    writeFileSync(
-      join(tmp, ".github", "ghagen.toml"),
-      "[options]\nauto_dedent = false\n",
-    );
+    writeFileSync(join(tmp, ".github", "ghagen.toml"), "[options]\nauto_dedent = false\n");
     writeFileSync(
       join(tmp, "package.json"),
       JSON.stringify({ ghagen: { options: { autoDedent: true } } }),
@@ -49,10 +43,7 @@ describe("loadOptions()", () => {
 
   it("rejects non-boolean auto_dedent in ghagen.toml", () => {
     mkdirSync(join(tmp, ".github"), { recursive: true });
-    writeFileSync(
-      join(tmp, ".github", "ghagen.toml"),
-      "[options]\nauto_dedent = 'yes'\n",
-    );
+    writeFileSync(join(tmp, ".github", "ghagen.toml"), "[options]\nauto_dedent = 'yes'\n");
     expect(() => loadOptions(tmp)).toThrow(/must be a boolean/);
   });
 

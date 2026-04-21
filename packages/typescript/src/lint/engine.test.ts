@@ -61,9 +61,7 @@ describe("missing-permissions", () => {
       "ci.yml",
     );
     const violations = runLint(app, EMPTY_CONFIG);
-    expect(
-      violations.filter((v) => v.ruleId === "missing-permissions"),
-    ).toHaveLength(0);
+    expect(violations.filter((v) => v.ruleId === "missing-permissions")).toHaveLength(0);
   });
 });
 
@@ -95,9 +93,7 @@ describe("missing-timeout", () => {
       "ci.yml",
     );
     const violations = runLint(app, EMPTY_CONFIG);
-    expect(
-      violations.filter((v) => v.ruleId === "missing-timeout"),
-    ).toHaveLength(0);
+    expect(violations.filter((v) => v.ruleId === "missing-timeout")).toHaveLength(0);
   });
 });
 
@@ -142,9 +138,7 @@ describe("unpinned-actions", () => {
       "ci.yml",
     );
     const violations = runLint(app, EMPTY_CONFIG);
-    expect(
-      violations.filter((v) => v.ruleId === "unpinned-actions"),
-    ).toHaveLength(0);
+    expect(violations.filter((v) => v.ruleId === "unpinned-actions")).toHaveLength(0);
   });
 });
 
@@ -159,10 +153,7 @@ describe("duplicate-step-ids", () => {
           test: job({
             runsOn: "ubuntu-latest",
             timeoutMinutes: 5,
-            steps: [
-              step({ id: "x", run: "echo 1" }),
-              step({ id: "x", run: "echo 2" }),
-            ],
+            steps: [step({ id: "x", run: "echo 1" }), step({ id: "x", run: "echo 2" })],
           }),
         },
       }),
@@ -196,9 +187,7 @@ describe("duplicate-step-ids", () => {
       "ci.yml",
     );
     const violations = runLint(app, EMPTY_CONFIG);
-    expect(
-      violations.filter((v) => v.ruleId === "duplicate-step-ids"),
-    ).toHaveLength(0);
+    expect(violations.filter((v) => v.ruleId === "duplicate-step-ids")).toHaveLength(0);
   });
 });
 

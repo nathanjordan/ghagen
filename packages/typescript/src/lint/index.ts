@@ -1,10 +1,6 @@
 /** ghagen lint — rule-based validation of Workflow models. */
 
-export {
-  type LintConfig,
-  type LoadLintConfigResult,
-  loadLintConfig,
-} from "./config.js";
+export { type LintConfig, type LoadLintConfigResult, loadLintConfig } from "./config.js";
 export { runLint } from "./engine.js";
 export { formatGithub, formatHuman, formatJson } from "./output.js";
 export {

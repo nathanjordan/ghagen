@@ -71,8 +71,7 @@ export const checkUnpinnedActions: Rule = rule(META, function* (wf, ctx) {
         message: `Step uses unpinned action '${uses}'.`,
         location: ctx.loc(stepModel, symbolic),
         hint:
-          "Pin to a version tag (e.g. @v4) or a 40-character commit SHA " +
-          "for reproducibility.",
+          "Pin to a version tag (e.g. @v4) or a 40-character commit SHA " + "for reproducibility.",
       };
     }
   }

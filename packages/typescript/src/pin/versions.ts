@@ -64,10 +64,7 @@ export function classifyBump(current: SemVer, latest: SemVer): BumpSeverity {
  * versions, and returns the original tag string for the highest version
  * — or `null` if `currentRef` is already up to date or unparseable.
  */
-export function findLatestTag(
-  currentRef: string,
-  availableTags: readonly string[],
-): string | null {
+export function findLatestTag(currentRef: string, availableTags: readonly string[]): string | null {
   const current = parseTag(currentRef);
   if (current === null) return null;
 

@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { cloneModel, createModel, isModel, isRaw, isCommented, raw, withEolComment } from "./_base.js";
+import {
+  cloneModel,
+  createModel,
+  isModel,
+  isRaw,
+  isCommented,
+  raw,
+  withEolComment,
+} from "./_base.js";
 import { step } from "./step.js";
 
 describe("cloneModel()", () => {
@@ -19,7 +27,12 @@ describe("cloneModel()", () => {
   });
 
   it("deep-copies Commented values inside _data", () => {
-    const original = createModel("step", { uses: withEolComment("actions/checkout@v4", "v4") }, {}, []);
+    const original = createModel(
+      "step",
+      { uses: withEolComment("actions/checkout@v4", "v4") },
+      {},
+      [],
+    );
     const cloned = cloneModel(original);
     expect(isCommented(cloned._data["uses"])).toBe(true);
     const c = cloned._data["uses"] as { value: string; eolComment: string };

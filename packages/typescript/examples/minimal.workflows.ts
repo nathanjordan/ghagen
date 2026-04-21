@@ -4,15 +4,7 @@
  * Run: npx ghagen synth -c examples/minimal.workflows.ts
  */
 
-import {
-  App,
-  job,
-  permissions,
-  pushTrigger,
-  prTrigger,
-  step,
-  workflow,
-} from "../src/index.js";
+import { App, job, permissions, pushTrigger, prTrigger, step, workflow } from "../src/index.js";
 
 export const app = new App({ root: "." });
 
@@ -27,10 +19,7 @@ const ci = workflow({
     test: job({
       runsOn: "ubuntu-latest",
       timeoutMinutes: 10,
-      steps: [
-        step({ uses: "actions/checkout@v4" }),
-        step({ name: "Run tests", run: "npm test" }),
-      ],
+      steps: [step({ uses: "actions/checkout@v4" }), step({ name: "Run tests", run: "npm test" })],
     }),
   },
 });

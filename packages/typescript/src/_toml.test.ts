@@ -29,9 +29,7 @@ describe("loadToml()", () => {
   });
 
   it("throws on missing files with the file path", () => {
-    expect(() => loadToml(join(tmp, "missing.toml"))).toThrow(
-      /missing\.toml.*failed to read/,
-    );
+    expect(() => loadToml(join(tmp, "missing.toml"))).toThrow(/missing\.toml.*failed to read/);
   });
 });
 

@@ -50,19 +50,13 @@ describe("parseTag()", () => {
 
 describe("classifyBump()", () => {
   it("major", () => {
-    expect(
-      classifyBump(new SemVer("4.0.0"), new SemVer("5.0.0")),
-    ).toBe("major");
+    expect(classifyBump(new SemVer("4.0.0"), new SemVer("5.0.0"))).toBe("major");
   });
   it("minor", () => {
-    expect(
-      classifyBump(new SemVer("4.0.0"), new SemVer("4.1.0")),
-    ).toBe("minor");
+    expect(classifyBump(new SemVer("4.0.0"), new SemVer("4.1.0"))).toBe("minor");
   });
   it("patch", () => {
-    expect(
-      classifyBump(new SemVer("4.1.0"), new SemVer("4.1.1")),
-    ).toBe("patch");
+    expect(classifyBump(new SemVer("4.1.0"), new SemVer("4.1.1"))).toBe("patch");
   });
 });
 
@@ -80,9 +74,9 @@ describe("findLatestTag()", () => {
   });
 
   it("considers prefixed tags that share the same prefix", () => {
-    expect(
-      findLatestTag("release-v1.0.0", ["release-v1.1.0", "release-v2.0.0"]),
-    ).toBe("release-v2.0.0");
+    expect(findLatestTag("release-v1.0.0", ["release-v1.1.0", "release-v2.0.0"])).toBe(
+      "release-v2.0.0",
+    );
   });
 
   it("returns null when current is unparseable", () => {

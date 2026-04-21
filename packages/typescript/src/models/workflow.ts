@@ -9,7 +9,14 @@ import type {
   WithMeta,
   Raw,
 } from "./_base.js";
-import { createModel, extractMeta, isModel, isCommented, withComment, withEolComment } from "./_base.js";
+import {
+  createModel,
+  extractMeta,
+  isModel,
+  isCommented,
+  withComment,
+  withEolComment,
+} from "./_base.js";
 import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
 import type { JobModel } from "./_base.js";
 import type { OnInput } from "./trigger.js";

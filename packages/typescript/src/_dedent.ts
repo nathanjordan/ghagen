@@ -99,10 +99,7 @@ export function dedentScript(s: string): string {
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i]!;
       // Only strip if the line has enough leading whitespace.
-      if (
-        line.length > indent &&
-        lstripSpaceTab(line.slice(0, indent)) === ""
-      ) {
+      if (line.length > indent && lstripSpaceTab(line.slice(0, indent)) === "") {
         lines[i] = line.slice(indent);
       }
     }
@@ -121,10 +118,7 @@ export function dedentScript(s: string): string {
   // Strip trailing blank/whitespace-only lines. Track whether we removed
   // any so we know whether a trailing \n was an artifact.
   let strippedTrailing = false;
-  while (
-    resultLines.length > 0 &&
-    resultLines[resultLines.length - 1]!.trim() === ""
-  ) {
+  while (resultLines.length > 0 && resultLines[resultLines.length - 1]!.trim() === "") {
     resultLines.pop();
     strippedTrailing = true;
   }

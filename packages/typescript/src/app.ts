@@ -69,9 +69,7 @@ export class App {
     this.root = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
     this.header = options.header;
     this.lockfilePath =
-      options.lockfile === null
-        ? null
-        : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
+      options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
 
     // Apply project-level options (e.g. autoDedent) from ghagen.toml /
@@ -143,12 +141,7 @@ export class App {
 
       const actual = readFileSync(full, "utf8");
       if (actual !== expected) {
-        const diff = unifiedDiff(
-          actual,
-          expected,
-          `${full} (on disk)`,
-          `${full} (generated)`,
-        );
+        const diff = unifiedDiff(actual, expected, `${full} (on disk)`, `${full} (generated)`);
         stale.push([full, diff]);
       }
     }
@@ -212,23 +205,14 @@ function stem(path: string): string {
  * with 3 lines of context. Output is line-terminated when possible
  * to match Python's `keepends=True` style.
  */
-function unifiedDiff(
-  a: string,
-  b: string,
-  fromFile: string,
-  toFile: string,
-  context = 3,
-): string {
+function unifiedDiff(a: string, b: string, fromFile: string, toFile: string, context = 3): string {
   const aLines = splitLines(a);
   const bLines = splitLines(b);
   const ops = lineOps(aLines, bLines);
 
   if (ops.every((op) => op.tag === "equal")) return "";
 
-  const out: string[] = [
-    `--- ${fromFile}\n`,
-    `+++ ${toFile}\n`,
-  ];
+  const out: string[] = [`--- ${fromFile}\n`, `+++ ${toFile}\n`];
 
   // Group ops into hunks separated by long stretches of equal lines.
   const hunks = groupHunks(ops, context);
@@ -243,9 +227,7 @@ function unifiedDiff(
       if (op.tag !== "insert") aLen++;
       if (op.tag !== "delete") bLen++;
     }
-    out.push(
-      `@@ -${aStart + 1},${aLen} +${bStart + 1},${bLen} @@\n`,
-    );
+    out.push(`@@ -${aStart + 1},${aLen} +${bStart + 1},${bLen} @@\n`);
     for (const op of hunk) {
       const line = op.tag === "insert" ? bLines[op.bIndex]! : aLines[op.aIndex]!;
       const prefix = op.tag === "equal" ? " " : op.tag === "delete" ? "-" : "+";
@@ -287,9 +269,7 @@ function lineOps(a: string[], b: string[]): LineOp[] {
   const n = a.length;
   const m = b.length;
   // dp[i][j] = LCS length of a[0..i] and b[0..j].
-  const dp: number[][] = Array.from({ length: n + 1 }, () =>
-    new Array<number>(m + 1).fill(0),
-  );
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
       if (a[i - 1] === b[j - 1]) dp[i]![j] = dp[i - 1]![j - 1]! + 1;

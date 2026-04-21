@@ -26,9 +26,7 @@ function resolveToken(flag?: string): string | undefined {
 
 function ensureLockfilePath(app: App): string {
   if (app.lockfilePath === null) {
-    throw new CliError(
-      "Error: lockfile is disabled (lockfile: null on App)",
-    );
+    throw new CliError("Error: lockfile is disabled (lockfile: null on App)");
   }
   return resolve(app.root, app.lockfilePath);
 }
@@ -76,7 +74,9 @@ async function depsPin(opts: PinOpts): Promise<void> {
     try {
       parsed = parseUses(uses);
     } catch (err) {
-      process.stderr.write(`warning: skipping ${JSON.stringify(uses)}: ${(err as Error).message}\n`);
+      process.stderr.write(
+        `warning: skipping ${JSON.stringify(uses)}: ${(err as Error).message}\n`,
+      );
       continue;
     }
     let sha: string;
@@ -136,9 +136,7 @@ async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const lockfile = readLockfile(lockfilePath);
 
   const missing = [...refs].filter((r) => !lockfile.pins.has(r));
-  const extra = opts.prune
-    ? [...lockfile.pins.keys()].filter((r) => !refs.has(r))
-    : [];
+  const extra = opts.prune ? [...lockfile.pins.keys()].filter((r) => !refs.has(r)) : [];
 
   if (missing.length === 0 && extra.length === 0) {
     process.stdout.write("Lockfile is in sync.\n");
@@ -191,10 +189,7 @@ interface LockfileStale {
 async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const mode = opts.mode ?? "all";
   if (mode !== "versions" && mode !== "lockfile" && mode !== "all") {
-    throw new CliError(
-      `Error: unknown --mode value '${mode}' (valid: versions, lockfile, all)`,
-      2,
-    );
+    throw new CliError(`Error: unknown --mode value '${mode}' (valid: versions, lockfile, all)`, 2);
   }
   const apply = !opts.check;
 
@@ -214,11 +209,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   if (refs.size === 0) {
     if (opts.json) {
       process.stdout.write(
-        JSON.stringify(
-          { version_bumps: [], lockfile_stale: [] },
-          null,
-          2,
-        ) + "\n",
+        JSON.stringify({ version_bumps: [], lockfile_stale: [] }, null, 2) + "\n",
       );
     } else {
       process.stdout.write("Everything is up to date.\n");
@@ -250,9 +241,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
     }
 
     const tagsCache = new Map<string, string[]>();
-    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) =>
-      a.localeCompare(b),
-    )) {
+    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       const [owner, repo] = key.split("/", 2) as [string, string];
       let tags = tagsCache.get(key);
       if (tags === undefined) {
@@ -260,9 +249,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
           tags = await listTags(owner, repo, { token });
         } catch (err) {
           if (err instanceof ResolveError) {
-            process.stderr.write(
-              `warning: failed to list tags for ${key}: ${err.message}\n`,
-            );
+            process.stderr.write(`warning: failed to list tags for ${key}: ${err.message}\n`);
             continue;
           }
           throw err;
@@ -310,9 +297,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
         currentSha = await resolveRef(parsed.owner, parsed.repo, parsed.ref, { token });
       } catch (err) {
         if (err instanceof ResolveError) {
-          process.stderr.write(
-            `warning: failed to resolve ${uses}: ${err.message}\n`,
-          );
+          process.stderr.write(`warning: failed to resolve ${uses}: ${err.message}\n`);
           continue;
         }
         throw err;
@@ -370,16 +355,11 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   }
 }
 
-function printHumanReport(
-  versionBumps: VersionBump[],
-  lockfileStale: LockfileStale[],
-): void {
+function printHumanReport(versionBumps: VersionBump[], lockfileStale: LockfileStale[]): void {
   if (versionBumps.length > 0) {
     process.stdout.write("Version updates available:\n\n");
     for (const bump of versionBumps) {
-      process.stdout.write(
-        `  ${bump.uses}  →  ${bump.latest}  [${bump.severity}]\n`,
-      );
+      process.stdout.write(`  ${bump.uses}  →  ${bump.latest}  [${bump.severity}]\n`);
       for (const src of bump.source_files ?? []) {
         process.stdout.write(`    in ${src}\n`);
       }
@@ -399,9 +379,7 @@ function printHumanReport(
 
 /** Build the `deps` sub-command for mounting on the top-level CLI. */
 export function buildDepsCommand(): Command {
-  const deps = new Command("deps")
-    .description("Manage action dependencies.")
-    .showHelpAfterError();
+  const deps = new Command("deps").description("Manage action dependencies.").showHelpAfterError();
 
   deps
     .command("pin")

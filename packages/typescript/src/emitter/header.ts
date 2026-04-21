@@ -23,15 +23,11 @@ export const DEFAULT_HEADER =
  * template. Maps variable name to a human-readable description.
  */
 export const HEADER_VARIABLES: Record<string, string> = {
-  source_file: (
+  source_file:
     "Path to the TS/JS file that defined this workflow/action, relative " +
     "to the app root (the directory containing .github/ghagen.toml). " +
-    "Falls back to the absolute path when no app root can be located."
-  ),
-  source_line: (
-    "Line number in the source file where the workflow/action was " +
-    "constructed."
-  ),
+    "Falls back to the absolute path when no app root can be located.",
+  source_line: "Line number in the source file where the workflow/action was " + "constructed.",
   tool: "The string 'ghagen'.",
   version: "The installed ghagen version (e.g. '0.3.0').",
 };
@@ -70,9 +66,7 @@ export interface HeaderVariables {
  * marker is found. Falls back to `<unknown>` when `sourceLocation` is
  * `null`.
  */
-export function buildHeaderVariables(
-  sourceLocation: SourceLocation | null,
-): HeaderVariables {
+export function buildHeaderVariables(sourceLocation: SourceLocation | null): HeaderVariables {
   let sourceFile: string;
   let sourceLine: string;
   if (sourceLocation === null) {
@@ -119,9 +113,7 @@ export function formatHeader(
         .sort()
         .map((k) => `{${k}}`)
         .join(", ");
-      throw new Error(
-        `Unknown variable {${key}} in header template. Available: ${valid}.`,
-      );
+      throw new Error(`Unknown variable {${key}} in header template. Available: ${valid}.`);
     }
     return variables[key as keyof HeaderVariables];
   });

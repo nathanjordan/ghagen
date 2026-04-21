@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeGuard, TypeVar
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -116,6 +116,6 @@ def unwrap_commented(value: Any) -> Any:
     return value
 
 
-def is_commented(value: Any) -> bool:
+def is_commented(value: Any) -> TypeGuard[Commented[Any]]:
     """Type guard: return ``True`` if *value* is a :class:`Commented` wrapper."""
     return isinstance(value, Commented)

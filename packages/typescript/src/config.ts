@@ -24,9 +24,7 @@ const DEFAULT_OPTIONS: GhagenOptions = {
 
 function parseBool(value: unknown, key: string, source: string): boolean {
   if (typeof value !== "boolean") {
-    throw new Error(
-      `${source}: [options].${key} must be a boolean, got ${typeof value}`,
-    );
+    throw new Error(`${source}: [options].${key} must be a boolean, got ${typeof value}`);
   }
   return value;
 }
@@ -40,11 +38,7 @@ function extractFromGhagenToml(path: string): GhagenOptions | null {
   }
   const opts = options as Record<string, unknown>;
   return {
-    autoDedent: parseBool(
-      opts["auto_dedent"] ?? true,
-      "auto_dedent",
-      path,
-    ),
+    autoDedent: parseBool(opts["auto_dedent"] ?? true, "auto_dedent", path),
   };
 }
 
@@ -53,10 +47,7 @@ function extractFromPackageJson(path: string): GhagenOptions | null {
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (err) {
-    throw new Error(
-      `${path}: failed to parse JSON: ${(err as Error).message}`,
-      { cause: err },
-    );
+    throw new Error(`${path}: failed to parse JSON: ${(err as Error).message}`, { cause: err });
   }
   if (typeof raw !== "object" || raw === null) return null;
   const pkg = raw as Record<string, unknown>;
@@ -71,8 +62,7 @@ function extractFromPackageJson(path: string): GhagenOptions | null {
   const opts = options as Record<string, unknown>;
   // Accept both autoDedent (camelCase, native to JS) and auto_dedent
   // (snake_case, matches Python). Camel wins if both present.
-  const value =
-    opts["autoDedent"] ?? opts["auto_dedent"] ?? true;
+  const value = opts["autoDedent"] ?? opts["auto_dedent"] ?? true;
   return {
     autoDedent: parseBool(value, "autoDedent", path),
   };

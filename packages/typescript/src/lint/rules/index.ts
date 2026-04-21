@@ -6,13 +6,7 @@ import { checkMissingPermissions } from "./missing-permissions.js";
 import { checkMissingTimeout } from "./missing-timeout.js";
 import { checkUnpinnedActions } from "./unpinned-actions.js";
 
-export {
-  type Rule,
-  type RuleContext,
-  type RuleMeta,
-  rule,
-  makeRuleContext,
-} from "./_base.js";
+export { type Rule, type RuleContext, type RuleMeta, rule, makeRuleContext } from "./_base.js";
 export {
   checkDuplicateStepIds,
   checkMissingPermissions,

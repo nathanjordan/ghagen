@@ -67,10 +67,7 @@ describe("pinTransform()", () => {
       jobs: {
         test: job({
           runsOn: "ubuntu-latest",
-          steps: [
-            step({ uses: "./local/action" }),
-            step({ uses: "docker://node:20" }),
-          ],
+          steps: [step({ uses: "./local/action" }), step({ uses: "docker://node:20" })],
         }),
       },
     });

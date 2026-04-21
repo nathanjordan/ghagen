@@ -101,7 +101,10 @@ class TestPinTransform:
         result = transform(wf, _ctx())
         job = result.jobs["call"]
         assert is_commented(job.uses)
-        assert job.uses.value == f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}"
+        assert (
+            job.uses.value
+            == f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}"
+        )
         assert job.uses.eol_comment == "v1"
 
     def test_skips_local_actions(self):

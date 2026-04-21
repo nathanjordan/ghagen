@@ -31,9 +31,7 @@ function parseSeverityMap(raw: unknown, source: string): Map<string, Severity> {
   const result = new Map<string, Severity>();
   for (const [ruleId, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== "string") {
-      throw new Error(
-        `${source}: severity for '${ruleId}' must be a string, got ${typeof value}`,
-      );
+      throw new Error(`${source}: severity for '${ruleId}' must be a string, got ${typeof value}`);
     }
     if (!SEVERITY_VALUES.includes(value as Severity)) {
       const valid = SEVERITY_VALUES.join(", ");
@@ -49,15 +47,11 @@ function parseSeverityMap(raw: unknown, source: string): Map<string, Severity> {
 function parseDisable(raw: unknown, source: string): Set<string> {
   if (raw === undefined || raw === null) return new Set();
   if (!Array.isArray(raw)) {
-    throw new Error(
-      `${source}: [lint].disable must be a list, got ${typeof raw}`,
-    );
+    throw new Error(`${source}: [lint].disable must be a list, got ${typeof raw}`);
   }
   for (const item of raw) {
     if (typeof item !== "string") {
-      throw new Error(
-        `${source}: [lint].disable entries must be strings, got ${typeof item}`,
-      );
+      throw new Error(`${source}: [lint].disable entries must be strings, got ${typeof item}`);
     }
   }
   return new Set(raw as string[]);
@@ -87,10 +81,7 @@ function extractFromPackageJson(path: string): LintConfig | null {
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (err) {
-    throw new Error(
-      `${path}: failed to parse JSON: ${(err as Error).message}`,
-      { cause: err },
-    );
+    throw new Error(`${path}: failed to parse JSON: ${(err as Error).message}`, { cause: err });
   }
   if (typeof raw !== "object" || raw === null) return null;
   const ghagen = (raw as Record<string, unknown>)["ghagen"];
@@ -139,12 +130,8 @@ export function loadLintConfig(
   const ghagenToml = resolve(cwd, ".github", "ghagen.toml");
   const packageJson = resolve(cwd, "package.json");
 
-  const ghagenConfig = existsSync(ghagenToml)
-    ? extractFromGhagenToml(ghagenToml)
-    : null;
-  const packageConfig = existsSync(packageJson)
-    ? extractFromPackageJson(packageJson)
-    : null;
+  const ghagenConfig = existsSync(ghagenToml) ? extractFromGhagenToml(ghagenToml) : null;
+  const packageConfig = existsSync(packageJson) ? extractFromPackageJson(packageJson) : null;
 
   let chosen: LintConfig;
   if (ghagenConfig !== null && packageConfig !== null) {

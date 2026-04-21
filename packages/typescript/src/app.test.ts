@@ -1,12 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { App, WORKFLOWS_DIR } from "./app.js";
@@ -113,10 +106,7 @@ describe("App", () => {
 
   it("respects autoDedent setting from .github/ghagen.toml", async () => {
     mkdirSync(join(tmp, ".github"), { recursive: true });
-    writeFileSync(
-      join(tmp, ".github", "ghagen.toml"),
-      "[options]\nauto_dedent = false\n",
-    );
+    writeFileSync(join(tmp, ".github", "ghagen.toml"), "[options]\nauto_dedent = false\n");
     // Constructing an App reads options and toggles auto-dedent.
     const _app = new App({ root: tmp });
     // Subsequent step() should NOT dedent.

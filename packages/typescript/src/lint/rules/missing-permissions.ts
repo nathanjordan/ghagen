@@ -25,10 +25,7 @@ export const checkMissingPermissions: Rule = rule(META, function* (wf, ctx) {
   const jobValues = Object.values(jobs).filter(isModel) as Model[];
 
   // If every job has its own permissions, the workflow-level omission is fine.
-  if (
-    jobValues.length > 0 &&
-    jobValues.every((j) => j._data["permissions"] !== undefined)
-  ) {
+  if (jobValues.length > 0 && jobValues.every((j) => j._data["permissions"] !== undefined)) {
     return;
   }
 

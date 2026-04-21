@@ -53,9 +53,7 @@ function entrypointFromGhagenToml(cwd: string): string | null {
   const raw = data["entrypoint"];
   if (raw === undefined || raw === null) return null;
   if (typeof raw !== "string") {
-    throw new CliError(
-      `Error: ${ghagenToml}: 'entrypoint' must be a string, got ${typeof raw}`,
-    );
+    throw new CliError(`Error: ${ghagenToml}: 'entrypoint' must be a string, got ${typeof raw}`);
   }
   const dir = ghagenToml.replace(/[\\/][^\\/]+$/, "");
   const resolved = resolve(dir, raw);
@@ -117,9 +115,7 @@ export async function loadApp(configPath: string): Promise<App> {
   try {
     mod = await jiti.import(configPath);
   } catch (err) {
-    throw new CliError(
-      `Error: failed to load ${configPath}: ${(err as Error).message}`,
-    );
+    throw new CliError(`Error: failed to load ${configPath}: ${(err as Error).message}`);
   }
   return resolveAppFromModule(mod, configPath);
 }
@@ -129,10 +125,7 @@ export async function loadApp(configPath: string): Promise<App> {
  * first (allows async setup), then `app`. Used by both `loadApp()`
  * and the pin/sources tracker so behaviour stays consistent.
  */
-export async function resolveAppFromModule(
-  mod: unknown,
-  configPath: string,
-): Promise<App> {
+export async function resolveAppFromModule(mod: unknown, configPath: string): Promise<App> {
   // ESM default-export handling: if the module has a `default` and
   // that has the expected fields, prefer it.
   const candidates = [mod];
@@ -146,23 +139,17 @@ export async function resolveAppFromModule(
     if (typeof obj.createApp === "function") {
       const result = await (obj.createApp as () => App | Promise<App>)();
       if (!(result instanceof App)) {
-        throw new CliError(
-          `Error: createApp() in ${configPath} must return an App instance`,
-        );
+        throw new CliError(`Error: createApp() in ${configPath} must return an App instance`);
       }
       return result;
     }
     if (obj.app !== undefined) {
       if (!(obj.app instanceof App)) {
-        throw new CliError(
-          `Error: 'app' in ${configPath} must be an App instance`,
-        );
+        throw new CliError(`Error: 'app' in ${configPath} must be an App instance`);
       }
       return obj.app;
     }
   }
 
-  throw new CliError(
-    `Error: ${configPath} must export 'app = new App(...)' or 'createApp(): App'`,
-  );
+  throw new CliError(`Error: ${configPath} must export 'app = new App(...)' or 'createApp(): App'`);
 }

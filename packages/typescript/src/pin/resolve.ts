@@ -39,9 +39,7 @@ export function parseUses(uses: string): ParsedUses {
   const ref = uses.slice(at + 1);
   const parts = actionPart.split("/");
   if (parts.length < 2) {
-    throw new Error(
-      `Cannot parse owner/repo from: ${JSON.stringify(uses)}`,
-    );
+    throw new Error(`Cannot parse owner/repo from: ${JSON.stringify(uses)}`);
   }
   const owner = parts[0]!;
   const repo = parts[1]!;
@@ -65,7 +63,7 @@ export async function resolveRef(
     const url = `https://api.github.com/repos/${owner}/${repo}/git/ref/${prefix}/${ref}`;
     let data: { object: { type: string; sha: string } } | null;
     try {
-      data = await apiGet(url, options) as {
+      data = (await apiGet(url, options)) as {
         object: { type: string; sha: string };
       };
     } catch (err) {
@@ -97,8 +95,7 @@ export async function listTags(
   repo: string,
   options: ResolveOptions = {},
 ): Promise<string[]> {
-  let url: string | null =
-    `https://api.github.com/repos/${owner}/${repo}/git/refs/tags`;
+  let url: string | null = `https://api.github.com/repos/${owner}/${repo}/git/refs/tags`;
   const tags: string[] = [];
   while (url !== null) {
     let body: unknown;
@@ -131,18 +128,12 @@ interface PageResult {
   next: string | null;
 }
 
-async function apiGet(
-  url: string,
-  options: ResolveOptions,
-): Promise<unknown> {
+async function apiGet(url: string, options: ResolveOptions): Promise<unknown> {
   const { body } = await apiGetPage(url, options);
   return body;
 }
 
-async function apiGetPage(
-  url: string,
-  options: ResolveOptions,
-): Promise<PageResult> {
+async function apiGetPage(url: string, options: ResolveOptions): Promise<PageResult> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
     "User-Agent": "ghagen-pin",
@@ -158,9 +149,7 @@ async function apiGetPage(
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new ResolveError(
-      `Network error reaching GitHub API: ${(err as Error).message}`,
-    );
+    throw new ResolveError(`Network error reaching GitHub API: ${(err as Error).message}`);
   }
 
   if (response.status === 404) {
@@ -182,9 +171,7 @@ async function apiGetPage(
   try {
     body = await response.json();
   } catch (err) {
-    throw new ResolveError(
-      `Failed to parse JSON response from ${url}: ${(err as Error).message}`,
-    );
+    throw new ResolveError(`Failed to parse JSON response from ${url}: ${(err as Error).message}`);
   }
   const next = parseNextLink(response.headers.get("Link"));
   return { body, next };
@@ -197,7 +184,7 @@ async function dereferenceTag(
   options: ResolveOptions,
 ): Promise<string> {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/tags/${tagSha}`;
-  const data = await apiGet(url, options) as {
+  const data = (await apiGet(url, options)) as {
     object?: { type?: string; sha?: string };
   };
   const obj = data.object ?? {};
@@ -205,9 +192,9 @@ async function dereferenceTag(
     return obj.sha;
   }
   throw new ResolveError(
-    `Tag ${tagSha} in ${owner}/${repo} does not point to a commit (type=${
-      JSON.stringify(obj.type ?? null)
-    })`,
+    `Tag ${tagSha} in ${owner}/${repo} does not point to a commit (type=${JSON.stringify(
+      obj.type ?? null,
+    )})`,
   );
 }
 

@@ -71,9 +71,7 @@ function pinUses(uses: string, lockfile: Lockfile): string | null {
 
   const entry = lockfile.get(uses);
   if (entry === undefined) {
-    throw new PinError(
-      `No lockfile entry for '${uses}'. Run \`ghagen deps pin\` to resolve it.`,
-    );
+    throw new PinError(`No lockfile entry for '${uses}'. Run \`ghagen deps pin\` to resolve it.`);
   }
 
   const at = uses.lastIndexOf("@");

@@ -1,17 +1,5 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from "vitest";
-import {
-  ResolveError,
-  listTags,
-  parseUses,
-  resolveRef,
-} from "./resolve.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { ResolveError, listTags, parseUses, resolveRef } from "./resolve.js";
 
 interface MockResponseInit {
   status?: number;
@@ -84,9 +72,7 @@ describe("resolveRef()", () => {
     );
     const sha = await resolveRef("actions", "checkout", "v4");
     expect(sha).toBe("a".repeat(40));
-    expect(calls[0]!.url).toBe(
-      "https://api.github.com/repos/actions/checkout/git/ref/tags/v4",
-    );
+    expect(calls[0]!.url).toBe("https://api.github.com/repos/actions/checkout/git/ref/tags/v4");
     expect(calls[0]!.headers["accept"]).toBe("application/vnd.github.v3+json");
     expect(calls[0]!.headers["user-agent"]).toBe("ghagen-pin");
   });
@@ -131,9 +117,7 @@ describe("resolveRef()", () => {
 
   it("throws ResolveError on non-404 errors", async () => {
     queue.push(jsonResponse({ status: 500, body: { message: "boom" } }));
-    await expect(resolveRef("o", "r", "v1")).rejects.toBeInstanceOf(
-      ResolveError,
-    );
+    await expect(resolveRef("o", "r", "v1")).rejects.toBeInstanceOf(ResolveError);
   });
 
   it("throws ResolveError when both tags and heads 404", async () => {
@@ -147,10 +131,7 @@ describe("listTags()", () => {
   it("paginates via the Link header", async () => {
     queue.push(
       jsonResponse({
-        body: [
-          { ref: "refs/tags/v1" },
-          { ref: "refs/tags/v2" },
-        ],
+        body: [{ ref: "refs/tags/v1" }, { ref: "refs/tags/v2" }],
         headers: {
           Link: '<https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next"',
         },

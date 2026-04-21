@@ -27,7 +27,9 @@ def deps_pin(
         False, "--update", help="Re-resolve all entries to latest SHAs"
     ),
     prune: bool = typer.Option(
-        True, "--prune/--no-prune", help="Remove lockfile entries not referenced in code"
+        True,
+        "--prune/--no-prune",
+        help="Remove lockfile entries not referenced in code",
     ),
     token: str | None = typer.Option(
         None, "--token", help="GitHub token (default: $GITHUB_TOKEN)"

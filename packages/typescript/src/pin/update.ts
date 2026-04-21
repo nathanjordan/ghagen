@@ -14,14 +14,12 @@ import { readFileSync, writeFileSync } from "node:fs";
  */
 export function applyUpdates(
   updates: ReadonlyMap<string, string> | Readonly<Record<string, string>>,
-  refLocations: ReadonlyMap<string, readonly string[]> | Readonly<Record<string, readonly string[]>>,
+  refLocations:
+    | ReadonlyMap<string, readonly string[]>
+    | Readonly<Record<string, readonly string[]>>,
 ): string[] {
-  const updatesMap =
-    updates instanceof Map ? updates : new Map(Object.entries(updates));
-  const locMap =
-    refLocations instanceof Map
-      ? refLocations
-      : new Map(Object.entries(refLocations));
+  const updatesMap = updates instanceof Map ? updates : new Map(Object.entries(updates));
+  const locMap = refLocations instanceof Map ? refLocations : new Map(Object.entries(refLocations));
 
   const changed = new Set<string>();
   for (const [oldUses, newUses] of updatesMap.entries()) {

@@ -17,15 +17,15 @@
     "url": "https://github.com/nathanjordan/ghagen",
     "directory": "packages/typescript"
   },
+  "bin": {
+    "ghagen": "./dist/cli/main.js"
+  },
   "files": [
     "dist"
   ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "ghagen": "./dist/cli/main.js"
-  },
   "exports": {
     ".": {
       "import": "./dist/index.js",

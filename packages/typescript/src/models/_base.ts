@@ -33,7 +33,12 @@ export type Commentable<T> = T | Commented<T>;
  */
 export function withComment<T>(value: T, comment: string): T {
   if (isCommented(value)) {
-    return { [COMMENTED_BRAND]: true as const, value: value.value, comment, eolComment: value.eolComment } as unknown as T;
+    return {
+      [COMMENTED_BRAND]: true as const,
+      value: value.value,
+      comment,
+      eolComment: value.eolComment,
+    } as unknown as T;
   }
   return { [COMMENTED_BRAND]: true as const, value, comment } as unknown as T;
 }
@@ -49,7 +54,12 @@ export function withComment<T>(value: T, comment: string): T {
  */
 export function withEolComment<T>(value: T, eolComment: string): T {
   if (isCommented(value)) {
-    return { [COMMENTED_BRAND]: true as const, value: value.value, comment: value.comment, eolComment } as unknown as T;
+    return {
+      [COMMENTED_BRAND]: true as const,
+      value: value.value,
+      comment: value.comment,
+      eolComment,
+    } as unknown as T;
   }
   return { [COMMENTED_BRAND]: true as const, value, eolComment } as unknown as T;
 }
@@ -125,12 +135,7 @@ export interface ModelMeta {
  */
 export type WithMeta<T> = T & ModelMeta;
 
-const META_KEYS = new Set<string>([
-  "comment",
-  "eolComment",
-  "extras",
-  "postProcess",
-]);
+const META_KEYS = new Set<string>(["comment", "eolComment", "extras", "postProcess"]);
 
 /** Split a WithMeta<T> input into [dataFields, meta]. */
 export function extractMeta<T extends object>(input: T): [Omit<T, keyof ModelMeta>, ModelMeta] {
@@ -347,7 +352,12 @@ function cloneValueInternal(value: unknown): unknown {
 
   // Commented<T> — preserve the symbol brand and recurse into the value
   if (isCommented(value)) {
-    return { [COMMENTED_BRAND]: true as const, value: cloneValueInternal(value.value), comment: value.comment, eolComment: value.eolComment };
+    return {
+      [COMMENTED_BRAND]: true as const,
+      value: cloneValueInternal(value.value),
+      comment: value.comment,
+      eolComment: value.eolComment,
+    };
   }
 
   // Model — recurse into _data and _meta; preserve _sourceLocation by reference

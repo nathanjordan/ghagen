@@ -110,19 +110,21 @@ export function formatJson(violations: readonly Violation[]): string {
 // ---------------------------------------------------------------- github
 
 function escapeMessage(msg: string): string {
-  return msg
-    .split("%").join("%25")
-    .split("\r").join("%0D")
-    .split("\n").join("%0A");
+  return msg.split("%").join("%25").split("\r").join("%0D").split("\n").join("%0A");
 }
 
 function escapeProperty(value: string): string {
   return value
-    .split("%").join("%25")
-    .split("\r").join("%0D")
-    .split("\n").join("%0A")
-    .split(":").join("%3A")
-    .split(",").join("%2C");
+    .split("%")
+    .join("%25")
+    .split("\r")
+    .join("%0D")
+    .split("\n")
+    .join("%0A")
+    .split(":")
+    .join("%3A")
+    .split(",")
+    .join("%2C");
 }
 
 /**
