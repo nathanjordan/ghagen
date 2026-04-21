@@ -134,9 +134,7 @@ def test_format_github_annotation_commands() -> None:
     assert "file=.github/ghagen_workflows.py" in lines[0]
     assert "line=42" in lines[0]
     assert "title=missing-permissions" in lines[0]
-    assert lines[0].endswith(
-        "::Workflow 'ci' has no top-level permissions set."
-    )
+    assert lines[0].endswith("::Workflow 'ci' has no top-level permissions set.")
 
     assert lines[1].startswith("::error ")
     assert "title=unpinned-actions" in lines[1]

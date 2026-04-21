@@ -23,8 +23,7 @@ class GhagenOptions:
 def _parse_bool(value: Any, key: str, source: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(
-            f"{source}: [options].{key} must be a boolean, "
-            f"got {type(value).__name__}"
+            f"{source}: [options].{key} must be a boolean, got {type(value).__name__}"
         )
     return value
 

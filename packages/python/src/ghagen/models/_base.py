@@ -63,8 +63,7 @@ def _unwrap_commented_dict(data: dict[str, Any]) -> dict[str, Any]:
             result[k] = _unwrap_commented_dict(v)
         elif isinstance(v, list):
             result[k] = [
-                item.value if isinstance(item, Commented) else item
-                for item in v
+                item.value if isinstance(item, Commented) else item for item in v
             ]
         else:
             result[k] = v
@@ -103,9 +102,7 @@ class GhagenModel(BaseModel):
 
     @model_validator(mode="wrap")
     @classmethod
-    def _preserve_commented(
-        cls, values: Any, handler: Callable[..., Any]
-    ) -> Any:
+    def _preserve_commented(cls, values: Any, handler: Callable[..., Any]) -> Any:
         """Allow Commented wrappers on any field without altering type annotations.
 
         Unwraps Commented values before Pydantic field validation runs, then

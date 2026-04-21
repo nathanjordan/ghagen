@@ -57,5 +57,3 @@ def test_internal_frames_do_not_leak_into_location() -> None:
     assert "pydantic" not in file
     assert "/ghagen/models/" not in file
     assert "/ghagen/emitter/" not in file
-
-

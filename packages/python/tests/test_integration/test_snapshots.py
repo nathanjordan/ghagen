@@ -447,6 +447,4 @@ def test_triple_quoted_run(snapshot: Snapshot):
 
     # Similar to multiline_run.yml but uses |- (strip) instead of | (clip)
     # because dedent_script strips the artifact trailing \n from triple quotes.
-    snapshot.assert_match(
-        wf.to_yaml(include_header=False), "triple_quoted_run.yml"
-    )
+    snapshot.assert_match(wf.to_yaml(include_header=False), "triple_quoted_run.yml")

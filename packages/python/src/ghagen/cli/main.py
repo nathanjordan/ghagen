@@ -97,8 +97,7 @@ def lint(
         for rule_fn in ALL_RULES:
             meta = rule_fn.meta
             typer.echo(
-                f"{meta.id} ({meta.default_severity.value})\n"
-                f"  {meta.description}"
+                f"{meta.id} ({meta.default_severity.value})\n  {meta.description}"
             )
         raise typer.Exit(0)
 
@@ -128,8 +127,7 @@ def lint(
         typer.echo(format_github(violations), nl=False)
     else:
         typer.echo(
-            f"Error: unknown --format value '{format}' "
-            "(valid: human, json, github)",
+            f"Error: unknown --format value '{format}' (valid: human, json, github)",
             err=True,
         )
         raise typer.Exit(2)

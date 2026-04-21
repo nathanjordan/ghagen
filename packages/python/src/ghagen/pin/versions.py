@@ -76,9 +76,7 @@ def classify_bump(
     return "patch"
 
 
-def find_latest_tag(
-    current_ref: str, available_tags: list[str]
-) -> str | None:
+def find_latest_tag(current_ref: str, available_tags: list[str]) -> str | None:
     """Find the latest tag that is newer than *current_ref*.
 
     Filters *available_tags* to those that share the same prefix (if any)

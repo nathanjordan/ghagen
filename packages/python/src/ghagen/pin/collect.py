@@ -67,9 +67,7 @@ def collect_uses_refs(app: App) -> set[str]:
                     refs.add(uses)
 
                 # Step.uses — action references
-                _collect_from_steps(
-                    list(getattr(job, "steps", None) or []), refs
-                )
+                _collect_from_steps(list(getattr(job, "steps", None) or []), refs)
         elif isinstance(item, Action) and isinstance(item.runs, CompositeRuns):
             _collect_from_steps(list(item.runs.steps), refs)
 

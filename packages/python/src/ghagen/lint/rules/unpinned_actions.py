@@ -46,9 +46,7 @@ def _is_pinned_ref(ref: str) -> bool:
         "no ref at all). Pin to a version tag or commit SHA for reproducibility."
     ),
 )
-def check_unpinned_actions(
-    wf: Workflow, ctx: RuleContext
-) -> Iterable[Violation]:
+def check_unpinned_actions(wf: Workflow, ctx: RuleContext) -> Iterable[Violation]:
     """Yield a violation for each step using an unpinned action."""
     severity = ctx.config.severity.get(
         "unpinned-actions", check_unpinned_actions.meta.default_severity
@@ -75,9 +73,7 @@ def check_unpinned_actions(
                     continue
             # else: no @ref at all → unpinned
 
-            symbolic = (
-                f"{ctx.workflow_key}.yml → jobs.{job_id} → steps[{idx}]"
-            )
+            symbolic = f"{ctx.workflow_key}.yml → jobs.{job_id} → steps[{idx}]"
             yield Violation(
                 rule_id="unpinned-actions",
                 severity=severity,

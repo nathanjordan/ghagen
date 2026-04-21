@@ -101,9 +101,10 @@ class TestResolveRef:
             "tags/nonexistent": None,
             "heads/nonexistent": None,
         }
-        with patch(
-            "ghagen.pin.resolve._api_get", side_effect=self._mock_api(responses)
-        ), pytest.raises(ResolveError, match="Could not resolve"):
+        with (
+            patch("ghagen.pin.resolve._api_get", side_effect=self._mock_api(responses)),
+            pytest.raises(ResolveError, match="Could not resolve"),
+        ):
             resolve_ref("actions", "checkout", "nonexistent")
 
     def test_token_passed_through(self):
@@ -175,10 +176,13 @@ class TestListTags:
 
     def test_rate_limit_error(self):
         """403 rate-limit errors propagate as ResolveError."""
-        with patch(
-            "ghagen.pin.resolve._api_get_page",
-            side_effect=ResolveError("GitHub API error 403 for ...: rate limit"),
-        ), pytest.raises(ResolveError, match="403"):
+        with (
+            patch(
+                "ghagen.pin.resolve._api_get_page",
+                side_effect=ResolveError("GitHub API error 403 for ...: rate limit"),
+            ),
+            pytest.raises(ResolveError, match="403"),
+        ):
             list_tags("actions", "checkout")
 
     def test_token_passed_through(self):

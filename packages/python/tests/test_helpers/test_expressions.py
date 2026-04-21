@@ -40,9 +40,7 @@ def test_subscript_env():
 
 
 def test_subscript_then_attr():
-    assert str(expr.steps["build"].outputs.dist) == (
-        "${{ steps.build.outputs.dist }}"
-    )
+    assert str(expr.steps["build"].outputs.dist) == ("${{ steps.build.outputs.dist }}")
 
 
 # --- functions ---
@@ -202,9 +200,7 @@ def test_fstring_embedding():
 
 def test_fstring_multiple():
     result = f"pip-{expr.runner.os}-{expr.hashFiles('**/requirements*.txt')}"
-    assert result == (
-        "pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}"
-    )
+    assert result == ("pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}")
 
 
 # --- builder immutability ---

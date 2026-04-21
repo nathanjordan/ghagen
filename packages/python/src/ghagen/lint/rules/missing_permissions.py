@@ -22,9 +22,7 @@ from ghagen.models.workflow import Workflow
         "has broad write access; an explicit permissions block limits scope."
     ),
 )
-def check_missing_permissions(
-    wf: Workflow, ctx: RuleContext
-) -> Iterable[Violation]:
+def check_missing_permissions(wf: Workflow, ctx: RuleContext) -> Iterable[Violation]:
     """Flag workflows without top-level permissions unless every job sets them."""
     if wf.permissions is not None:
         return

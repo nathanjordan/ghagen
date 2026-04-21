@@ -139,14 +139,12 @@ class Job(GhagenModel):
     timeout_minutes: int | None = Field(
         None,
         serialization_alias="timeout-minutes",
-        description="Maximum minutes the job can run before "
-        "being cancelled.",
+        description="Maximum minutes the job can run before being cancelled.",
     )
     continue_on_error: bool | str | None = Field(
         None,
         serialization_alias="continue-on-error",
-        description="Allow the workflow to continue when this "
-        "job fails.",
+        description="Allow the workflow to continue when this job fails.",
     )
     concurrency: str | Concurrency | CommentedMap | None = None
     services: dict[str, Service | str | CommentedMap] | None = None

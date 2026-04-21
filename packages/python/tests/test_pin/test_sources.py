@@ -13,9 +13,7 @@ class TestTrackUserFiles:
         """Modules from the ghagen package itself should not appear."""
         config = tmp_path / "my_config.py"
         config.write_text(
-            "from ghagen.app import App\n"
-            "def load():\n"
-            "    return App(lockfile=None)\n"
+            "from ghagen.app import App\ndef load():\n    return App(lockfile=None)\n"
         )
 
         sys.path.insert(0, str(tmp_path))
@@ -40,9 +38,9 @@ class TestTrackUserFiles:
 
             ghagen_root = Path(ghagen.__file__).resolve().parent
             for f in user_files:
-                assert not str(f).startswith(
-                    str(ghagen_root)
-                ), f"ghagen internal file leaked: {f}"
+                assert not str(f).startswith(str(ghagen_root)), (
+                    f"ghagen internal file leaked: {f}"
+                )
         finally:
             sys.path.remove(str(tmp_path))
             sys.modules.pop(mod_name, None)
@@ -51,9 +49,7 @@ class TestTrackUserFiles:
         """A user module that creates an App should be included."""
         config = tmp_path / "user_wf.py"
         config.write_text(
-            "from ghagen.app import App\n"
-            "def load():\n"
-            "    return App(lockfile=None)\n"
+            "from ghagen.app import App\ndef load():\n    return App(lockfile=None)\n"
         )
 
         sys.path.insert(0, str(tmp_path))
@@ -145,8 +141,7 @@ class TestLocateUsesRefs:
     def test_multiple_refs_partial_match(self, tmp_path: Path):
         f1 = tmp_path / "wf.py"
         f1.write_text(
-            'Step(uses="actions/checkout@v4")\n'
-            'Step(uses="actions/setup-python@v5")\n'
+            'Step(uses="actions/checkout@v4")\nStep(uses="actions/setup-python@v5")\n'
         )
 
         result = locate_uses_refs(
@@ -167,5 +162,3 @@ class TestLocateUsesRefs:
     def test_empty_files(self):
         result = locate_uses_refs({"actions/checkout@v4"}, set())
         assert result == {}
-
-

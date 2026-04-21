@@ -139,9 +139,7 @@ def _dereference_tag(
     )
 
 
-def list_tags(
-    owner: str, repo: str, *, token: str | None = None
-) -> list[str]:
+def list_tags(owner: str, repo: str, *, token: str | None = None) -> list[str]:
     """List all tags for a repository via the GitHub API.
 
     Uses paginated ``GET /repos/{owner}/{repo}/git/refs/tags``.
@@ -159,9 +157,7 @@ def list_tags(
     Raises:
         ResolveError: On non-404 API errors (e.g. rate limiting).
     """
-    url: str | None = (
-        f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags"
-    )
+    url: str | None = f"https://api.github.com/repos/{owner}/{repo}/git/refs/tags"
     tags: list[str] = []
     while url is not None:
         try:
@@ -171,7 +167,7 @@ def list_tags(
         for ref in data:
             full_ref = ref.get("ref", "")
             if full_ref.startswith("refs/tags/"):
-                tags.append(full_ref[len("refs/tags/"):])
+                tags.append(full_ref[len("refs/tags/") :])
         url = next_url
     return tags
 

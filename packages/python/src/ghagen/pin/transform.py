@@ -30,9 +30,7 @@ class PinTransform:
     def __init__(self, lockfile: Lockfile) -> None:
         self._lockfile = lockfile
 
-    def __call__(
-        self, item: Workflow | Action, ctx: SynthContext
-    ) -> Workflow | Action:
+    def __call__(self, item: Workflow | Action, ctx: SynthContext) -> Workflow | Action:
         if isinstance(item, Workflow):
             self._pin_workflow(item)
         elif isinstance(item, Action) and isinstance(item.runs, CompositeRuns):
@@ -77,8 +75,7 @@ class PinTransform:
         entry = self._lockfile.get(uses)
         if entry is None:
             raise PinError(
-                f"No lockfile entry for '{uses}'. "
-                "Run `ghagen pin` to resolve it."
+                f"No lockfile entry for '{uses}'. Run `ghagen pin` to resolve it."
             )
 
         action_part, ref = uses.rsplit("@", 1)

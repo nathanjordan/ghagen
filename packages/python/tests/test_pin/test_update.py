@@ -38,8 +38,7 @@ class TestApplyUpdates:
     def test_multiple_different_refs(self, tmp_path: Path):
         f = tmp_path / "wf.py"
         f.write_text(
-            'Step(uses="actions/checkout@v4")\n'
-            'Step(uses="actions/setup-python@v5")\n'
+            'Step(uses="actions/checkout@v4")\nStep(uses="actions/setup-python@v5")\n'
         )
 
         changed = apply_updates(

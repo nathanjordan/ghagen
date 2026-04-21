@@ -32,9 +32,7 @@ MODIFIED_ACTION_SCHEMA = {
 
 SAMPLE_WORKFLOW_MODELS = "# generated workflow models\nclass Model:\n    pass\n"
 SAMPLE_ACTION_MODELS = "# generated action models\nclass Model:\n    pass\n"
-MODIFIED_WORKFLOW_MODELS = (
-    "# generated workflow models\nclass Model:\n    name: str\n"
-)
+MODIFIED_WORKFLOW_MODELS = "# generated workflow models\nclass Model:\n    name: str\n"
 MODIFIED_ACTION_MODELS = (
     "# generated action models\nclass Model:\n    description: str\n"
 )
@@ -98,9 +96,7 @@ def test_no_drift(tmp_path: Path, monkeypatch: object) -> None:
     assert diff_output == ""
 
 
-def test_workflow_schema_drift_detected(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_workflow_schema_drift_detected(tmp_path: Path, monkeypatch: object) -> None:
     snapshot_dir = tmp_path / "snapshot"
     _setup_snapshot(snapshot_dir)
     _install_mocks(monkeypatch, workflow_schema=MODIFIED_WORKFLOW_SCHEMA)  # type: ignore[arg-type]
@@ -110,9 +106,7 @@ def test_workflow_schema_drift_detected(
     assert "new_field" in diff_output
 
 
-def test_action_schema_drift_detected(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_action_schema_drift_detected(tmp_path: Path, monkeypatch: object) -> None:
     snapshot_dir = tmp_path / "snapshot"
     _setup_snapshot(snapshot_dir)
     _install_mocks(monkeypatch, action_schema=MODIFIED_ACTION_SCHEMA)  # type: ignore[arg-type]
@@ -122,9 +116,7 @@ def test_action_schema_drift_detected(
     assert "deprecated_field" in diff_output
 
 
-def test_workflow_models_drift_detected(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_workflow_models_drift_detected(tmp_path: Path, monkeypatch: object) -> None:
     snapshot_dir = tmp_path / "snapshot"
     _setup_snapshot(snapshot_dir)
     _install_mocks(monkeypatch, workflow_models=MODIFIED_WORKFLOW_MODELS)  # type: ignore[arg-type]
@@ -134,9 +126,7 @@ def test_workflow_models_drift_detected(
     assert "name: str" in diff_output
 
 
-def test_action_models_drift_detected(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_action_models_drift_detected(tmp_path: Path, monkeypatch: object) -> None:
     snapshot_dir = tmp_path / "snapshot"
     _setup_snapshot(snapshot_dir)
     _install_mocks(monkeypatch, action_models=MODIFIED_ACTION_MODELS)  # type: ignore[arg-type]
@@ -146,9 +136,7 @@ def test_action_models_drift_detected(
     assert "description: str" in diff_output
 
 
-def test_missing_workflow_snapshot_file(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_missing_workflow_snapshot_file(tmp_path: Path, monkeypatch: object) -> None:
     snapshot_dir = tmp_path / "snapshot"
     snapshot_dir.mkdir()
     _install_mocks(monkeypatch)  # type: ignore[arg-type]

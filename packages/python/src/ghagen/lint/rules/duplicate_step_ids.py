@@ -39,9 +39,7 @@ def _step_id(step: Step | CommentedMap) -> str | None:
         "break `steps.<id>.outputs` references."
     ),
 )
-def check_duplicate_step_ids(
-    wf: Workflow, ctx: RuleContext
-) -> Iterable[Violation]:
+def check_duplicate_step_ids(wf: Workflow, ctx: RuleContext) -> Iterable[Violation]:
     """Yield a violation for each duplicate ``Step.id`` within a job."""
     severity = ctx.config.severity.get(
         "duplicate-step-ids",
@@ -56,10 +54,7 @@ def check_duplicate_step_ids(
                 continue
             if step_id in seen:
                 first_index = seen[step_id]
-                symbolic = (
-                    f"{ctx.workflow_key}.yml → jobs.{job_id} "
-                    f"→ steps[{index}]"
-                )
+                symbolic = f"{ctx.workflow_key}.yml → jobs.{job_id} → steps[{index}]"
                 yield Violation(
                     rule_id="duplicate-step-ids",
                     severity=severity,

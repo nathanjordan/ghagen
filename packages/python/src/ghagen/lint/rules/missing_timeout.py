@@ -25,9 +25,7 @@ from ghagen.models.workflow import Workflow
         "setting an explicit shorter timeout bounds runaway builds."
     ),
 )
-def check_missing_timeout(
-    wf: Workflow, ctx: RuleContext
-) -> Iterable[Violation]:
+def check_missing_timeout(wf: Workflow, ctx: RuleContext) -> Iterable[Violation]:
     """Yield a violation for each job missing ``timeout_minutes``."""
     severity = ctx.config.severity.get(
         "missing-timeout", check_missing_timeout.meta.default_severity

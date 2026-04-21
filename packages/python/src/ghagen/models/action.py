@@ -120,14 +120,10 @@ class DockerRuns(GhagenModel):
     image: str
     env: dict[str, str] | None = None
     args: list[str] | None = None
-    pre_entrypoint: str | None = Field(
-        None, serialization_alias="pre-entrypoint"
-    )
+    pre_entrypoint: str | None = Field(None, serialization_alias="pre-entrypoint")
     pre_if: str | None = Field(None, serialization_alias="pre-if")
     entrypoint: str | None = None
-    post_entrypoint: str | None = Field(
-        None, serialization_alias="post-entrypoint"
-    )
+    post_entrypoint: str | None = Field(None, serialization_alias="post-entrypoint")
     post_if: str | None = Field(None, serialization_alias="post-if")
 
     def model_post_init(self, _context: Any) -> None:

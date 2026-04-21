@@ -116,9 +116,7 @@ def test_run_lint_continues_when_a_rule_crashes(
 
     from ghagen.lint.rules.missing_timeout import check_missing_timeout
 
-    monkeypatch.setattr(
-        engine_module, "ALL_RULES", [crash_rule, check_missing_timeout]
-    )
+    monkeypatch.setattr(engine_module, "ALL_RULES", [crash_rule, check_missing_timeout])
 
     app = App()
     app.add_workflow(_violating_workflow(), "ci.yml")

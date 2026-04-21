@@ -45,9 +45,7 @@ def run_lint(app: App, config: LintConfig) -> list[Violation]:
             continue
 
         workflow_key = path.stem  # e.g. "ci" from "ci.yml"
-        ctx = RuleContext(
-            workflow_key=workflow_key, config=config, lockfile=lockfile
-        )
+        ctx = RuleContext(workflow_key=workflow_key, config=config, lockfile=lockfile)
 
         for rule_fn in ALL_RULES:
             rule_id = rule_fn.meta.id

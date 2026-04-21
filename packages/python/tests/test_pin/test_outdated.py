@@ -261,9 +261,7 @@ class TestUpgradeApply:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_project(tmp_path)
 
-        result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions"]
-        )
+        result = runner.invoke(app, ["deps", "upgrade", "--mode", "versions"])
         assert result.exit_code == 0, result.output
         assert "Applied version bumps" in result.output
         assert "modified" in result.output
@@ -407,9 +405,7 @@ class TestUpgradeTokenHandling:
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_no_token_warning(
-        self, mock_tags, mock_track, tmp_path, monkeypatch
-    ):
+    def test_no_token_warning(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         monkeypatch.delenv("GH_TOKEN", raising=False)
@@ -422,9 +418,7 @@ class TestUpgradeTokenHandling:
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_token_from_env(
-        self, mock_tags, mock_track, tmp_path, monkeypatch
-    ):
+    def test_token_from_env(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "my-token")
         monkeypatch.delenv("GH_TOKEN", raising=False)
@@ -437,9 +431,7 @@ class TestUpgradeTokenHandling:
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    def test_gh_token_fallback(
-        self, mock_tags, mock_track, tmp_path, monkeypatch
-    ):
+    def test_gh_token_fallback(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         monkeypatch.setenv("GH_TOKEN", "gh-token")
@@ -464,9 +456,7 @@ class TestUpgradeErrorHandling:
         assert "unknown --mode value" in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    def test_api_error_continues_with_warning(
-        self, mock_track, tmp_path, monkeypatch
-    ):
+    def test_api_error_continues_with_warning(self, mock_track, tmp_path, monkeypatch):
         """API errors for one repo should not stop processing."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
@@ -479,9 +469,7 @@ class TestUpgradeErrorHandling:
                 raise ResolveError("rate limited")
             return _SETUP_PYTHON_TAGS
 
-        with patch(
-            "ghagen.pin.resolve.list_tags", side_effect=mock_tags_with_error
-        ):
+        with patch("ghagen.pin.resolve.list_tags", side_effect=mock_tags_with_error):
             result = runner.invoke(
                 app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
             )

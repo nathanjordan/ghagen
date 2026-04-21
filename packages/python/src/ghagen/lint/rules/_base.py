@@ -51,9 +51,7 @@ class Rule(Protocol):
 
     meta: RuleMeta
 
-    def __call__(
-        self, wf: Workflow, ctx: RuleContext
-    ) -> Iterable[Violation]: ...
+    def __call__(self, wf: Workflow, ctx: RuleContext) -> Iterable[Violation]: ...
 
 
 def rule(

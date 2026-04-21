@@ -93,11 +93,7 @@ def _escape_gh_message(msg: str) -> str:
 
     See: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
     """
-    return (
-        msg.replace("%", "%25")
-        .replace("\r", "%0D")
-        .replace("\n", "%0A")
-    )
+    return msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def _escape_gh_property(value: str) -> str:

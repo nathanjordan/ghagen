@@ -66,9 +66,7 @@ def _setup(tmp_path: Path, config_contents: str) -> None:
     (config_dir / "ghagen_workflows.py").write_text(config_contents)
 
 
-def test_lint_on_clean_workflow_exits_zero(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_lint_on_clean_workflow_exits_zero(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _CLEAN_CONFIG)
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
@@ -91,9 +89,7 @@ def test_lint_on_violating_workflow_reports_all_rules(
     assert "missing-timeout" in result.output
 
 
-def test_lint_warnings_only_exits_zero(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_lint_warnings_only_exits_zero(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _BAD_CONFIG)
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
@@ -160,9 +156,7 @@ def test_lint_disable_flag(tmp_path: Path, monkeypatch: object) -> None:
     assert "missing-timeout" in result.output
 
 
-def test_lint_disable_multiple_flags(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_lint_disable_multiple_flags(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _BAD_CONFIG)
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
@@ -182,9 +176,7 @@ def test_lint_disable_multiple_flags(
     assert "missing-timeout" in result.output
 
 
-def test_lint_multi_source_warning(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_lint_multi_source_warning(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _CLEAN_CONFIG)
     (tmp_path / ".github" / "ghagen.toml").write_text("[lint]\ndisable = []\n")
     (tmp_path / "pyproject.toml").write_text(
@@ -203,9 +195,7 @@ disable = []
     assert "pyproject.toml" in result.output
 
 
-def test_lint_bad_config_exits_two(
-    tmp_path: Path, monkeypatch: object
-) -> None:
+def test_lint_bad_config_exits_two(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _CLEAN_CONFIG)
     (tmp_path / ".github" / "ghagen.toml").write_text(
         """

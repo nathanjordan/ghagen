@@ -78,14 +78,14 @@ def test_synth_renders_custom_template_with_variables(
 
     wf_py = tmp_path / "wf.py"
     wf_py.write_text(
-        'from ghagen import App, Job, On, PushTrigger, Step, Workflow\n'
-        '\n'
-        'ci = Workflow(\n'
+        "from ghagen import App, Job, On, PushTrigger, Step, Workflow\n"
+        "\n"
+        "ci = Workflow(\n"
         '    name="CI",\n'
         '    on=On(push=PushTrigger(branches=["main"])),\n'
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
-        ')\n'
-        '\n'
+        ")\n"
+        "\n"
         'app = App(root=".", header="AUTO: from {source_file} via {tool}")\n'
         'app.add_workflow(ci, "ci.yml")\n'
     )
@@ -109,14 +109,14 @@ def test_synth_unknown_variable_in_template_raises(
 
     wf_py = tmp_path / "wf.py"
     wf_py.write_text(
-        'from ghagen import App, Job, On, PushTrigger, Step, Workflow\n'
-        '\n'
-        'ci = Workflow(\n'
+        "from ghagen import App, Job, On, PushTrigger, Step, Workflow\n"
+        "\n"
+        "ci = Workflow(\n"
         '    name="CI",\n'
         '    on=On(push=PushTrigger(branches=["main"])),\n'
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
-        ')\n'
-        '\n'
+        ")\n"
+        "\n"
         'app = App(root=".", header="bad {nope}")\n'
         'app.add_workflow(ci, "ci.yml")\n'
     )
@@ -141,32 +141,32 @@ def test_synth_per_workflow_source_file(
     wfs = tmp_path / "wfs"
     wfs.mkdir()
     (wfs / "a.py").write_text(
-        'from ghagen import Job, On, PushTrigger, Step, Workflow\n'
-        '\n'
-        'wf_a = Workflow(\n'
+        "from ghagen import Job, On, PushTrigger, Step, Workflow\n"
+        "\n"
+        "wf_a = Workflow(\n"
         '    name="A",\n'
         '    on=On(push=PushTrigger(branches=["main"])),\n'
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
-        ')\n'
+        ")\n"
     )
     (wfs / "b.py").write_text(
-        'from ghagen import Job, On, PushTrigger, Step, Workflow\n'
-        '\n'
-        'wf_b = Workflow(\n'
+        "from ghagen import Job, On, PushTrigger, Step, Workflow\n"
+        "\n"
+        "wf_b = Workflow(\n"
         '    name="B",\n'
         '    on=On(push=PushTrigger(branches=["main"])),\n'
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
-        ')\n'
+        ")\n"
     )
     # Entrypoint glue imports both and wires them into an App.
     entry = tmp_path / "entry.py"
     entry.write_text(
-        'import sys\n'
-        'from pathlib import Path\n'
+        "import sys\n"
+        "from pathlib import Path\n"
         'sys.path.insert(0, str(Path(__file__).parent / "wfs"))\n'
-        'from ghagen import App\n'
-        'import a, b\n'
-        '\n'
+        "from ghagen import App\n"
+        "import a, b\n"
+        "\n"
         'app = App(root=".")\n'
         'app.add_workflow(a.wf_a, "a.yml")\n'
         'app.add_workflow(b.wf_b, "b.yml")\n'

@@ -89,9 +89,7 @@ def track_user_files(app_loader: Callable[[], App]) -> set[Path]:
     return user_files
 
 
-def locate_uses_refs(
-    refs: set[str], user_files: set[Path]
-) -> dict[str, list[Path]]:
+def locate_uses_refs(refs: set[str], user_files: set[Path]) -> dict[str, list[Path]]:
     """Search user files for each ref string and return a mapping of ref to files.
 
     Reads each file once and checks whether each ref string appears in the

@@ -41,8 +41,7 @@ class Step(GhagenModel):
     with_: dict[str, Any] | CommentedMap | None = Field(
         None,
         serialization_alias="with",
-        description="Input parameters for the action "
-        "specified by ``uses``.",
+        description="Input parameters for the action specified by ``uses``.",
     )
     env: dict[str, str] | None = None
     shell: ShellType | Raw[str] | None = None
@@ -54,14 +53,12 @@ class Step(GhagenModel):
     continue_on_error: bool | str | None = Field(
         None,
         serialization_alias="continue-on-error",
-        description="Allow the job to continue when this step "
-        "fails.",
+        description="Allow the job to continue when this step fails.",
     )
     timeout_minutes: int | None = Field(
         None,
         serialization_alias="timeout-minutes",
-        description="Maximum minutes the step can run before "
-        "being cancelled.",
+        description="Maximum minutes the step can run before being cancelled.",
     )
 
     def _get_key_order(self) -> list[str]:

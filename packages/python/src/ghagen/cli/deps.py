@@ -85,9 +85,7 @@ def deps_pin(
             continue
 
         try:
-            sha = resolve_ref(
-                parsed.owner, parsed.repo, parsed.ref, token=gh_token
-            )
+            sha = resolve_ref(parsed.owner, parsed.repo, parsed.ref, token=gh_token)
         except ResolveError as exc:
             typer.echo(f"error: {uses}: {exc}", err=True)
             errors += 1
@@ -195,8 +193,7 @@ def deps_upgrade(
 
     if mode not in ("versions", "lockfile", "all"):
         typer.echo(
-            f"Error: unknown --mode value '{mode}' "
-            "(valid: versions, lockfile, all)",
+            f"Error: unknown --mode value '{mode}' (valid: versions, lockfile, all)",
             err=True,
         )
         raise typer.Exit(2)
@@ -301,9 +298,7 @@ def deps_upgrade(
                     "origin": "user",
                 }
                 if uses in ref_locations:
-                    bump_entry["source_files"] = [
-                        str(p) for p in ref_locations[uses]
-                    ]
+                    bump_entry["source_files"] = [str(p) for p in ref_locations[uses]]
                 version_bumps.append(bump_entry)
 
     # --- Lockfile staleness detection ---
@@ -342,9 +337,7 @@ def deps_upgrade(
                     "origin": "user",
                 }
                 if uses in ref_locations:
-                    stale_entry["source_files"] = [
-                        str(p) for p in ref_locations[uses]
-                    ]
+                    stale_entry["source_files"] = [str(p) for p in ref_locations[uses]]
                 lockfile_stale.append(stale_entry)
 
     # --- Apply updates if not in check mode ---
@@ -393,9 +386,7 @@ def _print_human_report(
         typer.echo("")
         for bump in version_bumps:
             severity_tag = f"[{bump['severity']}]"
-            typer.echo(
-                f"  {bump['uses']}  →  {bump['latest']}  {severity_tag}"
-            )
+            typer.echo(f"  {bump['uses']}  →  {bump['latest']}  {severity_tag}")
             for src in bump.get("source_files", []):
                 typer.echo(f"    in {src}")
         typer.echo("")
@@ -404,13 +395,7 @@ def _print_human_report(
         typer.echo("Stale lockfile entries:")
         typer.echo("")
         for entry in lockfile_stale:
-            typer.echo(
-                f"  {entry['uses']}"
-            )
-            typer.echo(
-                f"    current SHA: {entry['current_sha'][:12]}..."
-            )
-            typer.echo(
-                f"    latest SHA:  {entry['latest_sha'][:12]}..."
-            )
+            typer.echo(f"  {entry['uses']}")
+            typer.echo(f"    current SHA: {entry['current_sha'][:12]}...")
+            typer.echo(f"    latest SHA:  {entry['latest_sha'][:12]}...")
         typer.echo("")

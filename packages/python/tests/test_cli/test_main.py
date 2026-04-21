@@ -274,14 +274,12 @@ def test_cli_config_overrides_ghagen_toml(tmp_path: Path, monkeypatch: object):
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
-def test_ghagen_toml_without_entrypoint_falls_back(
-    tmp_path: Path, monkeypatch: object
-):
+def test_ghagen_toml_without_entrypoint_falls_back(tmp_path: Path, monkeypatch: object):
     """A lint-only ghagen.toml (no entrypoint key) still falls back to search."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
     (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text('[lint]\ndisable = []\n')
+    (tmp_path / ".github" / "ghagen.toml").write_text("[lint]\ndisable = []\n")
     (tmp_path / "ghagen_config.py").write_text(_MINIMAL_WORKFLOW_SRC)
 
     result = runner.invoke(app, ["synth"])
