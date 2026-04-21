@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cloneModel, createModel, isModel, isRaw, raw } from "./_base.js";
+import { cloneModel, createModel, isModel, isRaw, isCommented, raw, withEolComment } from "./_base.js";
 import { step } from "./step.js";
 
 describe("cloneModel()", () => {
@@ -18,11 +18,16 @@ describe("cloneModel()", () => {
     expect((original._data as Record<string, Record<string, string>>).with!.a).toBe("1");
   });
 
-  it("performs a deep copy of _meta.fieldEolComments", () => {
-    const original = createModel("step", {}, { fieldEolComments: { uses: "v4" } }, []);
+  it("deep-copies Commented values inside _data", () => {
+    const original = createModel("step", { uses: withEolComment("actions/checkout@v4", "v4") }, {}, []);
     const cloned = cloneModel(original);
-    cloned._meta.fieldEolComments!.uses = "different";
-    expect(original._meta.fieldEolComments!.uses).toBe("v4");
+    expect(isCommented(cloned._data["uses"])).toBe(true);
+    const c = cloned._data["uses"] as { value: string; eolComment: string };
+    expect(c.value).toBe("actions/checkout@v4");
+    expect(c.eolComment).toBe("v4");
+    // Mutating the clone's nested Commented doesn't affect the original.
+    (cloned._data as Record<string, unknown>)["uses"] = "modified";
+    expect(isCommented(original._data["uses"])).toBe(true);
   });
 
   it("preserves the postProcess function by reference", () => {

@@ -5,8 +5,8 @@ import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
 import { action, compositeRuns } from "../models/action.js";
-import { cloneModel } from "../models/_base.js";
-import type { Model } from "../models/_base.js";
+import { cloneModel, isCommented } from "../models/_base.js";
+import type { Model, Commented } from "../models/_base.js";
 
 const ctx = { workflowKey: "ci", itemType: "workflow" as const, root: "/" };
 
@@ -40,10 +40,12 @@ describe("pinTransform()", () => {
 
     const jobs = cloned._data["jobs"] as Record<string, Model>;
     const steps = jobs["test"]!._data["steps"] as Model[];
-    expect(steps[0]!._data["uses"]).toBe(
+    const uses = steps[0]!._data["uses"];
+    expect(isCommented(uses)).toBe(true);
+    expect((uses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
     );
-    expect(steps[0]!._meta.fieldEolComments).toEqual({ uses: "v4" });
+    expect((uses as Commented<string>).eolComment).toBe("v4");
   });
 
   it("throws PinError when an entry is missing", () => {
@@ -92,10 +94,12 @@ describe("pinTransform()", () => {
     pinTransform(makeLockfile())(cloned, ctx);
 
     const jobs = cloned._data["jobs"] as Record<string, Model>;
-    expect(jobs["test"]!._data["uses"]).toBe(
+    const jobUses = jobs["test"]!._data["uses"];
+    expect(isCommented(jobUses)).toBe(true);
+    expect((jobUses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
     );
-    expect(jobs["test"]!._meta.fieldEolComments?.["uses"]).toBe("v4");
+    expect((jobUses as Commented<string>).eolComment).toBe("v4");
   });
 
   it("pins composite-action steps", () => {
@@ -111,7 +115,9 @@ describe("pinTransform()", () => {
     pinTransform(makeLockfile())(cloned, { ...ctx, itemType: "action" });
     const runs = cloned._data["runs"] as Model;
     const steps = runs._data["steps"] as Model[];
-    expect(steps[0]!._data["uses"]).toBe(
+    const actionUses = steps[0]!._data["uses"];
+    expect(isCommented(actionUses)).toBe(true);
+    expect((actionUses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
     );
   });

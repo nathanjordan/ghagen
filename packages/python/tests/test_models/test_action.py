@@ -225,11 +225,15 @@ def test_action_extras_merge() -> None:
 
 def test_action_field_comments() -> None:
     """Field-level comments flow through to the emitted YAML."""
+    from ghagen import with_comment
+
     action = Action(
         name="Commented",
         description="A commented action",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
-        field_comments={"runs": "How the action executes"},
+        runs=with_comment(
+            CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+            "How the action executes",
+        ),
     )
     yaml_str = action.to_yaml(include_header=False)
     assert "How the action executes" in yaml_str

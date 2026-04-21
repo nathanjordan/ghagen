@@ -79,25 +79,27 @@ Generated YAML:
 
 ### Field-level block comments
 
-Use `fieldComments` to add a comment above a specific field. Keys are the field's YAML alias (the key as it appears in the output):
+Wrap a field value with `with_comment()` / `withComment()` to add a comment above that field in the output:
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
 ```python
+from ghagen import with_comment
+
 Workflow(
-    name="CI",
+    name=with_comment("CI", "The name shown in the GitHub UI"),
     on=On(push=PushTrigger(branches=["main"])),
-    field_comments={"name": "The name shown in the GitHub UI"},
     jobs={...},
 )
 ```
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
+import { withComment } from "ghagen";
+
 workflow({
-  name: "CI",
-  on: on({ push: pushTrigger({ branches: ["main"] }) }),
-  fieldComments: { name: "The name shown in the GitHub UI" },
+  name: withComment("CI", "The name shown in the GitHub UI"),
+  on: { push: { branches: ["main"] } },
   jobs: { ... },
 });
 ```
@@ -113,25 +115,27 @@ name: CI
 
 ### Field-level EOL comments
 
-Use `fieldEolComments` to add an end-of-line comment after a specific field's value:
+Wrap a field value with `with_eol_comment()` / `withEolComment()` to add an end-of-line comment after that field's value:
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
 ```python
+from ghagen import with_eol_comment
+
 Workflow(
     name="CI",
-    on=On(push=PushTrigger(branches=["main"])),
-    field_eol_comments={"on": "trigger configuration"},
+    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
     jobs={...},
 )
 ```
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
+import { withEolComment } from "ghagen";
+
 workflow({
   name: "CI",
-  on: on({ push: pushTrigger({ branches: ["main"] }) }),
-  fieldEolComments: { on: "trigger configuration" },
+  on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
   jobs: { ... },
 });
 ```
@@ -148,6 +152,21 @@ on:  # trigger configuration
       - main
 ```
 
+Both `with_comment` and `with_eol_comment` are chainable — you can wrap a value with both a block comment and an EOL comment:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+```python
+name=with_eol_comment(with_comment("CI", "Block comment"), "EOL comment")
+```
+</TabItem>
+<TabItem label="TypeScript">
+```typescript
+name: withEolComment(withComment("CI", "Block comment"), "EOL comment")
+```
+</TabItem>
+</Tabs>
+
 ## Full example
 
 Here is a workflow that uses all four comment types:
@@ -155,11 +174,11 @@ Here is a workflow that uses all four comment types:
 <Tabs syncKey="lang">
 <TabItem label="Python">
 ```python
+from ghagen import with_comment, with_eol_comment
+
 Workflow(
-    name="Commented Workflow",
-    on=On(push=PushTrigger(branches=["main"])),
-    field_comments={"name": "The name shown in the GitHub UI"},
-    field_eol_comments={"on": "trigger configuration"},
+    name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
+    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
     jobs={
         "lint": Job(
             name="Lint",
@@ -180,11 +199,11 @@ Workflow(
 </TabItem>
 <TabItem label="TypeScript">
 ```typescript
+import { withComment, withEolComment } from "ghagen";
+
 workflow({
-  name: "Commented Workflow",
-  on: on({ push: pushTrigger({ branches: ["main"] }) }),
-  fieldComments: { name: "The name shown in the GitHub UI" },
-  fieldEolComments: { on: "trigger configuration" },
+  name: withComment("Commented Workflow", "The name shown in the GitHub UI"),
+  on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
   jobs: {
     lint: job({
       name: "Lint",

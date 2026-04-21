@@ -2,11 +2,12 @@
 
 Replaces ``Step.uses`` and ``Job.uses`` values with their pinned SHAs
 from the lockfile, and attaches the original ref as a YAML end-of-line
-comment via ``field_eol_comments``.
+comment via :func:`~ghagen.with_eol_comment`.
 """
 
 from __future__ import annotations
 
+from ghagen._commented import unwrap_commented, with_eol_comment
 from ghagen.models._base import GhagenModel
 from ghagen.models.action import Action, CompositeRuns
 from ghagen.models.step import Step
@@ -44,9 +45,9 @@ class PinTransform:
                 continue
 
             # Job.uses — reusable workflow calls
-            uses = getattr(job, "uses", None)
+            uses = unwrap_commented(getattr(job, "uses", None))
             if isinstance(uses, str):
-                pinned = self._pin_uses(uses, model=job)
+                pinned = self._pin_uses(uses)
                 if pinned is not None:
                     job.uses = pinned  # type: ignore[assignment]
 
@@ -58,15 +59,14 @@ class PinTransform:
         for step in steps:
             if not isinstance(step, Step):
                 continue
-            if step.uses:
-                pinned = self._pin_uses(step.uses, model=step)
+            uses = unwrap_commented(step.uses)
+            if uses:
+                pinned = self._pin_uses(uses)
                 if pinned is not None:
                     step.uses = pinned
 
-    def _pin_uses(
-        self, uses: str, model: GhagenModel | None = None
-    ) -> str | None:
-        """Return the pinned ``uses:`` string, or None if not pinnable."""
+    def _pin_uses(self, uses: str) -> str | None:
+        """Return the pinned ``uses:`` string wrapped with an EOL comment, or None."""
         # Skip local paths and docker images.
         if uses.startswith("./") or uses.startswith("docker://"):
             return None
@@ -84,8 +84,4 @@ class PinTransform:
         action_part, ref = uses.rsplit("@", 1)
         pinned = f"{action_part}@{entry.sha}"
 
-        # Attach original ref as EOL comment on the model.
-        if model is not None:
-            model.field_eol_comments["uses"] = ref
-
-        return pinned
+        return with_eol_comment(pinned, ref)

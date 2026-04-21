@@ -9,7 +9,7 @@ import type {
   WithMeta,
   Raw,
 } from "./_base.js";
-import { createModel, extractMeta, isModel } from "./_base.js";
+import { createModel, extractMeta, isModel, isCommented, withComment, withEolComment } from "./_base.js";
 import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
 import type { JobModel } from "./_base.js";
 import type { OnInput } from "./trigger.js";
@@ -84,20 +84,33 @@ export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
   const yamlData: Record<string, unknown> = {};
 
   for (const [camelKey, yamlKey] of Object.entries(WORKFLOW_FIELD_MAP)) {
-    const value = (data as Record<string, unknown>)[camelKey];
+    let value = (data as Record<string, unknown>)[camelKey];
     if (value === undefined) continue;
 
-    if (camelKey === "on" && !isModel(value)) {
-      yamlData[yamlKey] = on(value as OnInput);
-    } else if (camelKey === "permissions" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = permissions(value as PermissionsInput);
-    } else if (camelKey === "defaults" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = defaults(value as DefaultsInput);
-    } else if (camelKey === "concurrency" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = concurrency(value as ConcurrencyInput);
-    } else {
-      yamlData[yamlKey] = value;
+    // Peel off Commented wrapper before auto-wrapping, re-apply after
+    let commented: { comment?: string; eolComment?: string } | null = null;
+    if (isCommented(value)) {
+      commented = { comment: value.comment, eolComment: value.eolComment };
+      value = value.value;
     }
+
+    if (camelKey === "on" && !isModel(value)) {
+      value = on(value as OnInput);
+    } else if (camelKey === "permissions" && typeof value === "object" && !isModel(value)) {
+      value = permissions(value as PermissionsInput);
+    } else if (camelKey === "defaults" && typeof value === "object" && !isModel(value)) {
+      value = defaults(value as DefaultsInput);
+    } else if (camelKey === "concurrency" && typeof value === "object" && !isModel(value)) {
+      value = concurrency(value as ConcurrencyInput);
+    }
+
+    // Re-wrap with Commented if needed
+    if (commented) {
+      if (commented.comment) value = withComment(value, commented.comment);
+      if (commented.eolComment) value = withEolComment(value, commented.eolComment);
+    }
+
+    yamlData[yamlKey] = value;
   }
 
   return createModel("workflow", yamlData, meta, WORKFLOW_KEY_ORDER) as WorkflowModel;

@@ -1,6 +1,72 @@
 import type { YAMLMap } from "yaml";
 import { captureSourceLocation, type SourceLocation } from "../_source_location.js";
 
+// ---- Commented<T> value wrapper ----
+
+const COMMENTED_BRAND: unique symbol = Symbol("ghagen.commented");
+
+/**
+ * Branded wrapper that attaches YAML block or end-of-line comments to a value.
+ *
+ * Use {@link withComment} and {@link withEolComment} to create instances.
+ * Wrappers persist in model `_data` at runtime; the serialization pipeline
+ * unwraps them and emits the comments onto the YAML nodes.
+ */
+export interface Commented<T> {
+  readonly [COMMENTED_BRAND]: true;
+  readonly value: T;
+  readonly comment?: string;
+  readonly eolComment?: string;
+}
+
+/** A value that may or may not be wrapped in a {@link Commented}. */
+export type Commentable<T> = T | Commented<T>;
+
+/**
+ * Attach a block comment (emitted above the field) to a value.
+ *
+ * The return type is `T` for type-checker ergonomics, but at runtime the
+ * returned object is a {@link Commented} wrapper.
+ *
+ * Chainable: if `value` is already {@link Commented}, the comment field
+ * is merged.
+ */
+export function withComment<T>(value: T, comment: string): T {
+  if (isCommented(value)) {
+    return { [COMMENTED_BRAND]: true as const, value: value.value, comment, eolComment: value.eolComment } as unknown as T;
+  }
+  return { [COMMENTED_BRAND]: true as const, value, comment } as unknown as T;
+}
+
+/**
+ * Attach an end-of-line comment to a value.
+ *
+ * The return type is `T` for type-checker ergonomics, but at runtime the
+ * returned object is a {@link Commented} wrapper.
+ *
+ * Chainable: if `value` is already {@link Commented}, the eolComment field
+ * is merged.
+ */
+export function withEolComment<T>(value: T, eolComment: string): T {
+  if (isCommented(value)) {
+    return { [COMMENTED_BRAND]: true as const, value: value.value, comment: value.comment, eolComment } as unknown as T;
+  }
+  return { [COMMENTED_BRAND]: true as const, value, eolComment } as unknown as T;
+}
+
+/** Type guard for {@link Commented} values. */
+export function isCommented(value: unknown): value is Commented<unknown> {
+  return typeof value === "object" && value !== null && COMMENTED_BRAND in value;
+}
+
+/** Unwrap a {@link Commented} value, returning the inner value or passthrough. */
+export function unwrapCommented<T>(value: T | Commented<T>): T {
+  if (isCommented(value)) {
+    return value.value as T;
+  }
+  return value as T;
+}
+
 // ---- Raw<T> escape hatch ----
 
 const RAW_BRAND: unique symbol = Symbol("ghagen.raw");
@@ -34,10 +100,6 @@ export interface ModelMeta {
   comment?: string;
   /** End-of-line comment. */
   eolComment?: string;
-  /** Per-field block comments, keyed by YAML key name. */
-  fieldComments?: Record<string, string>;
-  /** Per-field end-of-line comments, keyed by YAML key name. */
-  fieldEolComments?: Record<string, string>;
   /** Arbitrary key/values merged into YAML output. */
   extras?: Record<string, unknown>;
   /** Callback to modify the YAMLMap node before emission. */
@@ -56,9 +118,8 @@ export interface ModelMeta {
  * // Metadata fields mix directly into the input object:
  * const s = step({
  *   name: "Build",
- *   run: "npm run build",
+ *   run: withEolComment("npm run build", "requires Node 20"),
  *   comment: "Compile the project",
- *   fieldEolComments: { run: "requires Node 20" },
  * });
  * ```
  */
@@ -67,8 +128,6 @@ export type WithMeta<T> = T & ModelMeta;
 const META_KEYS = new Set<string>([
   "comment",
   "eolComment",
-  "fieldComments",
-  "fieldEolComments",
   "extras",
   "postProcess",
 ]);
@@ -286,6 +345,11 @@ function cloneValueInternal(value: unknown): unknown {
     return { [RAW_BRAND]: true as const, value: cloneValueInternal(value.value) };
   }
 
+  // Commented<T> — preserve the symbol brand and recurse into the value
+  if (isCommented(value)) {
+    return { [COMMENTED_BRAND]: true as const, value: cloneValueInternal(value.value), comment: value.comment, eolComment: value.eolComment };
+  }
+
   // Model — recurse into _data and _meta; preserve _sourceLocation by reference
   if (isModel(value)) {
     const m = value as Model;
@@ -325,12 +389,6 @@ function cloneMeta(meta: ModelMeta): ModelMeta {
   const out: ModelMeta = {};
   if (meta.comment !== undefined) out.comment = meta.comment;
   if (meta.eolComment !== undefined) out.eolComment = meta.eolComment;
-  if (meta.fieldComments !== undefined) {
-    out.fieldComments = { ...meta.fieldComments };
-  }
-  if (meta.fieldEolComments !== undefined) {
-    out.fieldEolComments = { ...meta.fieldEolComments };
-  }
   if (meta.extras !== undefined) {
     out.extras = cloneRecord(meta.extras);
   }

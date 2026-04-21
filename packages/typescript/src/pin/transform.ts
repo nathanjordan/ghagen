@@ -3,11 +3,11 @@
  *
  * Replaces `step.uses` and `job.uses` values with their pinned SHAs
  * from the lockfile, and attaches the original ref as a YAML EOL
- * comment via `_meta.fieldEolComments.uses`.
+ * comment via `withEolComment()`.
  */
 
 import type { Model } from "../models/_base.js";
-import { isModel } from "../models/_base.js";
+import { isModel, isCommented, withEolComment } from "../models/_base.js";
 import type { SynthContext, SynthItem, Transform } from "../transforms.js";
 import type { Lockfile } from "./lockfile.js";
 
@@ -42,9 +42,10 @@ function pinWorkflow(wf: SynthItem, lockfile: Lockfile): void {
   for (const job of Object.values(jobs)) {
     if (!isModel(job)) continue;
     const jobModel = job as Model;
-    const uses = jobModel._data["uses"];
+    let uses = jobModel._data["uses"];
+    if (isCommented(uses)) uses = uses.value;
     if (typeof uses === "string") {
-      const pinned = pinUses(uses, jobModel, lockfile);
+      const pinned = pinUses(uses, lockfile);
       if (pinned !== null) jobModel._data["uses"] = pinned;
     }
     pinSteps(jobModel._data["steps"], lockfile);
@@ -56,14 +57,15 @@ function pinSteps(steps: unknown, lockfile: Lockfile): void {
   for (const step of steps) {
     if (!isModel(step)) continue;
     const stepModel = step as Model;
-    const uses = stepModel._data["uses"];
+    let uses = stepModel._data["uses"];
+    if (isCommented(uses)) uses = uses.value;
     if (typeof uses !== "string") continue;
-    const pinned = pinUses(uses, stepModel, lockfile);
+    const pinned = pinUses(uses, lockfile);
     if (pinned !== null) stepModel._data["uses"] = pinned;
   }
 }
 
-function pinUses(uses: string, model: Model, lockfile: Lockfile): string | null {
+function pinUses(uses: string, lockfile: Lockfile): string | null {
   if (uses.startsWith("./") || uses.startsWith("docker://")) return null;
   if (!uses.includes("@")) return null;
 
@@ -79,12 +81,6 @@ function pinUses(uses: string, model: Model, lockfile: Lockfile): string | null 
   const ref = uses.slice(at + 1);
   const pinned = `${actionPart}@${entry.sha}`;
 
-  // Attach original ref as EOL comment on the model's `uses` field.
-  // _meta is mutable in our model layout (cloneModel produces a fresh
-  // object); make sure fieldEolComments exists.
-  const meta = model._meta as { fieldEolComments?: Record<string, string> };
-  if (!meta.fieldEolComments) meta.fieldEolComments = {};
-  meta.fieldEolComments["uses"] = ref;
-
-  return pinned;
+  // Return the pinned value wrapped with the original ref as EOL comment
+  return withEolComment(pinned, ref);
 }

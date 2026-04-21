@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { YAMLMap, Scalar, Pair } from "yaml";
 import { toYaml, toYamlFile, modelToYamlMap } from "./yaml-writer.js";
-import { createModel, raw } from "../models/_base.js";
+import { createModel, raw, withComment, withEolComment } from "../models/_base.js";
 import { JOB_KEY_ORDER } from "./key-order.js";
 
 // ---------------------------------------------------------------------------
@@ -79,8 +79,8 @@ describe("modelToYamlMap() key ordering", () => {
 // Comments
 // ---------------------------------------------------------------------------
 describe("comments", () => {
-  it("fieldComments adds a block comment before the field", () => {
-    const m = simpleModel({ name: "ci" }, { fieldComments: { name: "The workflow name" } });
+  it("withComment adds a block comment before the field", () => {
+    const m = simpleModel({ name: withComment("ci", "The workflow name") });
     const yaml = toYaml(m, { includeHeader: false });
     const lines = yaml.split("\n");
     const commentIdx = lines.findIndex((l) => l.includes("# The workflow name"));
@@ -89,8 +89,8 @@ describe("comments", () => {
     expect(commentIdx).toBeLessThan(fieldIdx);
   });
 
-  it("fieldEolComments adds an EOL comment on the field value", () => {
-    const m = simpleModel({ name: "ci" }, { fieldEolComments: { name: "inline note" } });
+  it("withEolComment adds an EOL comment on the field value", () => {
+    const m = simpleModel({ name: withEolComment("ci", "inline note") });
     const yaml = toYaml(m, { includeHeader: false });
     expect(yaml).toMatch(/name: ci\s+# inline note/);
   });

@@ -16,8 +16,10 @@
  */
 
 // Models
-export { raw, isRaw, isModel } from "./models/_base.js";
+export { raw, isRaw, isModel, withComment, withEolComment, isCommented, unwrapCommented } from "./models/_base.js";
 export type {
+  Commented,
+  Commentable,
   Raw,
   Model,
   ModelMeta,

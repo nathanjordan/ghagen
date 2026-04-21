@@ -127,14 +127,12 @@ describe("extractMeta()", () => {
       name: "ci",
       comment: "block comment",
       eolComment: "eol",
-      fieldComments: { name: "before name" },
     };
     const [data, meta] = extractMeta(input);
     expect(data).toEqual({ name: "ci" });
     expect(meta).toEqual({
       comment: "block comment",
       eolComment: "eol",
-      fieldComments: { name: "before name" },
     });
   });
 

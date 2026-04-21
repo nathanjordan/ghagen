@@ -1,6 +1,6 @@
 import { Document, Scalar, YAMLMap, YAMLSeq, Pair } from "yaml";
-import type { Model, ModelMeta } from "../models/_base.js";
-import { isModel, isRaw } from "../models/_base.js";
+import type { Model } from "../models/_base.js";
+import { isModel, isRaw, isCommented } from "../models/_base.js";
 import { formatHeader } from "./header.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -125,12 +125,21 @@ export function modelToYamlMap(model: Model): YAMLMap {
   const map = new YAMLMap();
   const { _data, _meta, _keyOrder } = model;
 
+  // Collect field-level comments from Commented wrappers
+  const fieldComments: Record<string, string> = {};
+  const fieldEolComments: Record<string, string> = {};
+
   // Collect all keys and sort by canonical order
   const orderedKeys = getOrderedKeys(Object.keys(_data), _keyOrder);
 
-  // Add data fields in order
+  // Add data fields in order, unwrapping Commented values
   for (const key of orderedKeys) {
-    const value = _data[key];
+    let value = _data[key];
+    if (isCommented(value)) {
+      if (value.comment) fieldComments[key] = value.comment;
+      if (value.eolComment) fieldEolComments[key] = value.eolComment;
+      value = value.value;
+    }
     const pair = new Pair(new Scalar(key), toYamlValue(value));
     map.items.push(pair);
   }
@@ -138,13 +147,19 @@ export function modelToYamlMap(model: Model): YAMLMap {
   // Merge extras after schema fields
   if (_meta.extras) {
     for (const [key, value] of Object.entries(_meta.extras)) {
-      const pair = new Pair(new Scalar(key), toYamlValue(value));
+      let unwrapped = value;
+      if (isCommented(value)) {
+        if (value.comment) fieldComments[key] = value.comment;
+        if (value.eolComment) fieldEolComments[key] = value.eolComment;
+        unwrapped = value.value;
+      }
+      const pair = new Pair(new Scalar(key), toYamlValue(unwrapped));
       map.items.push(pair);
     }
   }
 
   // Attach field-level comments
-  attachFieldComments(map, _meta);
+  attachFieldComments(map, fieldComments, fieldEolComments);
 
   // Run postProcess callback
   if (_meta.postProcess) {
@@ -160,6 +175,11 @@ export function modelToYamlMap(model: Model): YAMLMap {
 function toYamlValue(value: unknown): unknown {
   if (value === null || value === undefined) {
     return null;
+  }
+
+  // Commented values — unwrap and recurse
+  if (isCommented(value)) {
+    return toYamlValue(value.value);
   }
 
   // Raw values — unwrap and emit as plain scalar
@@ -267,23 +287,27 @@ function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
 /**
  * Attach field-level comments (block and EOL) to map pairs.
  */
-function attachFieldComments(map: YAMLMap, meta: ModelMeta): void {
-  const { fieldComments, fieldEolComments } = meta;
-
-  if (!fieldComments && !fieldEolComments) return;
+function attachFieldComments(
+  map: YAMLMap,
+  fieldComments: Record<string, string>,
+  fieldEolComments: Record<string, string>,
+): void {
+  const hasComments = Object.keys(fieldComments).length > 0;
+  const hasEolComments = Object.keys(fieldEolComments).length > 0;
+  if (!hasComments && !hasEolComments) return;
 
   for (const pair of map.items as Pair[]) {
     const keyName = pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);
 
     // Block comment before this field
-    if (fieldComments && keyName in fieldComments) {
+    if (hasComments && keyName in fieldComments) {
       const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
       key.commentBefore = fieldComments[keyName];
       pair.key = key;
     }
 
     // End-of-line comment on this field's value
-    if (fieldEolComments && keyName in fieldEolComments) {
+    if (hasEolComments && keyName in fieldEolComments) {
       if (pair.value instanceof YAMLMap || pair.value instanceof YAMLSeq) {
         // For complex values, set comment on the key so it appears on the key line
         const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);

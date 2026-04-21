@@ -1,5 +1,12 @@
 """ghagen — Generate GitHub Actions workflow YAML from Python code."""
 
+from ghagen._commented import (
+    Commented,
+    is_commented,
+    unwrap_commented,
+    with_comment,
+    with_eol_comment,
+)
 from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
@@ -32,7 +39,12 @@ from ghagen.transforms import SynthContext, Transform
 
 __all__ = [
     "App",
+    "Commented",
     "Raw",
+    "is_commented",
+    "unwrap_commented",
+    "with_comment",
+    "with_eol_comment",
     "dedent",
     "ExpressionStr",
     "Action",

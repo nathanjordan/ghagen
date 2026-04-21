@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Pair, Scalar } from "yaml";
 import { loadFixture } from "./test-utils.js";
 import { toYaml } from "../emitter/yaml-writer.js";
-import { raw } from "../models/_base.js";
+import { raw, withComment, withEolComment } from "../models/_base.js";
 import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
@@ -35,10 +35,8 @@ describe("snapshot tests", () => {
 
   it("comments.yml", () => {
     const w = workflow({
-      name: "Commented Workflow",
-      on: { push: { branches: ["main"] } },
-      fieldComments: { name: "The name shown in the GitHub UI" },
-      fieldEolComments: { on: "trigger configuration" },
+      name: withComment("Commented Workflow", "The name shown in the GitHub UI"),
+      on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
       jobs: {
         lint: job({
           name: "Lint",
@@ -51,8 +49,7 @@ describe("snapshot tests", () => {
         test: job({
           name: "Test",
           runsOn: "ubuntu-latest",
-          needs: "lint",
-          fieldComments: { needs: "Wait for lint to pass" },
+          needs: withComment("lint", "Wait for lint to pass"),
           steps: [
             step({ uses: "actions/checkout@v4" }),
             step({ name: "Pytest", run: "python -m pytest" }),

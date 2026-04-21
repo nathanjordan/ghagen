@@ -46,7 +46,7 @@ deploy = Step(
 
 ### Inherited parameters
 
-All step instances also accept the base model parameters (`extras`, `comment`, `eol_comment`, `field_comments`, `field_eol_comments`, `post_process`). See [Workflow](/python/api/workflow/) for details.
+All step instances also accept the base model parameters (`extras`, `comment`, `eol_comment`, `post_process`). Per-field comments are attached by wrapping field values with `with_comment()` or `with_eol_comment()`. See [Workflow](/python/api/workflow/) for details.
 
 ## ShellType
 

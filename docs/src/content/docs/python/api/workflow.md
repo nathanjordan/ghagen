@@ -45,8 +45,8 @@ All models also accept these inherited parameters from the base class:
 | `post_process`       | `Callable \| None` | `None`  | Callback to modify the YAML mapping before emission. See [Escape Hatches](/guides/escape-hatches/). |
 | `comment`            | `str \| None`      | `None`  | Block comment emitted above this node in the YAML output.                                  |
 | `eol_comment`        | `str \| None`      | `None`  | End-of-line comment for this node.                                                         |
-| `field_comments`     | `dict[str, str]`   | `{}`    | Per-field block comments, keyed by YAML alias.                                             |
-| `field_eol_comments` | `dict[str, str]`   | `{}`    | Per-field end-of-line comments, keyed by YAML alias.                                       |
+
+Per-field comments are attached by wrapping individual field values with `with_comment()` or `with_eol_comment()`. See [Comments](/guides/comments/).
 
 ### Methods
 

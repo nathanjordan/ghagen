@@ -27,6 +27,8 @@ from ghagen import (
     Strategy,
     Workflow,
     WorkflowDispatchTrigger,
+    with_comment,
+    with_eol_comment,
 )
 from ghagen.models.common import PermissionLevel
 from ghagen.models.job import Concurrency
@@ -113,16 +115,13 @@ def test_comments(snapshot: Snapshot):
     snapshot.snapshot_dir = SNAPSHOT_DIR
 
     wf = Workflow(
-        name="Commented Workflow",
-        on=On(
-            push=PushTrigger(branches=["main"]),
+        name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
+        on=with_eol_comment(
+            On(
+                push=PushTrigger(branches=["main"]),
+            ),
+            "trigger configuration",
         ),
-        field_comments={
-            "name": "The name shown in the GitHub UI",
-        },
-        field_eol_comments={
-            "on": "trigger configuration",
-        },
         jobs={
             "lint": Job(
                 name="Lint",
@@ -140,8 +139,7 @@ def test_comments(snapshot: Snapshot):
             "test": Job(
                 name="Test",
                 runs_on="ubuntu-latest",
-                needs="lint",
-                field_comments={"needs": "Wait for lint to pass"},
+                needs=with_comment("lint", "Wait for lint to pass"),
                 steps=[
                     Step(uses="actions/checkout@v4"),
                     Step(name="Pytest", run="python -m pytest"),

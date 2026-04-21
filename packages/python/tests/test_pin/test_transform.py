@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from ghagen._commented import is_commented
 from ghagen.models.action import Action, CompositeRuns, DockerRuns
 from ghagen.models.job import Job
 from ghagen.models.step import Step
@@ -55,8 +56,9 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf, _ctx())
         step = result.jobs["build"].steps[0]
-        assert step.uses == f"actions/checkout@{SHA_CHECKOUT}"
-        assert step.field_eol_comments.get("uses") == "v4"
+        assert is_commented(step.uses)
+        assert step.uses.value == f"actions/checkout@{SHA_CHECKOUT}"
+        assert step.uses.eol_comment == "v4"
 
     def test_pins_multiple_steps(self):
         lf = _lockfile(
@@ -80,8 +82,10 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf, _ctx())
         steps = result.jobs["build"].steps
-        assert steps[0].uses == f"actions/checkout@{SHA_CHECKOUT}"
-        assert steps[1].uses == f"actions/setup-python@{SHA_SETUP_PY}"
+        assert is_commented(steps[0].uses)
+        assert steps[0].uses.value == f"actions/checkout@{SHA_CHECKOUT}"
+        assert is_commented(steps[1].uses)
+        assert steps[1].uses.value == f"actions/setup-python@{SHA_SETUP_PY}"
 
     def test_pins_job_uses(self):
         lf = _lockfile(**{"octo-org/repo/.github/workflows/ci.yml@v1": SHA_REUSABLE})
@@ -96,8 +100,9 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf, _ctx())
         job = result.jobs["call"]
-        assert job.uses == f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}"
-        assert job.field_eol_comments.get("uses") == "v1"
+        assert is_commented(job.uses)
+        assert job.uses.value == f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}"
+        assert job.uses.eol_comment == "v1"
 
     def test_skips_local_actions(self):
         lf = _lockfile()
@@ -184,8 +189,9 @@ class TestPinTransformAction:
         assert isinstance(result.runs, CompositeRuns)
         step = result.runs.steps[0]
         assert isinstance(step, Step)
-        assert step.uses == f"actions/setup-python@{SHA_SETUP_PY}"
-        assert step.field_eol_comments.get("uses") == "v5"
+        assert is_commented(step.uses)
+        assert step.uses.value == f"actions/setup-python@{SHA_SETUP_PY}"
+        assert step.uses.eol_comment == "v5"
         # Run step is untouched.
         run_step = result.runs.steps[1]
         assert isinstance(run_step, Step)
