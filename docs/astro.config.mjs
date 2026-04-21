@@ -1,7 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightThemeRapide from "starlight-theme-rapide";
-import starlightTypeDoc, { typeDocSidebarGroup } from "starlight-typedoc";
+import starlightTypeDoc from "starlight-typedoc";
 
 export default defineConfig({
   site: "https://nathanjordan.github.io",
@@ -43,7 +43,10 @@ export default defineConfig({
           items: [
             { label: "CLI Reference", slug: "typescript/cli" },
             { label: "Linting", slug: "typescript/linting" },
-            typeDocSidebarGroup,
+            {
+              label: "API Reference",
+              autogenerate: { directory: "typescript/api" },
+            },
           ],
         },
       ],
@@ -71,6 +74,7 @@ export default defineConfig({
             hideBreadcrumbs: true,
             hideGenerator: true,
             cleanOutputDir: true,
+            flattenOutputFiles: true,
             indexFormat: "htmlTable",
             interfacePropertiesFormat: "htmlTable",
             classPropertiesFormat: "htmlTable",
