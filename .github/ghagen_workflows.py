@@ -386,7 +386,6 @@ def _release_workflow() -> Workflow:
                 name="Publish to npm",
                 run="npm publish --provenance",
                 working_directory="packages/typescript",
-                env={"NODE_AUTH_TOKEN": "${{ secrets.NPM_TOKEN }}"},
             ),
         ],
     )

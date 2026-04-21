@@ -95,8 +95,6 @@ jobs:
       working-directory: packages/typescript
     - name: Publish to npm
       run: npm publish --provenance
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       working-directory: packages/typescript
     timeout-minutes: 10
   homebrew-bump:
