@@ -2,7 +2,46 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightThemeRapide from "starlight-theme-rapide";
 import starlightLlmsTxt from "starlight-llms-txt";
-import starlightTypeDoc from "starlight-typedoc";
+import { createStarlightTypeDocPlugin } from "starlight-typedoc";
+
+const [appTypeDoc, appSidebar] = createStarlightTypeDocPlugin();
+const [workflowTypeDoc, workflowSidebar] = createStarlightTypeDocPlugin();
+const [jobTypeDoc, jobSidebar] = createStarlightTypeDocPlugin();
+const [stepTypeDoc, stepSidebar] = createStarlightTypeDocPlugin();
+const [triggersTypeDoc, triggersSidebar] = createStarlightTypeDocPlugin();
+const [permissionsTypeDoc, permissionsSidebar] = createStarlightTypeDocPlugin();
+const [actionTypeDoc, actionSidebar] = createStarlightTypeDocPlugin();
+const [expressionsTypeDoc, expressionsSidebar] = createStarlightTypeDocPlugin();
+const [outputTypeDoc, outputSidebar] = createStarlightTypeDocPlugin();
+
+const sharedTypeDocConfig = {
+  skipErrorChecking: true,
+  disableSources: true,
+  categorizeByGroup: false,
+  navigation: {
+    includeGroups: false,
+    includeCategories: false,
+  },
+  hideGroupHeadings: true,
+  hidePageHeader: true,
+  hidePageTitle: true,
+  hideBreadcrumbs: true,
+  hideGenerator: true,
+  cleanOutputDir: true,
+  flattenOutputFiles: true,
+  indexFormat: "htmlTable",
+  interfacePropertiesFormat: "htmlTable",
+  classPropertiesFormat: "htmlTable",
+  parametersFormat: "htmlTable",
+  enumMembersFormat: "htmlTable",
+  typeDeclarationFormat: "htmlTable",
+  propertyMembersFormat: "htmlTable",
+  typeDeclarationVisibility: "compact",
+  expandParameters: true,
+  tableColumnSettings: {
+    hideSources: true,
+  },
+};
 
 export default defineConfig({
   site: "https://nathanjordan.github.io",
@@ -46,7 +85,17 @@ export default defineConfig({
             { label: "Linting", slug: "typescript/linting" },
             {
               label: "API Reference",
-              autogenerate: { directory: "typescript/api" },
+              items: [
+                appSidebar,
+                workflowSidebar,
+                jobSidebar,
+                stepSidebar,
+                triggersSidebar,
+                permissionsSidebar,
+                actionSidebar,
+                expressionsSidebar,
+                outputSidebar,
+              ],
             },
           ],
         },
@@ -76,41 +125,68 @@ export default defineConfig({
             },
           ],
         }),
-        starlightTypeDoc({
-          entryPoints: ["../packages/typescript/src/_docs-api.ts"],
+        appTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-app.ts"],
           tsconfig: "../packages/typescript/tsconfig.json",
-          output: "typescript/api",
-          sidebar: {
-            label: "API Reference",
-            collapsed: false,
-          },
-          typeDoc: {
-            skipErrorChecking: true,
-            disableSources: true,
-            categorizeByGroup: false,
-            navigation: {
-              includeGroups: false,
-              includeCategories: false,
-            },
-            hideGroupHeadings: true,
-            hidePageHeader: true,
-            hidePageTitle: true,
-            hideBreadcrumbs: true,
-            hideGenerator: true,
-            cleanOutputDir: true,
-            flattenOutputFiles: true,
-            indexFormat: "htmlTable",
-            interfacePropertiesFormat: "htmlTable",
-            classPropertiesFormat: "htmlTable",
-            parametersFormat: "htmlTable",
-            enumMembersFormat: "htmlTable",
-            typeDeclarationFormat: "htmlTable",
-            propertyMembersFormat: "htmlTable",
-            typeDeclarationVisibility: "compact",
-            tableColumnSettings: {
-              hideSources: true,
-            },
-          },
+          output: "typescript/api/app",
+          sidebar: { label: "App", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        workflowTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-workflow.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/workflow",
+          sidebar: { label: "Workflow", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        jobTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-job.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/job",
+          sidebar: { label: "Job", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        stepTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-step.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/step",
+          sidebar: { label: "Step", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        triggersTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-triggers.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/triggers",
+          sidebar: { label: "Triggers", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        permissionsTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-permissions.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/permissions",
+          sidebar: { label: "Permissions", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        actionTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-action.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/action",
+          sidebar: { label: "Action", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        expressionsTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-expressions.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/expressions",
+          sidebar: { label: "Expressions", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
+        }),
+        outputTypeDoc({
+          entryPoints: ["../packages/typescript/src/_docs-api-output.ts"],
+          tsconfig: "../packages/typescript/tsconfig.json",
+          output: "typescript/api/output",
+          sidebar: { label: "Output", collapsed: true },
+          typeDoc: sharedTypeDocConfig,
         }),
       ],
     }),
