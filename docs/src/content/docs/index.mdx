@@ -117,6 +117,18 @@ jobs:
 - **Linting** -- flags missing permissions, missing timeouts, and duplicate step ids at the exact line that constructed the offending model
 - **CLI** -- `ghagen synth` to generate, `ghagen check-synced` to verify freshness in CI, `ghagen deps pin` to lock actions to commit SHAs
 
+## Why ghagen?
+
+GitHub Actions are defined as YAML, which is simple and readable for small projects. As projects grow, however, workflows accumulate shared concerns and repeated logic — the same setup steps, the same version strings, the same conditional blocks copied across files. YAML has no real answer for code reuse: you end up changing the same value in multiple places, and configuration drift between workflows that *should* behave identically becomes a constant source of bugs.
+
+GitHub has tried to address this with composite actions and [YAML anchors](https://github.blog/changelog/2025-09-18-actions-yaml-anchors-and-non-public-workflow-templates/), but the fundamental issue remains: YAML is a data format, not a programming language. Rather than bolting programming-language features onto YAML, ghagen takes the approach AWS CDK proved out for CloudFormation — use a real programming language to define your configuration, and generate the YAML from it.
+
+ghagen also tackles a second problem: GitHub Actions dependencies (`uses: "setup-node@v2"`) have no lockfile, so every workflow run can pull a different version. This makes builds non-hermetic and opens the door to supply-chain attacks via package takeovers. Tools like [Ratchet](https://github.com/sethvargo/ratchet) address this; ghagen does too, with a lockfile you update explicitly via `ghagen deps pin`.
+
+:::note
+**You might not need this.** If your GitHub Actions setup is relatively simple, ghagen may not be worth the added complexity — [actionlint](https://github.com/rhysd/actionlint), [Renovate](https://docs.renovatebot.com/)/[Dependabot](https://docs.github.com/en/code-security/dependabot), and [Ratchet](https://github.com/sethvargo/ratchet) cover a lot of common issues. Reach for ghagen when keeping track of workflows by hand becomes painful, or when you want the extra assurances a real programming language provides (types, tests, refactoring tools).
+:::
+
 ## Next Steps
 
 - [Cookbook](./guides/cookbook/) -- recipes for common workflow patterns

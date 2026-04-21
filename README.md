@@ -7,29 +7,6 @@ Generate GitHub Actions workflows from Python or TypeScript code.
 [![Python](https://img.shields.io/pypi/pyversions/ghagen)](https://pypi.org/project/ghagen/)
 [![License](https://img.shields.io/github/license/nathanjordan/ghagen)](LICENSE)
 
-## Why
-
-Github actions are configuration defined as YAML files. This means they are usually simple and easy
-to read. As projects grow and get more complex, their Github actions often do as well. YAML
-configuration doesn't scale well however. Different workflows/actions often have shared concerns and
-common behavior that leads to maintenance issues where you will find yourself changing the same
-value or logic in multiple places. This can lead to bugs and configuration drift between
-actions/workflows that are supposed to behave the same (eg. separate versions of the "setup-node"
-action). Programming languages can solve this problem with code reuse, but yaml doesn't really have
-this functionality. Github has tried to solve this with composite actions and [YAML
-anchors](https://github.blog/changelog/2025-09-18-actions-yaml-anchors-and-non-public-workflow-templates/).
-This is the wrong approach: instead of trying to turn YAML, a configuration language, into a
-programming language, we should instead realize that configuration is indeed a programming language
-problem. AWS CDK took the correct approach here: use a programming language to define configuration.
-This is the problem `ghagen` is supposed to solve but for Github actions.
-
-Another problem is that Github actions have package dependencies (ie. `uses: "setup-node@v2"`)
-without a lockfile to pin to specific versions. This means you'll have potentially different action
-versions running anytime you run your workflow, which makes the build process non-hermetic and opens
-an avenue for security risks in the event of package takeovers. Fortunately some tools have been
-created to address this problem like [Ratchet][ratchet]. `ghagen` also supports version pinning but
-does so using a lockfile that you can update when you want via a cli command.
-
 ## Features
 
 - **Dual language support** - The tool comes in two flavors depending on your
