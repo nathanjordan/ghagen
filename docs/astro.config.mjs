@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightThemeRapide from "starlight-theme-rapide";
+import starlightLlmsTxt from "starlight-llms-txt";
 import starlightTypeDoc from "starlight-typedoc";
 
 export default defineConfig({
@@ -52,6 +53,29 @@ export default defineConfig({
       ],
       plugins: [
         starlightThemeRapide(),
+        starlightLlmsTxt({
+          projectName: "ghagen",
+          description:
+            "Generate GitHub Actions workflows programmatically in Python or TypeScript instead of writing YAML",
+          promote: ["index*", "guides/*"],
+          customSets: [
+            {
+              label: "Guides",
+              description: "Usage patterns and best practices",
+              paths: ["guides/**"],
+            },
+            {
+              label: "Python",
+              description: "Python CLI, linting, and API reference",
+              paths: ["python/**"],
+            },
+            {
+              label: "TypeScript",
+              description: "TypeScript CLI, linting, and API reference",
+              paths: ["typescript/**"],
+            },
+          ],
+        }),
         starlightTypeDoc({
           entryPoints: ["../packages/typescript/src/_docs-api.ts"],
           tsconfig: "../packages/typescript/tsconfig.json",
