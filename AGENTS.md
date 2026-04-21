@@ -51,3 +51,12 @@ scripts/typecheck.sh # check types
 scripts/test.sh # tests
 uv run ghagen check-synced # check GHA workflow files synced
 ```
+
+## Docs
+
+The documentation site is an [Astro Starlight](https://starlight.astro.build/) project in `docs/`.
+
+```sh
+cd docs && npm run dev # serve docs locally (http://localhost:4321)
+cd docs && npm run build # production build (also regenerates TypeScript API docs)
+```
