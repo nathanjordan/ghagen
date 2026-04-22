@@ -2,21 +2,19 @@
 
 from pathlib import Path
 
-from ghagen.paths import GHAGEN_TOML_MARKER, find_app_root
+from ghagen.paths import GHAGEN_YML_MARKER, find_app_root
 
 
 def test_finds_marker_at_start_dir(tmp_path: Path) -> None:
     """find_app_root returns the directory when the marker is present there."""
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("")
+    (tmp_path / ".ghagen.yml").write_text("")
 
     assert find_app_root(tmp_path) == tmp_path.resolve()
 
 
 def test_finds_marker_several_levels_up(tmp_path: Path) -> None:
     """find_app_root walks upward through parents until it finds the marker."""
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("")
+    (tmp_path / ".ghagen.yml").write_text("")
 
     deep = tmp_path / "a" / "b" / "c"
     deep.mkdir(parents=True)
@@ -26,9 +24,9 @@ def test_finds_marker_several_levels_up(tmp_path: Path) -> None:
 
 def test_returns_none_when_no_marker(tmp_path: Path) -> None:
     """find_app_root returns None when no ancestor has the marker."""
-    # A deeply nested directory with no .github/ghagen.toml anywhere above it
+    # A deeply nested directory with no .ghagen.yml anywhere above it
     # within tmp_path. pytest's tmp_path is inside a scratch area that
-    # presumably has no ghagen.toml.
+    # presumably has no .ghagen.yml.
     deep = tmp_path / "a" / "b"
     deep.mkdir(parents=True)
 
@@ -40,8 +38,7 @@ def test_returns_none_when_no_marker(tmp_path: Path) -> None:
 
 def test_accepts_file_path_as_start(tmp_path: Path) -> None:
     """When start is a file, the search begins at its parent directory."""
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("")
+    (tmp_path / ".ghagen.yml").write_text("")
 
     nested_file = tmp_path / "sub" / "workflows.py"
     nested_file.parent.mkdir()
@@ -51,5 +48,5 @@ def test_accepts_file_path_as_start(tmp_path: Path) -> None:
 
 
 def test_marker_constant_value() -> None:
-    """GHAGEN_TOML_MARKER points at the canonical config file location."""
-    assert Path(".github/ghagen.toml") == GHAGEN_TOML_MARKER
+    """GHAGEN_YML_MARKER points at the canonical config file location."""
+    assert Path(".ghagen.yml") == GHAGEN_YML_MARKER

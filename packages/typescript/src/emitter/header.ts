@@ -25,7 +25,7 @@ export const DEFAULT_HEADER =
 export const HEADER_VARIABLES: Record<string, string> = {
   source_file:
     "Path to the TS/JS file that defined this workflow/action, relative " +
-    "to the app root (the directory containing .github/ghagen.toml). " +
+    "to the app root (the directory containing .ghagen.yml). " +
     "Falls back to the absolute path when no app root can be located.",
   source_line: "Line number in the source file where the workflow/action was " + "constructed.",
   tool: "The string 'ghagen'.",
@@ -62,7 +62,7 @@ export interface HeaderVariables {
  *
  * Resolves `{source_file}` relative to the app root discovered by
  * walking upward from the source file looking for
- * `.github/ghagen.toml`. Falls back to the absolute path when no
+ * `.ghagen.yml`. Falls back to the absolute path when no
  * marker is found. Falls back to `<unknown>` when `sourceLocation` is
  * `null`.
  */

@@ -186,17 +186,14 @@ app.add_workflow(ci, "ci.yml")
 """
 
 
-def test_entrypoint_in_ghagen_toml(tmp_path: Path, monkeypatch: object):
-    """An `entrypoint` key in .github/ghagen.toml is used to locate the App."""
+def test_entrypoint_in_ghagen_yml(tmp_path: Path, monkeypatch: object):
+    """An `entrypoint` key in .ghagen.yml is used to locate the App."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "wf.py").write_text(_MINIMAL_WORKFLOW_SRC)
 
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text(
-        'entrypoint = "../scripts/wf.py"\n'
-    )
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: scripts/wf.py\n")
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 0, result.output
@@ -204,14 +201,14 @@ def test_entrypoint_in_ghagen_toml(tmp_path: Path, monkeypatch: object):
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
-def test_entrypoint_relative_to_toml_dir(tmp_path: Path, monkeypatch: object):
-    """Relative entrypoint values resolve against the toml file's directory."""
+def test_entrypoint_relative_to_yml_dir(tmp_path: Path, monkeypatch: object):
+    """Relative entrypoint values resolve against .ghagen.yml's directory."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
+    # File lives in .github/ — path is relative to repo root (where .ghagen.yml is).
     (tmp_path / ".github").mkdir()
-    # File lives in .github/ — bare filename should resolve there, not in cwd.
     (tmp_path / ".github" / "my_wf.py").write_text(_MINIMAL_WORKFLOW_SRC)
-    (tmp_path / ".github" / "ghagen.toml").write_text('entrypoint = "my_wf.py"\n')
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: .github/my_wf.py\n")
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 0, result.output
@@ -219,17 +216,14 @@ def test_entrypoint_relative_to_toml_dir(tmp_path: Path, monkeypatch: object):
 
 
 def test_entrypoint_file_missing(tmp_path: Path, monkeypatch: object):
-    """A bogus entrypoint value exits 1 and names both the toml and target."""
+    """A bogus entrypoint value exits 1 and names both the yml and target."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text(
-        'entrypoint = "does_not_exist.py"\n'
-    )
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: does_not_exist.py\n")
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert "ghagen.toml" in result.output
+    assert ".ghagen.yml" in result.output
     assert "does_not_exist.py" in result.output
 
 
@@ -237,49 +231,43 @@ def test_entrypoint_wrong_type(tmp_path: Path, monkeypatch: object):
     """A non-string entrypoint value is rejected with a clear error."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("entrypoint = 42\n")
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: 42\n")
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
     assert "must be a string" in result.output
 
 
-def test_entrypoint_malformed_toml(tmp_path: Path, monkeypatch: object):
-    """Unparseable ghagen.toml surfaces a parse error, not a crash."""
+def test_entrypoint_malformed_yaml(tmp_path: Path, monkeypatch: object):
+    """Unparseable .ghagen.yml surfaces a parse error, not a crash."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text('entrypoint = "unterminated\n')
+    (tmp_path / ".ghagen.yml").write_text(":\n  - :\n  bad: [")
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert "failed to parse TOML" in result.output
+    assert "failed to parse YAML" in result.output
 
 
-def test_cli_config_overrides_ghagen_toml(tmp_path: Path, monkeypatch: object):
-    """An explicit --config flag wins over the ghagen.toml entrypoint key."""
+def test_cli_config_overrides_ghagen_yml(tmp_path: Path, monkeypatch: object):
+    """An explicit --config flag wins over the .ghagen.yml entrypoint key."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
     # A valid "flag" file the user will pass via --config.
     (tmp_path / "flag_wf.py").write_text(_MINIMAL_WORKFLOW_SRC)
-    # A broken ghagen.toml that would error out if it were consulted.
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text(
-        'entrypoint = "does_not_exist.py"\n'
-    )
+    # A broken .ghagen.yml that would error out if it were consulted.
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: does_not_exist.py\n")
 
     result = runner.invoke(app, ["synth", "--config", "flag_wf.py"])
     assert result.exit_code == 0, result.output
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
-def test_ghagen_toml_without_entrypoint_falls_back(tmp_path: Path, monkeypatch: object):
-    """A lint-only ghagen.toml (no entrypoint key) still falls back to search."""
+def test_ghagen_yml_without_entrypoint_falls_back(tmp_path: Path, monkeypatch: object):
+    """A lint-only .ghagen.yml (no entrypoint key) still falls back to search."""
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("[lint]\ndisable = []\n")
+    (tmp_path / ".ghagen.yml").write_text("lint:\n  disable: []\n")
     (tmp_path / "ghagen_config.py").write_text(_MINIMAL_WORKFLOW_SRC)
 
     result = runner.invoke(app, ["synth"])

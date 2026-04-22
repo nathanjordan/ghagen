@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 #: Canonical marker file: its presence identifies the ghagen project root.
-GHAGEN_TOML_MARKER = Path(".github/ghagen.toml")
+GHAGEN_YML_MARKER = Path(".ghagen.yml")
 
 
 def find_app_root(start: Path | None = None) -> Path | None:
-    """Walk upward from *start* looking for ``.github/ghagen.toml``.
+    """Walk upward from *start* looking for ``.ghagen.yml``.
 
-    Returns the directory containing ``.github/ghagen.toml`` if found,
+    Returns the directory containing ``.ghagen.yml`` if found,
     else ``None``. When *start* is ``None``, walks from ``Path.cwd()``.
     When *start* refers to a file, the search begins at the file's
     parent directory.
@@ -21,7 +21,7 @@ def find_app_root(start: Path | None = None) -> Path | None:
             a file. Defaults to the current working directory.
 
     Returns:
-        The resolved directory containing ``.github/ghagen.toml``, or
+        The resolved directory containing ``.ghagen.yml``, or
         ``None`` if no ancestor contains the marker.
     """
     base = (start or Path.cwd()).resolve()
@@ -29,6 +29,6 @@ def find_app_root(start: Path | None = None) -> Path | None:
         base = base.parent
 
     for parent in [base, *base.parents]:
-        if (parent / GHAGEN_TOML_MARKER).is_file():
+        if (parent / GHAGEN_YML_MARKER).is_file():
             return parent
     return None

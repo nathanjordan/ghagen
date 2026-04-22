@@ -17,7 +17,7 @@ export { default as dedent } from "dedent";
  * Module-level flag controlling whether `step({ run: ... })` values are
  * auto-dedented at construction time. Defaults to true. Set via
  * `setAutoDedent(false)` or `[options] auto_dedent = false` in
- * `.github/ghagen.toml`.
+ * `.ghagen.yml`.
  */
 let autoDedentFlag = true;
 

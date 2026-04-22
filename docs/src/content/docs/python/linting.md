@@ -39,7 +39,7 @@ Exit codes:
 | ---- | ------------------------------------------------------------ |
 | `0`  | No error-severity violations (warnings may still be present) |
 | `1`  | At least one error-severity violation found                  |
-| `2`  | Configuration error (malformed TOML, unknown severity, etc.) |
+| `2`  | Configuration error (malformed YAML, unknown severity, etc.) |
 
 ## Built-in rules
 
@@ -114,35 +114,17 @@ Job(
 
 ## Configuration
 
-Lint behavior is configured via a TOML file. Two locations are checked,
-in precedence order:
+Lint behavior is configured via a YAML file at the repo root:
 
-1. **`.github/ghagen.toml`** (preferred -- lives next to `ghagen_workflows.py`)
-2. **`pyproject.toml`** `[tool.ghagen.lint]` section (fallback for Python projects)
+**`.ghagen.yml`**
 
-If both exist, `.github/ghagen.toml` wins and a warning is printed to
-stderr naming which file was used.
-
-### Example `.github/ghagen.toml`
-
-```toml
-[lint]
-# Disable specific rules by ID
-disable = ["missing-timeout"]
-
-[lint.severity]
-# Override the default severity of a rule
-missing-permissions = "error"
-```
-
-### Example `pyproject.toml` fallback
-
-```toml
-[tool.ghagen.lint]
-disable = ["missing-timeout"]
-
-[tool.ghagen.lint.severity]
-missing-permissions = "error"
+```yaml
+# .ghagen.yml
+lint:
+  disable:
+    - missing-timeout
+  severity:
+    missing-permissions: error
 ```
 
 CLI flags layer on top of the config file:

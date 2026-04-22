@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import tomllib
 from pathlib import Path
 
 import typer
 
+from ghagen._yaml_config import load_yaml_config
 from ghagen.app import App
 
 CONFIG_SEARCH_PATHS = [
@@ -16,27 +16,26 @@ CONFIG_SEARCH_PATHS = [
     "ghagen_config.py",
 ]
 
-GHAGEN_TOML_PATH = Path(".github/ghagen.toml")
+GHAGEN_YML_PATH = Path(".ghagen.yml")
 
 
-def _entrypoint_from_ghagen_toml(cwd: Path) -> Path | None:
+def _entrypoint_from_ghagen_yml(cwd: Path) -> Path | None:
     """Return the configured entrypoint path, or ``None`` if not set.
 
-    Reads ``.github/ghagen.toml`` (relative to *cwd*), extracts the
-    top-level ``entrypoint`` key, and resolves it relative to the toml
-    file's directory. Returns ``None`` if the file or key is absent.
-    Raises ``typer.Exit(1)`` on malformed TOML, a wrong-type value, or
-    a resolved path that does not exist.
+    Reads ``.ghagen.yml`` (relative to *cwd*), extracts the top-level
+    ``entrypoint`` key, and resolves it relative to the yml file's
+    parent directory (the repo root). Returns ``None`` if the file or
+    key is absent. Raises ``typer.Exit(1)`` on malformed YAML, a
+    wrong-type value, or a resolved path that does not exist.
     """
-    ghagen_toml = cwd / GHAGEN_TOML_PATH
-    if not ghagen_toml.is_file():
+    ghagen_yml = cwd / GHAGEN_YML_PATH
+    if not ghagen_yml.is_file():
         return None
 
     try:
-        with ghagen_toml.open("rb") as f:
-            data = tomllib.load(f)
-    except tomllib.TOMLDecodeError as exc:
-        typer.echo(f"Error: {ghagen_toml}: failed to parse TOML: {exc}", err=True)
+        data = load_yaml_config(ghagen_yml)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
     raw = data.get("entrypoint")
@@ -44,16 +43,16 @@ def _entrypoint_from_ghagen_toml(cwd: Path) -> Path | None:
         return None
     if not isinstance(raw, str):
         typer.echo(
-            f"Error: {ghagen_toml}: 'entrypoint' must be a string, "
+            f"Error: {ghagen_yml}: 'entrypoint' must be a string, "
             f"got {type(raw).__name__}",
             err=True,
         )
         raise typer.Exit(1)
 
-    resolved = (ghagen_toml.parent / raw).resolve()
+    resolved = (ghagen_yml.parent / raw).resolve()
     if not resolved.is_file():
         typer.echo(
-            f"Error: {ghagen_toml}: entrypoint '{raw}' does not exist "
+            f"Error: {ghagen_yml}: entrypoint '{raw}' does not exist "
             f"(resolved to {resolved})",
             err=True,
         )
@@ -70,9 +69,9 @@ def _find_config(config: str | None) -> Path:
             raise typer.Exit(1)
         return path
 
-    from_toml = _entrypoint_from_ghagen_toml(Path.cwd())
-    if from_toml is not None:
-        return from_toml
+    from_yml = _entrypoint_from_ghagen_yml(Path.cwd())
+    if from_yml is not None:
+        return from_yml
 
     for candidate in CONFIG_SEARCH_PATHS:
         path = Path(candidate)
@@ -82,9 +81,9 @@ def _find_config(config: str | None) -> Path:
     typer.echo(
         "Error: no config file found. Searched:\n"
         + "\n".join(f"  - {p}" for p in CONFIG_SEARCH_PATHS)
-        + f"\n  - {GHAGEN_TOML_PATH} (top-level 'entrypoint' key)\n"
+        + f"\n  - {GHAGEN_YML_PATH} (top-level 'entrypoint' key)\n"
         "\nUse --config to specify a path, set 'entrypoint' in "
-        f"{GHAGEN_TOML_PATH}, or run `ghagen init` to create one.",
+        f"{GHAGEN_YML_PATH}, or run `ghagen init` to create one.",
         err=True,
     )
     raise typer.Exit(1)

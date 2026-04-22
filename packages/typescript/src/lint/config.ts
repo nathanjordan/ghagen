@@ -1,10 +1,10 @@
 /**
- * Lint configuration loaded from `.github/ghagen.toml` or `package.json`.
+ * Lint configuration loaded from `.ghagen.yml`.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadToml } from "../_toml.js";
+import { loadYamlConfig } from "../_yaml-config.js";
 import type { Severity } from "./violation.js";
 import { SEVERITY_VALUES } from "./violation.js";
 
@@ -57,17 +57,14 @@ function parseDisable(raw: unknown, source: string): Set<string> {
   return new Set(raw as string[]);
 }
 
-function extractFromGhagenToml(path: string): LintConfig | null {
-  const data = loadToml(path);
+function extractFromGhagenYml(path: string): LintConfig | null {
+  const data = loadYamlConfig(path);
   const lintSection = data["lint"];
   if (lintSection === undefined || lintSection === null) {
-    // Returning null means "no [lint] section" — defer to next source.
-    // Caller still uses the table-existence check to emit the multi-
-    // source warning.
     return null;
   }
   if (typeof lintSection !== "object" || Array.isArray(lintSection)) {
-    throw new Error(`${path}: [lint] must be a table`);
+    throw new Error(`${path}: "lint" must be a mapping, got ${Array.isArray(lintSection) ? "array" : typeof lintSection}`);
   }
   const lint = lintSection as Record<string, unknown>;
   return {
@@ -76,50 +73,21 @@ function extractFromGhagenToml(path: string): LintConfig | null {
   };
 }
 
-function extractFromPackageJson(path: string): LintConfig | null {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(path, "utf8"));
-  } catch (err) {
-    throw new Error(`${path}: failed to parse JSON: ${(err as Error).message}`, { cause: err });
-  }
-  if (typeof raw !== "object" || raw === null) return null;
-  const ghagen = (raw as Record<string, unknown>)["ghagen"];
-  if (typeof ghagen !== "object" || ghagen === null || Array.isArray(ghagen)) {
-    return null;
-  }
-  const lint = (ghagen as Record<string, unknown>)["lint"];
-  if (lint === undefined || lint === null) return null;
-  if (typeof lint !== "object" || Array.isArray(lint)) {
-    throw new Error(`${path}: "ghagen.lint" must be an object`);
-  }
-  const lintObj = lint as Record<string, unknown>;
-  return {
-    disable: parseDisable(lintObj["disable"], path),
-    severity: parseSeverityMap(lintObj["severity"], path),
-  };
-}
-
-/** Result of loading and merging lint configuration from all sources. */
+/** Result of loading and merging lint configuration. */
 export interface LoadLintConfigResult {
   /** The merged lint configuration ready for use by the lint runner. */
   readonly config: LintConfig;
-  /** Non-fatal warnings encountered during config loading (e.g. duplicate config sources). */
+  /** Non-fatal warnings encountered during config loading (always empty; kept for API compat). */
   readonly warnings: readonly string[];
 }
 
 /**
- * Load lint config from standard locations and merge CLI overrides.
+ * Load lint config from `.ghagen.yml` and merge CLI overrides.
  *
  * Precedence (highest wins):
  *   1. CLI flags (`cliDisable`) — unioned into the final disable set
- *   2. `.github/ghagen.toml` `[lint]` section
- *   3. `package.json` `"ghagen": { "lint": {...} }` field
- *   4. Defaults (empty)
- *
- * When both `.github/ghagen.toml` and `package.json` provide a lint
- * config, the former wins and a warning is appended describing which
- * was used.
+ *   2. `.ghagen.yml` `lint:` section
+ *   3. Defaults (empty)
  */
 export function loadLintConfig(
   cwd: string,
@@ -127,28 +95,10 @@ export function loadLintConfig(
 ): LoadLintConfigResult {
   const warnings: string[] = [];
 
-  const ghagenToml = resolve(cwd, ".github", "ghagen.toml");
-  const packageJson = resolve(cwd, "package.json");
+  const ghagenYml = resolve(cwd, ".ghagen.yml");
 
-  const ghagenConfig = existsSync(ghagenToml) ? extractFromGhagenToml(ghagenToml) : null;
-  const packageConfig = existsSync(packageJson) ? extractFromPackageJson(packageJson) : null;
-
-  let chosen: LintConfig;
-  if (ghagenConfig !== null && packageConfig !== null) {
-    warnings.push(
-      "lint config found in multiple locations:\n" +
-        `  - ${ghagenToml} (used)\n` +
-        `  - ${packageJson} "ghagen.lint" (ignored)\n` +
-        "Remove one to silence this warning.",
-    );
-    chosen = ghagenConfig;
-  } else if (ghagenConfig !== null) {
-    chosen = ghagenConfig;
-  } else if (packageConfig !== null) {
-    chosen = packageConfig;
-  } else {
-    chosen = EMPTY_CONFIG;
-  }
+  let chosen: LintConfig =
+    existsSync(ghagenYml) ? (extractFromGhagenYml(ghagenYml) ?? EMPTY_CONFIG) : EMPTY_CONFIG;
 
   if (cliDisable.length > 0) {
     chosen = {

@@ -23,20 +23,21 @@ ghagen synth
 
 If `--config` is not specified, ghagen locates the workflow file in this order:
 
-1. The top-level `entrypoint` key in `.github/ghagen.toml`, if present
+1. The top-level `entrypoint` key in `.ghagen.yml`, if present
 2. `.github/ghagen_workflows.py`
 3. `ghagen_config.py`
 
 The `entrypoint` value is a path (relative paths resolve against the
-directory containing `ghagen.toml`, not the current working directory). Use
-this when your workflow file lives outside the two default locations:
+`.ghagen.yml` parent directory, i.e. the repo root, not the current working
+directory). Use this when your workflow file lives outside the two default
+locations:
 
-```toml
-# .github/ghagen.toml
-entrypoint = "../scripts/workflows.py"
+```yaml
+# .ghagen.yml
+entrypoint: scripts/workflows.py
 
-[lint]
-# existing lint config continues to live here
+lint:
+  # existing lint config continues to live here
 ```
 
 Within the workflow file, ghagen looks for:
@@ -115,7 +116,7 @@ ghagen lint
 | ---- | ------------------------------------------------------------ |
 | `0`  | No error-severity violations (warnings may still be present) |
 | `1`  | At least one error-severity violation found                  |
-| `2`  | Configuration error (malformed TOML, unknown severity, etc.) |
+| `2`  | Configuration error (malformed YAML, unknown severity, etc.) |
 
 ### Example
 
@@ -139,7 +140,7 @@ ghagen lint --disable missing-timeout
 ## ghagen deps pin
 
 Pin every `uses:` reference in your workflows to an exact commit SHA, recorded
-in `.github/ghagen.lock.toml`. When a lockfile is present, `ghagen synth`
+in `.ghagen.lock.yml`. When a lockfile is present, `ghagen synth`
 automatically rewrites `uses:` entries to the pinned SHA on emission, so your
 generated YAML is reproducible without hand-editing.
 

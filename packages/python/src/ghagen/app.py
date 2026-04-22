@@ -38,7 +38,7 @@ class App:
         self,
         root: str | Path = ".",
         header: str | None = None,
-        lockfile: str | Path | None = ".github/ghagen.lock.toml",
+        lockfile: str | Path | None = ".ghagen.lock.yml",
         transforms: list[Transform] | None = None,
     ) -> None:
         """Initialize the App.
@@ -49,7 +49,7 @@ class App:
                 Defaults to the current working directory. Note that
                 ``{source_file}`` in the header is resolved separately,
                 via the nearest ancestor directory containing
-                ``.github/ghagen.toml``.
+                ``.ghagen.yml``.
             header: Custom header comment template for generated files.
                 If ``None``, uses ghagen's default template. May include
                 ``{variable}`` placeholders; see
@@ -58,7 +58,7 @@ class App:
                 ``version``). Escape literal braces as ``{{`` / ``}}``.
             lockfile: Path to the pin lockfile, relative to *root*.
                 Set to ``None`` to disable lockfile auto-loading.
-                Defaults to ``".github/ghagen.lock.toml"``.
+                Defaults to ``".ghagen.lock.yml"``.
             transforms: Additional model transforms to apply during
                 synthesis.  The pin transform is auto-registered when
                 a lockfile is present; these are appended after it.
@@ -69,7 +69,7 @@ class App:
         self._items: list[tuple[_Item, Path]] = []
         self._transforms: list[Transform] = list(transforms or [])
 
-        # Apply project-level options (e.g. auto_dedent) from ghagen.toml.
+        # Apply project-level options (e.g. auto_dedent) from .ghagen.yml.
         options = load_options(self.root)
         _dedent_mod.auto_dedent = options.auto_dedent
 

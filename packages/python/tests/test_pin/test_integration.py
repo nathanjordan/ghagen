@@ -21,14 +21,14 @@ SAMPLE_TIME = datetime(2026, 4, 9, tzinfo=UTC)
 
 
 def _write_lockfile(root: Path, **pins: str) -> Path:
-    """Write a lockfile to ``root/.github/ghagen.lock.toml``."""
+    """Write a lockfile to ``root/.ghagen.lock.yml``."""
     lf = Lockfile(
         pins={
             uses: PinEntry(sha=sha, resolved_at=SAMPLE_TIME)
             for uses, sha in pins.items()
         }
     )
-    lockfile_path = root / ".github" / "ghagen.lock.toml"
+    lockfile_path = root / ".ghagen.lock.yml"
     write_lockfile(lf, lockfile_path)
     return lockfile_path
 

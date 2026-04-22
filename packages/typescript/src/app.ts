@@ -20,7 +20,7 @@ import { mkdir } from "node:fs/promises";
 /** Conventional directory for GitHub Actions workflows inside a repository. */
 export const DEFAULT_WORKFLOWS_DIR = ".github/workflows";
 
-const DEFAULT_LOCKFILE_REL = ".github/ghagen.lock.toml";
+const DEFAULT_LOCKFILE_REL = ".ghagen.lock.yml";
 
 interface RegisteredItem {
   readonly item: SynthItem;
@@ -51,7 +51,7 @@ export class App {
     header?: string | null;
     /**
      * Path to the pin lockfile, relative to `root`. Set to `null` to disable lockfile auto-loading.
-     * Defaults to `.github/ghagen.lock.toml`.
+     * Defaults to `.ghagen.lock.yml`.
      */
     lockfile?: string | null;
     /**
@@ -67,8 +67,8 @@ export class App {
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
 
-    // Apply project-level options (e.g. autoDedent) from ghagen.toml / package.json. Mirrors the
-    // Python App's behaviour.
+    // Apply project-level options (e.g. autoDedent) from .ghagen.yml. Mirrors the Python App's
+    // behaviour.
     const opts = loadOptions(this.rootAbsPath);
     setAutoDedent(opts.autoDedent);
   }

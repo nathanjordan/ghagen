@@ -21,7 +21,7 @@ def test_unpinned_rule_passes_when_lockfile_covers_ref(tmp_path):
     lf = Lockfile(
         pins={"actions/checkout@v4": PinEntry(sha=SHA, resolved_at=datetime.now(UTC))}
     )
-    lockfile_path = tmp_path / ".github" / "ghagen.lock.toml"
+    lockfile_path = tmp_path / ".ghagen.lock.yml"
     write_lockfile(lf, lockfile_path)
 
     app = App(root=tmp_path)
@@ -47,7 +47,7 @@ def test_unpinned_rule_passes_for_mutable_ref_when_locked(tmp_path):
     lf = Lockfile(
         pins={"actions/checkout@main": PinEntry(sha=SHA, resolved_at=datetime.now(UTC))}
     )
-    lockfile_path = tmp_path / ".github" / "ghagen.lock.toml"
+    lockfile_path = tmp_path / ".ghagen.lock.yml"
     write_lockfile(lf, lockfile_path)
 
     app = App(root=tmp_path)

@@ -6,8 +6,8 @@
 # All three built-in rules are currently enabled at their default
 # severity (warning). Uncomment entries below to customise.
 
-[lint]
-# disable = ["missing-timeout"]
-
-# [lint.severity]
-# missing-permissions = "error"
+lint: {}
+  # disable:
+  #   - missing-timeout
+  # severity:
+  #   missing-permissions: error

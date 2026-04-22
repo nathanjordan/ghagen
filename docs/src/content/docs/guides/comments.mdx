@@ -255,7 +255,7 @@ Every generated file starts with an auto-generated header comment block. By defa
 # Do not edit manually.
 ```
 
-The `{source_file}` path is resolved relative to the directory containing `.github/ghagen.toml` (the marker file that identifies your project root). Each workflow/action gets its own source path based on where it was constructed -- if you split workflows across multiple files, each emitted YAML names its own origin file.
+The `{source_file}` path is resolved relative to the directory containing `.ghagen.yml` (the marker file that identifies your project root). Each workflow/action gets its own source path based on where it was constructed -- if you split workflows across multiple files, each emitted YAML names its own origin file.
 
 ### Customizing the header
 

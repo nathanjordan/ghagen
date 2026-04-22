@@ -4,9 +4,9 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { createJiti } from "jiti";
 import { App } from "../app.js";
-import { loadToml } from "../_toml.js";
+import { loadYamlConfig } from "../_yaml-config.js";
 
-const GHAGEN_TOML_PATH = ".github/ghagen.toml";
+const GHAGEN_YML_PATH = ".ghagen.yml";
 
 const CONFIG_SEARCH_PATHS: readonly string[] = [
   ".github/ghagen.workflows.ts",
@@ -40,26 +40,26 @@ export class CliError extends Error {
   }
 }
 
-function entrypointFromGhagenToml(cwd: string): string | null {
-  const ghagenToml = resolve(cwd, GHAGEN_TOML_PATH);
-  if (!existsSync(ghagenToml) || !statSync(ghagenToml).isFile()) return null;
+function entrypointFromGhagenYml(cwd: string): string | null {
+  const ghagenYml = resolve(cwd, GHAGEN_YML_PATH);
+  if (!existsSync(ghagenYml) || !statSync(ghagenYml).isFile()) return null;
 
   let data: Record<string, unknown>;
   try {
-    data = loadToml(ghagenToml);
+    data = loadYamlConfig(ghagenYml);
   } catch (err) {
     throw new CliError(`Error: ${(err as Error).message}`);
   }
   const raw = data["entrypoint"];
   if (raw === undefined || raw === null) return null;
   if (typeof raw !== "string") {
-    throw new CliError(`Error: ${ghagenToml}: 'entrypoint' must be a string, got ${typeof raw}`);
+    throw new CliError(`Error: ${ghagenYml}: 'entrypoint' must be a string, got ${typeof raw}`);
   }
-  const dir = ghagenToml.replace(/[\\/][^\\/]+$/, "");
+  const dir = ghagenYml.replace(/[\\/][^\\/]+$/, "");
   const resolved = resolve(dir, raw);
   if (!existsSync(resolved) || !statSync(resolved).isFile()) {
     throw new CliError(
-      `Error: ${ghagenToml}: entrypoint '${raw}' does not exist (resolved to ${resolved})`,
+      `Error: ${ghagenYml}: entrypoint '${raw}' does not exist (resolved to ${resolved})`,
     );
   }
   return resolved;
@@ -70,7 +70,7 @@ function entrypointFromGhagenToml(cwd: string): string | null {
  *
  * Search order:
  *   1. `--config` CLI flag
- *   2. `entrypoint =` key in `.github/ghagen.toml`
+ *   2. `entrypoint` key in `.ghagen.yml`
  *   3. Conventional filenames in `.github/` then the cwd
  */
 export function findConfig(cliFlag?: string, cwd: string = process.cwd()): string {
@@ -82,8 +82,8 @@ export function findConfig(cliFlag?: string, cwd: string = process.cwd()): strin
     return path;
   }
 
-  const fromToml = entrypointFromGhagenToml(cwd);
-  if (fromToml !== null) return fromToml;
+  const fromYml = entrypointFromGhagenYml(cwd);
+  if (fromYml !== null) return fromYml;
 
   for (const candidate of CONFIG_SEARCH_PATHS) {
     const path = resolve(cwd, candidate);
@@ -93,9 +93,9 @@ export function findConfig(cliFlag?: string, cwd: string = process.cwd()): strin
   throw new CliError(
     "Error: no config file found. Searched:\n" +
       CONFIG_SEARCH_PATHS.map((p) => `  - ${p}`).join("\n") +
-      `\n  - ${GHAGEN_TOML_PATH} (top-level 'entrypoint' key)\n` +
+      `\n  - ${GHAGEN_YML_PATH} (top-level 'entrypoint' key)\n` +
       "\nUse --config to specify a path, set 'entrypoint' in " +
-      `${GHAGEN_TOML_PATH}, or run \`ghagen init\` to create one.`,
+      `${GHAGEN_YML_PATH}, or run \`ghagen init\` to create one.`,
   );
 }
 

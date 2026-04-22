@@ -1,4 +1,4 @@
-"""Project-level options loaded from ghagen.toml or pyproject.toml."""
+"""Project-level options loaded from .ghagen.yml."""
 
 from __future__ import annotations
 
@@ -6,15 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ghagen._toml import load_toml as _load_toml
+from ghagen._yaml_config import load_yaml_config as _load_yaml
 
 
 @dataclass
 class GhagenOptions:
     """Options controlling ghagen behaviour.
 
-    Loaded from ``[options]`` in ``.github/ghagen.toml`` or
-    ``[tool.ghagen.options]`` in ``pyproject.toml``.
+    Loaded from the ``options:`` section in ``.ghagen.yml``.
     """
 
     auto_dedent: bool = True
@@ -28,8 +27,8 @@ def _parse_bool(value: Any, key: str, source: str) -> bool:
     return value
 
 
-def _extract_from_ghagen_toml(path: Path) -> GhagenOptions | None:
-    data = _load_toml(path)
+def _extract_from_ghagen_yml(path: Path) -> GhagenOptions | None:
+    data = _load_yaml(path)
     options = data.get("options")
     if options is None:
         return None
@@ -42,45 +41,16 @@ def _extract_from_ghagen_toml(path: Path) -> GhagenOptions | None:
     )
 
 
-def _extract_from_pyproject(path: Path) -> GhagenOptions | None:
-    data = _load_toml(path)
-    tool = data.get("tool", {})
-    if not isinstance(tool, dict):
-        return None
-    ghagen = tool.get("ghagen", {})
-    if not isinstance(ghagen, dict):
-        return None
-    options = ghagen.get("options")
-    if options is None:
-        return None
-    if not isinstance(options, dict):
-        raise ValueError(f"{path}: [tool.ghagen.options] must be a table")
-    return GhagenOptions(
-        auto_dedent=_parse_bool(
-            options.get("auto_dedent", True), "auto_dedent", str(path)
-        ),
-    )
-
-
 def load_options(cwd: Path) -> GhagenOptions:
-    """Load project options from standard config file locations.
+    """Load project options from ``.ghagen.yml`` at the repository root.
 
-    Precedence (highest wins):
-
-    1. ``.github/ghagen.toml`` ``[options]`` section
-    2. ``pyproject.toml`` ``[tool.ghagen.options]`` section
-    3. Defaults
+    Falls back to default values when no config file is found or when the
+    file does not contain an ``options:`` section.
     """
-    ghagen_toml = cwd / ".github" / "ghagen.toml"
-    pyproject = cwd / "pyproject.toml"
+    ghagen_yml = cwd / ".ghagen.yml"
 
-    if ghagen_toml.exists():
-        result = _extract_from_ghagen_toml(ghagen_toml)
-        if result is not None:
-            return result
-
-    if pyproject.exists():
-        result = _extract_from_pyproject(pyproject)
+    if ghagen_yml.exists():
+        result = _extract_from_ghagen_yml(ghagen_yml)
         if result is not None:
             return result
 

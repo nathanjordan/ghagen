@@ -104,9 +104,8 @@ describe("App", () => {
     expect((original._data as Record<string, string>)["name"]).toBe("CI");
   });
 
-  it("respects autoDedent setting from .github/ghagen.toml", async () => {
-    mkdirSync(join(tmp, ".github"), { recursive: true });
-    writeFileSync(join(tmp, ".github", "ghagen.toml"), "[options]\nauto_dedent = false\n");
+  it("respects autoDedent setting from .ghagen.yml", async () => {
+    writeFileSync(join(tmp, ".ghagen.yml"), "options:\n  auto_dedent: false\n");
     // Constructing an App reads options and toggles auto-dedent.
     const _app = new App({ root: tmp });
     // Subsequent step() should NOT dedent.

@@ -1,4 +1,4 @@
-"""Tests for ghagen.pin.lockfile — data model and TOML I/O."""
+"""Tests for ghagen.pin.lockfile — data model and YAML I/O."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ class TestLockfile:
 
 class TestRoundTrip:
     def test_write_and_read(self, tmp_path):
-        path = tmp_path / ".github" / "ghagen.lock.toml"
+        path = tmp_path / ".ghagen.lock.yml"
         lf = Lockfile(
             pins={
                 "actions/checkout@v4": PinEntry(
@@ -111,11 +111,11 @@ class TestRoundTrip:
         assert lf2.get("actions/setup-python@v5").sha == SAMPLE_SHA2
 
     def test_read_missing_file(self, tmp_path):
-        lf = read_lockfile(tmp_path / "does-not-exist.toml")
+        lf = read_lockfile(tmp_path / "does-not-exist.yml")
         assert len(lf.pins) == 0
 
     def test_sorted_output(self, tmp_path):
-        path = tmp_path / "lock.toml"
+        path = tmp_path / "lock.yml"
         lf = Lockfile(
             pins={
                 "z-org/z-repo@v1": PinEntry(sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME),

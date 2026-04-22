@@ -1,4 +1,4 @@
-"""Tests for lint config loading with precedence and multi-source warning."""
+"""Tests for lint config loading from .ghagen.yml."""
 
 from __future__ import annotations
 
@@ -23,16 +23,10 @@ def test_load_config_defaults_when_no_files(tmp_path: Path) -> None:
     assert warnings == []
 
 
-def test_load_config_from_github_ghagen_toml(tmp_path: Path) -> None:
+def test_load_config_from_ghagen_yml(tmp_path: Path) -> None:
     _write(
-        tmp_path / ".github" / "ghagen.toml",
-        """
-[lint]
-disable = ["missing-timeout"]
-
-[lint.severity]
-unpinned-actions = "error"
-""",
+        tmp_path / ".ghagen.yml",
+        "lint:\n  disable:\n    - missing-timeout\n\n  severity:\n    unpinned-actions: error\n",
     )
     config, warnings = load_config(tmp_path)
     assert config.disable == {"missing-timeout"}
@@ -40,57 +34,11 @@ unpinned-actions = "error"
     assert warnings == []
 
 
-def test_load_config_from_pyproject_toml(tmp_path: Path) -> None:
-    _write(
-        tmp_path / "pyproject.toml",
-        """
-[tool.ghagen.lint]
-disable = ["missing-permissions"]
-
-[tool.ghagen.lint.severity]
-missing-timeout = "error"
-""",
-    )
-    config, warnings = load_config(tmp_path)
-    assert config.disable == {"missing-permissions"}
-    assert config.severity == {"missing-timeout": Severity.ERROR}
-    assert warnings == []
-
-
-def test_ghagen_toml_wins_over_pyproject(tmp_path: Path) -> None:
-    """When both exist, .github/ghagen.toml is used and pyproject is ignored,
-    and a warning is emitted naming which source was chosen."""
-    _write(
-        tmp_path / ".github" / "ghagen.toml",
-        """
-[lint]
-disable = ["a"]
-""",
-    )
-    _write(
-        tmp_path / "pyproject.toml",
-        """
-[tool.ghagen.lint]
-disable = ["b"]
-""",
-    )
-    config, warnings = load_config(tmp_path)
-    assert config.disable == {"a"}  # ghagen.toml won
-    assert len(warnings) == 1
-    msg = warnings[0]
-    assert ".github/ghagen.toml" in msg
-    assert "pyproject.toml" in msg
-    assert "used" in msg or "ignored" in msg
-
-
 def test_cli_disable_overrides_config_file(tmp_path: Path) -> None:
     """CLI --disable flags are unioned into the final disable set."""
     _write(
-        tmp_path / ".github" / "ghagen.toml",
-        """
-[lint]
-disable = ["missing-timeout"]
-""",
+        tmp_path / ".ghagen.yml",
+        "lint:\n  disable:\n    - missing-timeout\n",
     )
     config, _ = load_config(tmp_path, cli_disable=["unpinned-actions"])
     assert config.disable == {"missing-timeout", "unpinned-actions"}
@@ -102,42 +50,34 @@ def test_cli_disable_with_no_config_files(tmp_path: Path) -> None:
     assert warnings == []
 
 
-def test_pyproject_with_no_ghagen_section_is_ignored(tmp_path: Path) -> None:
-    """A pyproject.toml without [tool.ghagen.lint] should not trigger anything."""
-    _write(
-        tmp_path / "pyproject.toml",
-        """
-[project]
-name = "myproj"
-
-[tool.ruff]
-line-length = 88
-""",
-    )
-    config, warnings = load_config(tmp_path)
-    assert config.disable == set()
-    assert warnings == []
-
-
 def test_invalid_severity_value_raises(tmp_path: Path) -> None:
     _write(
-        tmp_path / ".github" / "ghagen.toml",
-        """
-[lint.severity]
-missing-timeout = "not-a-real-severity"
-""",
+        tmp_path / ".ghagen.yml",
+        "lint:\n  severity:\n    missing-timeout: not-a-real-severity\n",
     )
     with pytest.raises(ValueError, match="severity"):
         load_config(tmp_path)
 
 
-def test_malformed_toml_raises(tmp_path: Path) -> None:
+def test_malformed_yaml_raises(tmp_path: Path) -> None:
     _write(
-        tmp_path / ".github" / "ghagen.toml",
-        "this is [[[not valid toml",
+        tmp_path / ".ghagen.yml",
+        ":\n  - :\n  bad: [\"",
     )
     with pytest.raises(ValueError, match="parse"):
         load_config(tmp_path)
+
+
+def test_ghagen_yml_without_lint_section(tmp_path: Path) -> None:
+    """A .ghagen.yml without a lint key should fall back to defaults."""
+    _write(
+        tmp_path / ".ghagen.yml",
+        "options:\n  root: workflows/\n",
+    )
+    config, warnings = load_config(tmp_path)
+    assert config.disable == set()
+    assert config.severity == {}
+    assert warnings == []
 
 
 def test_lint_config_is_a_plain_dataclass() -> None:

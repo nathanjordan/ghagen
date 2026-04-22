@@ -709,10 +709,10 @@ Auto-dedent is enabled by default in Python. To disable it project-wide, set
 `auto_dedent = false` in your config. This option is Python-only; TypeScript
 does not perform auto-dedent.
 
-```toml
-# .github/ghagen.toml
-[options]
-auto_dedent = false
+```yaml
+# .ghagen.yml
+options:
+  auto_dedent: false
 ```
 
 ## Conditional jobs and steps

@@ -22,7 +22,7 @@ HEADER_VARIABLES: dict[str, str] = {
     "source_file": (
         "Path to the Python file that defined this workflow/action, "
         "relative to the app root (the directory containing "
-        ".github/ghagen.toml). Falls back to the absolute path when no "
+        ".ghagen.yml). Falls back to the absolute path when no "
         "app root can be located."
     ),
     "source_line": (
@@ -47,7 +47,7 @@ def build_header_variables(
 
     Resolves ``{source_file}`` relative to the app root discovered by
     walking upward from the source file looking for
-    ``.github/ghagen.toml``. Falls back to the absolute path when no
+    ``.ghagen.yml``. Falls back to the absolute path when no
     marker is found. Falls back to ``"<unknown>"`` when
     ``source_location`` is None (shouldn't happen for user-defined
     models but is handled defensively).

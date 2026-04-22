@@ -5,7 +5,7 @@ from __future__ import annotations
 #: Module-level flag controlling whether ``Step.run`` values are
 #: automatically dedented at construction time.  Defaults to ``True``.
 #: Set to ``False`` (or via ``[options] auto_dedent = false`` in
-#: ``ghagen.toml``) to disable.
+#: ``.ghagen.yml``) to disable.
 #:
 #: NOTE: This is module-level mutable state.  It is not thread-safe —
 #: concurrent ``App`` instances with different configs will race.

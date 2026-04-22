@@ -100,11 +100,8 @@ def test_lint_warnings_only_exits_zero(tmp_path: Path, monkeypatch: object) -> N
 def test_lint_errors_exit_one(tmp_path: Path, monkeypatch: object) -> None:
     """With severity overridden to error, exit code should be 1."""
     _setup(tmp_path, _BAD_CONFIG)
-    (tmp_path / ".github" / "ghagen.toml").write_text(
-        """
-[lint.severity]
-missing-permissions = "error"
-"""
+    (tmp_path / ".ghagen.yml").write_text(
+        "lint:\n  severity:\n    missing-permissions: error\n"
     )
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 
@@ -176,32 +173,10 @@ def test_lint_disable_multiple_flags(tmp_path: Path, monkeypatch: object) -> Non
     assert "missing-timeout" in result.output
 
 
-def test_lint_multi_source_warning(tmp_path: Path, monkeypatch: object) -> None:
-    _setup(tmp_path, _CLEAN_CONFIG)
-    (tmp_path / ".github" / "ghagen.toml").write_text("[lint]\ndisable = []\n")
-    (tmp_path / "pyproject.toml").write_text(
-        """
-[tool.ghagen.lint]
-disable = []
-"""
-    )
-    monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
-
-    result = runner.invoke(app, ["lint"])
-    assert result.exit_code == 0
-    # Warning goes to stderr but CliRunner combines streams by default
-    assert "multiple locations" in result.output
-    assert "ghagen.toml" in result.output
-    assert "pyproject.toml" in result.output
-
-
 def test_lint_bad_config_exits_two(tmp_path: Path, monkeypatch: object) -> None:
     _setup(tmp_path, _CLEAN_CONFIG)
-    (tmp_path / ".github" / "ghagen.toml").write_text(
-        """
-[lint.severity]
-missing-timeout = "definitely-not-a-severity"
-"""
+    (tmp_path / ".ghagen.yml").write_text(
+        "lint:\n  severity:\n    missing-timeout: definitely-not-a-severity\n"
     )
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
 

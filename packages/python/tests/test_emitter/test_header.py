@@ -98,9 +98,8 @@ def test_build_variables_none_source_location() -> None:
 
 
 def test_build_variables_relative_to_app_root(tmp_path: Path) -> None:
-    """{source_file} is resolved relative to the .github/ghagen.toml root."""
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github" / "ghagen.toml").write_text("")
+    """{source_file} is resolved relative to the .ghagen.yml root."""
+    (tmp_path / ".ghagen.yml").write_text("")
 
     src = tmp_path / "ci" / "workflows.py"
     src.parent.mkdir()
