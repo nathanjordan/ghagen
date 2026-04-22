@@ -70,7 +70,6 @@ export default defineConfig({
           label: "Python",
           items: [
             { label: "CLI Reference", slug: "python/cli" },
-            { label: "Linting", slug: "python/linting" },
             {
               label: "API Reference",
               autogenerate: { directory: "python/api" },
@@ -81,7 +80,6 @@ export default defineConfig({
           label: "TypeScript",
           items: [
             { label: "CLI Reference", slug: "typescript/cli" },
-            { label: "Linting", slug: "typescript/linting" },
             {
               label: "API Reference",
               items: [
@@ -114,12 +112,12 @@ export default defineConfig({
             },
             {
               label: "Python",
-              description: "Python CLI, linting, and API reference",
+              description: "Python CLI and API reference",
               paths: ["python/**"],
             },
             {
               label: "TypeScript",
-              description: "TypeScript CLI, linting, and API reference",
+              description: "TypeScript CLI and API reference",
               paths: ["typescript/**"],
             },
           ],

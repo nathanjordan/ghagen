@@ -3,7 +3,7 @@ title: CLI Reference
 description: ghagen CLI command documentation
 ---
 
-ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `lint`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`).
+ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`).
 
 ## ghagen synth
 
@@ -35,9 +35,6 @@ locations:
 ```yaml
 # .ghagen.yml
 entrypoint: scripts/workflows.py
-
-lint:
-  # existing lint config continues to live here
 ```
 
 Within the workflow file, ghagen looks for:
@@ -91,51 +88,6 @@ Add `ghagen check-synced` to your CI pipeline to ensure that generated YAML file
 ```
 
 If someone edits a generated YAML file directly instead of updating the Python source, `ghagen check-synced` will fail and the CI run will report the mismatch.
-
-## ghagen lint
-
-Run rule-based checks against your workflow definitions. See the
-[Linting guide](../linting/) for rule descriptions and configuration.
-
-```bash
-ghagen lint
-```
-
-### Options
-
-| Option                               | Description                                                 |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `--config PATH`, `-c`                | Path to the `ghagen_workflows.py` config file.              |
-| `--format {human,json,github}`, `-f` | Output format. Defaults to `human`.                         |
-| `--disable RULE_ID`                  | Disable a rule by ID. Can be repeated.                      |
-| `--list-rules`                       | Print all available rules with their descriptions and exit. |
-
-### Exit codes
-
-| Code | Meaning                                                      |
-| ---- | ------------------------------------------------------------ |
-| `0`  | No error-severity violations (warnings may still be present) |
-| `1`  | At least one error-severity violation found                  |
-| `2`  | Configuration error (malformed YAML, unknown severity, etc.) |
-
-### Example
-
-```bash
-# Human-readable output (default)
-ghagen lint
-
-# JSON for scripts
-ghagen lint --format=json
-
-# GitHub annotations for CI
-ghagen lint --format=github
-
-# List all rules
-ghagen lint --list-rules
-
-# Disable specific rules
-ghagen lint --disable missing-timeout
-```
 
 ## ghagen deps pin
 

@@ -16,8 +16,6 @@ Generate GitHub Actions workflows from Python or TypeScript code.
 - **Helpers** — expression builder (`expr`) ensures you are using supported template variables
 - **Escape hatches** — Break out of the type system when you want to. You're not stuck with the
 schema if new features come out or you need to override something.
-- **Linting** — catch gotchas like invalid permissions and more. `timeout-minutes`, and duplicate
-  step ids with source-line precision
 - **Freshness checking** — ensure your generated yaml files are in sync with your defined ghagen
   models
 - **Version pinning** — Prevent surprises and security risks by ensuring the same actions run every

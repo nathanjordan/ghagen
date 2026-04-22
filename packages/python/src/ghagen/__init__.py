@@ -11,7 +11,6 @@ from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
 from ghagen.helpers.expressions import expr
-from ghagen.lint import LintConfig, Severity, SourceLocation, Violation
 from ghagen.models.action import (
     Action,
     ActionInput,
@@ -68,11 +67,6 @@ __all__ = [
     "WorkflowCallTrigger",
     "WorkflowDispatchTrigger",
     "Workflow",
-    # Lint
-    "LintConfig",
-    "Severity",
-    "SourceLocation",
-    "Violation",
     # Transforms
     "SynthContext",
     "Transform",

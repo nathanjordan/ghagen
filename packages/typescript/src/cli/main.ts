@@ -4,15 +4,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { Command } from "commander";
-import {
-  formatGithub,
-  formatHuman,
-  formatJson,
-  loadLintConfig,
-  runLint,
-  type Severity,
-} from "../lint/index.js";
-import { ALL_RULES } from "../lint/rules/index.js";
 import { CliError, findConfig, loadApp } from "./_common.js";
 import { buildDepsCommand } from "./deps.js";
 
@@ -83,57 +74,6 @@ async function cmdCheckSynced(opts: SynthOpts): Promise<void> {
   throw new CliError("", 1);
 }
 
-interface LintOpts {
-  config?: string;
-  format: "human" | "json" | "github";
-  disable: string[];
-  listRules?: boolean;
-}
-
-/** Run lint rules against the user's workflow definitions and emit violations. */
-async function cmdLint(opts: LintOpts): Promise<void> {
-  if (opts.listRules) {
-    for (const ruleFn of ALL_RULES) {
-      const meta = ruleFn.meta;
-      process.stdout.write(`${meta.id} (${meta.defaultSeverity})\n  ${meta.description}\n`);
-    }
-    return;
-  }
-
-  let lintResult;
-  try {
-    lintResult = loadLintConfig(process.cwd(), opts.disable);
-  } catch (err) {
-    throw new CliError(`Error: ${(err as Error).message}`, 2);
-  }
-  for (const w of lintResult.warnings) process.stderr.write(`warning: ${w}\n`);
-
-  const configPath = findConfig(opts.config);
-  const app = await loadApp(configPath);
-  const violations = runLint(app, lintResult.config);
-
-  switch (opts.format) {
-    case "human":
-      process.stdout.write(formatHuman(violations));
-      break;
-    case "json":
-      process.stdout.write(formatJson(violations) + "\n");
-      break;
-    case "github":
-      process.stdout.write(formatGithub(violations));
-      break;
-    default:
-      throw new CliError(
-        `Error: unknown --format value '${opts.format}' (valid: human, json, github)`,
-        2,
-      );
-  }
-
-  if (violations.some((v: { severity: Severity }) => v.severity === "error")) {
-    throw new CliError("", 1);
-  }
-}
-
 interface InitOpts {
   outdir: string;
 }
@@ -169,15 +109,6 @@ function buildCli(): Command {
     .action(async (opts: SynthOpts) => cmdCheckSynced(opts));
 
   program
-    .command("lint")
-    .description("Lint ghagen workflow definitions for common problems.")
-    .option("-c, --config <path>", "Path to config file")
-    .option("-f, --format <fmt>", "Output format: human, json, or github", "human")
-    .option("--disable <rule-id>", "Disable a rule (repeatable)", collect, [])
-    .option("--list-rules", "List available rules and exit")
-    .action(async (opts: LintOpts) => cmdLint(opts));
-
-  program
     .command("init")
     .description("Scaffold a minimal ghagen config file.")
     .option("-o, --outdir <dir>", "Output directory", ".github")
@@ -185,10 +116,6 @@ function buildCli(): Command {
 
   program.addCommand(buildDepsCommand());
   return program;
-}
-
-function collect(value: string, prev: string[]): string[] {
-  return [...prev, value];
 }
 
 /** Run the CLI. Returns the exit code. */

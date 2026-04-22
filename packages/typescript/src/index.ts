@@ -173,22 +173,3 @@ export {
   pinTransform,
 } from "./pin/index.js";
 
-// Lint subsystem
-export {
-  runLint,
-  loadLintConfig,
-  type LintConfig,
-  type LoadLintConfigResult,
-  formatHuman,
-  formatJson,
-  formatGithub,
-  type Severity,
-  type Violation,
-  SEVERITY_VALUES,
-  ALL_RULES,
-  type Rule,
-  type RuleMeta,
-  type RuleContext,
-  rule,
-  makeRuleContext,
-} from "./lint/index.js";

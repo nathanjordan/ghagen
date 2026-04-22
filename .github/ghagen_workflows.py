@@ -51,10 +51,6 @@ def _ci_workflow() -> Workflow:
                         uses="rhysd/actionlint@v1.7.12",
                     ),
                     Step(
-                        name="ghagen lint",
-                        run="uv run ghagen lint --format=github",
-                    ),
-                    Step(
                         name="ghagen deps check-synced",
                         run="uv run ghagen deps check-synced",
                         env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
