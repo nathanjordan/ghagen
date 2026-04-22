@@ -28,7 +28,6 @@ const sharedTypeDocConfig = {
   hideBreadcrumbs: true,
   hideGenerator: true,
   cleanOutputDir: true,
-  flattenOutputFiles: true,
   indexFormat: "htmlTable",
   interfacePropertiesFormat: "htmlTable",
   classPropertiesFormat: "htmlTable",
