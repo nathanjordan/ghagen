@@ -143,7 +143,7 @@ export { dedent, getAutoDedent, setAutoDedent } from "./_dedent.js";
 export { cloneModel } from "./models/_base.js";
 
 // App
-export { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR, type AppOptions } from "./app.js";
+export { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR } from "./app.js";
 
 // Transforms
 export type { Transform, SynthContext, SynthItem } from "./transforms.js";

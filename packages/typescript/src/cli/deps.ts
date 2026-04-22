@@ -28,7 +28,7 @@ function ensureLockfilePath(app: App): string {
   if (app.lockfilePath === null) {
     throw new CliError("Error: lockfile is disabled (lockfile: null on App)");
   }
-  return resolve(app.root, app.lockfilePath);
+  return resolve(app.rootAbsPath, app.lockfilePath);
 }
 
 interface PinOpts {
@@ -282,7 +282,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const lockfileStale: LockfileStale[] = [];
 
   if (checkLockfile && app.lockfilePath !== null) {
-    const lockfile = readLockfile(resolve(app.root, app.lockfilePath));
+    const lockfile = readLockfile(resolve(app.rootAbsPath, app.lockfilePath));
     for (const uses of [...refs].sort()) {
       const entry = lockfile.get(uses);
       if (entry === undefined) continue;

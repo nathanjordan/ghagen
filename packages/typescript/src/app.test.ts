@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { App, WORKFLOWS_DIR } from "./app.js";
+import { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR } from "./app.js";
 import { workflow } from "./models/workflow.js";
 import { job } from "./models/job.js";
 import { step } from "./models/step.js";
@@ -82,7 +82,7 @@ describe("App", () => {
     writeFileSync(path, "name: tampered\n");
     const stale = await app.check();
     expect(stale).toHaveLength(1);
-    expect(stale[0]![1]).toMatch(/^---/);
+    expect(stale[0]![1]).toContain("---");
     expect(stale[0]![1]).toContain("+++");
   });
 

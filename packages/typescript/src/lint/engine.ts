@@ -22,7 +22,7 @@ export function runLint(app: App, config: LintConfig): Violation[] {
   // Load the lockfile if available so rules can check pin status.
   let lockfile: Lockfile | null = null;
   if (app.lockfilePath !== null) {
-    const full = resolve(app.root, app.lockfilePath);
+    const full = resolve(app.rootAbsPath, app.lockfilePath);
     if (existsSync(full) && statSync(full).isFile()) {
       lockfile = readLockfile(full);
     }
