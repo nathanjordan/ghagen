@@ -48,6 +48,7 @@
     "fmt:check": "oxfmt --check ."
   },
   "dependencies": {
+    "callsites": "^4.2.0",
     "commander": "^13.0.0",
     "dedent": "^1.7.2",
     "diff": "^9.0.0",

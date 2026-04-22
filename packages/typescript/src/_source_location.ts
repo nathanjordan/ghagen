@@ -6,6 +6,8 @@
  * exists (e.g. when constructed entirely from inside ghagen internals).
  */
 
+import callsites from "callsites";
+
 /** Location of a single source line. */
 export interface SourceLocation {
   /** Absolute path to the source file. */
@@ -51,56 +53,17 @@ function isInternalFrame(filename: string): boolean {
 }
 
 /**
- * Parse a single V8 stack frame line, extracting `(file:line:col)` or
- * `at file:line:col`. Returns null if the frame can't be parsed.
- */
-function parseFrame(frame: string): SourceLocation | null {
-  // V8 formats:
-  //   at functionName (file:line:col)
-  //   at file:line:col
-  //   at functionName (file:line:col), with file as URL (file://...)
-  // Match the parenthesized form first (most common).
-  let match = /\(([^)]+):(\d+):\d+\)\s*$/.exec(frame);
-  if (!match) {
-    match = /at\s+([^\s(]+):(\d+):\d+\s*$/.exec(frame);
-  }
-  if (!match) return null;
-
-  let file = match[1]!;
-  // Strip file:// URL prefix if present.
-  if (file.startsWith("file://")) {
-    try {
-      file = new URL(file).pathname;
-    } catch {
-      file = file.slice("file://".length);
-    }
-  }
-  const line = Number.parseInt(match[2]!, 10);
-  if (Number.isNaN(line)) return null;
-
-  return { file, line };
-}
-
-/**
  * Walk the current stack trace and return the first user-code frame.
  *
- * Skips frames matching `INTERNAL_FRAME_MARKERS` (anything in `/ghagen/`
- * or `/node_modules/`). Also skips this function's own frame and the
- * caller frame (the model factory).
+ * Skips frames internal to ghagen (anything in this package's source/dist
+ * directory) and frames from `node_modules`.
  */
 export function captureSourceLocation(): SourceLocation | null {
-  const stack = new Error().stack;
-  if (!stack) return null;
-
-  const lines = stack.split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("at ")) continue;
-    const loc = parseFrame(trimmed);
-    if (!loc) continue;
-    if (isInternalFrame(loc.file)) continue;
-    return loc;
+  for (const site of callsites()) {
+    const file = site.getFileName();
+    if (!file) continue;
+    if (isInternalFrame(file)) continue;
+    return { file, line: site.getLineNumber() ?? 0 };
   }
-
   return null;
 }
