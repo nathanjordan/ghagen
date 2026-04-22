@@ -3,7 +3,8 @@ import type { StepModel, WithMeta, Raw } from "./_base.js";
 import { createModel, extractMeta, mapFields } from "./_base.js";
 import { STEP_KEY_ORDER } from "../emitter/key-order.js";
 import type { ShellType } from "./common.js";
-import { dedent, getAutoDedent } from "../_dedent.js";
+import dedent from "dedent";
+import { getAutoDedent } from "../config.js";
 
 /**
  * Input for defining a single step within a GitHub Actions job.

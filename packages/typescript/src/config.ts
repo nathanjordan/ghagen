@@ -55,3 +55,25 @@ export function loadOptions(cwd: string): GhagenOptions {
 
   return { ...DEFAULT_OPTIONS };
 }
+
+/**
+ * Module-level flag controlling whether `step({ run: ... })` values are
+ * auto-dedented at construction time. Defaults to true. Set via
+ * `setAutoDedent(false)` or `options: { auto_dedent: false }` in
+ * `.ghagen.yml`.
+ *
+ * NOTE: This is module-level mutable state. It is not safe for concurrent
+ * App instances with different configs. Fine for ghagen's single-threaded
+ * CLI usage.
+ */
+let autoDedentFlag = true;
+
+/** Read the current auto-dedent flag. */
+export function getAutoDedent(): boolean {
+  return autoDedentFlag;
+}
+
+/** Set the module-level auto-dedent flag. */
+export function setAutoDedent(value: boolean): void {
+  autoDedentFlag = value;
+}

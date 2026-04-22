@@ -8,8 +8,7 @@
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { loadOptions } from "./config.js";
-import { setAutoDedent } from "./_dedent.js";
+import { loadOptions, setAutoDedent } from "./config.js";
 import { cloneModel } from "./models/_base.js";
 import type { ActionModel, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
