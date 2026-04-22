@@ -2,7 +2,7 @@ import type { YAMLMap } from "yaml";
 import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
-} from "../generated/workflow-types.js";
+} from "../schema/workflow-types.generated.js";
 import type {
   JobModel,
   StepModel,

@@ -9,12 +9,12 @@
  */
 
 import { compileFromFile } from "json-schema-to-typescript";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const SNAPSHOT_DIR = resolve(ROOT, "src/schema/snapshot");
-const OUTPUT_DIR = resolve(ROOT, "src/generated");
+const OUTPUT_DIR = resolve(ROOT, "src/schema");
 
 const BANNER = `/* eslint-disable */
 // @ts-nocheck — generated types may contain circular references from the JSON schema
@@ -36,17 +36,15 @@ interface SchemaTarget {
 const TARGETS: SchemaTarget[] = [
   {
     schemaFile: "workflow_schema.json",
-    outputFile: "workflow-types.ts",
+    outputFile: "workflow-types.generated.ts",
   },
   {
     schemaFile: "action_schema.json",
-    outputFile: "action-types.ts",
+    outputFile: "action-types.generated.ts",
   },
 ];
 
 async function main() {
-  mkdirSync(OUTPUT_DIR, { recursive: true });
-
   for (const target of TARGETS) {
     const schemaPath = resolve(SNAPSHOT_DIR, target.schemaFile);
     const outputPath = resolve(OUTPUT_DIR, target.outputFile);

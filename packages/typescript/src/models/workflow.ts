@@ -1,5 +1,5 @@
 import type { YAMLMap } from "yaml";
-import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../generated/workflow-types.js";
+import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../schema/workflow-types.generated.js";
 import type {
   WorkflowModel,
   OnModel,

@@ -1,4 +1,4 @@
-import type { Container as SchemaContainer } from "../generated/workflow-types.js";
+import type { Container as SchemaContainer } from "../schema/workflow-types.generated.js";
 import type { ContainerModel, ServiceModel, WithMeta } from "./_base.js";
 import { createModel, extractMeta, mapFields } from "./_base.js";
 import { CONTAINER_KEY_ORDER } from "../emitter/key-order.js";

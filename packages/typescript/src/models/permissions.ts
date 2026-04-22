@@ -1,4 +1,4 @@
-import type { PermissionsEvent as SchemaPermissions } from "../generated/workflow-types.js";
+import type { PermissionsEvent as SchemaPermissions } from "../schema/workflow-types.generated.js";
 import type { PermissionsModel, WithMeta } from "./_base.js";
 import { createModel, extractMeta, mapFields } from "./_base.js";
 import { PERMISSIONS_KEY_ORDER } from "../emitter/key-order.js";

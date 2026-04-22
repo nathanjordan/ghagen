@@ -1,4 +1,4 @@
-import type { Step as SchemaStep } from "../generated/workflow-types.js";
+import type { Step as SchemaStep } from "../schema/workflow-types.generated.js";
 import type { StepModel, WithMeta, Raw } from "./_base.js";
 import { createModel, extractMeta, mapFields } from "./_base.js";
 import { STEP_KEY_ORDER } from "../emitter/key-order.js";

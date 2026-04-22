@@ -1,5 +1,5 @@
 import type { YAMLMap } from "yaml";
-import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../generated/action-types.js";
+import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../schema/action-types.generated.js";
 import type {
   ActionModel,
   ActionInputModel,
