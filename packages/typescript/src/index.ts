@@ -137,13 +137,13 @@ export type { SourceLocation } from "./_source_location.js";
 // Utilities
 export { findAppRoot } from "./paths.js";
 export { loadOptions, type GhagenOptions } from "./config.js";
-export { dedentScript, getAutoDedent, setAutoDedent } from "./_dedent.js";
+export { dedent, getAutoDedent, setAutoDedent } from "./_dedent.js";
 
 // Model utilities
 export { cloneModel } from "./models/_base.js";
 
 // App
-export { App, WORKFLOWS_DIR, type AppOptions } from "./app.js";
+export { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR, type AppOptions } from "./app.js";
 
 // Transforms
 export type { Transform, SynthContext, SynthItem } from "./transforms.js";

@@ -3,7 +3,7 @@ import type { StepModel, WithMeta, Raw } from "./_base.js";
 import { createModel, extractMeta, mapFields } from "./_base.js";
 import { STEP_KEY_ORDER } from "../emitter/key-order.js";
 import type { ShellType } from "./common.js";
-import { dedentScript, getAutoDedent } from "../_dedent.js";
+import { dedent, getAutoDedent } from "../_dedent.js";
 
 /**
  * Input for defining a single step within a GitHub Actions job.
@@ -74,7 +74,7 @@ export function step(input: WithMeta<StepInput>): StepModel {
   const yamlData = mapFields(data as Record<string, unknown>, STEP_FIELD_MAP);
   // Auto-dedent the run script when the module-level flag is on.
   if (getAutoDedent() && typeof yamlData["run"] === "string") {
-    yamlData["run"] = dedentScript(yamlData["run"] as string);
+    yamlData["run"] = dedent(yamlData["run"] as string);
   }
   return createModel("step", yamlData, meta, STEP_KEY_ORDER) as StepModel;
 }

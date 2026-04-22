@@ -9,7 +9,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Tests
-      run: |
+      run: |-
         python -m pytest
         coverage report
     - name: Inline
