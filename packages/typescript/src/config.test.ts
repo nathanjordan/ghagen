@@ -14,16 +14,24 @@ afterEach(() => {
 
 describe("loadOptions()", () => {
   it("returns defaults when no config files exist", () => {
-    expect(loadOptions(tmp)).toEqual({ autoDedent: true });
+    expect(loadOptions(tmp)).toEqual({ auto_dedent: true });
   });
 
   it("reads options from .ghagen.yml", () => {
     writeFileSync(join(tmp, ".ghagen.yml"), "options:\n  auto_dedent: false\n");
-    expect(loadOptions(tmp)).toEqual({ autoDedent: false });
+    expect(loadOptions(tmp)).toEqual({ auto_dedent: false });
   });
 
   it("rejects non-boolean auto_dedent in .ghagen.yml", () => {
     writeFileSync(join(tmp, ".ghagen.yml"), "options:\n  auto_dedent: 'yes'\n");
-    expect(() => loadOptions(tmp)).toThrow(/must be a boolean/);
+    expect(() => loadOptions(tmp)).toThrow();
+  });
+
+  it("strips unknown keys in options", () => {
+    writeFileSync(
+      join(tmp, ".ghagen.yml"),
+      "options:\n  auto_dedent: false\n  unknown_key: 42\n",
+    );
+    expect(loadOptions(tmp)).toEqual({ auto_dedent: false });
   });
 });

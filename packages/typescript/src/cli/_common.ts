@@ -4,6 +4,7 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { createJiti } from "jiti";
 import { App } from "../app.js";
+import { ghagenYmlSchema } from "../_config-schema.js";
 import { loadYamlConfig } from "../_yaml-config.js";
 
 const GHAGEN_YML_PATH = ".ghagen.yml";
@@ -50,16 +51,18 @@ function entrypointFromGhagenYml(cwd: string): string | null {
   } catch (err) {
     throw new CliError(`Error: ${(err as Error).message}`);
   }
-  const raw = data["entrypoint"];
-  if (raw === undefined || raw === null) return null;
-  if (typeof raw !== "string") {
-    throw new CliError(`Error: ${ghagenYml}: 'entrypoint' must be a string, got ${typeof raw}`);
+  let config;
+  try {
+    config = ghagenYmlSchema.parse(data);
+  } catch (err) {
+    throw new CliError(`Error: ${ghagenYml}: ${(err as Error).message}`);
   }
+  if (!config.entrypoint) return null;
   const dir = ghagenYml.replace(/[\\/][^\\/]+$/, "");
-  const resolved = resolve(dir, raw);
+  const resolved = resolve(dir, config.entrypoint);
   if (!existsSync(resolved) || !statSync(resolved).isFile()) {
     throw new CliError(
-      `Error: ${ghagenYml}: entrypoint '${raw}' does not exist (resolved to ${resolved})`,
+      `Error: ${ghagenYml}: entrypoint '${config.entrypoint}' does not exist (resolved to ${resolved})`,
     );
   }
   return resolved;

@@ -66,10 +66,10 @@ export class App {
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
 
-    // Apply project-level options (e.g. autoDedent) from .ghagen.yml. Mirrors the Python App's
+    // Apply project-level options (e.g. auto_dedent) from .ghagen.yml. Mirrors the Python App's
     // behaviour.
     const opts = loadOptions(this.rootAbsPath);
-    setAutoDedent(opts.autoDedent);
+    setAutoDedent(opts.auto_dedent);
   }
 
   /**
