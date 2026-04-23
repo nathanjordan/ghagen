@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.5.0](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.4.0...ghagen-js-v0.5.0) (2026-04-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* Model field names drop underscore prefixes (_kind -> kind, _data -> data, _meta -> meta, _keyOrder -> keyOrder, _sourceLocation -> sourceLocation). createModel() and modelToYamlMap() are removed. Model classes are now exported as values for instanceof.
+* GhagenOptions.autoDedent renamed to auto_dedent to match the YAML key name.
+* remove ghagen lint feature
+* Configuration files must be migrated from .github/ghagen.toml to .ghagen.yml at the repo root. Lockfiles must be migrated from .github/ghagen.lock.toml to .ghagen.lock.yml. Entrypoint paths are now relative to the repo root instead of .github/.
+
+### refactor\
+
+* replace Symbol-branded model objects with class hierarchy ([2550b87](https://github.com/nathanjordan/ghagen/commit/2550b879b95b308787e7f2e68c98c36213de438c))
+
+
+### feat\
+
+* migrate configuration from TOML to .ghagen.yml ([cd2629c](https://github.com/nathanjordan/ghagen/commit/cd2629c2e34d21349ad6d570bc41bd088d3d13e3))
+* remove ghagen lint feature ([0e05e34](https://github.com/nathanjordan/ghagen/commit/0e05e34757753a45a54c14a71cc90fa520057bee))
+
+
+### Features
+
+* add ModelKind union type for model kind discriminants ([35a56b4](https://github.com/nathanjordan/ghagen/commit/35a56b43a4ceda924dc81f9c7eca5d34ed2d074a))
+* **docs:** group TypeScript API docs into 9 module sidebar sections ([e4143fe](https://github.com/nathanjordan/ghagen/commit/e4143febc2aefe74eb9fd2bac18a7a9d51d2cdcf))
+
+
+### Bug Fixes
+
+* remove unused imports and useless string concatenation ([a02bbc2](https://github.com/nathanjordan/ghagen/commit/a02bbc2f81e8509a4541db73caabb9081b5f433f))
+
+
+### Code Refactoring
+
+* replace manual config validation with Zod 4 schema ([d881e01](https://github.com/nathanjordan/ghagen/commit/d881e01aa1ae8a341e5bfedc6b941a995fefb4f4))
+
 ## [0.4.0](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.3.0...ghagen-js-v0.4.0) (2026-04-21)
 
 ### Features
