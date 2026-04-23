@@ -193,6 +193,16 @@ export function mapFields(
 
 // ---- Model base class ----
 
+/** Union of all concrete model `kind` discriminants. */
+export type ModelKind =
+  | "step" | "job" | "workflow" | "action"
+  | "on" | "pushTrigger" | "prTrigger" | "scheduleTrigger"
+  | "workflowDispatch" | "workflowCall"
+  | "permissions" | "strategy" | "matrix" | "concurrency"
+  | "defaults" | "environment" | "container" | "service"
+  | "actionInput" | "actionOutput" | "branding"
+  | "compositeRuns" | "dockerRuns" | "nodeRuns";
+
 /**
  * Base class for all ghagen model objects.
  *
@@ -201,7 +211,7 @@ export function mapFields(
  * rewrite fields after a `cloneModel` deep copy.
  */
 export abstract class Model {
-  abstract readonly kind: string;
+  abstract readonly kind: ModelKind;
   abstract readonly keyOrder: readonly string[];
 
   readonly data: Record<string, unknown>;

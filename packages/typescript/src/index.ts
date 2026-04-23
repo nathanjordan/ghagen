@@ -54,6 +54,7 @@ export type {
   Commented,
   Commentable,
   Raw,
+  ModelKind,
   ModelMeta,
   WithMeta,
 } from "./models/_base.js";
