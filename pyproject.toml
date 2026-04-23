@@ -3,30 +3,24 @@ name = "ghagen"
 version = "0.5.0"
 description = "Generate GitHub Actions workflow YAML from Python code"
 readme = "README.md"
-authors = [
-    { name = "Nathan Jordan", email = "nathan.m.jordan@gmail.com" },
-]
+authors = [{ name = "Nathan Jordan", email = "nathan.m.jordan@gmail.com" }]
 requires-python = ">=3.11"
 license = { text = "MIT" }
 keywords = ["github-actions", "ci", "cd", "yaml", "workflow", "code-generation"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Build Tools",
-    "Topic :: Software Development :: Code Generators",
-    "Typing :: Typed",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: Software Development :: Code Generators",
+  "Typing :: Typed",
 ]
 
-dependencies = [
-    "pydantic>=2.6",
-    "ruamel.yaml>=0.18",
-    "typer>=0.12",
-]
+dependencies = ["pydantic>=2.6", "ruamel.yaml>=0.18", "typer>=0.12"]
 
 [project.urls]
 Repository = "https://github.com/nathanjordan/ghagen"
@@ -43,13 +37,13 @@ packages = ["packages/python/src/ghagen"]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0",
-    "pytest-snapshot",
-    "ruff",
-    "pyright",
-    "httpx",
-    "datamodel-code-generator>=0.25",
-    "jsonschema",
+  "pytest>=8.0",
+  "pytest-snapshot",
+  "ruff",
+  "pyright",
+  "httpx",
+  "datamodel-code-generator>=0.25",
+  "jsonschema",
 ]
 
 [tool.ruff]
@@ -57,8 +51,8 @@ line-length = 88
 target-version = "py311"
 src = ["packages/python/src"]
 extend-exclude = [
-    "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
-    "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
+  "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
+  "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
 ]
 
 [tool.ruff.lint]
@@ -71,8 +65,8 @@ venvPath = "."
 venv = ".venv"
 include = ["packages/python/src"]
 exclude = [
-    "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
-    "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
+  "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
+  "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
 ]
 
 [tool.pytest.ini_options]

@@ -23,9 +23,13 @@ export function applyUpdates(
 
   const changed = new Set<string>();
   for (const [oldUses, newUses] of updatesMap.entries()) {
-    if (oldUses === newUses) continue;
+    if (oldUses === newUses) {
+      continue;
+    }
     const files = locMap.get(oldUses);
-    if (!files || files.length === 0) continue;
+    if (!files || files.length === 0) {
+      continue;
+    }
     for (const path of files) {
       const content = readFileSync(path, "utf8");
       if (content.includes(oldUses)) {

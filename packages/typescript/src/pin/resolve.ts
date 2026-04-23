@@ -67,7 +67,9 @@ export async function resolveRef(
         object: { type: string; sha: string };
       };
     } catch (err) {
-      if (err instanceof NotFoundError) continue;
+      if (err instanceof NotFoundError) {
+        continue;
+      }
       throw err;
     }
 
@@ -105,10 +107,14 @@ export async function listTags(
       body = page.body;
       nextUrl = page.next;
     } catch (err) {
-      if (err instanceof NotFoundError) return [];
+      if (err instanceof NotFoundError) {
+        return [];
+      }
       throw err;
     }
-    if (!Array.isArray(body)) break;
+    if (!Array.isArray(body)) {
+      break;
+    }
     for (const ref of body as Array<{ ref?: string }>) {
       const fullRef = ref.ref ?? "";
       if (fullRef.startsWith("refs/tags/")) {
@@ -207,10 +213,14 @@ async function dereferenceTag(
  *     <https://api.github.com/repos/o/r/git/refs/tags?page=5>; rel="last"
  */
 function parseNextLink(header: string | null): string | null {
-  if (!header) return null;
+  if (!header) {
+    return null;
+  }
   for (const part of header.split(",")) {
     const m = part.match(/<([^>]+)>;\s*rel="next"/);
-    if (m) return m[1]!;
+    if (m) {
+      return m[1]!;
+    }
   }
   return null;
 }

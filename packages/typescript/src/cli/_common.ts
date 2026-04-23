@@ -43,7 +43,9 @@ export class CliError extends Error {
 
 function entrypointFromGhagenYml(cwd: string): string | null {
   const ghagenYml = resolve(cwd, GHAGEN_YML_PATH);
-  if (!existsSync(ghagenYml) || !statSync(ghagenYml).isFile()) return null;
+  if (!existsSync(ghagenYml) || !statSync(ghagenYml).isFile()) {
+    return null;
+  }
 
   let data: Record<string, unknown>;
   try {
@@ -57,7 +59,9 @@ function entrypointFromGhagenYml(cwd: string): string | null {
   } catch (err) {
     throw new CliError(`Error: ${ghagenYml}: ${(err as Error).message}`);
   }
-  if (!config.entrypoint) return null;
+  if (!config.entrypoint) {
+    return null;
+  }
   const dir = ghagenYml.replace(/[\\/][^\\/]+$/, "");
   const resolved = resolve(dir, config.entrypoint);
   if (!existsSync(resolved) || !statSync(resolved).isFile()) {
@@ -86,11 +90,15 @@ export function findConfig(cliFlag?: string, cwd: string = process.cwd()): strin
   }
 
   const fromYml = entrypointFromGhagenYml(cwd);
-  if (fromYml !== null) return fromYml;
+  if (fromYml !== null) {
+    return fromYml;
+  }
 
   for (const candidate of CONFIG_SEARCH_PATHS) {
     const path = resolve(cwd, candidate);
-    if (existsSync(path) && statSync(path).isFile()) return path;
+    if (existsSync(path) && statSync(path).isFile()) {
+      return path;
+    }
   }
 
   throw new CliError(
@@ -137,7 +145,9 @@ export async function resolveAppFromModule(mod: unknown, configPath: string): Pr
   }
 
   for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== "object") continue;
+    if (!candidate || typeof candidate !== "object") {
+      continue;
+    }
     const obj = candidate as { app?: unknown; createApp?: unknown };
     if (typeof obj.createApp === "function") {
       const result = await (obj.createApp as () => App | Promise<App>)();

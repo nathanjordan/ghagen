@@ -399,7 +399,9 @@ export function on(input: WithMeta<OnInput>): OnModel {
 
   for (const [camelKey, yamlKey] of Object.entries(ON_FIELD_MAP)) {
     const value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
 
     // Auto-wrap plain objects with appropriate factory for typed triggers
     if (camelKey === "push" && !isModel(value)) {

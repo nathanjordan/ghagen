@@ -281,10 +281,7 @@ export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOu
  */
 export function branding(input: WithMeta<BrandingInput>): BrandingModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new BrandingModel(
-    mapFields(data as Record<string, unknown>, BRANDING_FIELD_MAP),
-    meta,
-  );
+  return new BrandingModel(mapFields(data as Record<string, unknown>, BRANDING_FIELD_MAP), meta);
 }
 
 /**
@@ -358,10 +355,7 @@ export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
  */
 export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new NodeRunsModel(
-    mapFields(data as Record<string, unknown>, NODE_RUNS_FIELD_MAP),
-    meta,
-  );
+  return new NodeRunsModel(mapFields(data as Record<string, unknown>, NODE_RUNS_FIELD_MAP), meta);
 }
 
 /**
@@ -385,8 +379,5 @@ export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
  */
 export function action(input: WithMeta<ActionInput>): ActionModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new ActionModel(
-    mapFields(data as Record<string, unknown>, ACTION_FIELD_MAP),
-    meta,
-  );
+  return new ActionModel(mapFields(data as Record<string, unknown>, ACTION_FIELD_MAP), meta);
 }

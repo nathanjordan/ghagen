@@ -18,7 +18,9 @@ export const GHAGEN_YML_MARKER = ".ghagen.yml";
  */
 export function findAppRoot(start?: string): string | null {
   let base = start ?? process.cwd();
-  if (!isAbsolute(base)) base = resolve(base);
+  if (!isAbsolute(base)) {
+    base = resolve(base);
+  }
 
   if (existsSync(base) && statSync(base).isFile()) {
     base = dirname(base);
@@ -31,7 +33,9 @@ export function findAppRoot(start?: string): string | null {
       return cur;
     }
     const parent = dirname(cur);
-    if (parent === cur) return null;
+    if (parent === cur) {
+      return null;
+    }
     cur = parent;
   }
 }

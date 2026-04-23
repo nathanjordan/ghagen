@@ -28,10 +28,7 @@ describe("loadOptions()", () => {
   });
 
   it("strips unknown keys in options", () => {
-    writeFileSync(
-      join(tmp, ".ghagen.yml"),
-      "options:\n  auto_dedent: false\n  unknown_key: 42\n",
-    );
+    writeFileSync(join(tmp, ".ghagen.yml"), "options:\n  auto_dedent: false\n  unknown_key: 42\n");
     expect(loadOptions(tmp)).toEqual({ auto_dedent: false });
   });
 });

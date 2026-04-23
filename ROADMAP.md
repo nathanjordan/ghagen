@@ -5,6 +5,7 @@ These items are not gated on the initial release but represent the longer-term v
 ### VSCode Extension
 
 A language server / extension that provides:
+
 - Stale file detection (indicator when generated YAML is out of sync with Python source)
 - Action version resolution (convert `actions/checkout@v4` to `actions/checkout@<commit-sha>` with a
   preserving comment)

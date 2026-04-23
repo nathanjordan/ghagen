@@ -30,10 +30,7 @@ describe("cloneModel()", () => {
   });
 
   it("deep-copies Commented values inside data", () => {
-    const original = new StepModel(
-      { uses: withEolComment("actions/checkout@v4", "v4") },
-      {},
-    );
+    const original = new StepModel({ uses: withEolComment("actions/checkout@v4", "v4") }, {});
     const cloned = cloneModel(original);
     expect(isCommented(cloned.data["uses"])).toBe(true);
     const c = cloned.data["uses"] as { value: string; eolComment: string };

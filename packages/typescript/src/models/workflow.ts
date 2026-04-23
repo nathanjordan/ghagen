@@ -90,7 +90,9 @@ export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
 
   for (const [camelKey, yamlKey] of Object.entries(WORKFLOW_FIELD_MAP)) {
     let value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
 
     // Peel off Commented wrapper before auto-wrapping, re-apply after
     let commented: { comment?: string; eolComment?: string } | null = null;
@@ -111,8 +113,12 @@ export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
 
     // Re-wrap with Commented if needed
     if (commented) {
-      if (commented.comment) value = withComment(value, commented.comment);
-      if (commented.eolComment) value = withEolComment(value, commented.eolComment);
+      if (commented.comment) {
+        value = withComment(value, commented.comment);
+      }
+      if (commented.eolComment) {
+        value = withEolComment(value, commented.eolComment);
+      }
     }
 
     yamlData[yamlKey] = value;

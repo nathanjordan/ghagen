@@ -7,7 +7,6 @@ import { toYaml, toYamlFile } from "./yaml-writer.js";
 import { Model, JobModel, raw, withComment, withEolComment } from "../models/_base.js";
 import type { ModelMeta } from "../models/_base.js";
 
-
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
@@ -71,10 +70,7 @@ describe("toYaml()", () => {
 // ---------------------------------------------------------------------------
 describe("toYamlMap() key ordering", () => {
   it("orders keys according to keyOrder, then remaining in insertion order", () => {
-    const m = new JobModel(
-      { steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} },
-      {},
-    );
+    const m = new JobModel({ steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} }, {});
     const map = m.toYamlMap();
     const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
     // JOB_KEY_ORDER puts name, runs-on, ... env, ... steps

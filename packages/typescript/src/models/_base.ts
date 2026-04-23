@@ -195,13 +195,30 @@ export function mapFields(
 
 /** Union of all concrete model `kind` discriminants. */
 export type ModelKind =
-  | "step" | "job" | "workflow" | "action"
-  | "on" | "pushTrigger" | "prTrigger" | "scheduleTrigger"
-  | "workflowDispatch" | "workflowCall"
-  | "permissions" | "strategy" | "matrix" | "concurrency"
-  | "defaults" | "environment" | "container" | "service"
-  | "actionInput" | "actionOutput" | "branding"
-  | "compositeRuns" | "dockerRuns" | "nodeRuns";
+  | "step"
+  | "job"
+  | "workflow"
+  | "action"
+  | "on"
+  | "pushTrigger"
+  | "prTrigger"
+  | "scheduleTrigger"
+  | "workflowDispatch"
+  | "workflowCall"
+  | "permissions"
+  | "strategy"
+  | "matrix"
+  | "concurrency"
+  | "defaults"
+  | "environment"
+  | "container"
+  | "service"
+  | "actionInput"
+  | "actionOutput"
+  | "branding"
+  | "compositeRuns"
+  | "dockerRuns"
+  | "nodeRuns";
 
 /**
  * Base class for all ghagen model objects.
@@ -245,8 +262,12 @@ export abstract class Model {
     for (const key of orderedKeys) {
       let value = this.data[key];
       if (isCommented(value)) {
-        if (value.comment) fieldComments[key] = value.comment;
-        if (value.eolComment) fieldEolComments[key] = value.eolComment;
+        if (value.comment) {
+          fieldComments[key] = value.comment;
+        }
+        if (value.eolComment) {
+          fieldEolComments[key] = value.eolComment;
+        }
         value = value.value;
       }
       const pair = new Pair(new Scalar(key), toYamlValue(value));
@@ -257,8 +278,12 @@ export abstract class Model {
       for (const [key, value] of Object.entries(this.meta.extras)) {
         let unwrapped = value;
         if (isCommented(value)) {
-          if (value.comment) fieldComments[key] = value.comment;
-          if (value.eolComment) fieldEolComments[key] = value.eolComment;
+          if (value.comment) {
+            fieldComments[key] = value.comment;
+          }
+          if (value.eolComment) {
+            fieldEolComments[key] = value.eolComment;
+          }
           unwrapped = value.value;
         }
         const pair = new Pair(new Scalar(key), toYamlValue(unwrapped));
@@ -290,7 +315,9 @@ export abstract class Model {
    * Return false to skip children. */
   walk(fn: (model: Model, path: string[]) => void | false): void {
     function visit(model: Model, path: string[]) {
-      if (fn(model, path) === false) return;
+      if (fn(model, path) === false) {
+        return;
+      }
       for (const { key, model: child } of model.children()) {
         visit(child, [...path, key]);
       }
@@ -387,7 +414,11 @@ export class ScheduleTriggerModel extends Model {
   readonly kind = "scheduleTrigger" as const;
   readonly keyOrder = [] as const;
   clone(): ScheduleTriggerModel {
-    return new ScheduleTriggerModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
+    return new ScheduleTriggerModel(
+      cloneRecord(this.data),
+      cloneMeta(this.meta),
+      this.sourceLocation,
+    );
   }
 }
 
@@ -396,7 +427,11 @@ export class WorkflowDispatchModel extends Model {
   readonly kind = "workflowDispatch" as const;
   readonly keyOrder = WORKFLOW_DISPATCH_KEY_ORDER;
   clone(): WorkflowDispatchModel {
-    return new WorkflowDispatchModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
+    return new WorkflowDispatchModel(
+      cloneRecord(this.data),
+      cloneMeta(this.meta),
+      this.sourceLocation,
+    );
   }
 }
 
@@ -513,7 +548,11 @@ export class CompositeRunsModel extends Model {
   readonly kind = "compositeRuns" as const;
   readonly keyOrder = COMPOSITE_RUNS_KEY_ORDER;
   clone(): CompositeRunsModel {
-    return new CompositeRunsModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
+    return new CompositeRunsModel(
+      cloneRecord(this.data),
+      cloneMeta(this.meta),
+      this.sourceLocation,
+    );
   }
 }
 
@@ -567,12 +606,18 @@ export function cloneModel<M extends Model>(model: M): M {
  */
 function cloneValueInternal(value: unknown): unknown {
   // Primitives (and null/undefined)
-  if (value === null || value === undefined) return value;
+  if (value === null || value === undefined) {
+    return value;
+  }
   const t = typeof value;
-  if (t !== "object" && t !== "function") return value;
+  if (t !== "object" && t !== "function") {
+    return value;
+  }
 
   // Functions are passed by reference (no way to deep-clone a closure)
-  if (t === "function") return value;
+  if (t === "function") {
+    return value;
+  }
 
   // Raw<T> — preserve the symbol brand
   if (isRaw(value)) {
@@ -618,13 +663,19 @@ function cloneRecord(obj: Record<string, unknown>): Record<string, unknown> {
 
 function cloneMeta(meta: ModelMeta): ModelMeta {
   const out: ModelMeta = {};
-  if (meta.comment !== undefined) out.comment = meta.comment;
-  if (meta.eolComment !== undefined) out.eolComment = meta.eolComment;
+  if (meta.comment !== undefined) {
+    out.comment = meta.comment;
+  }
+  if (meta.eolComment !== undefined) {
+    out.eolComment = meta.eolComment;
+  }
   if (meta.extras !== undefined) {
     out.extras = cloneRecord(meta.extras);
   }
   // postProcess is a function — pass by reference.
-  if (meta.postProcess !== undefined) out.postProcess = meta.postProcess;
+  if (meta.postProcess !== undefined) {
+    out.postProcess = meta.postProcess;
+  }
   return out;
 }
 
@@ -699,7 +750,9 @@ function toYamlValue(value: unknown): unknown {
   if (typeof value === "object" && value !== null) {
     const map = new YAMLMap();
     for (const [k, v] of Object.entries(value)) {
-      if (v === undefined) continue;
+      if (v === undefined) {
+        continue;
+      }
       const pair = new Pair(new Scalar(k), toYamlValue(v));
       map.items.push(pair);
     }
@@ -753,7 +806,9 @@ function attachFieldComments(
 ): void {
   const hasComments = Object.keys(fieldComments).length > 0;
   const hasEolComments = Object.keys(fieldEolComments).length > 0;
-  if (!hasComments && !hasEolComments) return;
+  if (!hasComments && !hasEolComments) {
+    return;
+  }
 
   for (const pair of map.items as Pair[]) {
     const keyName = pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);

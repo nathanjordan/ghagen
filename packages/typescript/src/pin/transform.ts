@@ -27,10 +27,14 @@ export function pinTransform(lockfile: Lockfile): PinTransform {
     item.walk((model) => {
       if (model instanceof StepModel || model instanceof JobModel) {
         let uses = model.data["uses"];
-        if (isCommented(uses)) uses = uses.value;
+        if (isCommented(uses)) {
+          uses = uses.value;
+        }
         if (typeof uses === "string") {
           const pinned = pinUses(uses, lockfile);
-          if (pinned !== null) model.data["uses"] = pinned;
+          if (pinned !== null) {
+            model.data["uses"] = pinned;
+          }
         }
       }
     });
@@ -39,8 +43,12 @@ export function pinTransform(lockfile: Lockfile): PinTransform {
 }
 
 function pinUses(uses: string, lockfile: Lockfile): string | null {
-  if (uses.startsWith("./") || uses.startsWith("docker://")) return null;
-  if (!uses.includes("@")) return null;
+  if (uses.startsWith("./") || uses.startsWith("docker://")) {
+    return null;
+  }
+  if (!uses.includes("@")) {
+    return null;
+  }
 
   const entry = lockfile.get(uses);
   if (entry === undefined) {

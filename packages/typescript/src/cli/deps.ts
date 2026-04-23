@@ -98,7 +98,9 @@ async function depsPin(opts: PinOpts): Promise<void> {
   let pruned = 0;
   if (opts.prune) {
     pruned = lockfile.prune(refs);
-    if (pruned > 0) process.stdout.write(`Pruned ${pruned} stale entry/entries.\n`);
+    if (pruned > 0) {
+      process.stdout.write(`Pruned ${pruned} stale entry/entries.\n`);
+    }
   }
 
   if (resolved > 0 || pruned > 0) {
@@ -145,11 +147,15 @@ async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
 
   if (missing.length > 0) {
     process.stderr.write("Missing lockfile entries:\n");
-    for (const r of missing.sort()) process.stderr.write(`  ${r}\n`);
+    for (const r of missing.sort()) {
+      process.stderr.write(`  ${r}\n`);
+    }
   }
   if (extra.length > 0) {
     process.stderr.write("Stale lockfile entries:\n");
-    for (const r of extra.sort()) process.stderr.write(`  ${r}\n`);
+    for (const r of extra.sort()) {
+      process.stderr.write(`  ${r}\n`);
+    }
   }
   throw new CliError("", 1);
 }
@@ -259,10 +265,14 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
 
       for (const { uses, ref } of usesList) {
         const latestTag = findLatestTag(ref, tags);
-        if (latestTag === null) continue;
+        if (latestTag === null) {
+          continue;
+        }
         const currentParsed = parseTag(ref);
         const latestParsed = parseTag(latestTag);
-        if (currentParsed === null || latestParsed === null) continue;
+        if (currentParsed === null || latestParsed === null) {
+          continue;
+        }
         const severity = classifyBump(currentParsed.version, latestParsed.version);
         const entry: VersionBump = {
           uses,
@@ -272,7 +282,9 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
           origin: "user",
         };
         const sources = refLocations.get(uses);
-        if (sources && sources.length > 0) entry.source_files = [...sources];
+        if (sources && sources.length > 0) {
+          entry.source_files = [...sources];
+        }
         versionBumps.push(entry);
       }
     }
@@ -285,7 +297,9 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
     const lockfile = readLockfile(resolve(app.rootAbsPath, app.lockfilePath));
     for (const uses of [...refs].sort()) {
       const entry = lockfile.get(uses);
-      if (entry === undefined) continue;
+      if (entry === undefined) {
+        continue;
+      }
       let parsed;
       try {
         parsed = parseUses(uses);
@@ -310,7 +324,9 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
           origin: "user",
         };
         const sources = refLocations.get(uses);
-        if (sources && sources.length > 0) staleEntry.source_files = [...sources];
+        if (sources && sources.length > 0) {
+          staleEntry.source_files = [...sources];
+        }
         lockfileStale.push(staleEntry);
       }
     }
@@ -325,11 +341,15 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
       updates.set(bump.uses, newUses);
     }
     const refLocsObj = new Map<string, string[]>();
-    for (const [k, v] of refLocations.entries()) refLocsObj.set(k, [...v]);
+    for (const [k, v] of refLocations.entries()) {
+      refLocsObj.set(k, [...v]);
+    }
     const changed = applyUpdates(updates, refLocsObj);
     if (changed.length > 0) {
       process.stdout.write("Applied version bumps:\n");
-      for (const f of changed) process.stdout.write(`  modified ${f}\n`);
+      for (const f of changed) {
+        process.stdout.write(`  modified ${f}\n`);
+      }
     }
   }
 
@@ -347,8 +367,12 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
 
   if (opts.json) {
     const result: { version_bumps?: VersionBump[]; lockfile_stale?: LockfileStale[] } = {};
-    if (checkVersions) result.version_bumps = versionBumps;
-    if (checkLockfile) result.lockfile_stale = lockfileStale;
+    if (checkVersions) {
+      result.version_bumps = versionBumps;
+    }
+    if (checkLockfile) {
+      result.lockfile_stale = lockfileStale;
+    }
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } else {
     printHumanReport(versionBumps, lockfileStale);

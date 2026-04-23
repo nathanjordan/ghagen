@@ -2,18 +2,16 @@
 
 ## [0.4.0](https://github.com/nathanjordan/ghagen/compare/ghagen-js-v0.3.0...ghagen-js-v0.4.0) (2026-04-21)
 
-
 ### Features
 
-* replace field_comments/field_eol_comments with withComment/withEolComment wrappers ([6eb57bb](https://github.com/nathanjordan/ghagen/commit/6eb57bbb067fe1e816e92695a8cb470b32cdfdfe))
-* **typescript:** add App, CLI, pin, lint, and config subsystems ([9553551](https://github.com/nathanjordan/ghagen/commit/95535511ecc3a0b2f5c9f2a5e65ed90f75bb54e9))
-
+- replace field_comments/field_eol_comments with withComment/withEolComment wrappers ([6eb57bb](https://github.com/nathanjordan/ghagen/commit/6eb57bbb067fe1e816e92695a8cb470b32cdfdfe))
+- **typescript:** add App, CLI, pin, lint, and config subsystems ([9553551](https://github.com/nathanjordan/ghagen/commit/95535511ecc3a0b2f5c9f2a5e65ed90f75bb54e9))
 
 ### Bug Fixes
 
-* **ci:** resolve pyright, ruff, and oxfmt failures ([66d8a8e](https://github.com/nathanjordan/ghagen/commit/66d8a8e22232c3de760d265225051ccb59b69171))
-* **deps:** prune stale lockfile entries by default and fix oxlint errors ([752cd22](https://github.com/nathanjordan/ghagen/commit/752cd224140c9fc94e1c69fabb68f86006807f25))
-* **release:** single approval gate, clean up tags and changelogs ([1bb0b4e](https://github.com/nathanjordan/ghagen/commit/1bb0b4e461c6e75e75f7b43fcda4d563a51b8ed6))
+- **ci:** resolve pyright, ruff, and oxfmt failures ([66d8a8e](https://github.com/nathanjordan/ghagen/commit/66d8a8e22232c3de760d265225051ccb59b69171))
+- **deps:** prune stale lockfile entries by default and fix oxlint errors ([752cd22](https://github.com/nathanjordan/ghagen/commit/752cd224140c9fc94e1c69fabb68f86006807f25))
+- **release:** single approval gate, clean up tags and changelogs ([1bb0b4e](https://github.com/nathanjordan/ghagen/commit/1bb0b4e461c6e75e75f7b43fcda4d563a51b8ed6))
 
 ## [0.4.0] (unreleased)
 

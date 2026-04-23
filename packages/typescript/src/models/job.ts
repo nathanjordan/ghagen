@@ -106,8 +106,12 @@ export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
       ? data.matrix_
       : matrix(data.matrix_ as MatrixInput);
   }
-  if (data.failFast !== undefined) normalized["fail-fast"] = data.failFast;
-  if (data.maxParallel !== undefined) normalized["max-parallel"] = data.maxParallel;
+  if (data.failFast !== undefined) {
+    normalized["fail-fast"] = data.failFast;
+  }
+  if (data.maxParallel !== undefined) {
+    normalized["max-parallel"] = data.maxParallel;
+  }
   return new StrategyModel(normalized, meta);
 }
 
@@ -189,9 +193,12 @@ export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
   const yamlData: Record<string, unknown> = {};
   if (data.run) {
     const runData: Record<string, unknown> = {};
-    if (data.run.shell !== undefined) runData["shell"] = data.run.shell;
-    if (data.run.workingDirectory !== undefined)
+    if (data.run.shell !== undefined) {
+      runData["shell"] = data.run.shell;
+    }
+    if (data.run.workingDirectory !== undefined) {
       runData["working-directory"] = data.run.workingDirectory;
+    }
     yamlData["run"] = runData;
   }
   return new DefaultsModel(yamlData, meta);
@@ -342,7 +349,9 @@ export function job(input: WithMeta<JobInput>): JobModel {
   // Map simple fields
   for (const [camelKey, yamlKey] of Object.entries(JOB_FIELD_MAP)) {
     const value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
 
     // Auto-wrap plain objects with appropriate factory
     if (camelKey === "permissions" && typeof value === "object" && !isModel(value)) {

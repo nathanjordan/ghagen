@@ -30,7 +30,16 @@ export interface HttpsJsonSchemastoreOrgGithubActionJson {
     /**
      * The background color of the badge.
      */
-    color?: "white" | "black" | "yellow" | "blue" | "green" | "orange" | "red" | "purple" | "gray-dark";
+    color?:
+      | "white"
+      | "black"
+      | "yellow"
+      | "blue"
+      | "green"
+      | "orange"
+      | "red"
+      | "purple"
+      | "gray-dark";
     /**
      * The name of the Feather icon to use.
      */

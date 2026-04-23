@@ -10,7 +10,9 @@ interface MockResponseInit {
 function jsonResponse(init: MockResponseInit): Response {
   const body = init.body === undefined ? "" : JSON.stringify(init.body);
   const headers = new Headers(init.headers ?? {});
-  if (!headers.has("content-type")) headers.set("content-type", "application/json");
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
   return new Response(body, { status: init.status ?? 200, headers });
 }
 
@@ -30,7 +32,9 @@ beforeEach(() => {
     }
     calls.push({ url, headers });
     const next = queue.shift();
-    if (!next) throw new Error(`unexpected fetch: ${url}`);
+    if (!next) {
+      throw new Error(`unexpected fetch: ${url}`);
+    }
     return next;
   });
 });

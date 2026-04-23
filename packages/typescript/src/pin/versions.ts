@@ -27,17 +27,23 @@ export interface ParsedTag {
 /** Parse a GitHub Action tag into a `ParsedTag`, or `null` if non-version. */
 export function parseTag(tag: string): ParsedTag | null {
   const m = tag.match(TAG_RE);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const prefix = m[1] ?? null;
   const versionStr = m[2]!;
   const segments = versionStr.split(".");
 
   // When a prefix is present (e.g. release/v1), require at least two
   // version segments so branch-like refs are rejected.
-  if (prefix !== null && segments.length < 2) return null;
+  if (prefix !== null && segments.length < 2) {
+    return null;
+  }
 
   // Pad to three segments so v4 → 4.0.0, v4.1 → 4.1.0.
-  while (segments.length < 3) segments.push("0");
+  while (segments.length < 3) {
+    segments.push("0");
+  }
 
   try {
     const version = new SemVer(segments.join("."));
@@ -52,8 +58,12 @@ export type BumpSeverity = "major" | "minor" | "patch";
 
 /** Classify the severity of a bump from `current` to `latest`. */
 export function classifyBump(current: SemVer, latest: SemVer): BumpSeverity {
-  if (latest.major !== current.major) return "major";
-  if (latest.minor !== current.minor) return "minor";
+  if (latest.major !== current.major) {
+    return "major";
+  }
+  if (latest.minor !== current.minor) {
+    return "minor";
+  }
   return "patch";
 }
 
@@ -66,16 +76,24 @@ export function classifyBump(current: SemVer, latest: SemVer): BumpSeverity {
  */
 export function findLatestTag(currentRef: string, availableTags: readonly string[]): string | null {
   const current = parseTag(currentRef);
-  if (current === null) return null;
+  if (current === null) {
+    return null;
+  }
 
   let bestTag: string | null = null;
   let bestVersion: SemVer | null = null;
 
   for (const tag of availableTags) {
     const parsed = parseTag(tag);
-    if (parsed === null) continue;
-    if (parsed.prefix !== current.prefix) continue;
-    if (parsed.version.compare(current.version) <= 0) continue;
+    if (parsed === null) {
+      continue;
+    }
+    if (parsed.prefix !== current.prefix) {
+      continue;
+    }
+    if (parsed.version.compare(current.version) <= 0) {
+      continue;
+    }
     if (bestVersion === null || parsed.version.compare(bestVersion) > 0) {
       bestVersion = parsed.version;
       bestTag = tag;

@@ -53,7 +53,9 @@ async function cmdSynth(opts: SynthOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
   const written = await app.synth();
-  for (const path of written) process.stdout.write(`  wrote ${path}\n`);
+  for (const path of written) {
+    process.stdout.write(`  wrote ${path}\n`);
+  }
   process.stdout.write(`Synthesized ${written.length} file(s).\n`);
 }
 
@@ -126,7 +128,9 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 0;
   } catch (err) {
     if (err instanceof CliError) {
-      if (err.message) process.stderr.write(`${err.message}\n`);
+      if (err.message) {
+        process.stderr.write(`${err.message}\n`);
+      }
       return err.exitCode;
     }
     process.stderr.write(`Error: ${(err as Error).message}\n`);

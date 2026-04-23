@@ -52,7 +52,9 @@ export class Lockfile {
 
   /** Merge new entries, overwriting existing keys. */
   merge(other: Iterable<readonly [string, PinEntry]>): void {
-    for (const [k, v] of other) this.pins.set(k, v);
+    for (const [k, v] of other) {
+      this.pins.set(k, v);
+    }
   }
 
   /** Remove entries not in *keep*. Returns count of removed entries. */
@@ -83,7 +85,9 @@ export function readLockfile(path: string): Lockfile {
       cause: err,
     });
   }
-  if (!raw) return new Lockfile();
+  if (!raw) {
+    return new Lockfile();
+  }
 
   const pinsRaw = (raw["pins"] ?? {}) as Record<string, unknown>;
   const pins = new Map<string, PinEntry>();

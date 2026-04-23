@@ -10,12 +10,12 @@ Generate GitHub Actions workflows from Python or TypeScript code.
 ## Features
 
 - **Dual language support** - The tool comes in two flavors depending on your
-   constraints/preferences: Python and Javascript/Typescript.
+  constraints/preferences: Python and Javascript/Typescript.
 - **Typed models** — type checking and IDE autocomplete which prevents typos or unsupported values.
 - **YAML comments** — Add comments to the generated yaml for additional documentation/clarity
 - **Helpers** — expression builder (`expr`) ensures you are using supported template variables
 - **Escape hatches** — Break out of the type system when you want to. You're not stuck with the
-schema if new features come out or you need to override something.
+  schema if new features come out or you need to override something.
 - **Freshness checking** — ensure your generated yaml files are in sync with your defined ghagen
   models
 - **Version pinning** — Prevent surprises and security risks by ensuring the same actions run every
@@ -99,9 +99,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: nathanjordan/ghagen/check-synth@v0
         with:
-          config: .github/ghagen_workflows.py  # optional; default shown
-          python-version: "3.13"               # optional; default shown
-          ghagen-version: ""                   # optional; empty = latest
+          config: .github/ghagen_workflows.py # optional; default shown
+          python-version: "3.13" # optional; default shown
+          ghagen-version: "" # optional; empty = latest
 ```
 
 `v0` is a rolling major tag. The Action is a drift check for the Python path; TypeScript users can
@@ -116,13 +116,13 @@ name: CI
 on:
   push:
     branches:
-    - main
+      - main
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - run: pytest
+      - uses: actions/checkout@v4
+      - run: pytest
 ```
 
 ## FAQ

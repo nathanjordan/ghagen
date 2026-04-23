@@ -59,11 +59,15 @@ export async function trackUserFiles(
 
   const files = new Set<string>();
   for (const key of newKeys) {
-    if (isUserFile(key)) files.add(key);
+    if (isUserFile(key)) {
+      files.add(key);
+    }
   }
   // jiti's import() may not track the entry-point itself in some cases.
   // Always include the config file explicitly.
-  if (isUserFile(configPath)) files.add(configPath);
+  if (isUserFile(configPath)) {
+    files.add(configPath);
+  }
 
   return { app, files };
 }
@@ -78,7 +82,9 @@ export function locateUsesRefs(
 ): Map<string, string[]> {
   const fileContents = new Map<string, string>();
   for (const path of userFiles) {
-    if (!existsSync(path)) continue;
+    if (!existsSync(path)) {
+      continue;
+    }
     try {
       fileContents.set(path, readFileSync(path, "utf8"));
     } catch {
@@ -90,7 +96,9 @@ export function locateUsesRefs(
   for (const ref of refs) {
     const matching: string[] = [];
     for (const [path, content] of fileContents.entries()) {
-      if (content.includes(ref)) matching.push(path);
+      if (content.includes(ref)) {
+        matching.push(path);
+      }
     }
     if (matching.length > 0) {
       matching.sort();
@@ -113,12 +121,20 @@ const PACKAGE_INTERNAL_DIR: string = (() => {
 })();
 
 function isUserFile(path: string): boolean {
-  if (!path) return false;
-  if (path.includes("/node_modules/")) return false;
+  if (!path) {
+    return false;
+  }
+  if (path.includes("/node_modules/")) {
+    return false;
+  }
   // Skip URLs that aren't real filesystem paths.
-  if (path.startsWith("data:") || path.startsWith("node:")) return false;
+  if (path.startsWith("data:") || path.startsWith("node:")) {
+    return false;
+  }
   if (PACKAGE_INTERNAL_DIR && path.startsWith(PACKAGE_INTERNAL_DIR)) {
-    if (!path.includes(".test.")) return false;
+    if (!path.includes(".test.")) {
+      return false;
+    }
   }
   return true;
 }

@@ -22,7 +22,9 @@ export function loadYamlConfig(path: string): Record<string, unknown> {
   } catch (err) {
     throw new Error(`${path}: failed to parse YAML: ${(err as Error).message}`, { cause: err });
   }
-  if (data === null || data === undefined) return {};
+  if (data === null || data === undefined) {
+    return {};
+  }
   if (typeof data !== "object" || Array.isArray(data)) {
     throw new Error(`${path}: expected a YAML mapping at top level`);
   }

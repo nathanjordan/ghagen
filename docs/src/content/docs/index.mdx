@@ -118,7 +118,7 @@ jobs:
 
 ## Why ghagen?
 
-GitHub Actions are defined as YAML, which is simple and readable for small projects. As projects grow, however, workflows accumulate shared concerns and repeated logic — the same setup steps, the same version strings, the same conditional blocks copied across files. YAML has no real answer for code reuse: you end up changing the same value in multiple places, and configuration drift between workflows that *should* behave identically becomes a constant source of bugs.
+GitHub Actions are defined as YAML, which is simple and readable for small projects. As projects grow, however, workflows accumulate shared concerns and repeated logic — the same setup steps, the same version strings, the same conditional blocks copied across files. YAML has no real answer for code reuse: you end up changing the same value in multiple places, and configuration drift between workflows that _should_ behave identically becomes a constant source of bugs.
 
 GitHub has tried to address this with composite actions and [YAML anchors](https://github.blog/changelog/2025-09-18-actions-yaml-anchors-and-non-public-workflow-templates/), but the fundamental issue remains: YAML is a data format, not a programming language. Rather than bolting programming-language features onto YAML, ghagen takes the approach AWS CDK proved out for CloudFormation — use a real programming language to define your configuration, and generate the YAML from it.
 

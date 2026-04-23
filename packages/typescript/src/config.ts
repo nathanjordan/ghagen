@@ -20,7 +20,9 @@ export function loadOptions(cwd: string): GhagenOptions {
   if (existsSync(ghagenYml)) {
     const data = loadYamlConfig(ghagenYml);
     const config = ghagenYmlSchema.parse(data);
-    if (config.options) return config.options;
+    if (config.options) {
+      return config.options;
+    }
   }
 
   return { auto_dedent: true };

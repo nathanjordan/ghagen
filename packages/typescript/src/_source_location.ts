@@ -46,7 +46,9 @@ function isInternalFrame(filename: string): boolean {
   if (PACKAGE_INTERNAL_DIR && filename.startsWith(PACKAGE_INTERNAL_DIR)) {
     // Internal to ghagen's own source/dist. Allow `.test.` files
     // through so ghagen's own unit tests can capture themselves.
-    if (filename.includes(".test.")) return false;
+    if (filename.includes(".test.")) {
+      return false;
+    }
     return true;
   }
   return false;
@@ -61,8 +63,12 @@ function isInternalFrame(filename: string): boolean {
 export function captureSourceLocation(): SourceLocation | null {
   for (const site of callsites()) {
     const file = site.getFileName();
-    if (!file) continue;
-    if (isInternalFrame(file)) continue;
+    if (!file) {
+      continue;
+    }
+    if (isInternalFrame(file)) {
+      continue;
+    }
     return { file, line: site.getLineNumber() ?? 0 };
   }
   return null;

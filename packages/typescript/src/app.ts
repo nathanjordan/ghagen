@@ -36,32 +36,37 @@ export class App {
   readonly _items: RegisteredItem[] = [];
   readonly _userTransforms: readonly Transform[];
 
-  constructor(options: {
-    /**
-     * Repository root directory. All registered output paths and the lockfile are resolved relative
-     * to this. Defaults to `process.cwd()`.
-     */
-    root?: string;
-    /**
-     * Custom header comment template for generated files. May contain `{variable}` placeholders —
-     * see the emitter's `HEADER_VARIABLES`. Set to `null` to keep the ghagen default; set to
-     * `undefined` to use the default.
-     */
-    header?: string | null;
-    /**
-     * Path to the pin lockfile, relative to `root`. Set to `null` to disable lockfile auto-loading.
-     * Defaults to `.ghagen.lock.yml`.
-     */
-    lockfile?: string | null;
-    /**
-     * Additional model transforms to apply during synthesis. The pin transform is auto-registered
-     * when a lockfile is present; these are appended after it.
-     */
-    transforms?: readonly Transform[];
-  } = {}) {
+  constructor(
+    options: {
+      /**
+       * Repository root directory. All registered output paths and the lockfile are resolved relative
+       * to this. Defaults to `process.cwd()`.
+       */
+      root?: string;
+      /**
+       * Custom header comment template for generated files. May contain `{variable}` placeholders —
+       * see the emitter's `HEADER_VARIABLES`. Set to `null` to keep the ghagen default; set to
+       * `undefined` to use the default.
+       */
+      header?: string | null;
+      /**
+       * Path to the pin lockfile, relative to `root`. Set to `null` to disable lockfile auto-loading.
+       * Defaults to `.ghagen.lock.yml`.
+       */
+      lockfile?: string | null;
+      /**
+       * Additional model transforms to apply during synthesis. The pin transform is auto-registered
+       * when a lockfile is present; these are appended after it.
+       */
+      transforms?: readonly Transform[];
+    } = {},
+  ) {
     const rootInput = options.root ?? ".";
     this.rootAbsPath = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
-    this.headerTxt = (options.header === null || options.header === undefined) ? options.header : options.header + "";
+    this.headerTxt =
+      options.header === null || options.header === undefined
+        ? options.header
+        : options.header + "";
     this.lockfilePath =
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
@@ -133,7 +138,12 @@ export class App {
 
       const actual = readFileSync(full, "utf8");
       if (actual !== expected) {
-        const diff = createTwoFilesPatch(`${full} (on disk)`, `${full} (generated)`, actual, expected);
+        const diff = createTwoFilesPatch(
+          `${full} (on disk)`,
+          `${full} (generated)`,
+          actual,
+          expected,
+        );
         stale.push([full, diff]);
       }
     }
@@ -166,7 +176,9 @@ export class App {
     relPath: string,
     transforms: readonly Transform[],
   ): SynthItem {
-    if (transforms.length === 0) {return item;}
+    if (transforms.length === 0) {
+      return item;
+    }
 
     let working = cloneModel(item);
     const ctx: SynthContext = {
