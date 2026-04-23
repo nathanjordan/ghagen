@@ -19,7 +19,7 @@
     "starlight-theme-rapide": "^0.5.2"
   },
   "devDependencies": {
-    "oxfmt": "^0.45.0",
+    "oxfmt": "^0.46.0",
     "oxlint": "^1.60.0",
     "starlight-typedoc": "^0.21.0",
     "typedoc": "^0.28.0",
