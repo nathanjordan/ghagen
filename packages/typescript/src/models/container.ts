@@ -1,7 +1,6 @@
 import type { Container as SchemaContainer } from "../schema/workflow-types.generated.js";
-import type { ContainerModel, ServiceModel, WithMeta } from "./_base.js";
-import { createModel, extractMeta, mapFields } from "./_base.js";
-import { CONTAINER_KEY_ORDER } from "../emitter/key-order.js";
+import { ContainerModel, ServiceModel, extractMeta, mapFields } from "./_base.js";
+import type { WithMeta } from "./_base.js";
 
 /**
  * Input properties for defining a container used in a GitHub Actions job.
@@ -54,7 +53,7 @@ const CONTAINER_FIELD_MAP = {
 export function container(input: WithMeta<ContainerInput>): ContainerModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, CONTAINER_FIELD_MAP);
-  return createModel("container", yamlData, meta, CONTAINER_KEY_ORDER) as ContainerModel;
+  return new ContainerModel(yamlData, meta);
 }
 
 /**
@@ -79,5 +78,5 @@ export function container(input: WithMeta<ContainerInput>): ContainerModel {
 export function service(input: WithMeta<ContainerInput>): ServiceModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, CONTAINER_FIELD_MAP);
-  return createModel("service", yamlData, meta, CONTAINER_KEY_ORDER) as ServiceModel;
+  return new ServiceModel(yamlData, meta);
 }

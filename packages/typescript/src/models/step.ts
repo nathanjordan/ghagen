@@ -1,7 +1,6 @@
 import type { Step as SchemaStep } from "../schema/workflow-types.generated.js";
-import type { StepModel, WithMeta, Raw } from "./_base.js";
-import { createModel, extractMeta, mapFields } from "./_base.js";
-import { STEP_KEY_ORDER } from "../emitter/key-order.js";
+import { StepModel, extractMeta, mapFields } from "./_base.js";
+import type { WithMeta, Raw } from "./_base.js";
 import type { ShellType } from "./common.js";
 import dedent from "dedent";
 import { getAutoDedent } from "../config.js";
@@ -77,5 +76,5 @@ export function step(input: WithMeta<StepInput>): StepModel {
   if (getAutoDedent() && typeof yamlData["run"] === "string") {
     yamlData["run"] = dedent(yamlData["run"] as string);
   }
-  return createModel("step", yamlData, meta, STEP_KEY_ORDER) as StepModel;
+  return new StepModel(yamlData, meta);
 }

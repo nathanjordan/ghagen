@@ -27,12 +27,12 @@ describe("actionInputDef", () => {
       default: "abc",
       deprecationMessage: "Use token_v2",
     });
-    expect(inp._data.description).toBe("The token");
-    expect(inp._data.required).toBe(true);
-    expect(inp._data.default).toBe("abc");
-    expect(inp._data.deprecationMessage).toBe("Use token_v2");
-    expect(inp._kind).toBe("actionInput");
-    expect(inp._keyOrder).toEqual(ACTION_INPUT_KEY_ORDER);
+    expect(inp.data.description).toBe("The token");
+    expect(inp.data.required).toBe(true);
+    expect(inp.data.default).toBe("abc");
+    expect(inp.data.deprecationMessage).toBe("Use token_v2");
+    expect(inp.kind).toBe("actionInput");
+    expect(inp.keyOrder).toEqual(ACTION_INPUT_KEY_ORDER);
   });
 });
 
@@ -42,26 +42,26 @@ describe("actionOutputDef", () => {
       description: "The result",
       value: "${{ steps.run.outputs.result }}",
     });
-    expect(out._data.description).toBe("The result");
-    expect(out._data.value).toBe("${{ steps.run.outputs.result }}");
-    expect(out._kind).toBe("actionOutput");
-    expect(out._keyOrder).toEqual(ACTION_OUTPUT_KEY_ORDER);
+    expect(out.data.description).toBe("The result");
+    expect(out.data.value).toBe("${{ steps.run.outputs.result }}");
+    expect(out.kind).toBe("actionOutput");
+    expect(out.keyOrder).toEqual(ACTION_OUTPUT_KEY_ORDER);
   });
 
   it("creates an output def with description only (no value)", () => {
     const out = actionOutputDef({ description: "Some output" });
-    expect(out._data.description).toBe("Some output");
-    expect(out._data).not.toHaveProperty("value");
+    expect(out.data.description).toBe("Some output");
+    expect(out.data).not.toHaveProperty("value");
   });
 });
 
 describe("branding", () => {
   it("creates branding with icon and color", () => {
     const b = branding({ icon: "zap", color: "blue" });
-    expect(b._data.icon).toBe("zap");
-    expect(b._data.color).toBe("blue");
-    expect(b._kind).toBe("branding");
-    expect(b._keyOrder).toEqual(BRANDING_KEY_ORDER);
+    expect(b.data.icon).toBe("zap");
+    expect(b.data.color).toBe("blue");
+    expect(b.kind).toBe("branding");
+    expect(b.keyOrder).toEqual(BRANDING_KEY_ORDER);
   });
 });
 
@@ -69,10 +69,10 @@ describe("compositeRuns", () => {
   it("has using set to composite and includes steps", () => {
     const s = step({ run: "echo hi" });
     const cr = compositeRuns({ using: "composite", steps: [s] });
-    expect(cr._data.using).toBe("composite");
-    expect(cr._data.steps).toEqual([s]);
-    expect(cr._kind).toBe("compositeRuns");
-    expect(cr._keyOrder).toEqual(COMPOSITE_RUNS_KEY_ORDER);
+    expect(cr.data.using).toBe("composite");
+    expect(cr.data.steps).toEqual([s]);
+    expect(cr.kind).toBe("compositeRuns");
+    expect(cr.keyOrder).toEqual(COMPOSITE_RUNS_KEY_ORDER);
   });
 });
 
@@ -86,14 +86,14 @@ describe("dockerRuns", () => {
       preIf: "always()",
       postIf: "success()",
     });
-    expect(dr._data["pre-entrypoint"]).toBe("pre.sh");
-    expect(dr._data["post-entrypoint"]).toBe("post.sh");
-    expect(dr._data["pre-if"]).toBe("always()");
-    expect(dr._data["post-if"]).toBe("success()");
-    expect(dr._data).not.toHaveProperty("preEntrypoint");
-    expect(dr._data).not.toHaveProperty("postEntrypoint");
-    expect(dr._kind).toBe("dockerRuns");
-    expect(dr._keyOrder).toEqual(DOCKER_RUNS_KEY_ORDER);
+    expect(dr.data["pre-entrypoint"]).toBe("pre.sh");
+    expect(dr.data["post-entrypoint"]).toBe("post.sh");
+    expect(dr.data["pre-if"]).toBe("always()");
+    expect(dr.data["post-if"]).toBe("success()");
+    expect(dr.data).not.toHaveProperty("preEntrypoint");
+    expect(dr.data).not.toHaveProperty("postEntrypoint");
+    expect(dr.kind).toBe("dockerRuns");
+    expect(dr.keyOrder).toEqual(DOCKER_RUNS_KEY_ORDER);
   });
 });
 
@@ -107,12 +107,12 @@ describe("nodeRuns", () => {
       preIf: "always()",
       postIf: "success()",
     });
-    expect(nr._data["pre-if"]).toBe("always()");
-    expect(nr._data["post-if"]).toBe("success()");
-    expect(nr._data).not.toHaveProperty("preIf");
-    expect(nr._data).not.toHaveProperty("postIf");
-    expect(nr._kind).toBe("nodeRuns");
-    expect(nr._keyOrder).toEqual(NODE_RUNS_KEY_ORDER);
+    expect(nr.data["pre-if"]).toBe("always()");
+    expect(nr.data["post-if"]).toBe("success()");
+    expect(nr.data).not.toHaveProperty("preIf");
+    expect(nr.data).not.toHaveProperty("postIf");
+    expect(nr.kind).toBe("nodeRuns");
+    expect(nr.keyOrder).toEqual(NODE_RUNS_KEY_ORDER);
   });
 });
 
@@ -132,14 +132,14 @@ describe("action", () => {
       outputs: { result: out },
       runs,
     });
-    expect(a._data.name).toBe("My Action");
-    expect(a._data.description).toBe("Does things");
-    expect(a._data.author).toBe("me");
-    expect(a._data.branding).toBe(b);
-    expect(a._data.inputs).toEqual({ token: inp });
-    expect(a._data.outputs).toEqual({ result: out });
-    expect(a._data.runs).toBe(runs);
-    expect(a._kind).toBe("action");
-    expect(a._keyOrder).toEqual(ACTION_KEY_ORDER);
+    expect(a.data.name).toBe("My Action");
+    expect(a.data.description).toBe("Does things");
+    expect(a.data.author).toBe("me");
+    expect(a.data.branding).toBe(b);
+    expect(a.data.inputs).toEqual({ token: inp });
+    expect(a.data.outputs).toEqual({ result: out });
+    expect(a.data.runs).toBe(runs);
+    expect(a.kind).toBe("action");
+    expect(a.keyOrder).toEqual(ACTION_KEY_ORDER);
   });
 });

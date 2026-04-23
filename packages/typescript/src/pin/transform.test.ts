@@ -38,9 +38,9 @@ describe("pinTransform()", () => {
     const transform = pinTransform(makeLockfile());
     transform(cloned, ctx);
 
-    const jobs = cloned._data["jobs"] as Record<string, Model>;
-    const steps = jobs["test"]!._data["steps"] as Model[];
-    const uses = steps[0]!._data["uses"];
+    const jobs = cloned.data["jobs"] as Record<string, Model>;
+    const steps = jobs["test"]!.data["steps"] as Model[];
+    const uses = steps[0]!.data["uses"];
     expect(isCommented(uses)).toBe(true);
     expect((uses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
@@ -77,7 +77,7 @@ describe("pinTransform()", () => {
   });
 
   it("pins job.uses (reusable workflow refs)", () => {
-    // Create a job with a uses field by reaching into _data after the
+    // Create a job with a uses field by reaching into data after the
     // factory. The job factory currently has no `uses` field — this is
     // a smoke test that the transform still walks the structure
     // correctly when uses appears at the job level.
@@ -85,13 +85,13 @@ describe("pinTransform()", () => {
       runsOn: "ubuntu-latest",
       steps: [step({ uses: "actions/checkout@v4" })],
     });
-    (j._data as Record<string, string>)["uses"] = "actions/checkout@v4";
+    (j.data as Record<string, string>)["uses"] = "actions/checkout@v4";
     const wf = workflow({ jobs: { test: j } });
     const cloned = cloneModel(wf);
     pinTransform(makeLockfile())(cloned, ctx);
 
-    const jobs = cloned._data["jobs"] as Record<string, Model>;
-    const jobUses = jobs["test"]!._data["uses"];
+    const jobs = cloned.data["jobs"] as Record<string, Model>;
+    const jobUses = jobs["test"]!.data["uses"];
     expect(isCommented(jobUses)).toBe(true);
     expect((jobUses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
@@ -110,9 +110,9 @@ describe("pinTransform()", () => {
     });
     const cloned = cloneModel(a);
     pinTransform(makeLockfile())(cloned, { ...ctx, itemType: "action" });
-    const runs = cloned._data["runs"] as Model;
-    const steps = runs._data["steps"] as Model[];
-    const actionUses = steps[0]!._data["uses"];
+    const runs = cloned.data["runs"] as Model;
+    const steps = runs.data["steps"] as Model[];
+    const actionUses = steps[0]!.data["uses"];
     expect(isCommented(actionUses)).toBe(true);
     expect((actionUses as Commented<string>).value).toBe(
       "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",

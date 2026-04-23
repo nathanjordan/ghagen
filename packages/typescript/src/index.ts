@@ -24,14 +24,7 @@ export {
   withEolComment,
   isCommented,
   unwrapCommented,
-} from "./models/_base.js";
-export type {
-  Commented,
-  Commentable,
-  Raw,
   Model,
-  ModelMeta,
-  WithMeta,
   StepModel,
   JobModel,
   WorkflowModel,
@@ -56,6 +49,13 @@ export type {
   CompositeRunsModel,
   DockerRunsModel,
   NodeRunsModel,
+} from "./models/_base.js";
+export type {
+  Commented,
+  Commentable,
+  Raw,
+  ModelMeta,
+  WithMeta,
 } from "./models/_base.js";
 
 export { step } from "./models/step.js";

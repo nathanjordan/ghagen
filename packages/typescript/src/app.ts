@@ -171,7 +171,7 @@ export class App {
     let working = cloneModel(item);
     const ctx: SynthContext = {
       workflowKey: stem(relPath),
-      itemType: item._kind === "workflow" ? "workflow" : "action",
+      itemType: item.kind === "workflow" ? "workflow" : "action",
       root: this.rootAbsPath,
     };
     for (const transform of transforms) {

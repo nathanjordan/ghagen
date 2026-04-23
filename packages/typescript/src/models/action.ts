@@ -1,6 +1,6 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../schema/action-types.generated.js";
-import type {
+import {
   ActionModel,
   ActionInputModel,
   ActionOutputModel,
@@ -8,11 +8,10 @@ import type {
   CompositeRunsModel,
   DockerRunsModel,
   NodeRunsModel,
-  StepModel,
-  WithMeta,
-  Raw,
+  extractMeta,
+  mapFields,
 } from "./_base.js";
-import { createModel, extractMeta, mapFields } from "./_base.js";
+import type { StepModel, WithMeta, Raw } from "./_base.js";
 import {
   ACTION_KEY_ORDER,
   ACTION_INPUT_KEY_ORDER,
@@ -239,12 +238,10 @@ const ACTION_FIELD_MAP = {
  */
 export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "actionInput",
+  return new ActionInputModel(
     mapFields(data as Record<string, unknown>, ACTION_INPUT_DEF_FIELD_MAP),
     meta,
-    ACTION_INPUT_KEY_ORDER,
-  ) as ActionInputModel;
+  );
 }
 
 /**
@@ -265,12 +262,10 @@ export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInpu
  */
 export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOutputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "actionOutput",
+  return new ActionOutputModel(
     mapFields(data as Record<string, unknown>, ACTION_OUTPUT_DEF_FIELD_MAP),
     meta,
-    ACTION_OUTPUT_KEY_ORDER,
-  ) as ActionOutputModel;
+  );
 }
 
 /**
@@ -286,12 +281,10 @@ export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOu
  */
 export function branding(input: WithMeta<BrandingInput>): BrandingModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "branding",
+  return new BrandingModel(
     mapFields(data as Record<string, unknown>, BRANDING_FIELD_MAP),
     meta,
-    BRANDING_KEY_ORDER,
-  ) as BrandingModel;
+  );
 }
 
 /**
@@ -313,12 +306,10 @@ export function branding(input: WithMeta<BrandingInput>): BrandingModel {
  */
 export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "compositeRuns",
+  return new CompositeRunsModel(
     mapFields(data as Record<string, unknown>, COMPOSITE_RUNS_FIELD_MAP),
     meta,
-    COMPOSITE_RUNS_KEY_ORDER,
-  ) as CompositeRunsModel;
+  );
 }
 
 /**
@@ -341,12 +332,10 @@ export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRun
  */
 export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "dockerRuns",
+  return new DockerRunsModel(
     mapFields(data as Record<string, unknown>, DOCKER_RUNS_FIELD_MAP),
     meta,
-    DOCKER_RUNS_KEY_ORDER,
-  ) as DockerRunsModel;
+  );
 }
 
 /**
@@ -369,12 +358,10 @@ export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
  */
 export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "nodeRuns",
+  return new NodeRunsModel(
     mapFields(data as Record<string, unknown>, NODE_RUNS_FIELD_MAP),
     meta,
-    NODE_RUNS_KEY_ORDER,
-  ) as NodeRunsModel;
+  );
 }
 
 /**
@@ -398,10 +385,8 @@ export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
  */
 export function action(input: WithMeta<ActionInput>): ActionModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return createModel(
-    "action",
+  return new ActionModel(
     mapFields(data as Record<string, unknown>, ACTION_FIELD_MAP),
     meta,
-    ACTION_KEY_ORDER,
-  ) as ActionModel;
+  );
 }

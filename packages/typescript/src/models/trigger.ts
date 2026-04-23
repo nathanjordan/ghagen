@@ -1,19 +1,15 @@
-import type {
+import {
   OnModel,
   PushTriggerModel,
   PRTriggerModel,
   ScheduleTriggerModel,
   WorkflowDispatchModel,
   WorkflowCallModel,
-  WithMeta,
+  extractMeta,
+  mapFields,
+  isModel,
 } from "./_base.js";
-import { createModel, extractMeta, mapFields, isModel } from "./_base.js";
-import {
-  ON_KEY_ORDER,
-  TRIGGER_KEY_ORDER,
-  WORKFLOW_DISPATCH_KEY_ORDER,
-  WORKFLOW_CALL_KEY_ORDER,
-} from "../emitter/key-order.js";
+import type { WithMeta } from "./_base.js";
 
 /**
  * Input for `push` event trigger configuration. Filters which pushes
@@ -61,7 +57,7 @@ const PUSH_TRIGGER_FIELD_MAP = {
 export function pushTrigger(input: WithMeta<PushTriggerInput>): PushTriggerModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, PUSH_TRIGGER_FIELD_MAP);
-  return createModel("pushTrigger", yamlData, meta, TRIGGER_KEY_ORDER) as PushTriggerModel;
+  return new PushTriggerModel(yamlData, meta);
 }
 
 /**
@@ -113,7 +109,7 @@ const PR_TRIGGER_FIELD_MAP = {
 export function prTrigger(input: WithMeta<PRTriggerInput>): PRTriggerModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, PR_TRIGGER_FIELD_MAP);
-  return createModel("prTrigger", yamlData, meta, TRIGGER_KEY_ORDER) as PRTriggerModel;
+  return new PRTriggerModel(yamlData, meta);
 }
 
 /**
@@ -139,12 +135,7 @@ export interface ScheduleTriggerInput {
  */
 export function scheduleTrigger(input: WithMeta<ScheduleTriggerInput>): ScheduleTriggerModel {
   const [data, meta] = extractMeta(input);
-  return createModel(
-    "scheduleTrigger",
-    data as Record<string, unknown>,
-    meta,
-    [],
-  ) as ScheduleTriggerModel;
+  return new ScheduleTriggerModel(data as Record<string, unknown>, meta);
 }
 
 /**
@@ -195,12 +186,7 @@ export interface WorkflowDispatchInput {
  */
 export function workflowDispatch(input: WithMeta<WorkflowDispatchInput>): WorkflowDispatchModel {
   const [data, meta] = extractMeta(input);
-  return createModel(
-    "workflowDispatch",
-    data as Record<string, unknown>,
-    meta,
-    WORKFLOW_DISPATCH_KEY_ORDER,
-  ) as WorkflowDispatchModel;
+  return new WorkflowDispatchModel(data as Record<string, unknown>, meta);
 }
 
 /**
@@ -275,12 +261,7 @@ export interface WorkflowCallInput {
  */
 export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
   const [data, meta] = extractMeta(input);
-  return createModel(
-    "workflowCall",
-    data as Record<string, unknown>,
-    meta,
-    WORKFLOW_CALL_KEY_ORDER,
-  ) as WorkflowCallModel;
+  return new WorkflowCallModel(data as Record<string, unknown>, meta);
 }
 
 /**
@@ -453,5 +434,5 @@ export function on(input: WithMeta<OnInput>): OnModel {
     sortedData[key] = yamlData[key];
   }
 
-  return createModel("on", sortedData, meta, ON_KEY_ORDER) as OnModel;
+  return new OnModel(sortedData, meta);
 }

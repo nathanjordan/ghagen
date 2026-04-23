@@ -92,7 +92,7 @@ describe("App", () => {
       root: tmp,
       transforms: [
         (item) => {
-          (item._data as Record<string, string>)["name"] = "RENAMED";
+          (item.data as Record<string, string>)["name"] = "RENAMED";
           return item;
         },
       ],
@@ -101,7 +101,7 @@ describe("App", () => {
     const written = await app.synth();
     expect(readFileSync(written[0]!, "utf8")).toContain("name: RENAMED");
     // Original is untouched.
-    expect((original._data as Record<string, string>)["name"]).toBe("CI");
+    expect((original.data as Record<string, string>)["name"]).toBe("CI");
   });
 
   it("respects auto_dedent setting from .ghagen.yml", async () => {
@@ -111,6 +111,6 @@ describe("App", () => {
     // Subsequent step() should NOT dedent.
     const indented = "\n        echo hi\n        echo bye\n    ";
     const s = step({ run: indented });
-    expect(s._data["run"]).toBe(indented);
+    expect(s.data["run"]).toBe(indented);
   });
 });

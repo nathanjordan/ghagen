@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { raw, isRaw, createModel, isModel, extractMeta, mapFields } from "./_base.js";
+import {
+  raw,
+  isRaw,
+  isModel,
+  extractMeta,
+  mapFields,
+  WorkflowModel,
+  StepModel,
+  JobModel,
+  Model,
+} from "./_base.js";
+import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
 
 // ---------------------------------------------------------------------------
 // raw()
@@ -53,42 +64,47 @@ describe("isRaw()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// createModel()
+// Model class constructors
 // ---------------------------------------------------------------------------
-describe("createModel()", () => {
-  it("returns an object with the correct _kind", () => {
-    const m = createModel("workflow", {}, {}, []);
-    expect(m._kind).toBe("workflow");
+describe("Model class", () => {
+  it("returns an object with the correct kind", () => {
+    const m = new WorkflowModel({}, {});
+    expect(m.kind).toBe("workflow");
   });
 
-  it("stores _data", () => {
+  it("stores data", () => {
     const data = { name: "ci" };
-    const m = createModel("workflow", data, {}, []);
-    expect(m._data).toEqual(data);
+    const m = new WorkflowModel(data, {});
+    expect(m.data).toEqual(data);
   });
 
-  it("stores _meta", () => {
+  it("stores meta", () => {
     const meta = { comment: "hello" };
-    const m = createModel("workflow", {}, meta, []);
-    expect(m._meta).toEqual(meta);
+    const m = new WorkflowModel({}, meta);
+    expect(m.meta).toEqual(meta);
   });
 
-  it("stores _keyOrder", () => {
-    const order = ["name", "on", "jobs"] as const;
-    const m = createModel("workflow", {}, {}, order);
-    expect(m._keyOrder).toEqual(order);
+  it("has correct keyOrder from the subclass", () => {
+    const m = new WorkflowModel({}, {});
+    expect(m.keyOrder).toEqual(WORKFLOW_KEY_ORDER);
   });
 
-  it("returns a non-frozen object so transforms can mutate _data", () => {
-    const m = createModel("step", {}, {}, []);
+  it("returns a non-frozen object so transforms can mutate data", () => {
+    const m = new StepModel({}, {});
     expect(Object.isFrozen(m)).toBe(false);
   });
 
   it("captures a source location at the call site", () => {
-    const m = createModel("step", {}, {}, []);
-    expect(m._sourceLocation).not.toBeNull();
-    expect(m._sourceLocation?.file).toContain("_base.test");
-    expect(typeof m._sourceLocation?.line).toBe("number");
+    const m = new StepModel({}, {});
+    expect(m.sourceLocation).not.toBeNull();
+    expect(m.sourceLocation?.file).toContain("_base.test");
+    expect(typeof m.sourceLocation?.line).toBe("number");
+  });
+
+  it("is an instance of Model", () => {
+    const m = new StepModel({}, {});
+    expect(m).toBeInstanceOf(Model);
+    expect(m).toBeInstanceOf(StepModel);
   });
 });
 
@@ -97,12 +113,12 @@ describe("createModel()", () => {
 // ---------------------------------------------------------------------------
 describe("isModel()", () => {
   it("returns true for a model", () => {
-    const m = createModel("job", {}, {}, []);
+    const m = new JobModel({}, {});
     expect(isModel(m)).toBe(true);
   });
 
   it("returns false for a plain object", () => {
-    expect(isModel({ _kind: "job", _data: {}, _meta: {}, _keyOrder: [] })).toBe(false);
+    expect(isModel({ kind: "job", data: {}, meta: {}, keyOrder: [] })).toBe(false);
   });
 
   it("returns false for null", () => {

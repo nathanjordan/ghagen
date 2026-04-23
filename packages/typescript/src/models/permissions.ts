@@ -1,7 +1,6 @@
 import type { PermissionsEvent as SchemaPermissions } from "../schema/workflow-types.generated.js";
-import type { PermissionsModel, WithMeta } from "./_base.js";
-import { createModel, extractMeta, mapFields } from "./_base.js";
-import { PERMISSIONS_KEY_ORDER } from "../emitter/key-order.js";
+import { PermissionsModel, extractMeta, mapFields } from "./_base.js";
+import type { WithMeta } from "./_base.js";
 import type { PermissionLevel } from "./common.js";
 
 /**
@@ -72,5 +71,5 @@ const PERMISSIONS_FIELD_MAP = {
 export function permissions(input: WithMeta<PermissionsInput>): PermissionsModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, PERMISSIONS_FIELD_MAP);
-  return createModel("permissions", yamlData, meta, PERMISSIONS_KEY_ORDER) as PermissionsModel;
+  return new PermissionsModel(yamlData, meta);
 }

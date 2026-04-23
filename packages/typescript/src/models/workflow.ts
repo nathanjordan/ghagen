@@ -1,24 +1,22 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../schema/workflow-types.generated.js";
-import type {
-  WorkflowModel,
-  OnModel,
-  PermissionsModel,
-  ConcurrencyModel,
-  DefaultsModel,
-  WithMeta,
-  Raw,
-} from "./_base.js";
 import {
-  createModel,
+  WorkflowModel,
   extractMeta,
   isModel,
   isCommented,
   withComment,
   withEolComment,
 } from "./_base.js";
-import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
-import type { JobModel } from "./_base.js";
+import type {
+  OnModel,
+  PermissionsModel,
+  ConcurrencyModel,
+  DefaultsModel,
+  JobModel,
+  WithMeta,
+  Raw,
+} from "./_base.js";
 import type { OnInput } from "./trigger.js";
 import { on } from "./trigger.js";
 import type { PermissionsInput } from "./permissions.js";
@@ -120,5 +118,5 @@ export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
     yamlData[yamlKey] = value;
   }
 
-  return createModel("workflow", yamlData, meta, WORKFLOW_KEY_ORDER) as WorkflowModel;
+  return new WorkflowModel(yamlData, meta);
 }

@@ -6,8 +6,7 @@
  * comment via `withEolComment()`.
  */
 
-import type { Model } from "../models/_base.js";
-import { isModel, isCommented, withEolComment } from "../models/_base.js";
+import { StepModel, JobModel, isCommented, withEolComment } from "../models/_base.js";
 import type { SynthContext, SynthItem, Transform } from "../transforms.js";
 import type { Lockfile } from "./lockfile.js";
 
@@ -25,44 +24,18 @@ export type PinTransform = Transform;
 /** Build a `Transform` that mutates a model to pin `uses:` refs. */
 export function pinTransform(lockfile: Lockfile): PinTransform {
   return function pin(item: SynthItem, _ctx: SynthContext): SynthItem {
-    if (item._kind === "workflow") {
-      pinWorkflow(item, lockfile);
-    } else if (item._kind === "action") {
-      const runs = item._data["runs"];
-      if (isModel(runs) && (runs as Model)._data["using"] === "composite") {
-        pinSteps((runs as Model)._data["steps"], lockfile);
+    item.walk((model) => {
+      if (model instanceof StepModel || model instanceof JobModel) {
+        let uses = model.data["uses"];
+        if (isCommented(uses)) uses = uses.value;
+        if (typeof uses === "string") {
+          const pinned = pinUses(uses, lockfile);
+          if (pinned !== null) model.data["uses"] = pinned;
+        }
       }
-    }
+    });
     return item;
   };
-}
-
-function pinWorkflow(wf: SynthItem, lockfile: Lockfile): void {
-  const jobs = (wf._data["jobs"] ?? {}) as Record<string, unknown>;
-  for (const job of Object.values(jobs)) {
-    if (!isModel(job)) continue;
-    const jobModel = job as Model;
-    let uses = jobModel._data["uses"];
-    if (isCommented(uses)) uses = uses.value;
-    if (typeof uses === "string") {
-      const pinned = pinUses(uses, lockfile);
-      if (pinned !== null) jobModel._data["uses"] = pinned;
-    }
-    pinSteps(jobModel._data["steps"], lockfile);
-  }
-}
-
-function pinSteps(steps: unknown, lockfile: Lockfile): void {
-  if (!Array.isArray(steps)) return;
-  for (const step of steps) {
-    if (!isModel(step)) continue;
-    const stepModel = step as Model;
-    let uses = stepModel._data["uses"];
-    if (isCommented(uses)) uses = uses.value;
-    if (typeof uses !== "string") continue;
-    const pinned = pinUses(uses, lockfile);
-    if (pinned !== null) stepModel._data["uses"] = pinned;
-  }
 }
 
 function pinUses(uses: string, lockfile: Lockfile): string | null {

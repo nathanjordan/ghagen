@@ -3,29 +3,25 @@ import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
 } from "../schema/workflow-types.generated.js";
-import type {
+import {
   JobModel,
-  StepModel,
-  PermissionsModel,
-  ContainerModel,
-  ServiceModel,
   StrategyModel,
   MatrixModel,
   ConcurrencyModel,
   DefaultsModel,
   EnvironmentModel,
+  extractMeta,
+  mapFields,
+  isModel,
+} from "./_base.js";
+import type {
+  StepModel,
+  PermissionsModel,
+  ContainerModel,
+  ServiceModel,
   WithMeta,
   Raw,
 } from "./_base.js";
-import { createModel, extractMeta, mapFields, isModel } from "./_base.js";
-import {
-  JOB_KEY_ORDER,
-  STRATEGY_KEY_ORDER,
-  MATRIX_KEY_ORDER,
-  CONCURRENCY_KEY_ORDER,
-  DEFAULTS_KEY_ORDER,
-  ENVIRONMENT_KEY_ORDER,
-} from "../emitter/key-order.js";
 import type { PermissionsInput } from "./permissions.js";
 import { permissions } from "./permissions.js";
 import type { ContainerInput } from "./container.js";
@@ -68,12 +64,7 @@ export interface MatrixInput {
  */
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
-  return createModel(
-    "matrix",
-    data as Record<string, unknown>,
-    meta,
-    MATRIX_KEY_ORDER,
-  ) as MatrixModel;
+  return new MatrixModel(data as Record<string, unknown>, meta);
 }
 
 /**
@@ -117,7 +108,7 @@ export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
   }
   if (data.failFast !== undefined) normalized["fail-fast"] = data.failFast;
   if (data.maxParallel !== undefined) normalized["max-parallel"] = data.maxParallel;
-  return createModel("strategy", normalized, meta, STRATEGY_KEY_ORDER) as StrategyModel;
+  return new StrategyModel(normalized, meta);
 }
 
 // ---- Concurrency ----
@@ -155,7 +146,7 @@ const CONCURRENCY_FIELD_MAP = {
 export function concurrency(input: WithMeta<ConcurrencyInput>): ConcurrencyModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, CONCURRENCY_FIELD_MAP);
-  return createModel("concurrency", yamlData, meta, CONCURRENCY_KEY_ORDER) as ConcurrencyModel;
+  return new ConcurrencyModel(yamlData, meta);
 }
 
 // ---- Defaults ----
@@ -203,7 +194,7 @@ export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
       runData["working-directory"] = data.run.workingDirectory;
     yamlData["run"] = runData;
   }
-  return createModel("defaults", yamlData, meta, DEFAULTS_KEY_ORDER) as DefaultsModel;
+  return new DefaultsModel(yamlData, meta);
 }
 
 // ---- Environment ----
@@ -237,7 +228,7 @@ const ENVIRONMENT_FIELD_MAP = {
 export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, ENVIRONMENT_FIELD_MAP);
-  return createModel("environment", yamlData, meta, ENVIRONMENT_KEY_ORDER) as EnvironmentModel;
+  return new EnvironmentModel(yamlData, meta);
 }
 
 // ---- Job output ----
@@ -383,5 +374,5 @@ export function job(input: WithMeta<JobInput>): JobModel {
     }
   }
 
-  return createModel("job", yamlData, meta, JOB_KEY_ORDER) as JobModel;
+  return new JobModel(yamlData, meta);
 }
