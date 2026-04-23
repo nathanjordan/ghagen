@@ -24,10 +24,10 @@ from pydantic import Field
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen.emitter.header import (
-    DEFAULT_HEADER,
-    build_header_variables,
+    _UNSET,
     format_header,
 )
+from ghagen.emitter.header import HeaderOption
 from ghagen.emitter.key_order import (
     ACTION_INPUT_KEY_ORDER,
     ACTION_KEY_ORDER,
@@ -198,17 +198,21 @@ class Action(GhagenModel):
 
     def to_yaml(
         self,
-        header: str | None = None,
+        header: HeaderOption | object = _UNSET,
         include_header: bool = True,
     ) -> str:
         """Generate the complete YAML string for this action.
 
         Args:
-            header: Custom header comment template. May contain
-                ``{variable}`` placeholders — see
-                :data:`ghagen.emitter.header.HEADER_VARIABLES` for the
-                full list. If ``None``, uses
-                :data:`~ghagen.emitter.header.DEFAULT_HEADER`.
+            header: Header comment for generated files.
+
+                - **callable** — called with a
+                  :class:`~ghagen.emitter.header.HeaderVariables`
+                  object, returns plain text
+                - **str** — output verbatim (no interpolation)
+                - **None** — suppress header entirely
+                - **omitted** — use
+                  :data:`~ghagen.emitter.header.DEFAULT_HEADER_FN`
             include_header: Whether to include the header comment.
 
         Returns:
@@ -221,9 +225,7 @@ class Action(GhagenModel):
             attach_comment(cm, list(cm.keys())[0], comment=self.comment)
 
         if include_header:
-            template = header if header is not None else DEFAULT_HEADER
-            variables = build_header_variables(self._source_location)
-            header_str = format_header(template, variables)
+            header_str = format_header(header, self._source_location)
         else:
             header_str = None
 
@@ -232,15 +234,14 @@ class Action(GhagenModel):
     def to_yaml_file(
         self,
         path: str | Path,
-        header: str | None = None,
+        header: HeaderOption | object = _UNSET,
         include_header: bool = True,
     ) -> None:
         """Write the action YAML to a file.
 
         Args:
             path: File path to write to.
-            header: Custom header comment template. See
-                :meth:`to_yaml` for details.
+            header: Header comment. See :meth:`to_yaml` for details.
             include_header: Whether to include the header comment.
         """
         content = self.to_yaml(header=header, include_header=include_header)

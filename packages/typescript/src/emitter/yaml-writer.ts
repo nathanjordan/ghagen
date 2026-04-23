@@ -2,13 +2,21 @@ import { Document, Scalar, YAMLMap, YAMLSeq, Pair } from "yaml";
 import type { Model } from "../models/_base.js";
 import { isModel, isRaw, isCommented } from "../models/_base.js";
 import { formatHeader } from "./header.js";
+import type { HeaderOption } from "./header.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 /** Options for controlling YAML serialization output. */
 export interface ToYamlOptions {
-  /** Custom header comment template. Supports `{tool}` and `{version}` placeholders. */
-  header?: string | null;
+  /**
+   * Header comment for generated files.
+   *
+   * - **closure** — called with a `HeaderVariables` object, returns plain text
+   * - **string** — output verbatim (no interpolation)
+   * - **null** — suppress header entirely
+   * - **undefined** (omitted) — use `DEFAULT_HEADER_FN`
+   */
+  header?: HeaderOption;
   /** Whether to include the header comment. Defaults to true. */
   includeHeader?: boolean;
 }
@@ -38,7 +46,10 @@ export function toYaml(model: Model, options?: ToYamlOptions): string {
   doc.contents = modelToYamlMap(model);
 
   if (options?.includeHeader !== false) {
-    doc.commentBefore = formatHeader(options?.header, model._sourceLocation);
+    const headerText = formatHeader(options?.header, model._sourceLocation);
+    if (headerText !== null) {
+      doc.commentBefore = headerText;
+    }
   }
 
   // Attach top-level block comment if set (prepend before any existing field comment)

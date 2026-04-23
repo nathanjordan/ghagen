@@ -127,6 +127,8 @@ export type { ShellType, PermissionLevel } from "./models/common.js";
 // Emitter
 export { toYaml, toYamlFile } from "./emitter/yaml-writer.js";
 export type { ToYamlOptions } from "./emitter/yaml-writer.js";
+export { DEFAULT_HEADER_FN } from "./emitter/header.js";
+export type { HeaderFn, HeaderOption, HeaderVariables } from "./emitter/header.js";
 
 // Helpers
 export { expr, secrets, github, vars } from "./helpers/expressions.js";

@@ -13,6 +13,7 @@ import { cloneModel } from "./models/_base.js";
 import type { ActionModel, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
 import { toYaml } from "./emitter/yaml-writer.js";
+import type { HeaderOption } from "./emitter/header.js";
 import type { SynthContext, SynthItem, Transform } from "./transforms.js";
 import { mkdir } from "node:fs/promises";
 
@@ -29,7 +30,7 @@ interface RegisteredItem {
 
 export class App {
   readonly rootAbsPath: string;
-  readonly headerTxt: string | null | undefined;
+  readonly header: HeaderOption | undefined;
   readonly lockfilePath: string | null;
 
   /** @internal — registered items, exposed for transforms/lint. */
@@ -43,11 +44,14 @@ export class App {
      */
     root?: string;
     /**
-     * Custom header comment template for generated files. May contain `{variable}` placeholders —
-     * see the emitter's `HEADER_VARIABLES`. Set to `null` to keep the ghagen default; set to
-     * `undefined` to use the default.
+     * Header comment for generated files.
+     *
+     * - **closure** — called with a `HeaderVariables` object, returns plain text
+     * - **string** — output verbatim (no interpolation)
+     * - **null** — suppress header entirely
+     * - **undefined** (omitted) — use `DEFAULT_HEADER_FN`
      */
-    header?: string | null;
+    header?: HeaderOption;
     /**
      * Path to the pin lockfile, relative to `root`. Set to `null` to disable lockfile auto-loading.
      * Defaults to `.ghagen.lock.yml`.
@@ -61,7 +65,7 @@ export class App {
   } = {}) {
     const rootInput = options.root ?? ".";
     this.rootAbsPath = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
-    this.headerTxt = (options.header === null || options.header === undefined) ? options.header : options.header + "";
+    this.header = options.header;
     this.lockfilePath =
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
@@ -105,7 +109,7 @@ export class App {
       const full = resolve(this.rootAbsPath, relPath);
       const working = this._applyTransforms(item, relPath, transforms);
       await mkdir(dirname(full), { recursive: true });
-      writeFileSync(full, toYaml(working, { header: this.headerTxt }));
+      writeFileSync(full, toYaml(working, { header: this.header }));
       written.push(full);
     }
     return written;
@@ -124,7 +128,7 @@ export class App {
     for (const { item, relPath } of this._items) {
       const full = resolve(this.rootAbsPath, relPath);
       const working = this._applyTransforms(item, relPath, transforms);
-      const expected = toYaml(working, { header: this.headerTxt });
+      const expected = toYaml(working, { header: this.header });
 
       if (!existsSync(full) || !statSync(full).isFile()) {
         stale.push([full, `File does not exist: ${full}`]);

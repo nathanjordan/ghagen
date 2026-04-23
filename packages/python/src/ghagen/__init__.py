@@ -10,6 +10,12 @@ from ghagen._commented import (
 from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
+from ghagen.emitter.header import (
+    DEFAULT_HEADER_FN,
+    HeaderFn,
+    HeaderOption,
+    HeaderVariables,
+)
 from ghagen.helpers.expressions import expr
 from ghagen.lint import LintConfig, Severity, SourceLocation, Violation
 from ghagen.models.action import (
@@ -39,6 +45,10 @@ from ghagen.transforms import SynthContext, Transform
 
 __all__ = [
     "App",
+    "DEFAULT_HEADER_FN",
+    "HeaderFn",
+    "HeaderOption",
+    "HeaderVariables",
     "Commented",
     "Raw",
     "is_commented",

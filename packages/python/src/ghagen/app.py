@@ -7,6 +7,7 @@ from pathlib import Path
 
 import ghagen._dedent as _dedent_mod
 from ghagen.config import load_options
+from ghagen.emitter.header import HeaderOption, _UNSET
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
 from ghagen.transforms import SynthContext, Transform
@@ -37,7 +38,7 @@ class App:
     def __init__(
         self,
         root: str | Path = ".",
-        header: str | None = None,
+        header: HeaderOption | object = _UNSET,
         lockfile: str | Path | None = ".ghagen.lock.yml",
         transforms: list[Transform] | None = None,
     ) -> None:
@@ -46,16 +47,16 @@ class App:
         Args:
             root: Repository root directory. All registered output
                 paths and the lockfile are resolved relative to this.
-                Defaults to the current working directory. Note that
-                ``{source_file}`` in the header is resolved separately,
-                via the nearest ancestor directory containing
-                ``.ghagen.yml``.
-            header: Custom header comment template for generated files.
-                If ``None``, uses ghagen's default template. May include
-                ``{variable}`` placeholders; see
-                :data:`ghagen.emitter.header.HEADER_VARIABLES` for the
-                full list (``source_file``, ``source_line``, ``tool``,
-                ``version``). Escape literal braces as ``{{`` / ``}}``.
+                Defaults to the current working directory.
+            header: Header comment for generated files.
+
+                - **callable** — called with a
+                  :class:`~ghagen.emitter.header.HeaderVariables`
+                  object, returns plain text
+                - **str** — output verbatim (no interpolation)
+                - **None** — suppress header entirely
+                - **omitted** — use
+                  :data:`~ghagen.emitter.header.DEFAULT_HEADER_FN`
             lockfile: Path to the pin lockfile, relative to *root*.
                 Set to ``None`` to disable lockfile auto-loading.
                 Defaults to ``".ghagen.lock.yml"``.
