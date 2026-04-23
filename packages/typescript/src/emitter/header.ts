@@ -27,7 +27,7 @@ export const HEADER_VARIABLES: Record<string, string> = {
     "Path to the TS/JS file that defined this workflow/action, relative " +
     "to the app root (the directory containing .ghagen.yml). " +
     "Falls back to the absolute path when no app root can be located.",
-  source_line: "Line number in the source file where the workflow/action was " + "constructed.",
+  source_line: "Line number in the source file where the workflow/action was constructed.",
   tool: "The string 'ghagen'.",
   version: "The installed ghagen version (e.g. '0.3.0').",
 };

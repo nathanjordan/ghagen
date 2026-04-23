@@ -6,7 +6,7 @@
  * need to write to a non-conventional path.
  */
 
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { loadOptions, setAutoDedent } from "./config.js";
 import { cloneModel } from "./models/_base.js";
@@ -166,7 +166,7 @@ export class App {
     relPath: string,
     transforms: readonly Transform[],
   ): SynthItem {
-    if (transforms.length === 0) return item;
+    if (transforms.length === 0) {return item;}
 
     let working = cloneModel(item);
     const ctx: SynthContext = {

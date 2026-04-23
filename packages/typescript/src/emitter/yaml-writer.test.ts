@@ -6,7 +6,7 @@ import { YAMLMap, Scalar, Pair } from "yaml";
 import { toYaml, toYamlFile } from "./yaml-writer.js";
 import { Model, JobModel, raw, withComment, withEolComment } from "../models/_base.js";
 import type { ModelMeta } from "../models/_base.js";
-import { JOB_KEY_ORDER } from "./key-order.js";
+
 
 // ---------------------------------------------------------------------------
 // helpers
