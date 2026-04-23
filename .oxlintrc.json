@@ -3,6 +3,9 @@
     "correctness": "error",
     "suspicious": "warn"
   },
+  "rules": {
+    "curly": "error"
+  },
   "plugins": ["typescript"],
   "env": {
     "node": true,
