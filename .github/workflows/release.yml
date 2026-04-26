@@ -15,7 +15,7 @@ jobs:
     steps:
     - id: release
       name: Release Please
-      uses: googleapis/release-please-action@v4
+      uses: googleapis/release-please-action@v5
     - name: Checkout
       if: steps.release.outputs.release_created == 'true'
       uses: actions/checkout@v6
