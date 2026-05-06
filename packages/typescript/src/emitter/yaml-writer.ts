@@ -1,4 +1,4 @@
-import { Document, Scalar, YAMLMap, YAMLSeq, Pair } from "yaml";
+import { Document, Scalar, YAMLMap, YAMLSeq } from "yaml";
 import type { Model } from "../models/_base.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -17,6 +17,55 @@ export interface ToYamlOptions {
    *   {@link HeaderVariables} and emit the returned string.
    */
   header?: string | null | ((vars: HeaderVariables) => string);
+}
+
+/** Format a YAML comment by prefixing each line with `#`. */
+function formatYamlComment(comment: string): string {
+  return comment
+    .split("\n")
+    .map((line) => (line ? `# ${line}` : "#"))
+    .join("\n");
+}
+
+/** Prepend a block comment before the first key in the map. */
+function attachBlockComment(map: YAMLMap, comment: string): void {
+  const firstPair = map.items[0];
+  if (!firstPair) {
+    return;
+  }
+  const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
+  const existing = key.commentBefore;
+  key.commentBefore = existing ? `${comment}\n${existing}` : comment;
+  firstPair.key = key;
+}
+
+/** Attach an end-of-line comment to the last value in the map. */
+function attachEolComment(map: YAMLMap, comment: string): void {
+  const lastPair = map.items[map.items.length - 1];
+  if (!lastPair) {
+    return;
+  }
+  if (
+    lastPair.value instanceof Scalar ||
+    lastPair.value instanceof YAMLMap ||
+    lastPair.value instanceof YAMLSeq
+  ) {
+    lastPair.value.comment = comment;
+  } else {
+    const val = new Scalar(lastPair.value);
+    val.comment = comment;
+    lastPair.value = val;
+  }
+}
+
+/**
+ * Widen the gap before inline `#` comments from 1 space to 2 to match
+ * ruamel.yaml's convention. The lookbehind condition (non-whitespace,
+ * non-colon) leaves block comments (indented `#`) and key-only comments
+ * (`key: #`) alone.
+ */
+function fixInlineCommentSpacing(yaml: string): string {
+  return yaml.replace(/([^\s:]) (# )/g, "$1  $2");
 }
 
 /**
@@ -45,54 +94,23 @@ export function toYaml(model: Model, options?: ToYamlOptions): string {
     doc.commentBefore = headerStr;
   }
 
-  // Attach top-level block comment if set (prepend before any existing field comment)
-  if (model.meta.comment && doc.contents instanceof YAMLMap) {
-    const firstPair = doc.contents.items[0];
-    if (firstPair) {
-      const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
-      const existing = key.commentBefore;
-      key.commentBefore = existing ? `${model.meta.comment}\n${existing}` : model.meta.comment;
-      firstPair.key = key;
+  if (doc.contents instanceof YAMLMap) {
+    if (model.meta.comment) {
+      attachBlockComment(doc.contents, model.meta.comment);
+    }
+    if (model.meta.eolComment) {
+      attachEolComment(doc.contents, model.meta.eolComment);
     }
   }
 
-  // Attach top-level EOL comment to the last value
-  if (model.meta.eolComment && doc.contents instanceof YAMLMap) {
-    const items = doc.contents.items;
-    const lastPair = items[items.length - 1] as Pair | undefined;
-    if (lastPair) {
-      if (
-        lastPair.value instanceof Scalar ||
-        lastPair.value instanceof YAMLMap ||
-        lastPair.value instanceof YAMLSeq
-      ) {
-        (lastPair.value as Scalar | YAMLMap | YAMLSeq).comment = model.meta.eolComment;
-      } else {
-        const val = new Scalar(lastPair.value);
-        val.comment = model.meta.eolComment;
-        lastPair.value = val;
-      }
-    }
-  }
-
-  let result = doc.toString({
+  const yaml = doc.toString({
     lineWidth: 0,
     indentSeq: false,
     singleQuote: true,
-    commentString: (comment: string) =>
-      comment
-        .split("\n")
-        .map((line) => (line ? `# ${line}` : "#"))
-        .join("\n"),
+    commentString: formatYamlComment,
   });
 
-  // Add extra space before inline comments to match ruamel.yaml convention
-  // (yaml library uses 1 space before #, ruamel.yaml uses 2).
-  // Only match when preceded by a non-whitespace, non-colon character
-  // to avoid affecting block comments (indented #) and key comments (on: #).
-  result = result.replace(/([^\s:]) (# )/g, "$1  $2");
-
-  return result;
+  return fixInlineCommentSpacing(yaml);
 }
 
 /**
