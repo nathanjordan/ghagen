@@ -7,6 +7,7 @@ from pathlib import Path
 
 import ghagen._dedent as _dedent_mod
 from ghagen.config import load_options
+from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
 from ghagen.transforms import SynthContext, Transform
@@ -37,7 +38,7 @@ class App:
     def __init__(
         self,
         root: str | Path = ".",
-        header: str | None = None,
+        header: HeaderInput = DEFAULT,
         lockfile: str | Path | None = ".ghagen.lock.yml",
         transforms: list[Transform] | None = None,
     ) -> None:
@@ -50,12 +51,19 @@ class App:
                 ``{source_file}`` in the header is resolved separately,
                 via the nearest ancestor directory containing
                 ``.ghagen.yml``.
-            header: Custom header comment template for generated files.
-                If ``None``, uses ghagen's default template. May include
-                ``{variable}`` placeholders; see
-                :data:`ghagen.emitter.header.HEADER_VARIABLES` for the
-                full list (``source_file``, ``source_line``, ``tool``,
-                ``version``). Escape literal braces as ``{{`` / ``}}``.
+            header: Header comment for every generated file. Four
+                shapes are accepted:
+
+                - omit (``DEFAULT`` sentinel) — emit ghagen's default
+                  header (mentions the originating ``.py`` file).
+                - ``None`` — emit no header.
+                - ``str`` — emit the string verbatim. No
+                  ``{variable}`` substitution; literal braces are
+                  preserved.
+                - ``Callable[[HeaderVariables], str]`` — invoke with a
+                  fully-populated
+                  :class:`~ghagen.emitter.header.HeaderVariables` and
+                  emit the returned string.
             lockfile: Path to the pin lockfile, relative to *root*.
                 Set to ``None`` to disable lockfile auto-loading.
                 Defaults to ``".ghagen.lock.yml"``.
@@ -64,7 +72,7 @@ class App:
                 a lockfile is present; these are appended after it.
         """
         self.root = Path(root)
-        self.header = header
+        self.header: HeaderInput = header
         self.lockfile_path = Path(lockfile) if lockfile is not None else None
         self._items: list[tuple[_Item, Path]] = []
         self._transforms: list[Transform] = list(transforms or [])

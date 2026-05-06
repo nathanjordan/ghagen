@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from ghagen.emitter.header import (
+    DEFAULT,
     DEFAULT_HEADER,
     HEADER_VARIABLES,
+    HeaderVariables,
     build_header_variables,
     format_header,
 )
@@ -16,69 +16,66 @@ from ghagen.emitter.header import (
 # --- format_header ---------------------------------------------------------
 
 
-def test_format_header_literal_text_wraps_lines_in_hashes() -> None:
-    result = format_header("hello\nworld", {})
+def test_format_header_default_renders_internal_template() -> None:
+    """Passing the DEFAULT sentinel substitutes {source_file} from variables."""
+    result = format_header(DEFAULT, ("workflows.py", 7))
+    # Sourced from a synthetic non-app-rooted path; expect the abs path
+    # to end with workflows.py.
+    assert result is not None
+    assert "workflows.py" in result
+    assert ":7" not in result  # source_line not in default template
+    assert "Do not edit manually." in result
+    assert result.endswith("\n")
+
+
+def test_format_header_string_is_emitted_verbatim() -> None:
+    """User-provided strings are NOT format_map'd."""
+    result = format_header("hello\nworld", None)
     assert result == "# hello\n# world\n"
 
 
-def test_format_header_substitutes_source_file() -> None:
-    variables = {
-        "source_file": "workflows.py",
-        "source_line": "7",
-        "tool": "ghagen",
-        "version": "9.9.9",
-    }
-    result = format_header("Generated from {source_file}.", variables)
-    assert result == "# Generated from workflows.py.\n"
+def test_format_header_string_preserves_literal_braces() -> None:
+    """Literal { and } in user strings survive — no substitution happens."""
+    result = format_header("a {literal} {tool} b", None)
+    assert result == "# a {literal} {tool} b\n"
 
 
-def test_format_header_substitutes_all_variables() -> None:
-    variables = {
-        "source_file": "a.py",
-        "source_line": "42",
-        "tool": "ghagen",
-        "version": "1.2.3",
-    }
-    result = format_header(
-        "tool={tool} v={version} src={source_file}:{source_line}",
-        variables,
-    )
-    assert result == "# tool=ghagen v=1.2.3 src=a.py:42\n"
+def test_format_header_none_returns_none() -> None:
+    """``header=None`` skips emission entirely."""
+    assert format_header(None, ("x.py", 1)) is None
 
 
-def test_format_header_unknown_variable_raises() -> None:
-    variables = {
-        "source_file": "a.py",
-        "source_line": "1",
-        "tool": "ghagen",
-        "version": "0.0.0",
-    }
-    with pytest.raises(ValueError) as excinfo:
-        format_header("bad {nope}", variables)
+def test_format_header_callable_receives_variables() -> None:
+    captured: list[HeaderVariables] = []
 
-    msg = str(excinfo.value)
-    assert "{nope}" in msg
-    # Every valid variable name should appear in the error message so the
-    # user knows what they can use.
-    for name in HEADER_VARIABLES:
-        assert f"{{{name}}}" in msg
-    # The brace-escaping hint should be present.
-    assert "{{" in msg and "}}" in msg
+    def build(vars_: HeaderVariables) -> str:
+        captured.append(vars_)
+        return f"built by {vars_['tool']} v{vars_['version']}"
+
+    result = format_header(build, ("workflows.py", 7))
+    assert result is not None
+    assert result.startswith("# built by ghagen v")
+    assert result.endswith("\n")
+    assert len(captured) == 1
+    # The closure receives every variable in HEADER_VARIABLES.
+    assert set(captured[0].keys()) == set(HEADER_VARIABLES.keys())
 
 
-def test_format_header_escaped_braces_survive() -> None:
-    """Literal { and } are emitted when doubled in the template."""
-    result = format_header("a {{literal}} b", {})
-    assert result == "# a {literal} b\n"
+def test_format_header_callable_result_wrapped_with_hash() -> None:
+    """Closure return values pass through the same # prefixing as strings."""
+    result = format_header(lambda _v: "line1\nline2", None)
+    assert result == "# line1\n# line2\n"
 
 
 def test_format_header_blank_line_renders_bare_hash() -> None:
-    result = format_header("line1\n\nline3", {})
+    result = format_header("line1\n\nline3", None)
     assert result == "# line1\n#\n# line3\n"
 
 
 def test_format_header_ends_with_newline() -> None:
-    assert format_header("x", {}).endswith("\n")
+    result = format_header("x", None)
+    assert result is not None
+    assert result.endswith("\n")
 
 
 def test_default_header_is_a_template() -> None:

@@ -69,10 +69,10 @@ def test_synth_renders_default_header_with_source_file(
     assert "name: CI" in content
 
 
-def test_synth_renders_custom_template_with_variables(
+def test_synth_renders_closure_header_with_variables(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Users can override the header with a template that references vars."""
+    """Users can override the header with a closure that receives variables."""
     # marker at repo root
     (tmp_path / ".ghagen.yml").write_text("")
 
@@ -86,7 +86,10 @@ def test_synth_renders_custom_template_with_variables(
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
         ")\n"
         "\n"
-        'app = App(root=".", header="AUTO: from {source_file} via {tool}")\n'
+        "app = App(\n"
+        '    root=".",\n'
+        '    header=lambda v: f"AUTO: from {v[\'source_file\']} via {v[\'tool\']}",\n'
+        ")\n"
         'app.add_workflow(ci, "ci.yml")\n'
     )
 
@@ -100,10 +103,10 @@ def test_synth_renders_custom_template_with_variables(
     )
 
 
-def test_synth_unknown_variable_in_template_raises(
+def test_synth_string_header_emits_literally(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A bogus {variable} in the header template fails synth with ValueError."""
+    """Plain string headers are emitted verbatim — no {var} substitution."""
     # marker at repo root
     (tmp_path / ".ghagen.yml").write_text("")
 
@@ -117,17 +120,18 @@ def test_synth_unknown_variable_in_template_raises(
         '    jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},\n'
         ")\n"
         "\n"
-        'app = App(root=".", header="bad {nope}")\n'
+        'app = App(root=".", header="literal {nope} stays literal")\n'
         'app.add_workflow(ci, "ci.yml")\n'
     )
 
     monkeypatch.chdir(tmp_path)
     app = _load_app(wf_py)
+    written = app.synth()
 
-    with pytest.raises(ValueError) as excinfo:
-        app.synth()
-    assert "{nope}" in str(excinfo.value)
-    assert "{source_file}" in str(excinfo.value)
+    content = Path(written[0]).read_text()
+    assert content.startswith("# literal {nope} stays literal\n"), (
+        f"unexpected header:\n{content[:200]}"
+    )
 
 
 def test_synth_per_workflow_source_file(

@@ -53,7 +53,7 @@ def test_simple_ci(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     assert data["name"] == "CI"
@@ -97,7 +97,7 @@ def test_matrix_build(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     matrix = data["jobs"]["test"]["strategy"]["matrix"]
@@ -123,7 +123,7 @@ def test_reusable_workflow_call(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     job = data["jobs"]["deploy"]
@@ -190,7 +190,7 @@ def test_reusable_workflow_producer(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     call = data["on"]["workflow_call"]
@@ -235,7 +235,7 @@ def test_containers_and_services(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     job = data["jobs"]["test"]
@@ -273,7 +273,7 @@ def test_all_permissions(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     perms = data["permissions"]
@@ -340,7 +340,7 @@ def test_complex_triggers(workflow_schema: dict[str, Any]):
         },
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, workflow_schema)
 
     on = data["on"]
@@ -388,7 +388,7 @@ def test_escape_hatches():
         post_process=add_annotation,
     )
 
-    yaml_str = wf.to_yaml(include_header=False)
+    yaml_str = wf.to_yaml(header=None)
 
     # Verify all escape hatches produced output
     assert "custom-shell" in yaml_str  # Raw
@@ -406,6 +406,6 @@ def test_escape_hatches():
         jobs={"raw-job": cm_job},
     )
 
-    yaml_str2 = wf2.to_yaml(include_header=False)
+    yaml_str2 = wf2.to_yaml(header=None)
     assert "runs-on: ubuntu-latest" in yaml_str2
     assert "actions/checkout@v4" in yaml_str2

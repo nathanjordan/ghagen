@@ -63,7 +63,7 @@ def test_ci_basic(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "ci_basic.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "ci_basic.yml")
 
 
 def test_matrix_complex(snapshot: Snapshot):
@@ -107,7 +107,7 @@ def test_matrix_complex(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "matrix_complex.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "matrix_complex.yml")
 
 
 def test_comments(snapshot: Snapshot):
@@ -148,7 +148,7 @@ def test_comments(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "comments.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "comments.yml")
 
 
 def test_multiline_run(snapshot: Snapshot):
@@ -180,7 +180,7 @@ def test_multiline_run(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "multiline_run.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "multiline_run.yml")
 
 
 def test_escape_hatches(snapshot: Snapshot):
@@ -214,7 +214,7 @@ def test_escape_hatches(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "escape_hatches.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "escape_hatches.yml")
 
 
 def test_full_featured(snapshot: Snapshot):
@@ -312,7 +312,7 @@ def test_full_featured(snapshot: Snapshot):
         },
     )
 
-    snapshot.assert_match(wf.to_yaml(include_header=False), "full_featured.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "full_featured.yml")
 
 
 def test_composite_action_snapshot(snapshot: Snapshot):
@@ -354,7 +354,7 @@ def test_composite_action_snapshot(snapshot: Snapshot):
         ),
     )
 
-    snapshot.assert_match(action.to_yaml(include_header=False), "composite_action.yml")
+    snapshot.assert_match(action.to_yaml(header=None), "composite_action.yml")
 
 
 def test_docker_action_snapshot(snapshot: Snapshot):
@@ -381,7 +381,7 @@ def test_docker_action_snapshot(snapshot: Snapshot):
         ),
     )
 
-    snapshot.assert_match(action.to_yaml(include_header=False), "docker_action.yml")
+    snapshot.assert_match(action.to_yaml(header=None), "docker_action.yml")
 
 
 def test_node_action_snapshot(snapshot: Snapshot):
@@ -407,7 +407,7 @@ def test_node_action_snapshot(snapshot: Snapshot):
         ),
     )
 
-    snapshot.assert_match(action.to_yaml(include_header=False), "node_action.yml")
+    snapshot.assert_match(action.to_yaml(header=None), "node_action.yml")
 
 
 def test_triple_quoted_run(snapshot: Snapshot):
@@ -447,4 +447,4 @@ def test_triple_quoted_run(snapshot: Snapshot):
 
     # Similar to multiline_run.yml but uses |- (strip) instead of | (clip)
     # because dedent_script strips the artifact trailing \n from triple quotes.
-    snapshot.assert_match(wf.to_yaml(include_header=False), "triple_quoted_run.yml")
+    snapshot.assert_match(wf.to_yaml(header=None), "triple_quoted_run.yml")

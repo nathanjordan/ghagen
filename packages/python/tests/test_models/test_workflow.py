@@ -46,7 +46,7 @@ def test_workflow_no_header():
         name="Test",
         jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},
     )
-    yaml_str = workflow.to_yaml(include_header=False)
+    yaml_str = workflow.to_yaml(header=None)
     assert "# " not in yaml_str.split("\n")[0]
 
 

@@ -12,6 +12,7 @@ import { loadOptions, setAutoDedent } from "./config.js";
 import { cloneModel } from "./models/_base.js";
 import type { ActionModel, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
+import type { HeaderVariables } from "./emitter/header.js";
 import { toYaml } from "./emitter/yaml-writer.js";
 import type { SynthContext, SynthItem, Transform } from "./transforms.js";
 import { mkdir } from "node:fs/promises";
@@ -29,7 +30,7 @@ interface RegisteredItem {
 
 export class App {
   readonly rootAbsPath: string;
-  readonly headerTxt: string | null | undefined;
+  readonly headerTxt: string | null | ((vars: HeaderVariables) => string) | undefined;
   readonly lockfilePath: string | null;
 
   /** @internal — registered items, exposed for transforms/lint. */
@@ -44,11 +45,17 @@ export class App {
        */
       root?: string;
       /**
-       * Custom header comment template for generated files. May contain `{variable}` placeholders —
-       * see the emitter's `HEADER_VARIABLES`. Set to `null` to keep the ghagen default; set to
-       * `undefined` to use the default.
+       * Header comment for every generated file. Four shapes are accepted:
+       *
+       * - omit / `undefined` — emit ghagen's default header.
+       * - `null`             — emit no header.
+       * - `string`           — emit the string verbatim. No `{variable}`
+       *   substitution; literal braces are preserved.
+       * - `(vars) => string` — invoke the closure with a fully-populated
+       *   `HeaderVariables` (see the emitter module for the typed shape) and
+       *   emit the returned string.
        */
-      header?: string | null;
+      header?: string | null | ((vars: HeaderVariables) => string);
       /**
        * Path to the pin lockfile, relative to `root`. Set to `null` to disable lockfile auto-loading.
        * Defaults to `.ghagen.lock.yml`.
@@ -63,10 +70,7 @@ export class App {
   ) {
     const rootInput = options.root ?? ".";
     this.rootAbsPath = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
-    this.headerTxt =
-      options.header === null || options.header === undefined
-        ? options.header
-        : options.header + "";
+    this.headerTxt = options.header;
     this.lockfilePath =
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];

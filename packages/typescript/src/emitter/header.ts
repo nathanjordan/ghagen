@@ -94,27 +94,41 @@ export function buildHeaderVariables(sourceLocation: SourceLocation | null): Hea
 }
 
 /**
- * Format a header template string, replacing `{variable}` placeholders.
+ * Resolve a header value into the string that should be emitted (or `null`
+ * to skip the header).
  *
- * Returns the formatted string without `#` prefixes — the yaml library
- * handles comment formatting automatically.
+ * Branching:
  *
- * Throws on unknown placeholders, listing every valid variable name.
+ * - `null`      → return `null`; the caller skips emitting any header.
+ * - `undefined` → render `DEFAULT_HEADER` with the captured source-file
+ *   variables. This is the only place `{variable}` substitution happens.
+ * - `string`    → return the string as-is. No placeholder substitution
+ *   on user-supplied strings — literal `{` survives unchanged.
+ * - function    → invoke with a fully-populated `HeaderVariables` and
+ *   return its result.
+ *
+ * Returns the comment text without `#` prefixes — the yaml library handles
+ * comment formatting automatically.
  */
 export function formatHeader(
-  template?: string | null,
+  header: string | null | ((vars: HeaderVariables) => string) | undefined,
   sourceLocation?: SourceLocation | null,
-): string {
-  const tmpl = template ?? DEFAULT_HEADER;
+): string | null {
+  if (header === null) {
+    return null;
+  }
+  if (typeof header === "string") {
+    return header;
+  }
   const variables = buildHeaderVariables(sourceLocation ?? null);
-  return tmpl.replace(/\{(\w+)\}/g, (_, key: string) => {
-    if (!(key in variables)) {
-      const valid = Object.keys(HEADER_VARIABLES)
-        .sort()
-        .map((k) => `{${k}}`)
-        .join(", ");
-      throw new Error(`Unknown variable {${key}} in header template. Available: ${valid}.`);
-    }
-    return variables[key as keyof HeaderVariables];
-  });
+  if (header === undefined) {
+    return DEFAULT_HEADER.replace(/\{(\w+)\}/g, (_, key: string) => {
+      const value = variables[key as keyof HeaderVariables];
+      if (value === undefined) {
+        throw new Error(`Internal error: DEFAULT_HEADER references unknown variable {${key}}.`);
+      }
+      return value;
+    });
+  }
+  return header(variables);
 }

@@ -30,7 +30,7 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("ci_basic.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("ci_basic.yml"));
   });
 
   it("comments.yml", () => {
@@ -57,7 +57,7 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("comments.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("comments.yml"));
   });
 
   it("composite_action.yml", () => {
@@ -87,7 +87,7 @@ describe("snapshot tests", () => {
         ],
       }),
     });
-    expect(toYaml(a, { includeHeader: false })).toBe(loadFixture("composite_action.yml"));
+    expect(toYaml(a, { header: null })).toBe(loadFixture("composite_action.yml"));
   });
 
   it("docker_action.yml", () => {
@@ -111,7 +111,7 @@ describe("snapshot tests", () => {
         postIf: "always()",
       }),
     });
-    expect(toYaml(a, { includeHeader: false })).toBe(loadFixture("docker_action.yml"));
+    expect(toYaml(a, { header: null })).toBe(loadFixture("docker_action.yml"));
   });
 
   it("node_action.yml", () => {
@@ -133,7 +133,7 @@ describe("snapshot tests", () => {
         postIf: "always()",
       }),
     });
-    expect(toYaml(a, { includeHeader: false })).toBe(loadFixture("node_action.yml"));
+    expect(toYaml(a, { header: null })).toBe(loadFixture("node_action.yml"));
   });
 
   it("escape_hatches.yml", () => {
@@ -152,7 +152,7 @@ describe("snapshot tests", () => {
         raw: { "runs-on": "ubuntu-latest", steps: [{ run: "echo 'raw job'" }] } as any,
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("escape_hatches.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("escape_hatches.yml"));
   });
 
   it("full_featured.yml", () => {
@@ -216,7 +216,7 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("full_featured.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("full_featured.yml"));
   });
 
   it("matrix_complex.yml", () => {
@@ -248,7 +248,7 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("matrix_complex.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("matrix_complex.yml"));
   });
 
   it("multiline_run.yml", () => {
@@ -267,7 +267,7 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("multiline_run.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("multiline_run.yml"));
   });
 
   it("triple_quoted_run.yml", () => {
@@ -286,6 +286,6 @@ describe("snapshot tests", () => {
         }),
       },
     });
-    expect(toYaml(w, { includeHeader: false })).toBe(loadFixture("triple_quoted_run.yml"));
+    expect(toYaml(w, { header: null })).toBe(loadFixture("triple_quoted_run.yml"));
   });
 });

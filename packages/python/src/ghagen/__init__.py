@@ -10,6 +10,7 @@ from ghagen._commented import (
 from ghagen._dedent import dedent_script as dedent
 from ghagen._raw import Raw
 from ghagen.app import App
+from ghagen.emitter.header import HeaderVariables
 from ghagen.helpers.expressions import expr
 from ghagen.models.action import (
     Action,
@@ -72,4 +73,6 @@ __all__ = [
     "Transform",
     # Helpers
     "expr",
+    # Header API
+    "HeaderVariables",
 ]

@@ -14,11 +14,11 @@ import {
   nodeRuns,
 } from "../models/action.js";
 function workflowYaml(w: ReturnType<typeof workflow>): string {
-  return toYaml(w, { includeHeader: false });
+  return toYaml(w, { header: null });
 }
 
 function actionYaml(a: ReturnType<typeof action>): string {
-  return toYaml(a, { includeHeader: false });
+  return toYaml(a, { header: null });
 }
 
 describe("workflow schema validation", () => {

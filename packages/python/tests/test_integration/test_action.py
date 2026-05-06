@@ -56,7 +56,7 @@ def test_composite_action_full(action_schema: dict[str, Any]) -> None:
         ),
     )
 
-    yaml_str = action.to_yaml(include_header=False)
+    yaml_str = action.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, action_schema)
 
     assert data["name"] == "Greet"
@@ -92,7 +92,7 @@ def test_docker_action_full(action_schema: dict[str, Any]) -> None:
         ),
     )
 
-    yaml_str = action.to_yaml(include_header=False)
+    yaml_str = action.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, action_schema)
 
     runs = data["runs"]
@@ -122,7 +122,7 @@ def test_node_action_full(action_schema: dict[str, Any]) -> None:
         ),
     )
 
-    yaml_str = action.to_yaml(include_header=False)
+    yaml_str = action.to_yaml(header=None)
     data = validate_and_roundtrip(yaml_str, action_schema)
 
     runs = data["runs"]

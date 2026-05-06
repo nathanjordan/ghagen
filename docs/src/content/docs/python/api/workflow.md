@@ -50,26 +50,24 @@ Per-field comments are attached by wrapping individual field values with `with_c
 
 ### Methods
 
-#### `to_yaml(header=None, include_header=True) -> str`
+#### `to_yaml(header=DEFAULT) -> str`
 
 Generate the complete YAML string for this workflow.
 
-| Argument         | Type          | Default | Description                                                                                                       |
-| ---------------- | ------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `header`         | `str \| None` | `None`  | Custom header comment template. May contain `{variable}` placeholders. If `None`, uses the default ghagen header. |
-| `include_header` | `bool`        | `True`  | Whether to include the header comment at the top of the file.                                                     |
+| Argument | Type                                                            | Default   | Description                                                                                                                                                                                                                                                                                                                                              |
+| -------- | --------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `header` | `str \| None \| Callable[[HeaderVariables], str] \| _Sentinel` | `DEFAULT` | Header comment for the generated file. Omit to emit ghagen's default header. Pass `None` to skip the header. Pass a `str` to emit it verbatim (no `{variable}` substitution; literal braces are preserved). Pass a callable to receive a fully-populated `HeaderVariables` dict and emit the returned string. |
 
 Returns the complete YAML string.
 
-#### `to_yaml_file(path, header=None, include_header=True) -> None`
+#### `to_yaml_file(path, header=DEFAULT) -> None`
 
 Write the workflow YAML to a file. Creates parent directories if they don't exist.
 
-| Argument         | Type          | Default  | Description                                                  |
-| ---------------- | ------------- | -------- | ------------------------------------------------------------ |
-| `path`           | `str \| Path` | required | File path to write to.                                       |
-| `header`         | `str \| None` | `None`   | Custom header comment template. See `to_yaml()` for details. |
-| `include_header` | `bool`        | `True`   | Whether to include the header comment.                       |
+| Argument | Type                                                            | Default   | Description                                                |
+| -------- | --------------------------------------------------------------- | --------- | ---------------------------------------------------------- |
+| `path`   | `str \| Path`                                                   | required  | File path to write to.                                     |
+| `header` | `str \| None \| Callable[[HeaderVariables], str] \| _Sentinel` | `DEFAULT` | Header comment. See `to_yaml()` for the four accepted shapes. |
 
 ## Defaults
 
