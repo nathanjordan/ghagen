@@ -18,7 +18,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Sync
       run: uv sync
     - name: Ruff check
@@ -39,7 +39,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Setup Node.js
       uses: actions/setup-node@v6
       with:
@@ -68,7 +68,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -85,7 +85,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Sync
       run: uv sync
     - name: Verify workflows
