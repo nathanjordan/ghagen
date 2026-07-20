@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import Field
 
 from ghagen._raw import Raw
@@ -43,9 +41,3 @@ class Permissions(GhagenModel):
 
     def _get_key_order(self) -> list[str]:
         return PERMISSIONS_KEY_ORDER
-
-
-# Convenience: workflow-level permission shorthand
-PermissionsValue = (
-    Permissions | Literal["read-all", "write-all"] | Raw[str] | dict[str, str]
-)

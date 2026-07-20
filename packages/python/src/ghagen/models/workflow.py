@@ -56,16 +56,6 @@ class Workflow(GhagenModel):
     def _get_key_order(self) -> list[str]:
         return WORKFLOW_KEY_ORDER
 
-    def to_commented_map(self) -> CommentedMap:
-        """Override to handle special on: serialization."""
-        cm = super().to_commented_map()
-
-        # Handle permissions string shorthand
-        if "permissions" in cm and isinstance(cm["permissions"], str):
-            pass  # Leave as string
-
-        return cm
-
     def to_yaml(self, header: HeaderInput = DEFAULT) -> str:
         """Generate the complete YAML string for this workflow.
 

@@ -33,7 +33,7 @@ export class App {
   readonly headerTxt: string | null | ((vars: HeaderVariables) => string) | undefined;
   readonly lockfilePath: string | null;
 
-  /** @internal — registered items, exposed for transforms/lint. */
+  /** @internal — registered items, exposed for transforms. */
   readonly _items: RegisteredItem[] = [];
   readonly _userTransforms: readonly Transform[];
 

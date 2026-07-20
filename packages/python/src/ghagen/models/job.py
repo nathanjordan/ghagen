@@ -159,13 +159,3 @@ class Job(GhagenModel):
 
     def _get_key_order(self) -> list[str]:
         return JOB_KEY_ORDER
-
-    def to_commented_map(self) -> CommentedMap:
-        """Override to handle environment string shorthand."""
-        cm = super().to_commented_map()
-
-        # Environment can be just a string (name only)
-        if "environment" in cm and isinstance(cm["environment"], str):
-            pass  # Leave as string
-
-        return cm

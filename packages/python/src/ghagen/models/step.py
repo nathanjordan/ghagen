@@ -63,7 +63,3 @@ class Step(GhagenModel):
 
     def _get_key_order(self) -> list[str]:
         return STEP_KEY_ORDER
-
-
-# Type alias for step lists that accept both typed and raw entries
-StepList = list[Step | CommentedMap]
