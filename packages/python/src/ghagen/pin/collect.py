@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from ghagen.models.action import Action, CompositeRuns
+from ghagen.models.job import Job
 from ghagen.models.step import Step
-from ghagen.models.workflow import Workflow
 
 if TYPE_CHECKING:
     from ghagen.app import App
@@ -31,44 +30,26 @@ def _is_pinnable(uses: str) -> bool:
     return not _SHA_RE.match(ref)
 
 
-def _collect_from_steps(steps: list[object], refs: set[str]) -> None:
-    """Add pinnable ``uses:`` refs from a list of Step items to *refs*."""
-    for step in steps:
-        if not isinstance(step, Step):
-            continue
-        if step.uses and _is_pinnable(step.uses):
-            refs.add(step.uses)
-
-
 def collect_uses_refs(app: App) -> set[str]:
-    """Walk all items in *app* and return pinnable ``uses:`` strings.
+    """Walk every registered item in *app* and return pinnable ``uses:`` strings.
 
-    Scans:
-    - Workflow jobs (``Job.uses`` for reusable workflows, ``Step.uses``
-      for action references)
-    - Composite Action steps (``Step.uses`` inside :class:`CompositeRuns`)
+    Traverses each Workflow/Action via :meth:`~ghagen.models._base.GhagenModel.walk`
+    and collects pinnable refs from:
 
-    Skips:
-    - Local path refs (``./…``)
-    - Docker image refs (``docker://…``)
-    - Refs already pinned to a 40-char SHA
-    - Docker and Node action ``runs:`` sections (no pinnable refs live
-      there — ``DockerRuns.image`` is a ``docker://`` ref and
-      ``NodeRuns.main`` is a JS entrypoint path)
+    - **Step** ``uses`` — action references (wherever a Step lives: workflow
+      jobs or composite action ``runs.steps``)
+    - **Job** ``uses`` — reusable workflow calls
+
+    Skips local path refs (``./…``), docker image refs (``docker://…``), and
+    refs already pinned to a 40-char SHA.
     """
     refs: set[str] = set()
 
     for item, _path in app._items:
-        if isinstance(item, Workflow):
-            for job in item.jobs.values():
-                # Job.uses — reusable workflow calls
-                uses = getattr(job, "uses", None)
-                if isinstance(uses, str) and _is_pinnable(uses):
-                    refs.add(uses)
-
-                # Step.uses — action references
-                _collect_from_steps(list(getattr(job, "steps", None) or []), refs)
-        elif isinstance(item, Action) and isinstance(item.runs, CompositeRuns):
-            _collect_from_steps(list(item.runs.steps), refs)
+        for _p, model in item.walk():
+            # Only Step (action refs) and Job (reusable workflow calls) carry uses.
+            uses = model.uses if isinstance(model, (Step, Job)) else None
+            if isinstance(uses, str) and _is_pinnable(uses):
+                refs.add(uses)
 
     return refs

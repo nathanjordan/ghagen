@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
@@ -70,6 +70,26 @@ def _unwrap_commented_dict(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _scan_for_models(key: str, value: Any) -> Iterator[tuple[str, GhagenModel]]:
+    """Yield ``(key, model)`` for every GhagenModel reachable from *value*.
+
+    Recurses through Commented wrappers, dicts, and lists. Raw-wrapped
+    values are opaque escape hatches and are not traversed.
+    """
+    if isinstance(value, GhagenModel):
+        yield (key, value)
+    elif isinstance(value, Commented):
+        yield from _scan_for_models(key, value.value)
+    elif isinstance(value, Raw):
+        return
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            yield from _scan_for_models(k, v)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _scan_for_models(key, item)
+
+
 class GhagenModel(BaseModel):
     """Base model for all ghagen types.
 
@@ -130,6 +150,34 @@ class GhagenModel(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Capture the construction site's file/line from the call stack."""
         self._source_location = _find_user_frame()
+
+    def children(self) -> Iterator[tuple[str, GhagenModel]]:
+        """Yield ``(key, child)`` for every nested GhagenModel in this model.
+
+        Generic field scan: walks each field value, recursing through
+        Commented wrappers, dicts, and lists (Raw values are opaque). This
+        is the traversal primitive; subclasses need not override it.
+        """
+        for field_name in type(self).model_fields:
+            yield from _scan_for_models(field_name, getattr(self, field_name, None))
+
+    def walk(self) -> Iterator[tuple[list[str], GhagenModel]]:
+        """Depth-first walk yielding ``(path, model)`` for self and all descendants.
+
+        The root is yielded first with an empty path; each descendant's
+        path is its parent's path plus the field key it was found under.
+        Read the yielded models to inspect the tree, or mutate their fields
+        in place (e.g. the pin transform rewrites ``uses``).
+        """
+
+        def _visit(
+            path: list[str], model: GhagenModel
+        ) -> Iterator[tuple[list[str], GhagenModel]]:
+            yield (path, model)
+            for key, child in model.children():
+                yield from _visit([*path, key], child)
+
+        yield from _visit([], self)
 
     def _get_key_order(self) -> list[str]:
         """Return the canonical key ordering for this model type.
