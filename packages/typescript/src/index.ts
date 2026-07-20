@@ -139,7 +139,7 @@ export type { SourceLocation } from "./_source_location.js";
 
 // Utilities
 export { findAppRoot, loadOptions, type GhagenOptions } from "./config.js";
-export { default as dedent } from "dedent";
+export { dedentScript as dedent } from "./_dedent.js";
 
 // Model utilities
 export { cloneModel } from "./models/_base.js";

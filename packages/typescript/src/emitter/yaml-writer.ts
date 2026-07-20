@@ -1,7 +1,7 @@
 import { Document, Scalar, YAMLMap, YAMLSeq } from "yaml";
 import { StepModel, cloneModel, type Document as GhagenDocument } from "../models/_base.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
-import dedent from "dedent";
+import { dedentScript } from "../_dedent.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -37,7 +37,7 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
   const clone = cloneModel(model);
   clone.walk((node) => {
     if (node instanceof StepModel && typeof node.data["run"] === "string") {
-      node.data["run"] = dedent(node.data["run"] as string);
+      node.data["run"] = dedentScript(node.data["run"] as string);
     }
   });
   return clone;
