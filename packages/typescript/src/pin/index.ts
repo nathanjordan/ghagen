@@ -7,7 +7,15 @@ export {
   readLockfile,
   writeLockfile,
 } from "./lockfile.js";
-export { ResolveError, type ResolveOptions, resolveRef, listTags } from "./resolve.js";
+export { ResolveError } from "./resolve.js";
+export {
+  GitHubClient,
+  FetchTransport,
+  TransportError,
+  type HttpClient,
+  type HttpResponse,
+  type RequestOptions,
+} from "./github.js";
 export { UsesRef } from "./uses.js";
 export {
   type BumpSeverity,

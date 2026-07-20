@@ -7,12 +7,11 @@ import {
   collectUsesRefs,
   classifyBump,
   findLatestTag,
-  listTags,
+  GitHubClient,
   parseTag,
   UsesRef,
   readLockfile,
   ResolveError,
-  resolveRef,
   trackUserFiles,
   locateUsesRefs,
   applyUpdates,
@@ -61,6 +60,8 @@ async function depsPin(opts: PinOpts): Promise<void> {
     );
   }
 
+  const client = new GitHubClient(undefined, token);
+
   const toResolve = opts.update
     ? new Set(refs)
     : new Set([...refs].filter((r) => !lockfile.pins.has(r)));
@@ -79,7 +80,7 @@ async function depsPin(opts: PinOpts): Promise<void> {
     }
     let sha: string;
     try {
-      sha = await resolveRef(parsed.owner, parsed.repo, parsed.ref, { token });
+      sha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
     } catch (err) {
       if (err instanceof ResolveError) {
         process.stderr.write(`error: ${uses}: ${err.message}\n`);
@@ -208,6 +209,8 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
     );
   }
 
+  const client = new GitHubClient(undefined, token);
+
   const refs = collectUsesRefs(app);
 
   if (refs.size === 0) {
@@ -248,7 +251,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
       let tags = tagsCache.get(key);
       if (tags === undefined) {
         try {
-          tags = await listTags(owner, repo, { token });
+          tags = await client.listTags(owner, repo);
         } catch (err) {
           if (err instanceof ResolveError) {
             process.stderr.write(`warning: failed to list tags for ${key}: ${err.message}\n`);
@@ -302,7 +305,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
       }
       let currentSha: string;
       try {
-        currentSha = await resolveRef(parsed.owner, parsed.repo, parsed.ref, { token });
+        currentSha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
       } catch (err) {
         if (err instanceof ResolveError) {
           process.stderr.write(`warning: failed to resolve ${uses}: ${err.message}\n`);

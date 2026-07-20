@@ -94,7 +94,7 @@ class TestUpgradeVersionsMode:
     """Tests for version bump detection."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_human_output_shows_version_bumps(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
@@ -112,7 +112,7 @@ class TestUpgradeVersionsMode:
         assert "[major]" in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_json_output(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
@@ -134,7 +134,7 @@ class TestUpgradeVersionsMode:
         assert "severity" in bump
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_json_output_has_source_files_for_user_refs(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
@@ -157,7 +157,7 @@ class TestUpgradeLockfileMode:
     """Tests for lockfile staleness detection."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.resolve_ref", side_effect=_mock_resolve_ref)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
     def test_lockfile_stale_detection(
         self, mock_resolve, mock_track, tmp_path, monkeypatch
     ):
@@ -173,7 +173,7 @@ class TestUpgradeLockfileMode:
         assert "actions/checkout@v4" in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.resolve_ref", side_effect=_mock_resolve_ref)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
     def test_lockfile_json_output(
         self, mock_resolve, mock_track, tmp_path, monkeypatch
     ):
@@ -232,8 +232,8 @@ class TestUpgradeAllMode:
     """Tests for the default 'all' mode."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
-    @patch("ghagen.pin.resolve.resolve_ref", side_effect=_mock_resolve_ref)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
     def test_all_mode_includes_both(
         self, mock_resolve, mock_tags, mock_track, tmp_path, monkeypatch
     ):
@@ -252,7 +252,7 @@ class TestUpgradeApply:
     """Tests for the default apply behavior."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_upgrade_modifies_source_files(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
@@ -271,7 +271,7 @@ class TestUpgradeApply:
         assert "actions/setup-python@v7" in config_content
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_check_flag_does_not_modify_source_files(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
@@ -311,7 +311,7 @@ class TestUpgradeNoUpdates:
                 side_effect=_mock_track_user_files,
             ),
             patch(
-                "ghagen.pin.resolve.list_tags",
+                "ghagen.pin.github.GitHubClient.list_tags",
                 side_effect=mock_tags_up_to_date,
             ),
         ):
@@ -340,7 +340,7 @@ class TestUpgradeNoUpdates:
                 side_effect=_mock_track_user_files,
             ),
             patch(
-                "ghagen.pin.resolve.list_tags",
+                "ghagen.pin.github.GitHubClient.list_tags",
                 side_effect=mock_tags_up_to_date,
             ),
         ):
@@ -387,7 +387,7 @@ app.add_workflow(ci, "ci.yml")
                 "ghagen.pin.sources.track_user_files",
                 side_effect=_mock_track_user_files,
             ),
-            patch("ghagen.pin.resolve.list_tags", side_effect=mock_tags),
+            patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=mock_tags),
         ):
             result = runner.invoke(
                 app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
@@ -403,7 +403,7 @@ class TestUpgradeTokenHandling:
     """Tests for token resolution."""
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_no_token_warning(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -416,7 +416,7 @@ class TestUpgradeTokenHandling:
         assert "no GitHub token found" in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_token_from_env(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("GITHUB_TOKEN", "my-token")
@@ -429,7 +429,7 @@ class TestUpgradeTokenHandling:
         assert "no GitHub token found" not in result.output
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
-    @patch("ghagen.pin.resolve.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_gh_token_fallback(self, mock_tags, mock_track, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -468,7 +468,10 @@ class TestUpgradeErrorHandling:
                 raise ResolveError("rate limited")
             return _SETUP_PYTHON_TAGS
 
-        with patch("ghagen.pin.resolve.list_tags", side_effect=mock_tags_with_error):
+        with patch(
+            "ghagen.pin.github.GitHubClient.list_tags",
+            side_effect=mock_tags_with_error,
+        ):
             result = runner.invoke(
                 app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
             )

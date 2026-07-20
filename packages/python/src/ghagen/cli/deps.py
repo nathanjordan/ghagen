@@ -37,12 +37,13 @@ def deps_pin(
 ) -> None:
     """Pin action references to commit SHAs in a lockfile."""
     from ghagen.pin.collect import collect_uses_refs
+    from ghagen.pin.github import GitHubClient
     from ghagen.pin.lockfile import (
         PinEntry,
         read_lockfile,
         write_lockfile,
     )
-    from ghagen.pin.resolve import ResolveError, resolve_ref
+    from ghagen.pin.resolve import ResolveError
     from ghagen.pin.uses import UsesRef
 
     config_path = _find_config(config)
@@ -70,6 +71,8 @@ def deps_pin(
             err=True,
         )
 
+    client = GitHubClient(token=gh_token)
+
     # Determine which refs need resolution.
     to_resolve = refs if update else refs - set(lockfile.pins)
 
@@ -88,7 +91,7 @@ def deps_pin(
             continue
 
         try:
-            sha = resolve_ref(parsed.owner, parsed.repo, parsed.ref, token=gh_token)
+            sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
         except ResolveError as exc:
             typer.echo(f"error: {uses}: {exc}", err=True)
             errors += 1
@@ -188,8 +191,9 @@ def deps_upgrade(
 ) -> None:
     """Upgrade action dependencies to latest versions."""
     from ghagen.pin.collect import collect_uses_refs
+    from ghagen.pin.github import GitHubClient
     from ghagen.pin.lockfile import read_lockfile
-    from ghagen.pin.resolve import ResolveError, list_tags, resolve_ref
+    from ghagen.pin.resolve import ResolveError
     from ghagen.pin.sources import locate_uses_refs, track_user_files
     from ghagen.pin.update import apply_updates
     from ghagen.pin.uses import UsesRef
@@ -231,6 +235,8 @@ def deps_upgrade(
             err=True,
         )
 
+    client = GitHubClient(token=gh_token)
+
     # Collect all uses: refs from the app.
     refs = collect_uses_refs(ghagen_app)
 
@@ -270,7 +276,7 @@ def deps_upgrade(
         for (owner, repo), uses_list in sorted(repo_refs.items()):
             if (owner, repo) not in repo_tags_cache:
                 try:
-                    tags = list_tags(owner, repo, token=gh_token)
+                    tags = client.list_tags(owner, repo)
                 except ResolveError as exc:
                     typer.echo(
                         f"warning: failed to list tags for {owner}/{repo}: {exc}",
@@ -321,9 +327,7 @@ def deps_upgrade(
                 continue
 
             try:
-                current_sha = resolve_ref(
-                    parsed.owner, parsed.repo, parsed.ref, token=gh_token
-                )
+                current_sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
             except ResolveError as exc:
                 typer.echo(
                     f"warning: failed to resolve {uses}: {exc}",
