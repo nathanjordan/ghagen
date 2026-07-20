@@ -53,22 +53,32 @@ def _is_user_file(path: Path, *, ghagen_root: Path) -> bool:
     return True
 
 
-def track_user_files(app_loader: Callable[[], App]) -> set[Path]:
-    """Discover which Python files were loaded as part of the user's config.
+def track_user_files(
+    config_path: Path,
+    app_loader: Callable[[Path], App],
+) -> tuple[App, set[Path]]:
+    """Load the app and discover the user files loaded as a side effect.
 
-    Snapshots ``sys.modules`` before and after calling *app_loader*, then
-    filters the newly imported modules to only user-authored files (excluding
-    stdlib, site-packages, and the ghagen package itself).
+    Snapshots ``sys.modules`` before and after loading, then filters the newly
+    imported modules to only user-authored files (excluding stdlib,
+    site-packages, and the ghagen package itself).  Returns both the loaded
+    :class:`~ghagen.app.App` and the tracked files so callers need no
+    mutable-closure hack to smuggle the app out.
+
+    ``_load_app`` uses :func:`exec_module`, which does not register the config
+    module in ``sys.modules``; *config_path* is therefore added explicitly.
 
     Args:
-        app_loader: A zero-argument callable that imports the user's ghagen
+        config_path: Path to the user's ghagen config file.
+        app_loader: A callable taking *config_path* that imports the user's
             configuration and returns the :class:`~ghagen.app.App`.
 
     Returns:
-        Set of absolute :class:`~pathlib.Path` objects for user source files.
+        ``(app, files)`` where *files* is a set of absolute
+        :class:`~pathlib.Path` objects for user source files.
     """
     before = set(sys.modules.keys())
-    app_loader()
+    app = app_loader(config_path)
     after = set(sys.modules.keys())
 
     new_modules = after - before
@@ -86,7 +96,13 @@ def track_user_files(app_loader: Callable[[], App]) -> set[Path]:
         if _is_user_file(path, ghagen_root=ghagen_root):
             user_files.add(path)
 
-    return user_files
+    # exec_module does not register the config module in sys.modules, so the
+    # snapshot above never sees it — add it explicitly.
+    resolved_config = config_path.resolve()
+    if _is_user_file(resolved_config, ghagen_root=ghagen_root):
+        user_files.add(resolved_config)
+
+    return app, user_files
 
 
 def locate_uses_refs(refs: set[str], user_files: set[Path]) -> dict[str, list[Path]]:

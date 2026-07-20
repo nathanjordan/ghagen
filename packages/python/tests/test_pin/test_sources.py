@@ -22,13 +22,13 @@ class TestTrackUserFiles:
             mod_name = "my_config"
             sys.modules.pop(mod_name, None)
 
-            def app_loader():
+            def app_loader(_config_path):
                 import importlib
 
                 mod = importlib.import_module(mod_name)
                 return mod.load()
 
-            user_files = track_user_files(app_loader)
+            _app, user_files = track_user_files(config, app_loader)
 
             # The config file should be in the set
             assert config.resolve() in user_files
@@ -57,13 +57,13 @@ class TestTrackUserFiles:
             mod_name = "user_wf"
             sys.modules.pop(mod_name, None)
 
-            def app_loader():
+            def app_loader(_config_path):
                 import importlib
 
                 mod = importlib.import_module(mod_name)
                 return mod.load()
 
-            user_files = track_user_files(app_loader)
+            _app, user_files = track_user_files(config, app_loader)
             assert config.resolve() in user_files
         finally:
             sys.path.remove(str(tmp_path))
@@ -92,13 +92,13 @@ class TestTrackUserFiles:
             for mod_name in ("user_cfg", "vendored"):
                 sys.modules.pop(mod_name, None)
 
-            def app_loader():
+            def app_loader(_config_path):
                 import importlib
 
                 mod = importlib.import_module("user_cfg")
                 return mod.load()
 
-            user_files = track_user_files(app_loader)
+            _app, user_files = track_user_files(config, app_loader)
 
             # The user config IS included
             assert config.resolve() in user_files

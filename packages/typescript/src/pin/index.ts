@@ -29,3 +29,17 @@ export { collectUsesRefs } from "./collect.js";
 export { PinError, type PinTransform, pinTransform } from "./transform.js";
 export { trackUserFiles, locateUsesRefs } from "./sources.js";
 export { applyUpdates } from "./update.js";
+export {
+  pin,
+  checkSync,
+  upgrade,
+  SyncReport,
+  type PinReport,
+  type PinOptions,
+  type ResolvedPin,
+  type CheckSyncOptions,
+  type UpgradeReport,
+  type UpgradeOptions,
+  type VersionBump,
+  type LockfileStaleEntry,
+} from "./engine.js";

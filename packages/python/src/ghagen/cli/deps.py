@@ -1,21 +1,56 @@
-"""ghagen deps — manage action dependencies."""
+"""ghagen deps — manage action dependencies.
+
+Each command is a thin shell: resolve the config/app, build a
+:class:`~ghagen.pin.github.GitHubClient`, call the pin engine, and render the
+typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
+"""
 
 from __future__ import annotations
 
 import json as json_mod
 import os
-from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
-from ghagen.app import App
 from ghagen.cli._common import _find_config, _load_app
+
+if TYPE_CHECKING:
+    from ghagen.app import App
+    from ghagen.pin.engine import LockfileStaleEntry, VersionBump
+    from ghagen.pin.github import GitHubClient
 
 deps_app = typer.Typer(
     help="Manage action dependencies.",
     no_args_is_help=True,
 )
+
+
+def _ensure_lockfile_path(app: App) -> Path:
+    """Return the app's absolute lockfile path, or exit 1 if disabled."""
+    if app.lockfile_path is None:
+        typer.echo("Error: lockfile is disabled (lockfile=None on App)", err=True)
+        raise typer.Exit(1)
+    return app.root / app.lockfile_path
+
+
+def _github_client(token: str | None) -> GitHubClient:
+    """Resolve the token (flag > $GITHUB_TOKEN > $GH_TOKEN) and build a client.
+
+    Emits the no-token warning once, here, so the individual commands stay free
+    of duplicated lookup + warning logic.
+    """
+    from ghagen.pin.github import GitHubClient
+
+    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not gh_token:
+        typer.echo(
+            "warning: no GitHub token found. Using unauthenticated requests "
+            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
+            err=True,
+        )
+    return GitHubClient(token=gh_token)
 
 
 @deps_app.command("pin")
@@ -36,88 +71,31 @@ def deps_pin(
     ),
 ) -> None:
     """Pin action references to commit SHAs in a lockfile."""
-    from ghagen.pin.collect import collect_uses_refs
-    from ghagen.pin.github import GitHubClient
-    from ghagen.pin.lockfile import (
-        PinEntry,
-        read_lockfile,
-        write_lockfile,
-    )
-    from ghagen.pin.resolve import ResolveError
-    from ghagen.pin.uses import UsesRef
+    from ghagen.pin.engine import pin as pin_engine
 
     config_path = _find_config(config)
     ghagen_app = _load_app(config_path)
+    _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
-    # Resolve lockfile path from the app.
-    if ghagen_app.lockfile_path is None:
-        typer.echo("Error: lockfile is disabled (lockfile=None on App)", err=True)
-        raise typer.Exit(1)
+    client = _github_client(token)
 
-    lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
+    report = pin_engine(ghagen_app, client, update=update, prune=prune)
 
-    # Collect all uses: refs from the app.
-    refs = collect_uses_refs(ghagen_app)
-
-    # Read existing lockfile.
-    lockfile = read_lockfile(lockfile_full)
-
-    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
-    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not gh_token:
-        typer.echo(
-            "warning: no GitHub token found. Using unauthenticated requests "
-            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
-            err=True,
-        )
-
-    client = GitHubClient(token=gh_token)
-
-    # Determine which refs need resolution.
-    to_resolve = refs if update else refs - set(lockfile.keys())
-
-    # Resolve refs via GitHub API.
-    now = datetime.now(UTC)
-    resolved = 0
-    errors = 0
-
-    for uses in sorted(to_resolve):
-        parsed = UsesRef.parse(uses)
-        if parsed is None:
-            typer.echo(
-                f"warning: skipping {uses!r}: not a pinnable action reference",
-                err=True,
-            )
-            continue
-
-        try:
-            sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
-        except ResolveError as exc:
-            typer.echo(f"error: {uses}: {exc}", err=True)
-            errors += 1
-            continue
-
-        lockfile.set(uses, PinEntry(sha=sha, resolved_at=now))
-        resolved += 1
-        typer.echo(f"  {uses} → {sha[:12]}")
-
-    # Prune stale entries.
-    pruned = 0
-    if prune:
-        pruned = lockfile.prune(refs)
-        if pruned:
-            typer.echo(f"Pruned {pruned} stale entry/entries.")
-
-    # Write lockfile if anything changed.
-    if resolved or pruned:
-        write_lockfile(lockfile, lockfile_full)
-        typer.echo(f"Wrote {lockfile_full}")
-
-    if not to_resolve and not pruned:
+    for resolved in report.resolved:
+        typer.echo(f"  {resolved.uses} → {resolved.sha[:12]}")
+    for warning in report.warnings:
+        typer.echo(f"warning: {warning}", err=True)
+    for error in report.errors:
+        typer.echo(f"error: {error}", err=True)
+    if report.pruned:
+        typer.echo(f"Pruned {report.pruned} stale entry/entries.")
+    if report.written:
+        typer.echo(f"Wrote {report.lockfile_path}")
+    if report.up_to_date:
         typer.echo("Lockfile is already up to date.")
 
-    if errors:
-        typer.echo(f"{errors} ref(s) failed to resolve.", err=True)
+    if report.errors:
+        typer.echo(f"{len(report.errors)} ref(s) failed to resolve.", err=True)
         raise typer.Exit(1)
 
 
@@ -133,40 +111,27 @@ def deps_check_synced(
     ),
 ) -> None:
     """Verify lockfile is in sync with code (exit 1 if stale)."""
-    from ghagen.pin.collect import collect_uses_refs
-    from ghagen.pin.lockfile import read_lockfile
+    from ghagen.pin.engine import check_sync
 
     config_path = _find_config(config)
     ghagen_app = _load_app(config_path)
+    _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
-    # Resolve lockfile path from the app.
-    if ghagen_app.lockfile_path is None:
-        typer.echo("Error: lockfile is disabled (lockfile=None on App)", err=True)
-        raise typer.Exit(1)
+    report = check_sync(ghagen_app, prune=prune)
 
-    lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
+    if report.in_sync:
+        typer.echo("Lockfile is in sync.")
+        raise typer.Exit(0)
 
-    # Collect all uses: refs from the app.
-    refs = collect_uses_refs(ghagen_app)
-
-    # Read existing lockfile.
-    lockfile = read_lockfile(lockfile_full)
-
-    # Verify lockfile covers all refs and nothing is stale.
-    missing = refs - set(lockfile.keys())
-    extra = set(lockfile.keys()) - refs if prune else set()
-    if missing or extra:
-        if missing:
-            typer.echo("Missing lockfile entries:", err=True)
-            for ref in sorted(missing):
-                typer.echo(f"  {ref}", err=True)
-        if extra:
-            typer.echo("Stale lockfile entries:", err=True)
-            for ref in sorted(extra):
-                typer.echo(f"  {ref}", err=True)
-        raise typer.Exit(1)
-    typer.echo("Lockfile is in sync.")
-    raise typer.Exit(0)
+    if report.missing:
+        typer.echo("Missing lockfile entries:", err=True)
+        for ref in report.missing:
+            typer.echo(f"  {ref}", err=True)
+    if report.extra:
+        typer.echo("Stale lockfile entries:", err=True)
+        for ref in report.extra:
+            typer.echo(f"  {ref}", err=True)
+    raise typer.Exit(1)
 
 
 @deps_app.command("upgrade")
@@ -190,14 +155,8 @@ def deps_upgrade(
     ),
 ) -> None:
     """Upgrade action dependencies to latest versions."""
-    from ghagen.pin.collect import collect_uses_refs
-    from ghagen.pin.github import GitHubClient
-    from ghagen.pin.lockfile import read_lockfile
-    from ghagen.pin.resolve import ResolveError
-    from ghagen.pin.sources import locate_uses_refs, track_user_files
-    from ghagen.pin.update import apply_updates
-    from ghagen.pin.uses import UsesRef
-    from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
+    from ghagen.pin.engine import upgrade as upgrade_engine
+    from ghagen.pin.sources import track_user_files
 
     if mode not in ("versions", "lockfile", "all"):
         typer.echo(
@@ -210,158 +169,31 @@ def deps_upgrade(
 
     config_path = _find_config(config)
 
-    # Track user files during app loading (needs the import side-effects).
-    user_files: set[Path] = set()
-    ghagen_app_holder: list[App] = []
+    # Load the app while tracking the user source files it imported.
+    ghagen_app, user_files = track_user_files(config_path, _load_app)
 
-    def _tracked_load() -> App:
-        loaded = _load_app(config_path)
-        ghagen_app_holder.append(loaded)
-        return loaded
+    client = _github_client(token)
 
-    user_files = track_user_files(_tracked_load)
-    ghagen_app = ghagen_app_holder[0]
+    report = upgrade_engine(
+        ghagen_app,
+        client,
+        user_files,
+        mode=mode,  # type: ignore[arg-type]
+        apply=apply,
+    )
 
-    # _load_app uses exec_module which doesn't register in sys.modules,
-    # so track_user_files won't see the config file itself. Add it explicitly.
-    user_files.add(config_path.resolve())
+    for warning in report.warnings:
+        typer.echo(f"warning: {warning}", err=True)
 
-    # Resolve token: flag > $GITHUB_TOKEN > $GH_TOKEN.
-    gh_token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not gh_token:
-        typer.echo(
-            "warning: no GitHub token found. Using unauthenticated requests "
-            "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.",
-            err=True,
-        )
-
-    client = GitHubClient(token=gh_token)
-
-    # Collect all uses: refs from the app.
-    refs = collect_uses_refs(ghagen_app)
-
-    if not refs:
-        if json:
-            typer.echo(
-                json_mod.dumps(
-                    {"version_bumps": [], "lockfile_stale": []},
-                    indent=2,
-                )
-            )
-        else:
-            typer.echo("Everything is up to date.")
-        raise typer.Exit(0)
-
-    # Locate refs in user source files.
-    ref_locations = locate_uses_refs(refs, user_files)
-
-    # --- Version bump detection ---
-    version_bumps: list[dict] = []
+    if report.changed_files:
+        typer.echo("Applied version bumps:")
+        for f in report.changed_files:
+            typer.echo(f"  modified {f}")
 
     check_versions = mode in ("versions", "all")
     check_lockfile = mode in ("lockfile", "all")
 
-    if check_versions:
-        # Group refs by owner/repo for efficient API calls.
-        repo_refs: dict[tuple[str, str], list[tuple[str, str]]] = {}
-        for uses in sorted(refs):
-            parsed = UsesRef.parse(uses)
-            if parsed is None:
-                continue
-            key = (parsed.owner, parsed.repo)
-            repo_refs.setdefault(key, []).append((uses, parsed.ref))
-
-        # Fetch tags per repo and check for updates.
-        repo_tags_cache: dict[tuple[str, str], list[str]] = {}
-        for (owner, repo), uses_list in sorted(repo_refs.items()):
-            if (owner, repo) not in repo_tags_cache:
-                try:
-                    tags = client.list_tags(owner, repo)
-                except ResolveError as exc:
-                    typer.echo(
-                        f"warning: failed to list tags for {owner}/{repo}: {exc}",
-                        err=True,
-                    )
-                    continue
-                repo_tags_cache[(owner, repo)] = tags
-
-            tags = repo_tags_cache[(owner, repo)]
-
-            for uses, current_ref in uses_list:
-                latest_tag = find_latest_tag(current_ref, tags)
-                if latest_tag is None:
-                    continue  # up to date or non-semver
-
-                current_ver = parse_tag(current_ref)
-                latest_ver = parse_tag(latest_tag)
-                if current_ver is None or latest_ver is None:
-                    continue
-
-                severity = classify_bump(current_ver.version, latest_ver.version)
-
-                bump_entry: dict = {
-                    "uses": uses,
-                    "current": current_ref,
-                    "latest": latest_tag,
-                    "severity": severity,
-                    "origin": "user",
-                }
-                if uses in ref_locations:
-                    bump_entry["source_files"] = [str(p) for p in ref_locations[uses]]
-                version_bumps.append(bump_entry)
-
-    # --- Lockfile staleness detection ---
-    lockfile_stale: list[dict] = []
-
-    if check_lockfile and ghagen_app.lockfile_path is not None:
-        lockfile_full = ghagen_app.root / ghagen_app.lockfile_path
-        lockfile = read_lockfile(lockfile_full)
-
-        for uses in sorted(refs):
-            entry = lockfile.get(uses)
-            if entry is None:
-                continue  # not pinned
-
-            parsed = UsesRef.parse(uses)
-            if parsed is None:
-                continue
-
-            try:
-                current_sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
-            except ResolveError as exc:
-                typer.echo(
-                    f"warning: failed to resolve {uses}: {exc}",
-                    err=True,
-                )
-                continue
-
-            if current_sha != entry.sha:
-                stale_entry: dict = {
-                    "uses": uses,
-                    "current_sha": entry.sha,
-                    "latest_sha": current_sha,
-                    "origin": "user",
-                }
-                if uses in ref_locations:
-                    stale_entry["source_files"] = [str(p) for p in ref_locations[uses]]
-                lockfile_stale.append(stale_entry)
-
-    # --- Apply updates if not in check mode ---
-    if apply and version_bumps:
-        updates: dict[str, str] = {}
-        for bump in version_bumps:
-            parsed = UsesRef.parse(bump["uses"])
-            if parsed is None:
-                continue
-            updates[bump["uses"]] = parsed.with_sha(bump["latest"])
-        changed_files = apply_updates(updates, ref_locations)
-        if changed_files:
-            typer.echo("Applied version bumps:")
-            for f in changed_files:
-                typer.echo(f"  modified {f}")
-
-    # --- Output ---
-    if not version_bumps and not lockfile_stale:
+    if not report.version_bumps and not report.lockfile_stale:
         if json:
             typer.echo(
                 json_mod.dumps(
@@ -376,26 +208,54 @@ def deps_upgrade(
     if json:
         result: dict = {}
         if check_versions:
-            result["version_bumps"] = version_bumps
+            result["version_bumps"] = [
+                _bump_to_json(bump) for bump in report.version_bumps
+            ]
         if check_lockfile:
-            result["lockfile_stale"] = lockfile_stale
+            result["lockfile_stale"] = [
+                _stale_to_json(entry) for entry in report.lockfile_stale
+            ]
         typer.echo(json_mod.dumps(result, indent=2))
     else:
-        _print_human_report(version_bumps, lockfile_stale)
+        _print_human_report(report.version_bumps, report.lockfile_stale)
+
+
+def _bump_to_json(bump: VersionBump) -> dict:
+    """Serialize a version bump for ``--json`` (omitting empty ``source_files``)."""
+    entry: dict = {
+        "uses": bump.uses,
+        "current": bump.current,
+        "latest": bump.latest,
+        "severity": bump.severity,
+    }
+    if bump.source_files:
+        entry["source_files"] = list(bump.source_files)
+    return entry
+
+
+def _stale_to_json(stale: LockfileStaleEntry) -> dict:
+    """Serialize a stale entry for ``--json`` (omitting empty ``source_files``)."""
+    entry: dict = {
+        "uses": stale.uses,
+        "current_sha": stale.current_sha,
+        "latest_sha": stale.latest_sha,
+    }
+    if stale.source_files:
+        entry["source_files"] = list(stale.source_files)
+    return entry
 
 
 def _print_human_report(
-    version_bumps: list[dict],
-    lockfile_stale: list[dict],
+    version_bumps: list[VersionBump],
+    lockfile_stale: list[LockfileStaleEntry],
 ) -> None:
     """Print a human-readable upgrade report."""
     if version_bumps:
         typer.echo("Version updates available:")
         typer.echo("")
         for bump in version_bumps:
-            severity_tag = f"[{bump['severity']}]"
-            typer.echo(f"  {bump['uses']}  →  {bump['latest']}  {severity_tag}")
-            for src in bump.get("source_files", []):
+            typer.echo(f"  {bump.uses}  →  {bump.latest}  [{bump.severity}]")
+            for src in bump.source_files:
                 typer.echo(f"    in {src}")
         typer.echo("")
 
@@ -403,7 +263,7 @@ def _print_human_report(
         typer.echo("Stale lockfile entries:")
         typer.echo("")
         for entry in lockfile_stale:
-            typer.echo(f"  {entry['uses']}")
-            typer.echo(f"    current SHA: {entry['current_sha'][:12]}...")
-            typer.echo(f"    latest SHA:  {entry['latest_sha'][:12]}...")
+            typer.echo(f"  {entry.uses}")
+            typer.echo(f"    current SHA: {entry.current_sha[:12]}...")
+            typer.echo(f"    latest SHA:  {entry.latest_sha[:12]}...")
         typer.echo("")

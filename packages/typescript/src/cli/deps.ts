@@ -1,26 +1,41 @@
-/** ghagen deps — manage action dependencies. */
+/** ghagen deps — manage action dependencies.
+ *
+ * Each command is a thin shell: resolve the config/app, build a
+ * {@link GitHubClient}, call the pin engine, and render the typed report.
+ * All orchestration lives in `../pin/engine.ts`.
+ */
 
 import { Command } from "commander";
 import { resolve } from "node:path";
 import type { App } from "../app.js";
 import {
-  collectUsesRefs,
-  classifyBump,
-  findLatestTag,
   GitHubClient,
-  parseTag,
-  UsesRef,
-  readLockfile,
-  ResolveError,
   trackUserFiles,
-  locateUsesRefs,
-  applyUpdates,
-  writeLockfile,
+  pin,
+  checkSync,
+  upgrade,
+  type VersionBump,
+  type LockfileStaleEntry,
 } from "../pin/index.js";
 import { CliError, findConfig, loadApp } from "./_common.js";
 
 function resolveToken(flag?: string): string | undefined {
   return flag ?? process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"];
+}
+
+/**
+ * Resolve the token (flag > $GITHUB_TOKEN > $GH_TOKEN) and build a client,
+ * emitting the no-token warning once so commands stay free of duplication.
+ */
+function buildGitHubClient(tokenFlag?: string): GitHubClient {
+  const token = resolveToken(tokenFlag);
+  if (!token) {
+    process.stderr.write(
+      "warning: no GitHub token found. Using unauthenticated requests " +
+        "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.\n",
+    );
+  }
+  return new GitHubClient(undefined, token);
 }
 
 function ensureLockfilePath(app: App): string {
@@ -47,72 +62,36 @@ interface PinOpts {
 async function depsPin(opts: PinOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
+  ensureLockfilePath(app); // validate before doing any work
 
-  const lockfilePath = ensureLockfilePath(app);
-  const refs = collectUsesRefs(app);
-  const lockfile = readLockfile(lockfilePath);
+  const client = buildGitHubClient(opts.token);
 
-  const token = resolveToken(opts.token);
-  if (!token) {
-    process.stderr.write(
-      "warning: no GitHub token found. Using unauthenticated requests " +
-        "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.\n",
-    );
+  const report = await pin(app, client, {
+    update: opts.update ?? false,
+    prune: opts.prune,
+  });
+
+  for (const r of report.resolved) {
+    process.stdout.write(`  ${r.uses} → ${r.sha.slice(0, 12)}\n`);
   }
-
-  const client = new GitHubClient(undefined, token);
-
-  const toResolve = opts.update
-    ? new Set(refs)
-    : new Set([...refs].filter((r) => !lockfile.has(r)));
-
-  const now = new Date();
-  let resolved = 0;
-  let errors = 0;
-
-  for (const uses of [...toResolve].sort()) {
-    const parsed = UsesRef.parse(uses);
-    if (parsed === null) {
-      process.stderr.write(
-        `warning: skipping ${JSON.stringify(uses)}: not a pinnable action reference\n`,
-      );
-      continue;
-    }
-    let sha: string;
-    try {
-      sha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
-    } catch (err) {
-      if (err instanceof ResolveError) {
-        process.stderr.write(`error: ${uses}: ${err.message}\n`);
-        errors++;
-        continue;
-      }
-      throw err;
-    }
-    lockfile.set(uses, { sha, resolvedAt: now });
-    resolved++;
-    process.stdout.write(`  ${uses} → ${sha.slice(0, 12)}\n`);
+  for (const w of report.warnings) {
+    process.stderr.write(`warning: ${w}\n`);
   }
-
-  let pruned = 0;
-  if (opts.prune) {
-    pruned = lockfile.prune(refs);
-    if (pruned > 0) {
-      process.stdout.write(`Pruned ${pruned} stale entry/entries.\n`);
-    }
+  for (const e of report.errors) {
+    process.stderr.write(`error: ${e}\n`);
   }
-
-  if (resolved > 0 || pruned > 0) {
-    writeLockfile(lockfile, lockfilePath);
-    process.stdout.write(`Wrote ${lockfilePath}\n`);
+  if (report.pruned > 0) {
+    process.stdout.write(`Pruned ${report.pruned} stale entry/entries.\n`);
   }
-
-  if (toResolve.size === 0 && pruned === 0) {
+  if (report.written) {
+    process.stdout.write(`Wrote ${report.lockfilePath}\n`);
+  }
+  if (report.upToDate) {
     process.stdout.write("Lockfile is already up to date.\n");
   }
 
-  if (errors > 0) {
-    throw new CliError(`${errors} ref(s) failed to resolve.`, 1);
+  if (report.errors.length > 0) {
+    throw new CliError(`${report.errors.length} ref(s) failed to resolve.`, 1);
   }
 }
 
@@ -131,28 +110,24 @@ interface CheckSyncedOpts {
 async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const app = await loadApp(configPath);
+  ensureLockfilePath(app); // validate before doing any work
 
-  const lockfilePath = ensureLockfilePath(app);
-  const refs = collectUsesRefs(app);
-  const lockfile = readLockfile(lockfilePath);
+  const report = checkSync(app, { prune: opts.prune });
 
-  const missing = [...refs].filter((r) => !lockfile.has(r));
-  const extra = opts.prune ? [...lockfile.keys()].filter((r) => !refs.has(r)) : [];
-
-  if (missing.length === 0 && extra.length === 0) {
+  if (report.inSync) {
     process.stdout.write("Lockfile is in sync.\n");
     return;
   }
 
-  if (missing.length > 0) {
+  if (report.missing.length > 0) {
     process.stderr.write("Missing lockfile entries:\n");
-    for (const r of missing.sort()) {
+    for (const r of report.missing) {
       process.stderr.write(`  ${r}\n`);
     }
   }
-  if (extra.length > 0) {
+  if (report.extra.length > 0) {
     process.stderr.write("Stale lockfile entries:\n");
-    for (const r of extra.sort()) {
+    for (const r of report.extra) {
       process.stderr.write(`  ${r}\n`);
     }
   }
@@ -165,23 +140,6 @@ interface UpgradeOpts {
   json?: boolean;
   mode?: "versions" | "lockfile" | "all";
   token?: string;
-}
-
-interface VersionBump {
-  uses: string;
-  current: string;
-  latest: string;
-  severity: "major" | "minor" | "patch";
-  origin: "user";
-  source_files?: string[];
-}
-
-interface LockfileStale {
-  uses: string;
-  current_sha: string;
-  latest_sha: string;
-  origin: "user";
-  source_files?: string[];
 }
 
 /**
@@ -201,159 +159,25 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const configPath = findConfig(opts.config);
   const { app, files: userFiles } = await trackUserFiles(configPath);
 
-  const token = resolveToken(opts.token);
-  if (!token) {
-    process.stderr.write(
-      "warning: no GitHub token found. Using unauthenticated requests " +
-        "(60 req/hr limit). Set $GITHUB_TOKEN or use --token.\n",
-    );
+  const client = buildGitHubClient(opts.token);
+
+  const report = await upgrade(app, client, userFiles, { mode, apply });
+
+  for (const w of report.warnings) {
+    process.stderr.write(`warning: ${w}\n`);
   }
 
-  const client = new GitHubClient(undefined, token);
-
-  const refs = collectUsesRefs(app);
-
-  if (refs.size === 0) {
-    if (opts.json) {
-      process.stdout.write(
-        JSON.stringify({ version_bumps: [], lockfile_stale: [] }, null, 2) + "\n",
-      );
-    } else {
-      process.stdout.write("Everything is up to date.\n");
+  if (report.changedFiles.length > 0) {
+    process.stdout.write("Applied version bumps:\n");
+    for (const f of report.changedFiles) {
+      process.stdout.write(`  modified ${f}\n`);
     }
-    return;
   }
-
-  const refLocations = locateUsesRefs(refs, userFiles);
-
-  // ---- version bump detection ----
-  const versionBumps: VersionBump[] = [];
 
   const checkVersions = mode === "versions" || mode === "all";
   const checkLockfile = mode === "lockfile" || mode === "all";
 
-  if (checkVersions) {
-    const repoRefs = new Map<string, Array<{ uses: string; ref: string }>>();
-    for (const uses of [...refs].sort()) {
-      const parsed = UsesRef.parse(uses);
-      if (parsed === null) {
-        continue;
-      }
-      const key = `${parsed.owner}/${parsed.repo}`;
-      const list = repoRefs.get(key) ?? [];
-      list.push({ uses, ref: parsed.ref });
-      repoRefs.set(key, list);
-    }
-
-    const tagsCache = new Map<string, string[]>();
-    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-      const [owner, repo] = key.split("/", 2) as [string, string];
-      let tags = tagsCache.get(key);
-      if (tags === undefined) {
-        try {
-          tags = await client.listTags(owner, repo);
-        } catch (err) {
-          if (err instanceof ResolveError) {
-            process.stderr.write(`warning: failed to list tags for ${key}: ${err.message}\n`);
-            continue;
-          }
-          throw err;
-        }
-        tagsCache.set(key, tags);
-      }
-
-      for (const { uses, ref } of usesList) {
-        const latestTag = findLatestTag(ref, tags);
-        if (latestTag === null) {
-          continue;
-        }
-        const currentParsed = parseTag(ref);
-        const latestParsed = parseTag(latestTag);
-        if (currentParsed === null || latestParsed === null) {
-          continue;
-        }
-        const severity = classifyBump(currentParsed.version, latestParsed.version);
-        const entry: VersionBump = {
-          uses,
-          current: ref,
-          latest: latestTag,
-          severity,
-          origin: "user",
-        };
-        const sources = refLocations.get(uses);
-        if (sources && sources.length > 0) {
-          entry.source_files = [...sources];
-        }
-        versionBumps.push(entry);
-      }
-    }
-  }
-
-  // ---- lockfile staleness detection ----
-  const lockfileStale: LockfileStale[] = [];
-
-  if (checkLockfile && app.lockfilePath !== null) {
-    const lockfile = readLockfile(resolve(app.rootAbsPath, app.lockfilePath));
-    for (const uses of [...refs].sort()) {
-      const entry = lockfile.get(uses);
-      if (entry === undefined) {
-        continue;
-      }
-      const parsed = UsesRef.parse(uses);
-      if (parsed === null) {
-        continue;
-      }
-      let currentSha: string;
-      try {
-        currentSha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
-      } catch (err) {
-        if (err instanceof ResolveError) {
-          process.stderr.write(`warning: failed to resolve ${uses}: ${err.message}\n`);
-          continue;
-        }
-        throw err;
-      }
-      if (currentSha !== entry.sha) {
-        const staleEntry: LockfileStale = {
-          uses,
-          current_sha: entry.sha,
-          latest_sha: currentSha,
-          origin: "user",
-        };
-        const sources = refLocations.get(uses);
-        if (sources && sources.length > 0) {
-          staleEntry.source_files = [...sources];
-        }
-        lockfileStale.push(staleEntry);
-      }
-    }
-  }
-
-  // ---- apply ----
-  if (apply && versionBumps.length > 0) {
-    const updates = new Map<string, string>();
-    for (const bump of versionBumps) {
-      const parsed = UsesRef.parse(bump.uses);
-      if (parsed === null) {
-        continue;
-      }
-      updates.set(bump.uses, parsed.withSha(bump.latest));
-    }
-    const refLocsObj = new Map<string, string[]>();
-    for (const [k, v] of refLocations.entries()) {
-      refLocsObj.set(k, [...v]);
-    }
-    const changed = applyUpdates(updates, refLocsObj);
-    if (changed.length > 0) {
-      process.stdout.write("Applied version bumps:\n");
-      for (const f of changed) {
-        process.stdout.write(`  modified ${f}\n`);
-      }
-    }
-  }
-
-  // ---- output ----
-  if (versionBumps.length === 0 && lockfileStale.length === 0) {
+  if (report.versionBumps.length === 0 && report.lockfileStale.length === 0) {
     if (opts.json) {
       process.stdout.write(
         JSON.stringify({ version_bumps: [], lockfile_stale: [] }, null, 2) + "\n",
@@ -365,25 +189,58 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   }
 
   if (opts.json) {
-    const result: { version_bumps?: VersionBump[]; lockfile_stale?: LockfileStale[] } = {};
+    const result: {
+      version_bumps?: Array<Record<string, unknown>>;
+      lockfile_stale?: Array<Record<string, unknown>>;
+    } = {};
     if (checkVersions) {
-      result.version_bumps = versionBumps;
+      result.version_bumps = report.versionBumps.map(bumpToJson);
     }
     if (checkLockfile) {
-      result.lockfile_stale = lockfileStale;
+      result.lockfile_stale = report.lockfileStale.map(staleToJson);
     }
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } else {
-    printHumanReport(versionBumps, lockfileStale);
+    printHumanReport(report.versionBumps, report.lockfileStale);
   }
 }
 
-function printHumanReport(versionBumps: VersionBump[], lockfileStale: LockfileStale[]): void {
+/** Serialize a version bump for `--json` (omitting empty `source_files`). */
+function bumpToJson(bump: VersionBump): Record<string, unknown> {
+  const entry: Record<string, unknown> = {
+    uses: bump.uses,
+    current: bump.current,
+    latest: bump.latest,
+    severity: bump.severity,
+  };
+  if (bump.source_files.length > 0) {
+    entry.source_files = [...bump.source_files];
+  }
+  return entry;
+}
+
+/** Serialize a stale entry for `--json` (omitting empty `source_files`). */
+function staleToJson(stale: LockfileStaleEntry): Record<string, unknown> {
+  const entry: Record<string, unknown> = {
+    uses: stale.uses,
+    current_sha: stale.current_sha,
+    latest_sha: stale.latest_sha,
+  };
+  if (stale.source_files.length > 0) {
+    entry.source_files = [...stale.source_files];
+  }
+  return entry;
+}
+
+function printHumanReport(
+  versionBumps: VersionBump[],
+  lockfileStale: LockfileStaleEntry[],
+): void {
   if (versionBumps.length > 0) {
     process.stdout.write("Version updates available:\n\n");
     for (const bump of versionBumps) {
       process.stdout.write(`  ${bump.uses}  →  ${bump.latest}  [${bump.severity}]\n`);
-      for (const src of bump.source_files ?? []) {
+      for (const src of bump.source_files) {
         process.stdout.write(`    in ${src}\n`);
       }
     }

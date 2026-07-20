@@ -78,16 +78,15 @@ def _mock_resolve_ref(owner: str, repo: str, ref: str, *, token=None) -> str:
     return "0" * 40
 
 
-def _mock_track_user_files(app_loader):
-    """Call the loader and return the config file path."""
-    loaded_app = app_loader()
+def _mock_track_user_files(config_path, app_loader):
+    """Load the app and return ``(app, files)`` with the config file tracked."""
+    loaded_app = app_loader(config_path)
     # Return the config file based on the root -- in tests we write
     # ghagen_config.py in tmp_path which is also the cwd.
     root = loaded_app.root
     config = root / "ghagen_config.py"
-    if config.is_file():
-        return {config}
-    return set()
+    files = {config} if config.is_file() else set()
+    return loaded_app, files
 
 
 class TestUpgradeVersionsMode:
@@ -148,9 +147,8 @@ class TestUpgradeVersionsMode:
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         for bump in data["version_bumps"]:
-            if bump["origin"] == "user":
-                assert "source_files" in bump
-                assert len(bump["source_files"]) > 0
+            assert "source_files" in bump
+            assert len(bump["source_files"]) > 0
 
 
 class TestUpgradeLockfileMode:

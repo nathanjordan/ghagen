@@ -1,6 +1,17 @@
 """ghagen pin — SHA-based lockfile for GitHub Actions references."""
 
 from ghagen.pin.collect import collect_uses_refs
+from ghagen.pin.engine import (
+    LockfileStaleEntry,
+    PinReport,
+    ResolvedPin,
+    SyncReport,
+    UpgradeReport,
+    VersionBump,
+    check_sync,
+    pin,
+    upgrade,
+)
 from ghagen.pin.github import GitHubClient, HttpClient, Response, UrllibTransport
 from ghagen.pin.lockfile import (
     Lockfile,
@@ -18,13 +29,22 @@ __all__ = [
     "HttpClient",
     "Lockfile",
     "LockfileError",
+    "LockfileStaleEntry",
     "PinEntry",
+    "PinReport",
     "PinTransform",
     "ResolveError",
+    "ResolvedPin",
     "Response",
+    "SyncReport",
+    "UpgradeReport",
     "UrllibTransport",
     "UsesRef",
+    "VersionBump",
+    "check_sync",
     "collect_uses_refs",
+    "pin",
     "read_lockfile",
+    "upgrade",
     "write_lockfile",
 ]
