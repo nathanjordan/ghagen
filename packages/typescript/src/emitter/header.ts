@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { SourceLocation } from "../_source_location.js";
-import { findAppRoot } from "../paths.js";
+import { findAppRoot } from "../config.js";
 
 /**
  * Default template used when `App({ header: ... })` is not set.

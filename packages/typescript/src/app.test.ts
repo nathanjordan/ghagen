@@ -7,6 +7,7 @@ import { workflow } from "./models/workflow.js";
 import { job } from "./models/job.js";
 import { step } from "./models/step.js";
 import { action, compositeRuns } from "./models/action.js";
+import { toYaml } from "./emitter/yaml-writer.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -104,13 +105,41 @@ describe("App", () => {
     expect((original.data as Record<string, string>)["name"]).toBe("CI");
   });
 
-  it("respects auto_dedent setting from .ghagen.yml", async () => {
+  it("does not dedent run scripts when auto_dedent is false in .ghagen.yml", async () => {
     writeFileSync(join(tmp, ".ghagen.yml"), "options:\n  auto_dedent: false\n");
-    // Constructing an App reads options and toggles auto-dedent.
-    const _app = new App({ root: tmp });
-    // Subsequent step() should NOT dedent.
+    const app = new App({ root: tmp });
     const indented = "\n        echo hi\n        echo bye\n    ";
-    const s = step({ run: indented });
-    expect(s.data["run"]).toBe(indented);
+    app.addWorkflow(
+      workflow({
+        name: "CI",
+        on: { push: {} },
+        jobs: { test: job({ runsOn: "ubuntu-latest", steps: [step({ run: indented })] }) },
+      }),
+      "ci.yml",
+    );
+    const written = await app.synth();
+    // With auto_dedent disabled, the raw indentation survives into the YAML.
+    expect(readFileSync(written[0]!, "utf8")).toContain("        echo hi");
+  });
+
+  it("dedents run scripts by default", async () => {
+    const w = workflow({
+      name: "CI",
+      on: { push: {} },
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ run: "\n        echo hi\n        echo bye\n    " })],
+        }),
+      },
+    });
+    const app = new App({ root: tmp });
+    app.addWorkflow(w, "ci.yml");
+    const written = await app.synth();
+    const content = readFileSync(written[0]!, "utf8");
+    expect(content).toContain("echo hi");
+    // App threads auto_dedent=true, so the output differs from a raw emit of
+    // the same model.
+    expect(content).not.toBe(toYaml(w, { autoDedent: false }));
   });
 });

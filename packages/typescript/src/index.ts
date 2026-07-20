@@ -138,10 +138,8 @@ export { expr, secrets, github, vars } from "./helpers/expressions.js";
 export type { SourceLocation } from "./_source_location.js";
 
 // Utilities
-export { findAppRoot } from "./paths.js";
-export { loadOptions, type GhagenOptions } from "./config.js";
+export { findAppRoot, loadOptions, type GhagenOptions } from "./config.js";
 export { default as dedent } from "dedent";
-export { getAutoDedent, setAutoDedent } from "./config.js";
 
 // Model utilities
 export { cloneModel } from "./models/_base.js";

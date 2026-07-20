@@ -7,7 +7,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import TypedDict
 
-from ghagen.paths import find_app_root
+from ghagen.config import find_app_root
 
 #: Default template used when ``App(header=...)`` is not set. References
 #: ``{source_file}`` so the emitted header automatically points at the

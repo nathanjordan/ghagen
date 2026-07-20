@@ -2,8 +2,6 @@ import type { Step as SchemaStep } from "../schema/workflow-types.generated.js";
 import { StepModel, extractMeta, mapFields } from "./_base.js";
 import type { WithMeta, Raw } from "./_base.js";
 import type { ShellType } from "./common.js";
-import dedent from "dedent";
-import { getAutoDedent } from "../config.js";
 
 /**
  * Input for defining a single step within a GitHub Actions job.
@@ -72,9 +70,6 @@ const STEP_FIELD_MAP = {
 export function step(input: WithMeta<StepInput>): StepModel {
   const [data, meta] = extractMeta(input);
   const yamlData = mapFields(data as Record<string, unknown>, STEP_FIELD_MAP);
-  // Auto-dedent the run script when the module-level flag is on.
-  if (getAutoDedent() && typeof yamlData["run"] === "string") {
-    yamlData["run"] = dedent(yamlData["run"] as string);
-  }
+  // `run` holds the raw string; dedent is applied at emit time (ADR-0002).
   return new StepModel(yamlData, meta);
 }

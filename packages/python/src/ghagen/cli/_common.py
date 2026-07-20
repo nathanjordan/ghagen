@@ -8,8 +8,8 @@ from pathlib import Path
 
 import typer
 
-from ghagen._yaml_config import load_yaml_config
 from ghagen.app import App
+from ghagen.config import load_yaml_config
 
 CONFIG_SEARCH_PATHS = [
     ".github/ghagen_workflows.py",

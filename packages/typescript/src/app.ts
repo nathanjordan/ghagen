@@ -8,7 +8,7 @@
 
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { loadOptions, setAutoDedent } from "./config.js";
+import { loadOptions } from "./config.js";
 import { cloneModel } from "./models/_base.js";
 import type { ActionModel, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
@@ -36,6 +36,8 @@ export class App {
   /** @internal — registered items, exposed for transforms. */
   readonly _items: RegisteredItem[] = [];
   readonly _userTransforms: readonly Transform[];
+  /** @internal — auto-dedent flag from `.ghagen.yml`, threaded into emit. */
+  private readonly autoDedent: boolean;
 
   constructor(
     options: {
@@ -75,10 +77,10 @@ export class App {
       options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
     this._userTransforms = options.transforms ?? [];
 
-    // Apply project-level options (e.g. auto_dedent) from .ghagen.yml. Mirrors the Python App's
-    // behaviour.
+    // Load project-level options (e.g. auto_dedent) from .ghagen.yml. Threaded into the emitter at
+    // synth/check time rather than applied via a module-level global (ADR-0002).
     const opts = loadOptions(this.rootAbsPath);
-    setAutoDedent(opts.auto_dedent);
+    this.autoDedent = opts.auto_dedent;
   }
 
   /**
@@ -114,7 +116,10 @@ export class App {
       const full = resolve(this.rootAbsPath, relPath);
       const working = this._applyTransforms(item, relPath, transforms);
       await mkdir(dirname(full), { recursive: true });
-      writeFileSync(full, toYaml(working, { header: this.headerTxt }));
+      writeFileSync(
+        full,
+        toYaml(working, { header: this.headerTxt, autoDedent: this.autoDedent }),
+      );
       written.push(full);
     }
     return written;
@@ -133,7 +138,10 @@ export class App {
     for (const { item, relPath } of this._items) {
       const full = resolve(this.rootAbsPath, relPath);
       const working = this._applyTransforms(item, relPath, transforms);
-      const expected = toYaml(working, { header: this.headerTxt });
+      const expected = toYaml(working, {
+        header: this.headerTxt,
+        autoDedent: this.autoDedent,
+      });
 
       if (!existsSync(full) || !statSync(full).isFile()) {
         stale.push([full, `File does not exist: ${full}`]);

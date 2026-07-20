@@ -1,8 +1,8 @@
-"""Tests for ghagen.paths (app root discovery)."""
+"""Tests for ghagen.config app-root discovery (find_app_root)."""
 
 from pathlib import Path
 
-from ghagen.paths import GHAGEN_YML_MARKER, find_app_root
+from ghagen.config import GHAGEN_YML_MARKER, find_app_root
 
 
 def test_finds_marker_at_start_dir(tmp_path: Path) -> None:

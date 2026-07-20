@@ -2,16 +2,6 @@
 
 from __future__ import annotations
 
-#: Module-level flag controlling whether ``Step.run`` values are
-#: automatically dedented at construction time.  Defaults to ``True``.
-#: Set to ``False`` (or via ``[options] auto_dedent = false`` in
-#: ``.ghagen.yml``) to disable.
-#:
-#: NOTE: This is module-level mutable state.  It is not thread-safe —
-#: concurrent ``App`` instances with different configs will race.
-#: Fine for ghagen's single-threaded CLI usage.
-auto_dedent: bool = True
-
 
 def dedent_script(s: str) -> str:
     """Dedent a script string for use in YAML ``run:`` blocks.

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { step } from "./step.js";
+import { job } from "./job.js";
+import { workflow } from "./workflow.js";
 import { isModel, raw } from "./_base.js";
+import { toYaml } from "../emitter/yaml-writer.js";
 import { STEP_KEY_ORDER } from "../emitter/key-order.js";
 
 describe("step", () => {
@@ -70,5 +73,43 @@ describe("step", () => {
     expect(s.kind).toBe("step");
     expect(s.keyOrder).toEqual(STEP_KEY_ORDER);
     expect(isModel(s)).toBe(true);
+  });
+});
+
+describe("step dedent (emit-time, ADR-0002)", () => {
+  const indented = "\n        echo hello\n        echo world\n    ";
+
+  function wrap(s: ReturnType<typeof step>) {
+    return workflow({
+      name: "W",
+      on: { push: {} },
+      jobs: { j: job({ runsOn: "ubuntu-latest", steps: [s] }) },
+    });
+  }
+
+  it("stores run raw at construction (no dedent)", () => {
+    const s = step({ run: indented });
+    expect(s.data["run"]).toBe(indented);
+  });
+
+  it("dedents run by default at emit time", () => {
+    const s = step({ run: indented });
+    const dedented = toYaml(wrap(s), { header: null });
+    const rawEmit = toYaml(wrap(s), { header: null, autoDedent: false });
+    expect(dedented).toContain("echo hello");
+    // Dedent removes the source indentation, so default output differs from
+    // the raw (undedented) emit.
+    expect(dedented).not.toBe(rawEmit);
+    // The caller's model is untouched.
+    expect(s.data["run"]).toBe(indented);
+  });
+
+  it("skips dedent when autoDedent is false", () => {
+    const s = step({ run: indented });
+    // The extra source indentation survives on top of YAML's own block indent.
+    const yaml = toYaml(wrap(s), { header: null, autoDedent: false });
+    const dedented = toYaml(wrap(s), { header: null });
+    expect(yaml).not.toBe(dedented);
+    expect(yaml.includes("        echo hello")).toBe(true);
   });
 });

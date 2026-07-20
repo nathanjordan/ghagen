@@ -1,6 +1,7 @@
 import { Document, Scalar, YAMLMap, YAMLSeq } from "yaml";
-import type { Document as GhagenDocument } from "../models/_base.js";
+import { StepModel, cloneModel, type Document as GhagenDocument } from "../models/_base.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
+import dedent from "dedent";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -17,6 +18,29 @@ export interface ToYamlOptions {
    *   {@link HeaderVariables} and emit the returned string.
    */
   header?: string | null | ((vars: HeaderVariables) => string);
+  /**
+   * Dedent each step's `run` script at emit time. Defaults to `true`.
+   * Set `false` to emit the raw `run` strings verbatim.
+   */
+  autoDedent?: boolean;
+}
+
+/**
+ * Return a deep clone of *model* with every step's `run` dedented.
+ *
+ * Dedent is a serialization-time normalization (ADR-0002): a step's `run`
+ * holds the raw string until emit, so this pass walks the tree — steps nested
+ * inside jobs *and* composite-action runs — and rewrites `run` on the clone,
+ * leaving the caller's model untouched.
+ */
+function dedentSteps(model: GhagenDocument): GhagenDocument {
+  const clone = cloneModel(model);
+  clone.walk((node) => {
+    if (node instanceof StepModel && typeof node.data["run"] === "string") {
+      node.data["run"] = dedent(node.data["run"] as string);
+    }
+  });
+  return clone;
 }
 
 /** Format a YAML comment by prefixing each line with `#`. */
@@ -86,20 +110,22 @@ function fixInlineCommentSpacing(yaml: string): string {
  * ```
  */
 export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
-  const doc = new Document();
-  doc.contents = model.toYamlMap();
+  const target = (options?.autoDedent ?? true) ? dedentSteps(model) : model;
 
-  const headerStr = formatHeader(options?.header, model.sourceLocation);
+  const doc = new Document();
+  doc.contents = target.toYamlMap();
+
+  const headerStr = formatHeader(options?.header, target.sourceLocation);
   if (headerStr !== null) {
     doc.commentBefore = headerStr;
   }
 
   if (doc.contents instanceof YAMLMap) {
-    if (model.meta.comment) {
-      attachBlockComment(doc.contents, model.meta.comment);
+    if (target.meta.comment) {
+      attachBlockComment(doc.contents, target.meta.comment);
     }
-    if (model.meta.eolComment) {
-      attachEolComment(doc.contents, model.meta.eolComment);
+    if (target.meta.eolComment) {
+      attachEolComment(doc.contents, target.meta.eolComment);
     }
   }
 

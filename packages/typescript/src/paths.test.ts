@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findAppRoot } from "./paths.js";
+import { findAppRoot } from "./config.js";
 
 let tmp: string;
 beforeEach(() => {

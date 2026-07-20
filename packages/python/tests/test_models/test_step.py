@@ -1,7 +1,6 @@
 """Tests for the Step model."""
 
-import ghagen._dedent as _dedent_mod
-from ghagen import Raw, Step
+from ghagen import Job, Raw, Step, Workflow
 from ghagen.models.common import ShellType
 
 
@@ -99,38 +98,31 @@ def test_step_post_process():
     assert cm["injected"] == "value"
 
 
-# --- Auto-dedent tests ---
+# --- Dedent-at-emit tests (ADR-0002) ---
+#
+# Dedent is no longer applied at Step construction. ``Step.run`` holds the
+# raw string; the emitter dedents at serialization time, gated by the
+# ``auto_dedent`` flag.
 
 
-def test_run_auto_dedent_triple_quoted():
+def _wrap(step: Step) -> Workflow:
+    """Wrap a step in a minimal workflow so it can be serialized to YAML."""
+    return Workflow(
+        name="W",
+        on={"push": {}},
+        jobs={"j": Job(runs_on="ubuntu-latest", steps=[step])},
+    )
+
+
+def test_run_is_raw_at_construction():
+    """Construction no longer dedents: ``run`` holds the raw string."""
     step = Step(
         run="""
             echo hello
             echo world
         """
     )
-    assert step.run == "echo hello\necho world"
-
-
-def test_run_auto_dedent_preserves_relative_indent():
-    step = Step(
-        run="""
-            if [ -f config ]; then
-                source config
-            fi
-        """
-    )
-    assert step.run == "if [ -f config ]; then\n    source config\nfi"
-
-
-def test_run_auto_dedent_single_line_noop():
-    step = Step(run="pytest")
-    assert step.run == "pytest"
-
-
-def test_run_auto_dedent_newline_concat_noop():
-    step = Step(run="echo hello\necho world")
-    assert step.run == "echo hello\necho world"
+    assert step.run == "\n            echo hello\n            echo world\n        "
 
 
 def test_run_none():
@@ -138,23 +130,15 @@ def test_run_none():
     assert step.run is None
 
 
-def test_run_auto_dedent_disabled():
-    original = _dedent_mod.auto_dedent
-    try:
-        _dedent_mod.auto_dedent = False
-        step = Step(
-            run="""
-                echo hello
-            """
-        )
-        # With auto_dedent disabled, the raw string passes through.
-        assert "                echo hello" in step.run
-    finally:
-        _dedent_mod.auto_dedent = original
+def test_to_commented_map_does_not_dedent():
+    """Dedent lives in the document emitter, not in ``to_commented_map``."""
+    step = Step(name="Build", run="\n    echo building\n    make all\n")
+    cm = step.to_commented_map()
+    assert cm["run"] == "\n    echo building\n    make all\n"
 
 
-def test_run_auto_dedent_to_commented_map():
-    """End-to-end: triple-quoted run through to CommentedMap."""
+def test_to_yaml_dedents_by_default():
+    """Default emit dedents each Step's ``run`` (common indent removed)."""
     step = Step(
         name="Build",
         run="""
@@ -162,5 +146,30 @@ def test_run_auto_dedent_to_commented_map():
             make all
         """,
     )
-    cm = step.to_commented_map()
-    assert cm["run"] == "echo building\nmake all"
+    wf = _wrap(step)
+    dedented = wf.to_yaml(header=None)
+    raw = wf.to_yaml(header=None, auto_dedent=False)
+    # Dedent changes the output, and the deep source indentation is gone.
+    assert dedented != raw
+    assert "            echo building" not in dedented
+
+
+def test_to_yaml_auto_dedent_false_skips_dedent():
+    """``auto_dedent=False`` emits the raw ``run`` string verbatim."""
+    step = Step(
+        name="Build",
+        run="""
+            echo building
+            make all
+        """,
+    )
+    yaml = _wrap(step).to_yaml(header=None, auto_dedent=False)
+    assert "            echo building" in yaml
+
+
+def test_to_yaml_does_not_mutate_caller_model():
+    """The dedent pass runs on a copy; the caller's ``run`` stays raw."""
+    raw = "\n            echo hello\n        "
+    step = Step(run=raw)
+    _wrap(step).to_yaml(header=None)
+    assert step.run == raw

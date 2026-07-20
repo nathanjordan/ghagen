@@ -18,13 +18,40 @@ if TYPE_CHECKING:
     from ghagen.models._base import GhagenModel
 
 
-def to_yaml(model: GhagenModel, header: HeaderInput = DEFAULT) -> str:
+def _dedent_steps(model: GhagenModel) -> GhagenModel:
+    """Return a deep copy of *model* with every Step's ``run`` dedented.
+
+    Dedent is a serialization-time normalization (ADR-0002): ``Step.run``
+    holds the raw string until emit, so this pass walks the tree — steps
+    nested inside jobs *and* composite-action runs — and rewrites ``run``
+    on a copy, leaving the caller's model untouched.
+    """
+    from ghagen._dedent import dedent_script
+    from ghagen.models.step import Step
+
+    working = model.model_copy(deep=True)
+    for _path, node in working.walk():
+        if isinstance(node, Step) and isinstance(node.run, str):
+            node.run = dedent_script(node.run)
+    return working
+
+
+def to_yaml(
+    model: GhagenModel, header: HeaderInput = DEFAULT, *, auto_dedent: bool = True
+) -> str:
     """Serialize *model* to a complete YAML string.
 
     Applies the model's ``comment`` above the first key and resolves the
     ``header`` (see :func:`~ghagen.emitter.header.format_header` for the four
     accepted shapes).
+
+    When *auto_dedent* is true (the default), every Step's ``run`` script is
+    dedented on a private copy of the model before serialization; the
+    caller's model is never mutated.
     """
+    if auto_dedent:
+        model = _dedent_steps(model)
+
     cm = model.to_commented_map()
 
     if model.comment and cm:
@@ -35,10 +62,14 @@ def to_yaml(model: GhagenModel, header: HeaderInput = DEFAULT) -> str:
 
 
 def to_yaml_file(
-    model: GhagenModel, path: str | Path, header: HeaderInput = DEFAULT
+    model: GhagenModel,
+    path: str | Path,
+    header: HeaderInput = DEFAULT,
+    *,
+    auto_dedent: bool = True,
 ) -> None:
     """Write *model* as YAML to *path*, creating parent directories."""
-    content = to_yaml(model, header)
+    content = to_yaml(model, header, auto_dedent=auto_dedent)
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content)

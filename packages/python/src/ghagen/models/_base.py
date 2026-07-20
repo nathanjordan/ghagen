@@ -390,7 +390,9 @@ class Document(GhagenModel):
     Documents and cannot be emitted to a file.
     """
 
-    def to_yaml(self, header: HeaderInput = DEFAULT) -> str:
+    def to_yaml(
+        self, header: HeaderInput = DEFAULT, *, auto_dedent: bool = True
+    ) -> str:
         """Generate the complete YAML string for this document.
 
         Args:
@@ -407,16 +409,21 @@ class Document(GhagenModel):
                   fully-populated
                   :class:`~ghagen.emitter.header.HeaderVariables` and
                   emit the returned string.
+            auto_dedent: When true (the default), each Step's ``run``
+                script is dedented at emit time. Set false to emit the
+                raw strings verbatim.
 
         Returns:
             The complete YAML string.
         """
-        return emit.to_yaml(self, header)
+        return emit.to_yaml(self, header, auto_dedent=auto_dedent)
 
     def to_yaml_file(
         self,
         path: str | Path,
         header: HeaderInput = DEFAULT,
+        *,
+        auto_dedent: bool = True,
     ) -> None:
         """Write the document YAML to a file.
 
@@ -424,5 +431,7 @@ class Document(GhagenModel):
             path: File path to write to.
             header: Header comment. See :meth:`to_yaml` for the four
                 accepted shapes.
+            auto_dedent: When true (the default), each Step's ``run``
+                script is dedented at emit time.
         """
-        emit.to_yaml_file(self, path, header)
+        emit.to_yaml_file(self, path, header, auto_dedent=auto_dedent)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import difflib
 from pathlib import Path
 
-import ghagen._dedent as _dedent_mod
 from ghagen.config import load_options
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.action import Action
@@ -77,9 +76,11 @@ class App:
         self._items: list[tuple[_Item, Path]] = []
         self._transforms: list[Transform] = list(transforms or [])
 
-        # Apply project-level options (e.g. auto_dedent) from .ghagen.yml.
+        # Load project-level options (e.g. auto_dedent) from .ghagen.yml.
+        # These are threaded into the emitter at synth/check time rather than
+        # applied via a module-level global (ADR-0002).
         options = load_options(self.root)
-        _dedent_mod.auto_dedent = options.auto_dedent
+        self._auto_dedent = options.auto_dedent
 
     def add(self, item: _Item, path: str | Path) -> None:
         """Register an item at an explicit path relative to ``root``.
@@ -163,7 +164,9 @@ class App:
         for item, rel_path in self._items:
             full = self.root / rel_path
             working = self._apply_transforms(item, rel_path, transforms)
-            working.to_yaml_file(full, header=self.header)
+            working.to_yaml_file(
+                full, header=self.header, auto_dedent=self._auto_dedent
+            )
             written.append(full)
         return written
 
@@ -180,7 +183,9 @@ class App:
         for item, rel_path in self._items:
             full = self.root / rel_path
             working = self._apply_transforms(item, rel_path, transforms)
-            expected = working.to_yaml(header=self.header)
+            expected = working.to_yaml(
+                header=self.header, auto_dedent=self._auto_dedent
+            )
 
             if not full.exists():
                 stale.append((full, f"File does not exist: {full}"))
