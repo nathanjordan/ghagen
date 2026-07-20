@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen._raw import Raw
@@ -165,33 +165,19 @@ class On(GhagenModel):
         # No strong canonical order for trigger types; emit in declaration order
         return []
 
-    def to_commented_map(self) -> CommentedMap:
-        """Override to handle schedule as a list of cron entries."""
-        cm = super().to_commented_map()
+    @model_validator(mode="after")
+    def _normalize_workflow_dispatch(self) -> On:
+        """Render an empty ``workflow_dispatch`` as a present null key.
 
-        # Schedule needs special handling: list of {cron: "..."} dicts
-        if "schedule" in cm and isinstance(cm["schedule"], list):
-            from ruamel.yaml.comments import CommentedSeq
-
-            seq = CommentedSeq()
-            for item in cm["schedule"]:
-                if isinstance(item, CommentedMap):
-                    seq.append(item)
-                elif isinstance(item, dict):
-                    entry = CommentedMap()
-                    for k, v in item.items():
-                        entry[k] = v
-                    seq.append(entry)
-                else:
-                    seq.append(item)
-            cm["schedule"] = seq
-
-        # workflow_dispatch with no inputs should be null (renders as just the key)
-        if "workflow_dispatch" in cm:
-            val = cm["workflow_dispatch"]
-            if val is True:
-                pass  # Leave as boolean
-            elif isinstance(val, (dict, CommentedMap)) and len(val) == 0:
-                cm["workflow_dispatch"] = None
-
-        return cm
+        ``workflow_dispatch:`` with no inputs must emit as a bare key (null),
+        not ``workflow_dispatch: {}``. Pydantic's ``exclude_none`` would drop
+        a plain ``None`` field, so an empty trigger is normalized to
+        ``Raw(None)`` at construction — which the emitter renders as a present
+        null value. A boolean ``workflow_dispatch`` is left untouched.
+        """
+        wd = self.workflow_dispatch
+        is_empty_model = isinstance(wd, WorkflowDispatchTrigger) and wd.inputs is None
+        is_empty_map = isinstance(wd, dict) and len(wd) == 0
+        if is_empty_model or is_empty_map:
+            object.__setattr__(self, "workflow_dispatch", Raw(None))
+        return self

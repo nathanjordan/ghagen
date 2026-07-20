@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import warnings
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
@@ -12,6 +13,8 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from ghagen._commented import Commented, is_commented, unwrap_commented
 from ghagen._raw import Raw
+from ghagen.emitter import emit
+from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.emitter.yaml_writer import (
     attach_comment,
     attach_field_comments,
@@ -375,3 +378,51 @@ class GhagenModel(BaseModel):
                 data[ser_alias] = new_dict
             elif isinstance(value, list):
                 data[ser_alias] = self._serialize_list(value)
+
+
+class Document(GhagenModel):
+    """A top-level model that maps 1:1 to a generated YAML file.
+
+    Only :class:`~ghagen.Workflow` and :class:`~ghagen.Action` are Documents:
+    they are the sole models that may be serialized to a file, via
+    :meth:`to_yaml` / :meth:`to_yaml_file`. Nested models (Step, Job, …)
+    provide :meth:`~GhagenModel.to_commented_map` for embedding but are not
+    Documents and cannot be emitted to a file.
+    """
+
+    def to_yaml(self, header: HeaderInput = DEFAULT) -> str:
+        """Generate the complete YAML string for this document.
+
+        Args:
+            header: Header comment for the generated file. Four shapes
+                are accepted:
+
+                - omit (``DEFAULT`` sentinel) — emit ghagen's default
+                  header.
+                - ``None`` — emit no header.
+                - ``str`` — emit the string verbatim. No
+                  ``{variable}`` substitution; literal braces are
+                  preserved.
+                - ``Callable[[HeaderVariables], str]`` — invoke with a
+                  fully-populated
+                  :class:`~ghagen.emitter.header.HeaderVariables` and
+                  emit the returned string.
+
+        Returns:
+            The complete YAML string.
+        """
+        return emit.to_yaml(self, header)
+
+    def to_yaml_file(
+        self,
+        path: str | Path,
+        header: HeaderInput = DEFAULT,
+    ) -> None:
+        """Write the document YAML to a file.
+
+        Args:
+            path: File path to write to.
+            header: Header comment. See :meth:`to_yaml` for the four
+                accepted shapes.
+        """
+        emit.to_yaml_file(self, path, header)

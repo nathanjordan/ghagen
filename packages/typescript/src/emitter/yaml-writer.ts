@@ -1,5 +1,5 @@
 import { Document, Scalar, YAMLMap, YAMLSeq } from "yaml";
-import type { Model } from "../models/_base.js";
+import type { Document as GhagenDocument } from "../models/_base.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -85,7 +85,7 @@ function fixInlineCommentSpacing(yaml: string): string {
  * console.log(yaml);
  * ```
  */
-export function toYaml(model: Model, options?: ToYamlOptions): string {
+export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
   const doc = new Document();
   doc.contents = model.toYamlMap();
 
@@ -137,7 +137,7 @@ export function toYaml(model: Model, options?: ToYamlOptions): string {
  * });
  * ```
  */
-export function toYamlFile(model: Model, path: string, options?: ToYamlOptions): void {
+export function toYamlFile(model: GhagenDocument, path: string, options?: ToYamlOptions): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, toYaml(model, options));
 }

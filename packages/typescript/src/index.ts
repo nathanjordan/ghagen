@@ -53,6 +53,7 @@ export {
 export type {
   Commented,
   Commentable,
+  Document,
   Raw,
   ModelKind,
   ModelMeta,

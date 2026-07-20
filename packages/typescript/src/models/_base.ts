@@ -382,6 +382,16 @@ export class ActionModel extends Model {
   }
 }
 
+/**
+ * A top-level model that maps 1:1 to a generated YAML file (ADR-0001).
+ *
+ * Only a Workflow or Action is a Document — the sole models that may be
+ * serialized to a file via {@link toYaml} / {@link toYamlFile}. Nested
+ * models (steps, jobs, …) provide `toYamlMap()` for embedding but are not
+ * Documents.
+ */
+export type Document = WorkflowModel | ActionModel;
+
 /** Model produced by the {@link on} factory. */
 export class OnModel extends Model {
   readonly kind = "on" as const;
