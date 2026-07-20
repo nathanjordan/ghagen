@@ -62,6 +62,27 @@ describe("pinTransform()", () => {
     expect(() => transform(cloned, ctx)).toThrow(PinError);
   });
 
+  it("leaves a hand-pinned SHA untouched (never throws PinError)", () => {
+    const sha = "d".repeat(40);
+    const wf = workflow({
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ uses: `actions/checkout@${sha}` })],
+        }),
+      },
+    });
+    const cloned = cloneModel(wf);
+    // Empty lockfile: a lookup would throw, so this proves the SHA ref is
+    // skipped before any lockfile consultation.
+    const transform = pinTransform(new Lockfile());
+    expect(() => transform(cloned, ctx)).not.toThrow();
+
+    const jobs = cloned.data["jobs"] as Record<string, Model>;
+    const steps = jobs["test"]!.data["steps"] as Model[];
+    expect(steps[0]!.data["uses"]).toBe(`actions/checkout@${sha}`);
+  });
+
   it("skips local refs (./) and docker refs", () => {
     const wf = workflow({
       jobs: {

@@ -13,6 +13,7 @@ from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.workflow import Workflow
 from ghagen.pin.lockfile import Lockfile
+from ghagen.pin.uses import UsesRef
 from ghagen.transforms import SynthContext
 
 
@@ -55,12 +56,15 @@ class PinTransform:
                 step.uses = pinned
 
     def _pin_uses(self, uses: str) -> str | None:
-        """Return the pinned ``uses:`` string wrapped with an EOL comment, or None."""
-        # Skip local paths and docker images.
-        if uses.startswith("./") or uses.startswith("docker://"):
-            return None
+        """Return the pinned ``uses:`` string wrapped with an EOL comment, or None.
 
-        if "@" not in uses:
+        Refs that are not pinnable — local paths, docker images, malformed
+        refs, or refs already written as a SHA — are skipped (return ``None``)
+        and never consult the lockfile. Only a pinnable ref missing from the
+        lockfile raises :class:`PinError`.
+        """
+        ref = UsesRef.parse(uses)
+        if ref is None or not ref.is_pinnable:
             return None
 
         entry = self._lockfile.get(uses)
@@ -69,7 +73,5 @@ class PinTransform:
                 f"No lockfile entry for '{uses}'. Run `ghagen pin` to resolve it."
             )
 
-        action_part, ref = uses.rsplit("@", 1)
-        pinned = f"{action_part}@{entry.sha}"
-
-        return with_eol_comment(pinned, ref)
+        pinned = ref.with_sha(entry.sha)
+        return with_eol_comment(pinned, ref.ref)

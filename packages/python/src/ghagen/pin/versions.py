@@ -8,6 +8,7 @@ available tag from a list of candidates.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Literal
 
 from packaging.version import InvalidVersion, Version
@@ -23,8 +24,26 @@ _TAG_RE = re.compile(
 )
 
 
-def parse_tag(tag: str) -> Version | None:
-    """Parse a GitHub Action tag into a :class:`~packaging.version.Version`.
+@dataclass(frozen=True)
+class ParsedTag:
+    """A parsed tag — wraps a comparable version plus its optional prefix.
+
+    Mirrors the TypeScript ``ParsedTag`` shape so the tag regex runs once
+    (no separate prefix re-extraction).
+    """
+
+    tag: str
+    """The original tag string (e.g. ``"v4"``, ``"prefix-v1.0.0"``)."""
+
+    prefix: str | None
+    """Prefix (without delimiter), or ``None`` when there is no prefix."""
+
+    version: Version
+    """Comparable semantic version."""
+
+
+def parse_tag(tag: str) -> ParsedTag | None:
+    """Parse a GitHub Action tag into a :class:`ParsedTag`, or ``None``.
 
     Strips a leading ``v``, pads single-segment versions (``v4`` becomes
     ``4.0.0``), and supports prefixed tags like ``prefix-v1.0.0`` or
@@ -52,9 +71,11 @@ def parse_tag(tag: str) -> Version | None:
         segments.append("0")
 
     try:
-        return Version(".".join(segments))
+        version = Version(".".join(segments))
     except InvalidVersion:
         return None
+
+    return ParsedTag(tag=tag, prefix=prefix, version=version)
 
 
 def classify_bump(
@@ -93,44 +114,27 @@ def find_latest_tag(current_ref: str, available_tags: list[str]) -> str | None:
         version, or ``None`` if the current ref is already the latest or
         cannot be parsed.
     """
-    current_version = parse_tag(current_ref)
-    if current_version is None:
+    current = parse_tag(current_ref)
+    if current is None:
         return None
-
-    current_prefix = _extract_prefix(current_ref)
 
     best_tag: str | None = None
     best_version: Version | None = None
 
     for tag in available_tags:
+        parsed = parse_tag(tag)
+        if parsed is None:
+            continue
+
         # Only consider tags that share the same prefix.
-        if _extract_prefix(tag) != current_prefix:
+        if parsed.prefix != current.prefix:
             continue
 
-        version = parse_tag(tag)
-        if version is None:
+        if parsed.version <= current.version:
             continue
 
-        if version <= current_version:
-            continue
-
-        if best_version is None or version > best_version:
-            best_version = version
+        if best_version is None or parsed.version > best_version:
+            best_version = parsed.version
             best_tag = tag
 
     return best_tag
-
-
-def _extract_prefix(tag: str) -> str | None:
-    """Return the prefix portion of a tag, or ``None`` if there is no prefix.
-
-    Examples::
-
-        _extract_prefix("v4.1.2")           → None
-        _extract_prefix("prefix-v1.0.0")    → "prefix"
-        _extract_prefix("prefix/v1.0.0")    → "prefix"
-    """
-    m = _TAG_RE.match(tag)
-    if m is None:
-        return None
-    return m.group(1)

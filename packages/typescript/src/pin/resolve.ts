@@ -13,14 +13,6 @@ export class ResolveError extends Error {
   }
 }
 
-/** Parsed components of an `owner/repo[/path]@ref` string. */
-export interface ParsedUses {
-  readonly owner: string;
-  readonly repo: string;
-  readonly path: string | null;
-  readonly ref: string;
-}
-
 /** Options applicable to all GitHub API requests. */
 export interface ResolveOptions {
   /** Optional GitHub personal access token. */
@@ -28,24 +20,6 @@ export interface ResolveOptions {
 }
 
 const API_TIMEOUT_MS = 30_000;
-
-/** Parse an `owner/repo[/path]@ref` string into components. */
-export function parseUses(uses: string): ParsedUses {
-  if (!uses.includes("@")) {
-    throw new Error(`No @ref in uses string: ${JSON.stringify(uses)}`);
-  }
-  const at = uses.lastIndexOf("@");
-  const actionPart = uses.slice(0, at);
-  const ref = uses.slice(at + 1);
-  const parts = actionPart.split("/");
-  if (parts.length < 2) {
-    throw new Error(`Cannot parse owner/repo from: ${JSON.stringify(uses)}`);
-  }
-  const owner = parts[0]!;
-  const repo = parts[1]!;
-  const path = parts.length > 2 ? parts.slice(2).join("/") : null;
-  return { owner, repo, path, ref };
-}
 
 /**
  * Resolve a git ref to a commit SHA via the GitHub API.

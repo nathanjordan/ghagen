@@ -9,6 +9,7 @@
 import { StepModel, JobModel, isCommented, withEolComment } from "../models/_base.js";
 import type { SynthContext, SynthItem, Transform } from "../transforms.js";
 import type { Lockfile } from "./lockfile.js";
+import { UsesRef } from "./uses.js";
 
 /** Raised when a `uses:` ref has no lockfile entry during synthesis. */
 export class PinError extends Error {
@@ -42,11 +43,15 @@ export function pinTransform(lockfile: Lockfile): PinTransform {
   };
 }
 
+/**
+ * Refs that are not pinnable — local paths, docker images, malformed refs,
+ * or refs already written as a SHA — are skipped (return `null`) and never
+ * consult the lockfile. Only a pinnable ref missing from the lockfile throws
+ * a `PinError`.
+ */
 function pinUses(uses: string, lockfile: Lockfile): string | null {
-  if (uses.startsWith("./") || uses.startsWith("docker://")) {
-    return null;
-  }
-  if (!uses.includes("@")) {
+  const ref = UsesRef.parse(uses);
+  if (ref === null || !ref.isPinnable) {
     return null;
   }
 
@@ -55,11 +60,8 @@ function pinUses(uses: string, lockfile: Lockfile): string | null {
     throw new PinError(`No lockfile entry for '${uses}'. Run \`ghagen deps pin\` to resolve it.`);
   }
 
-  const at = uses.lastIndexOf("@");
-  const actionPart = uses.slice(0, at);
-  const ref = uses.slice(at + 1);
-  const pinned = `${actionPart}@${entry.sha}`;
+  const pinned = ref.withSha(entry.sha);
 
   // Return the pinned value wrapped with the original ref as EOL comment
-  return withEolComment(pinned, ref);
+  return withEolComment(pinned, ref.ref);
 }

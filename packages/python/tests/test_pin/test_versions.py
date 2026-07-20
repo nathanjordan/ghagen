@@ -9,22 +9,38 @@ from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
 
 class TestParseTag:
     def test_major_only(self):
-        assert parse_tag("v4") == Version("4.0.0")
+        parsed = parse_tag("v4")
+        assert parsed is not None
+        assert parsed.tag == "v4"
+        assert parsed.prefix is None
+        assert parsed.version == Version("4.0.0")
 
     def test_major_minor(self):
-        assert parse_tag("v4.1") == Version("4.1.0")
+        parsed = parse_tag("v4.1")
+        assert parsed is not None
+        assert parsed.version == Version("4.1.0")
 
     def test_full_semver(self):
-        assert parse_tag("v4.1.2") == Version("4.1.2")
+        parsed = parse_tag("v4.1.2")
+        assert parsed is not None
+        assert parsed.version == Version("4.1.2")
 
     def test_no_v_prefix(self):
-        assert parse_tag("4.1.2") == Version("4.1.2")
+        parsed = parse_tag("4.1.2")
+        assert parsed is not None
+        assert parsed.version == Version("4.1.2")
 
     def test_prefix_dash(self):
-        assert parse_tag("prefix-v1.0.0") == Version("1.0.0")
+        parsed = parse_tag("prefix-v1.0.0")
+        assert parsed is not None
+        assert parsed.prefix == "prefix"
+        assert parsed.version == Version("1.0.0")
 
     def test_prefix_slash(self):
-        assert parse_tag("prefix/v1.0.0") == Version("1.0.0")
+        parsed = parse_tag("prefix/v1.0.0")
+        assert parsed is not None
+        assert parsed.prefix == "prefix"
+        assert parsed.version == Version("1.0.0")
 
     def test_nonsemver_main(self):
         assert parse_tag("main") is None
@@ -40,10 +56,16 @@ class TestParseTag:
         assert parse_tag("a" * 40) is None
 
     def test_prefix_with_major_minor(self):
-        assert parse_tag("action-v2.1") == Version("2.1.0")
+        parsed = parse_tag("action-v2.1")
+        assert parsed is not None
+        assert parsed.prefix == "action"
+        assert parsed.version == Version("2.1.0")
 
     def test_prefix_slash_with_full_semver(self):
-        assert parse_tag("tools/v3.2.1") == Version("3.2.1")
+        parsed = parse_tag("tools/v3.2.1")
+        assert parsed is not None
+        assert parsed.prefix == "tools"
+        assert parsed.version == Version("3.2.1")
 
 
 class TestClassifyBump:

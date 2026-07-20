@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { ResolveError, listTags, parseUses, resolveRef } from "./resolve.js";
+import { ResolveError, listTags, resolveRef } from "./resolve.js";
 
 interface MockResponseInit {
   status?: number;
@@ -41,30 +41,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-});
-
-describe("parseUses()", () => {
-  it("parses owner/repo@ref", () => {
-    expect(parseUses("actions/checkout@v4")).toEqual({
-      owner: "actions",
-      repo: "checkout",
-      path: null,
-      ref: "v4",
-    });
-  });
-
-  it("parses owner/repo/path@ref", () => {
-    expect(parseUses("owner/repo/path/to/action@main")).toEqual({
-      owner: "owner",
-      repo: "repo",
-      path: "path/to/action",
-      ref: "main",
-    });
-  });
-
-  it("throws when no @ref is present", () => {
-    expect(() => parseUses("actions/checkout")).toThrow(/No @ref/);
-  });
 });
 
 describe("resolveRef()", () => {

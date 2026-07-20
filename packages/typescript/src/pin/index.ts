@@ -7,14 +7,8 @@ export {
   readLockfile,
   writeLockfile,
 } from "./lockfile.js";
-export {
-  ResolveError,
-  type ParsedUses,
-  type ResolveOptions,
-  parseUses,
-  resolveRef,
-  listTags,
-} from "./resolve.js";
+export { ResolveError, type ResolveOptions, resolveRef, listTags } from "./resolve.js";
+export { UsesRef } from "./uses.js";
 export {
   type BumpSeverity,
   type ParsedTag,

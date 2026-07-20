@@ -42,7 +42,8 @@ def deps_pin(
         read_lockfile,
         write_lockfile,
     )
-    from ghagen.pin.resolve import ResolveError, parse_uses, resolve_ref
+    from ghagen.pin.resolve import ResolveError, resolve_ref
+    from ghagen.pin.uses import UsesRef
 
     config_path = _find_config(config)
     ghagen_app = _load_app(config_path)
@@ -78,10 +79,12 @@ def deps_pin(
     errors = 0
 
     for uses in sorted(to_resolve):
-        try:
-            parsed = parse_uses(uses)
-        except ValueError as exc:
-            typer.echo(f"warning: skipping {uses!r}: {exc}", err=True)
+        parsed = UsesRef.parse(uses)
+        if parsed is None:
+            typer.echo(
+                f"warning: skipping {uses!r}: not a pinnable action reference",
+                err=True,
+            )
             continue
 
         try:
@@ -186,9 +189,10 @@ def deps_upgrade(
     """Upgrade action dependencies to latest versions."""
     from ghagen.pin.collect import collect_uses_refs
     from ghagen.pin.lockfile import read_lockfile
-    from ghagen.pin.resolve import ResolveError, list_tags, parse_uses, resolve_ref
+    from ghagen.pin.resolve import ResolveError, list_tags, resolve_ref
     from ghagen.pin.sources import locate_uses_refs, track_user_files
     from ghagen.pin.update import apply_updates
+    from ghagen.pin.uses import UsesRef
     from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
 
     if mode not in ("versions", "lockfile", "all"):
@@ -255,9 +259,8 @@ def deps_upgrade(
         # Group refs by owner/repo for efficient API calls.
         repo_refs: dict[tuple[str, str], list[tuple[str, str]]] = {}
         for uses in sorted(refs):
-            try:
-                parsed = parse_uses(uses)
-            except ValueError:
+            parsed = UsesRef.parse(uses)
+            if parsed is None:
                 continue
             key = (parsed.owner, parsed.repo)
             repo_refs.setdefault(key, []).append((uses, parsed.ref))
@@ -288,7 +291,7 @@ def deps_upgrade(
                 if current_ver is None or latest_ver is None:
                     continue
 
-                severity = classify_bump(current_ver, latest_ver)
+                severity = classify_bump(current_ver.version, latest_ver.version)
 
                 bump_entry: dict = {
                     "uses": uses,
@@ -313,9 +316,8 @@ def deps_upgrade(
             if entry is None:
                 continue  # not pinned
 
-            try:
-                parsed = parse_uses(uses)
-            except ValueError:
+            parsed = UsesRef.parse(uses)
+            if parsed is None:
                 continue
 
             try:
@@ -342,10 +344,12 @@ def deps_upgrade(
 
     # --- Apply updates if not in check mode ---
     if apply and version_bumps:
-        updates = {
-            bump["uses"]: bump["uses"].rsplit("@", 1)[0] + "@" + bump["latest"]
-            for bump in version_bumps
-        }
+        updates: dict[str, str] = {}
+        for bump in version_bumps:
+            parsed = UsesRef.parse(bump["uses"])
+            if parsed is None:
+                continue
+            updates[bump["uses"]] = parsed.with_sha(bump["latest"])
         changed_files = apply_updates(updates, ref_locations)
         if changed_files:
             typer.echo("Applied version bumps:")

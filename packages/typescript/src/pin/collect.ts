@@ -4,21 +4,7 @@
 
 import type { App } from "../app.js";
 import { StepModel, JobModel } from "../models/_base.js";
-
-// 40-character lowercase hex — already a commit SHA.
-const SHA_RE = /^[0-9a-f]{40}$/;
-
-function isPinnable(uses: string): boolean {
-  if (uses.startsWith("./") || uses.startsWith("docker://")) {
-    return false;
-  }
-  if (!uses.includes("@")) {
-    return false;
-  }
-  const at = uses.lastIndexOf("@");
-  const ref = uses.slice(at + 1);
-  return !SHA_RE.test(ref);
-}
+import { UsesRef } from "./uses.js";
 
 /**
  * Walk all items in *app* and return pinnable `uses:` strings.
@@ -38,8 +24,11 @@ export function collectUsesRefs(app: App): Set<string> {
     item.walk((model) => {
       if (model instanceof StepModel || model instanceof JobModel) {
         const uses = model.data["uses"];
-        if (typeof uses === "string" && isPinnable(uses)) {
-          refs.add(uses);
+        if (typeof uses === "string") {
+          const parsed = UsesRef.parse(uses);
+          if (parsed !== null && parsed.isPinnable) {
+            refs.add(uses);
+          }
         }
       }
     });

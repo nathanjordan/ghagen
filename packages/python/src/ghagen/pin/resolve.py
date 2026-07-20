@@ -12,41 +12,10 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
 
 
 class ResolveError(Exception):
     """Raised when a ref cannot be resolved to a commit SHA."""
-
-
-@dataclass(frozen=True)
-class _ParsedUses:
-    """Parsed components of an ``owner/repo[/path]@ref`` string."""
-
-    owner: str
-    repo: str
-    path: str | None
-    ref: str
-
-
-def parse_uses(uses: str) -> _ParsedUses:
-    """Parse an ``owner/repo[/path]@ref`` string into components.
-
-    Raises:
-        ValueError: If the string cannot be parsed.
-    """
-    if "@" not in uses:
-        raise ValueError(f"No @ref in uses string: {uses!r}")
-
-    action_part, ref = uses.rsplit("@", 1)
-    parts = action_part.split("/", 2)
-    if len(parts) < 2:
-        raise ValueError(f"Cannot parse owner/repo from: {uses!r}")
-
-    owner = parts[0]
-    repo = parts[1]
-    path = parts[2] if len(parts) > 2 else None
-    return _ParsedUses(owner=owner, repo=repo, path=path, ref=ref)
 
 
 def resolve_ref(

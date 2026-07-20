@@ -9,7 +9,7 @@ import {
   findLatestTag,
   listTags,
   parseTag,
-  parseUses,
+  UsesRef,
   readLockfile,
   ResolveError,
   resolveRef,
@@ -70,12 +70,10 @@ async function depsPin(opts: PinOpts): Promise<void> {
   let errors = 0;
 
   for (const uses of [...toResolve].sort()) {
-    let parsed;
-    try {
-      parsed = parseUses(uses);
-    } catch (err) {
+    const parsed = UsesRef.parse(uses);
+    if (parsed === null) {
       process.stderr.write(
-        `warning: skipping ${JSON.stringify(uses)}: ${(err as Error).message}\n`,
+        `warning: skipping ${JSON.stringify(uses)}: not a pinnable action reference\n`,
       );
       continue;
     }
@@ -234,10 +232,8 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   if (checkVersions) {
     const repoRefs = new Map<string, Array<{ uses: string; ref: string }>>();
     for (const uses of [...refs].sort()) {
-      let parsed;
-      try {
-        parsed = parseUses(uses);
-      } catch {
+      const parsed = UsesRef.parse(uses);
+      if (parsed === null) {
         continue;
       }
       const key = `${parsed.owner}/${parsed.repo}`;
@@ -300,10 +296,8 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
       if (entry === undefined) {
         continue;
       }
-      let parsed;
-      try {
-        parsed = parseUses(uses);
-      } catch {
+      const parsed = UsesRef.parse(uses);
+      if (parsed === null) {
         continue;
       }
       let currentSha: string;
@@ -336,9 +330,11 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   if (apply && versionBumps.length > 0) {
     const updates = new Map<string, string>();
     for (const bump of versionBumps) {
-      const at = bump.uses.lastIndexOf("@");
-      const newUses = `${bump.uses.slice(0, at)}@${bump.latest}`;
-      updates.set(bump.uses, newUses);
+      const parsed = UsesRef.parse(bump.uses);
+      if (parsed === null) {
+        continue;
+      }
+      updates.set(bump.uses, parsed.withSha(bump.latest));
     }
     const refLocsObj = new Map<string, string[]>();
     for (const [k, v] of refLocations.entries()) {

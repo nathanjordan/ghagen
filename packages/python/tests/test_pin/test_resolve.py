@@ -9,36 +9,12 @@ import pytest
 from ghagen.pin.resolve import (
     ResolveError,
     _parse_next_link,
-    _ParsedUses,
     list_tags,
-    parse_uses,
     resolve_ref,
 )
 
 SHA = "a" * 40
 TAG_SHA = "b" * 40
-
-
-class TestParseUses:
-    def test_simple(self):
-        result = parse_uses("actions/checkout@v4")
-        assert result == _ParsedUses(
-            owner="actions", repo="checkout", path=None, ref="v4"
-        )
-
-    def test_with_path(self):
-        result = parse_uses("octo-org/repo/.github/workflows/ci.yml@v1")
-        assert result == _ParsedUses(
-            owner="octo-org", repo="repo", path=".github/workflows/ci.yml", ref="v1"
-        )
-
-    def test_no_at(self):
-        with pytest.raises(ValueError, match="No @ref"):
-            parse_uses("actions/checkout")
-
-    def test_no_slash(self):
-        with pytest.raises(ValueError, match="Cannot parse owner/repo"):
-            parse_uses("checkout@v4")
 
 
 class TestResolveRef:

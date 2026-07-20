@@ -166,6 +166,23 @@ class TestPinTransform:
         result = transform(wf, _ctx())
         assert result.jobs["build"].steps[0].run == "echo hello"
 
+    def test_hand_pinned_sha_is_left_untouched(self):
+        """A ref already written as a SHA is not pinnable — never raises PinError."""
+        sha = "d" * 40
+        lf = _lockfile()  # empty lockfile — a lookup would raise
+        wf = Workflow(
+            on=On(push=PushTrigger()),
+            jobs={
+                "build": Job(
+                    runs_on="ubuntu-latest",
+                    steps=[Step(uses=f"actions/checkout@{sha}")],
+                )
+            },
+        )
+        transform = PinTransform(lf)
+        result = transform(wf, _ctx())
+        assert result.jobs["build"].steps[0].uses == f"actions/checkout@{sha}"
+
 
 class TestPinTransformAction:
     """PinTransform should pin Step.uses inside composite actions too."""
