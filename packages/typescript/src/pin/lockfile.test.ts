@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Lockfile, readLockfile, writeLockfile } from "./lockfile.js";
+import { Lockfile, LockfileError, readLockfile, writeLockfile } from "./lockfile.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -13,22 +13,87 @@ afterEach(() => {
 });
 
 describe("Lockfile", () => {
-  it("get/merge/prune", () => {
+  it("get/set/merge/prune", () => {
+    const lf = new Lockfile();
+    lf.set("actions/checkout@v4", { sha: "a".repeat(40), resolvedAt: new Date() });
+    lf.merge([["actions/setup-node@v4", { sha: "b".repeat(40), resolvedAt: new Date() }]]);
+    expect(lf.get("actions/checkout@v4")?.sha).toBe("a".repeat(40));
+    expect(lf.size).toBe(2);
+    expect(lf.prune(new Set(["actions/checkout@v4"]))).toBe(1);
+    expect(lf.size).toBe(1);
+  });
+
+  it("set replaces an existing entry", () => {
+    const lf = new Lockfile();
+    lf.set("actions/checkout@v4", { sha: "a".repeat(40), resolvedAt: new Date() });
+    lf.set("actions/checkout@v4", { sha: "b".repeat(40), resolvedAt: new Date() });
+    expect(lf.get("actions/checkout@v4")?.sha).toBe("b".repeat(40));
+    expect(lf.size).toBe(1);
+  });
+
+  it("has and iteration", () => {
     const lf = new Lockfile();
     lf.merge([
       ["actions/checkout@v4", { sha: "a".repeat(40), resolvedAt: new Date() }],
       ["actions/setup-node@v4", { sha: "b".repeat(40), resolvedAt: new Date() }],
     ]);
-    expect(lf.get("actions/checkout@v4")?.sha).toBe("a".repeat(40));
-    expect(lf.prune(new Set(["actions/checkout@v4"]))).toBe(1);
-    expect(lf.pins.size).toBe(1);
+    expect(lf.has("actions/checkout@v4")).toBe(true);
+    expect(lf.has("actions/nope@v1")).toBe(false);
+    expect(new Set(lf.keys())).toEqual(
+      new Set(["actions/checkout@v4", "actions/setup-node@v4"]),
+    );
+    expect(new Set(lf)).toEqual(new Set(["actions/checkout@v4", "actions/setup-node@v4"]));
+  });
+});
+
+describe("readLockfile validation", () => {
+  it("throws LockfileError on a missing sha", () => {
+    const path = join(tmp, "lock.yml");
+    writeFileSync(
+      path,
+      ["pins:", "  actions/checkout@v4:", '    resolved_at: "2026-04-09T14:30:00+00:00"', ""].join(
+        "\n",
+      ),
+    );
+    expect(() => readLockfile(path)).toThrow(LockfileError);
+    expect(() => readLockfile(path)).toThrow(/sha/);
+  });
+
+  it("throws LockfileError on a non-table entry", () => {
+    const path = join(tmp, "lock.yml");
+    writeFileSync(path, ["pins:", "  actions/checkout@v4: just-a-string", ""].join("\n"));
+    expect(() => readLockfile(path)).toThrow(LockfileError);
+    expect(() => readLockfile(path)).toThrow(/actions\/checkout@v4/);
+  });
+
+  it("throws LockfileError on a bad resolved_at", () => {
+    const path = join(tmp, "lock.yml");
+    writeFileSync(
+      path,
+      [
+        "pins:",
+        "  actions/checkout@v4:",
+        `    sha: "${"a".repeat(40)}"`,
+        '    resolved_at: "not-a-timestamp"',
+        "",
+      ].join("\n"),
+    );
+    expect(() => readLockfile(path)).toThrow(LockfileError);
+    expect(() => readLockfile(path)).toThrow(/resolved_at/);
+  });
+
+  it("throws LockfileError when 'pins' is not a table", () => {
+    const path = join(tmp, "lock.yml");
+    writeFileSync(path, ["pins:", "  - actions/checkout@v4", ""].join("\n"));
+    expect(() => readLockfile(path)).toThrow(LockfileError);
+    expect(() => readLockfile(path)).toThrow(/pins/);
   });
 });
 
 describe("readLockfile / writeLockfile", () => {
   it("returns empty lockfile when file missing", () => {
     const lf = readLockfile(join(tmp, "missing.yml"));
-    expect(lf.pins.size).toBe(0);
+    expect(lf.size).toBe(0);
   });
 
   it("round-trips entries with sorted keys and snake_case on disk", () => {
@@ -67,10 +132,25 @@ describe("readLockfile / writeLockfile", () => {
     expect(idxB).toBeGreaterThan(idxA);
 
     const round = readLockfile(path);
-    expect(round.pins.size).toBe(2);
+    expect(round.size).toBe(2);
     const a = round.get("owner/repo-a@v1");
     expect(a?.sha).toBe("a".repeat(40));
     expect(a?.resolvedAt.toISOString()).toBe("2026-04-08T00:00:00.000Z");
+  });
+
+  it("read -> write is byte-identical", () => {
+    const path1 = join(tmp, "lock1.yml");
+    const lf = new Lockfile();
+    lf.merge([
+      ["owner/repo-b@v2", { sha: "b".repeat(40), resolvedAt: new Date("2026-04-09T14:30:00Z") }],
+      ["owner/repo-a@v1", { sha: "a".repeat(40), resolvedAt: new Date("2026-04-08T00:00:00Z") }],
+    ]);
+    writeLockfile(lf, path1);
+    const first = readFileSync(path1);
+
+    const path2 = join(tmp, "lock2.yml");
+    writeLockfile(readLockfile(path1), path2);
+    expect(readFileSync(path2).equals(first)).toBe(true);
   });
 
   it("reads a Python-written lockfile (string-typed resolved_at)", () => {

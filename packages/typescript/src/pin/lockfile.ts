@@ -33,40 +33,75 @@ export interface PinEntry {
   readonly resolvedAt: Date;
 }
 
+/** Raised when a lockfile on disk is malformed. */
+export class LockfileError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "LockfileError";
+  }
+}
+
 /**
  * In-memory representation of a `.ghagen.lock.yml` file.
  *
- * Mutable: callers may add or remove entries via the `pins` map.
+ * The entry map is private: mutate it through `set`, `merge`, and `prune`,
+ * and read it through `get`, `has`, `keys`, and `size`. This keeps the
+ * invariant that a lockfile only ever holds valid entries.
  */
 export class Lockfile {
-  readonly pins: Map<string, PinEntry>;
+  readonly #pins: Map<string, PinEntry>;
 
   constructor(pins?: Map<string, PinEntry> | Iterable<readonly [string, PinEntry]>) {
-    this.pins = pins instanceof Map ? pins : new Map(pins ?? []);
+    this.#pins = pins instanceof Map ? pins : new Map(pins ?? []);
   }
 
   /** Look up a pin entry by the full `uses:` string. */
   get(uses: string): PinEntry | undefined {
-    return this.pins.get(uses);
+    return this.#pins.get(uses);
+  }
+
+  /** Add or replace a single entry. */
+  set(uses: string, entry: PinEntry): void {
+    this.#pins.set(uses, entry);
   }
 
   /** Merge new entries, overwriting existing keys. */
   merge(other: Iterable<readonly [string, PinEntry]>): void {
     for (const [k, v] of other) {
-      this.pins.set(k, v);
+      this.#pins.set(k, v);
     }
   }
 
   /** Remove entries not in *keep*. Returns count of removed entries. */
   prune(keep: ReadonlySet<string>): number {
     let removed = 0;
-    for (const k of [...this.pins.keys()]) {
+    for (const k of [...this.#pins.keys()]) {
       if (!keep.has(k)) {
-        this.pins.delete(k);
+        this.#pins.delete(k);
         removed++;
       }
     }
     return removed;
+  }
+
+  /** Return whether *uses* has an entry. */
+  has(uses: string): boolean {
+    return this.#pins.has(uses);
+  }
+
+  /** Iterate over the `uses:` keys. */
+  keys(): IterableIterator<string> {
+    return this.#pins.keys();
+  }
+
+  /** Iterate over the keys (a Lockfile iterates its `uses:` strings). */
+  [Symbol.iterator](): IterableIterator<string> {
+    return this.#pins.keys();
+  }
+
+  /** Number of entries. */
+  get size(): number {
+    return this.#pins.size;
   }
 }
 
@@ -81,7 +116,7 @@ export function readLockfile(path: string): Lockfile {
   try {
     raw = parse(text);
   } catch (err) {
-    throw new Error(`${path}: failed to parse lockfile YAML: ${(err as Error).message}`, {
+    throw new LockfileError(`${path}: failed to parse lockfile YAML: ${(err as Error).message}`, {
       cause: err,
     });
   }
@@ -89,17 +124,25 @@ export function readLockfile(path: string): Lockfile {
     return new Lockfile();
   }
 
-  const pinsRaw = (raw["pins"] ?? {}) as Record<string, unknown>;
+  const pinsValue = raw["pins"];
+  if (pinsValue === undefined || pinsValue === null) {
+    return new Lockfile();
+  }
+  if (typeof pinsValue !== "object" || Array.isArray(pinsValue)) {
+    throw new LockfileError(`${path}: 'pins' must be a table`);
+  }
+
+  const pinsRaw = pinsValue as Record<string, unknown>;
   const pins = new Map<string, PinEntry>();
   for (const [uses, entryRaw] of Object.entries(pinsRaw)) {
-    if (typeof entryRaw !== "object" || entryRaw === null) {
-      throw new Error(`${path}: pin entry for ${uses} must be a table`);
+    if (typeof entryRaw !== "object" || entryRaw === null || Array.isArray(entryRaw)) {
+      throw new LockfileError(`${path}: pin entry for ${uses} must be a table`);
     }
     const entry = entryRaw as Record<string, unknown>;
     const sha = entry["sha"];
     const resolvedAt = entry["resolved_at"];
     if (typeof sha !== "string") {
-      throw new Error(`${path}: pin ${uses}: 'sha' must be a string`);
+      throw new LockfileError(`${path}: pin ${uses}: 'sha' must be a string`);
     }
     let resolvedDate: Date;
     if (resolvedAt instanceof Date) {
@@ -107,10 +150,12 @@ export function readLockfile(path: string): Lockfile {
     } else if (typeof resolvedAt === "string") {
       resolvedDate = new Date(resolvedAt);
       if (Number.isNaN(resolvedDate.getTime())) {
-        throw new Error(`${path}: pin ${uses}: invalid 'resolved_at' timestamp: ${resolvedAt}`);
+        throw new LockfileError(
+          `${path}: pin ${uses}: invalid 'resolved_at' timestamp: ${resolvedAt}`,
+        );
       }
     } else {
-      throw new Error(`${path}: pin ${uses}: 'resolved_at' must be a string or datetime`);
+      throw new LockfileError(`${path}: pin ${uses}: 'resolved_at' must be a string or datetime`);
     }
     pins.set(uses, { sha, resolvedAt: resolvedDate });
   }
@@ -119,10 +164,10 @@ export function readLockfile(path: string): Lockfile {
 
 /** Write a lockfile to disk in sorted order. */
 export function writeLockfile(lockfile: Lockfile, path: string): void {
-  const sortedKeys = [...lockfile.pins.keys()].sort();
+  const sortedKeys = [...lockfile.keys()].sort();
   const pinsObj: Record<string, Record<string, string>> = {};
   for (const uses of sortedKeys) {
-    const entry = lockfile.pins.get(uses)!;
+    const entry = lockfile.get(uses)!;
     pinsObj[uses] = {
       sha: entry.sha,
       resolved_at: entry.resolvedAt.toISOString().replace(/\.\d{3}Z$/, "+00:00"),

@@ -64,7 +64,7 @@ async function depsPin(opts: PinOpts): Promise<void> {
 
   const toResolve = opts.update
     ? new Set(refs)
-    : new Set([...refs].filter((r) => !lockfile.pins.has(r)));
+    : new Set([...refs].filter((r) => !lockfile.has(r)));
 
   const now = new Date();
   let resolved = 0;
@@ -89,7 +89,7 @@ async function depsPin(opts: PinOpts): Promise<void> {
       }
       throw err;
     }
-    lockfile.pins.set(uses, { sha, resolvedAt: now });
+    lockfile.set(uses, { sha, resolvedAt: now });
     resolved++;
     process.stdout.write(`  ${uses} → ${sha.slice(0, 12)}\n`);
   }
@@ -136,8 +136,8 @@ async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const refs = collectUsesRefs(app);
   const lockfile = readLockfile(lockfilePath);
 
-  const missing = [...refs].filter((r) => !lockfile.pins.has(r));
-  const extra = opts.prune ? [...lockfile.pins.keys()].filter((r) => !refs.has(r)) : [];
+  const missing = [...refs].filter((r) => !lockfile.has(r));
+  const extra = opts.prune ? [...lockfile.keys()].filter((r) => !refs.has(r)) : [];
 
   if (missing.length === 0 && extra.length === 0) {
     process.stdout.write("Lockfile is in sync.\n");

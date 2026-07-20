@@ -74,7 +74,7 @@ def deps_pin(
     client = GitHubClient(token=gh_token)
 
     # Determine which refs need resolution.
-    to_resolve = refs if update else refs - set(lockfile.pins)
+    to_resolve = refs if update else refs - set(lockfile.keys())
 
     # Resolve refs via GitHub API.
     now = datetime.now(UTC)
@@ -97,7 +97,7 @@ def deps_pin(
             errors += 1
             continue
 
-        lockfile.pins[uses] = PinEntry(sha=sha, resolved_at=now)
+        lockfile.set(uses, PinEntry(sha=sha, resolved_at=now))
         resolved += 1
         typer.echo(f"  {uses} → {sha[:12]}")
 
@@ -153,8 +153,8 @@ def deps_check_synced(
     lockfile = read_lockfile(lockfile_full)
 
     # Verify lockfile covers all refs and nothing is stale.
-    missing = refs - set(lockfile.pins)
-    extra = set(lockfile.pins) - refs if prune else set()
+    missing = refs - set(lockfile.keys())
+    extra = set(lockfile.keys()) - refs if prune else set()
     if missing or extra:
         if missing:
             typer.echo("Missing lockfile entries:", err=True)

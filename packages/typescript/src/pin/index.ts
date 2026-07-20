@@ -3,6 +3,7 @@
 export {
   DEFAULT_LOCKFILE_PATH,
   Lockfile,
+  LockfileError,
   type PinEntry,
   readLockfile,
   writeLockfile,

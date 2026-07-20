@@ -2,7 +2,13 @@
 
 from ghagen.pin.collect import collect_uses_refs
 from ghagen.pin.github import GitHubClient, HttpClient, Response, UrllibTransport
-from ghagen.pin.lockfile import Lockfile, PinEntry, read_lockfile, write_lockfile
+from ghagen.pin.lockfile import (
+    Lockfile,
+    LockfileError,
+    PinEntry,
+    read_lockfile,
+    write_lockfile,
+)
 from ghagen.pin.resolve import ResolveError
 from ghagen.pin.transform import PinTransform
 from ghagen.pin.uses import UsesRef
@@ -11,6 +17,7 @@ __all__ = [
     "GitHubClient",
     "HttpClient",
     "Lockfile",
+    "LockfileError",
     "PinEntry",
     "PinTransform",
     "ResolveError",

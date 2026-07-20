@@ -156,6 +156,7 @@ export type { Transform, SynthContext, SynthItem } from "./transforms.js";
 export {
   DEFAULT_LOCKFILE_PATH,
   Lockfile,
+  LockfileError,
   type PinEntry,
   readLockfile,
   writeLockfile,
