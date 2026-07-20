@@ -39,9 +39,7 @@ describe("Lockfile", () => {
     ]);
     expect(lf.has("actions/checkout@v4")).toBe(true);
     expect(lf.has("actions/nope@v1")).toBe(false);
-    expect(new Set(lf.keys())).toEqual(
-      new Set(["actions/checkout@v4", "actions/setup-node@v4"]),
-    );
+    expect(new Set(lf.keys())).toEqual(new Set(["actions/checkout@v4", "actions/setup-node@v4"]));
     expect(new Set(lf)).toEqual(new Set(["actions/checkout@v4", "actions/setup-node@v4"]));
   });
 });

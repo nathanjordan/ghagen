@@ -30,10 +30,10 @@ describe("formatHeader()", () => {
   });
 
   it("passes resolved source_file/source_line to the closure", () => {
-    const result = formatHeader(
-      (v: HeaderVariables) => `from ${v.source_file}:${v.source_line}`,
-      { file: "/repo/.github/workflows.ts", line: 42 },
-    );
+    const result = formatHeader((v: HeaderVariables) => `from ${v.source_file}:${v.source_line}`, {
+      file: "/repo/.github/workflows.ts",
+      line: 42,
+    });
     expect(result).toContain(":42");
     expect(result).toContain("workflows.ts");
   });

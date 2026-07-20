@@ -104,9 +104,7 @@ describe("GitHubClient.resolveRef()", () => {
       [`git/tags/${TAG_SHA}`]: jsonResponse({ body: { object: { type: "tree", sha: SHA } } }),
     });
     const client = new GitHubClient(transport);
-    await expect(client.resolveRef("o", "r", "v1")).rejects.toThrow(
-      /does not point to a commit/,
-    );
+    await expect(client.resolveRef("o", "r", "v1")).rejects.toThrow(/does not point to a commit/);
   });
 
   it("sends the token to the transport", async () => {
@@ -214,9 +212,7 @@ describe("pure helpers", () => {
     const header =
       '<https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next", ' +
       '<https://api.github.com/repos/o/r/git/refs/tags?page=5>; rel="last"';
-    expect(parseNextLink(header)).toBe(
-      "https://api.github.com/repos/o/r/git/refs/tags?page=2",
-    );
+    expect(parseNextLink(header)).toBe("https://api.github.com/repos/o/r/git/refs/tags?page=2");
   });
 
   it("parseNextLink() returns null without a next relation", () => {

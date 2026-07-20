@@ -88,7 +88,7 @@ def test_synth_renders_closure_header_with_variables(
         "\n"
         "app = App(\n"
         '    root=".",\n'
-        '    header=lambda v: f"AUTO: from {v[\'source_file\']} via {v[\'tool\']}",\n'
+        "    header=lambda v: f\"AUTO: from {v['source_file']} via {v['tool']}\",\n"
         ")\n"
         'app.add_workflow(ci, "ci.yml")\n'
     )

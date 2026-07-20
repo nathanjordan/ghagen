@@ -59,11 +59,7 @@ export interface PinOptions {
  * them. Stale entries no longer referenced in code are pruned when `prune`
  * is set. The lockfile is written when anything changed.
  */
-export async function pin(
-  app: App,
-  client: GitHubClient,
-  opts: PinOptions,
-): Promise<PinReport> {
+export async function pin(app: App, client: GitHubClient, opts: PinOptions): Promise<PinReport> {
   if (app.lockfilePath === null) {
     throw new Error("pin(): app has no lockfile (lockfilePath: null)");
   }
@@ -90,9 +86,7 @@ export async function pin(
   for (const uses of [...toResolve].sort()) {
     const parsed = UsesRef.parse(uses);
     if (parsed === null) {
-      report.warnings.push(
-        `skipping ${JSON.stringify(uses)}: not a pinnable action reference`,
-      );
+      report.warnings.push(`skipping ${JSON.stringify(uses)}: not a pinnable action reference`);
       continue;
     }
     let sha: string;
@@ -244,9 +238,7 @@ export async function upgrade(
 
     // Per-repo tag cache stays engine-local.
     const tagsCache = new Map<string, string[]>();
-    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) =>
-      a.localeCompare(b),
-    )) {
+    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       const [owner, repo] = key.split("/", 2) as [string, string];
       let tags = tagsCache.get(key);
       if (tags === undefined) {

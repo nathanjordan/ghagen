@@ -116,10 +116,7 @@ export class App {
       const full = resolve(this.rootAbsPath, relPath);
       const working = this._applyTransforms(item, relPath, transforms);
       await mkdir(dirname(full), { recursive: true });
-      writeFileSync(
-        full,
-        toYaml(working, { header: this.headerTxt, autoDedent: this.autoDedent }),
-      );
+      writeFileSync(full, toYaml(working, { header: this.headerTxt, autoDedent: this.autoDedent }));
       written.push(full);
     }
     return written;

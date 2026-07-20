@@ -232,10 +232,7 @@ function staleToJson(stale: LockfileStaleEntry): Record<string, unknown> {
   return entry;
 }
 
-function printHumanReport(
-  versionBumps: VersionBump[],
-  lockfileStale: LockfileStaleEntry[],
-): void {
+function printHumanReport(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): void {
   if (versionBumps.length > 0) {
     process.stdout.write("Version updates available:\n\n");
     for (const bump of versionBumps) {

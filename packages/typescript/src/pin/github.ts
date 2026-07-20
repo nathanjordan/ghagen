@@ -220,9 +220,7 @@ export class GitHubClient {
       warnRateLimit(resp);
     }
     if (resp.status < 200 || resp.status >= 300) {
-      throw new ResolveError(
-        `GitHub API error ${resp.status} for ${url}: ${resp.statusText}`,
-      );
+      throw new ResolveError(`GitHub API error ${resp.status} for ${url}: ${resp.statusText}`);
     }
     return resp;
   }
