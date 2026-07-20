@@ -62,3 +62,17 @@ The documentation site is an [Astro Starlight](https://starlight.astro.build/) p
 scripts/docs-dev.sh # serve docs locally (http://localhost:4321/ghagen/)
 cd docs && npm run build # production build (also regenerates TypeScript API docs)
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the nathanjordan/ghagen GitHub Issues, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context: `CONTEXT-MAP.md` at root points to per-package `CONTEXT.md` files. See `docs/agents/domain.md`.
