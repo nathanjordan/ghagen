@@ -42,7 +42,6 @@ dev = [
   "ruff",
   "pyright",
   "httpx",
-  "datamodel-code-generator>=0.25",
   "jsonschema",
 ]
 
@@ -50,10 +49,6 @@ dev = [
 line-length = 88
 target-version = "py311"
 src = ["packages/python/src"]
-extend-exclude = [
-  "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
-  "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
-]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
@@ -64,10 +59,6 @@ typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
 include = ["packages/python/src"]
-exclude = [
-  "packages/python/src/ghagen/schema/snapshot/_generated_models.py",
-  "packages/python/src/ghagen/schema/snapshot/_generated_action_models.py",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/python/tests"]

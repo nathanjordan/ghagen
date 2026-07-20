@@ -154,20 +154,17 @@ def _schema_drift_workflow() -> Workflow:
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(
-                        name="Fetch schema and regenerate",
-                        run="""
-                            uv run python -m ghagen.schema.fetch
-                            uv run python -m ghagen.schema.codegen
-                        """,
+                        name="Fetch upstream schema into the canonical snapshot",
+                        run="uv run python packages/python/scripts/schema_sync.py sync",
                     ),
                     Step(
                         name="Check for drift",
                         run="""
-                            if ! git diff --exit-code packages/python/src/ghagen/schema/snapshot/; then
+                            if ! git diff --exit-code schema/; then
                               echo "::warning::Schema drift detected"
                               gh issue create \\
                                 --title "GitHub Actions schema drift detected" \\
-                                --body "$(git diff packages/python/src/ghagen/schema/snapshot/)" \\
+                                --body "$(git diff schema/)" \\
                                 --label schema-drift
                             fi
                         """,

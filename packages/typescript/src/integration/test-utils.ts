@@ -6,7 +6,7 @@ import addFormats from "ajv-formats";
 
 export const FIXTURES_DIR = resolve(import.meta.dirname, "../../../../fixtures/expected");
 
-export const SCHEMA_DIR = resolve(import.meta.dirname, "../../../../fixtures/schema");
+export const SCHEMA_DIR = resolve(import.meta.dirname, "../../../../schema");
 
 export function loadFixture(name: string): string {
   return readFileSync(resolve(FIXTURES_DIR, name), "utf-8");

@@ -1,4 +1,4 @@
-"""Tests for the schema fetcher."""
+"""Tests for the dev-only schema fetcher (``scripts/schema_sync.py``)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
-from ghagen.schema.fetch import SCHEMAS, fetch_schema, save_all_schemas, save_schema
+import schema_sync
+from schema_sync import SCHEMAS, fetch_schema, save_all_schemas, save_schema
 
 SAMPLE_SCHEMA = {"type": "object", "properties": {"name": {"type": "string"}}}
 
@@ -30,7 +30,8 @@ def _mock_error_response() -> MagicMock:
 
 def test_fetch_schema_returns_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     result = fetch_schema()
@@ -40,7 +41,8 @@ def test_fetch_schema_returns_dict(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_fetch_schema_raises_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_error_response(),
     )
     with pytest.raises(Exception, match="HTTP 500"):
@@ -51,7 +53,8 @@ def test_save_schema_writes_valid_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     dest = tmp_path / "schema.json"
@@ -66,7 +69,8 @@ def test_save_schema_creates_parent_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     dest = tmp_path / "nested" / "dir" / "schema.json"
@@ -80,7 +84,8 @@ def test_save_schema_deterministic_output(
 ) -> None:
     schema = {"z_key": 1, "a_key": 2, "m_key": 3}
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(schema),
     )
 
@@ -99,7 +104,8 @@ def test_save_schema_trailing_newline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     dest = tmp_path / "schema.json"
@@ -128,7 +134,7 @@ def test_fetch_action_schema_uses_action_url(
         captured_urls.append(url)
         return _mock_response(SAMPLE_SCHEMA)
 
-    monkeypatch.setattr("ghagen.schema.fetch.httpx.get", capture)
+    monkeypatch.setattr(schema_sync.httpx, "get", capture)
     fetch_schema("action")
     assert len(captured_urls) == 1
     assert captured_urls[0] == SCHEMAS["action"]["url"]
@@ -139,7 +145,8 @@ def test_save_all_schemas_writes_both(
 ) -> None:
     """``save_all_schemas`` writes one file per registered schema."""
     monkeypatch.setattr(
-        "ghagen.schema.fetch.httpx.get",
+        schema_sync.httpx,
+        "get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
 

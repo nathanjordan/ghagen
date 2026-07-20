@@ -13,7 +13,9 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SNAPSHOT_DIR = resolve(ROOT, "src/schema/snapshot");
+const REPO_ROOT = resolve(ROOT, "../..");
+// Canonical schema snapshot (single source of truth) lives at the repo root.
+const SCHEMA_DIR = resolve(REPO_ROOT, "schema");
 const OUTPUT_DIR = resolve(ROOT, "src/schema");
 
 const BANNER = `/* eslint-disable */
@@ -46,7 +48,7 @@ const TARGETS: SchemaTarget[] = [
 
 async function main() {
   for (const target of TARGETS) {
-    const schemaPath = resolve(SNAPSHOT_DIR, target.schemaFile);
+    const schemaPath = resolve(SCHEMA_DIR, target.schemaFile);
     const outputPath = resolve(OUTPUT_DIR, target.outputFile);
 
     console.log(`Generating ${target.outputFile} from ${target.schemaFile}...`);
