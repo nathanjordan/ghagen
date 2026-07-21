@@ -3,8 +3,14 @@
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { createJiti } from "jiti";
-import { App } from "../app.js";
+import type { App } from "../app.js";
+import { CliError, resolveAppFromModule } from "../_load.js";
 import { GHAGEN_YML_MARKER, findAppRoot, ghagenYmlSchema, loadYamlConfig } from "../config.js";
+
+// Re-exported so existing `import { CliError } from "./_common.js"` sites
+// (main.ts, deps.ts, tests) keep working; the class now lives in `_load.ts`
+// alongside the shared `resolveAppFromModule` it is thrown from.
+export { CliError } from "../_load.js";
 
 const CONFIG_SEARCH_PATHS: readonly string[] = [
   ".github/ghagen.workflows.ts",
@@ -17,26 +23,6 @@ const CONFIG_SEARCH_PATHS: readonly string[] = [
   "ghagen.config.js",
   "ghagen.config.mjs",
 ];
-
-/**
- * Error type thrown by CLI commands to signal a non-zero exit code.
- *
- * When caught by the top-level CLI runner, `exitCode` is forwarded to
- * `process.exit()` and `message` (if non-empty) is written to stderr.
- */
-export class CliError extends Error {
-  /** Process exit code returned when this error propagates to the CLI entry point. */
-  readonly exitCode: number;
-  /**
-   * @param message - Human-readable error text written to stderr (pass `""` for silent exits).
-   * @param exitCode - Process exit code (default `1`).
-   */
-  constructor(message: string, exitCode = 1) {
-    super(message);
-    this.name = "CliError";
-    this.exitCode = exitCode;
-  }
-}
 
 /**
  * Return the configured entrypoint path, or `null` if not set.
@@ -145,40 +131,4 @@ export async function loadApp(configPath: string): Promise<App> {
     throw new CliError(`Error: failed to load ${configPath}: ${(err as Error).message}`);
   }
   return resolveAppFromModule(mod, configPath);
-}
-
-/**
- * Extract an `App` from an imported module. Looks for `createApp()`
- * first (allows async setup), then `app`. Used by both `loadApp()`
- * and the pin/sources tracker so behaviour stays consistent.
- */
-export async function resolveAppFromModule(mod: unknown, configPath: string): Promise<App> {
-  // ESM default-export handling: if the module has a `default` and
-  // that has the expected fields, prefer it.
-  const candidates = [mod];
-  if (mod && typeof mod === "object" && "default" in mod) {
-    candidates.unshift((mod as { default: unknown }).default);
-  }
-
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== "object") {
-      continue;
-    }
-    const obj = candidate as { app?: unknown; createApp?: unknown };
-    if (typeof obj.createApp === "function") {
-      const result = await (obj.createApp as () => App | Promise<App>)();
-      if (!(result instanceof App)) {
-        throw new CliError(`Error: createApp() in ${configPath} must return an App instance`);
-      }
-      return result;
-    }
-    if (obj.app !== undefined) {
-      if (!(obj.app instanceof App)) {
-        throw new CliError(`Error: 'app' in ${configPath} must be an App instance`);
-      }
-      return obj.app;
-    }
-  }
-
-  throw new CliError(`Error: ${configPath} must export 'app = new App(...)' or 'createApp(): App'`);
 }

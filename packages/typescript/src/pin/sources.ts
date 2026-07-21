@@ -2,73 +2,62 @@
  * Determine which TS/JS source files contain each `uses:` ref string.
  *
  * Used by `deps upgrade` to scope `applyUpdates` to user-controlled
- * source files. Distinguishes between user-authored files and ghagen
- * internal files via the same prefix-matching strategy as
- * `_source_location.ts`.
+ * source files. Internal vs. user-authored paths are classified with the
+ * shared predicate in `_package_paths.ts` (also used by
+ * `_source_location.ts`).
  *
- * Implementation note: jiti's `cache` is not formally documented as
- * public, but it has been stable across the v2 line and is used by
- * several published projects (Nuxt, unjs ecosystem). If a future jiti
- * release breaks cache introspection, switch to a Node loader hook
- * registered via `module.register`.
+ * Implementation note: user-file tracking diffs `jiti.cache` before/after
+ * importing the config. `cache` is typed, non-deprecated public surface —
+ * jiti's own `types.d.ts` declares `Jiti extends NodeRequire { cache:
+ * ModuleCache }` with no `@deprecated` marker (unlike its call/`resolve`
+ * signatures). This mechanism is kept deliberately over the `transform`
+ * hook, which misses plain-CommonJS helpers (native require, no transform
+ * call); see docs/adr/0004-user-file-tracking-via-jiti-cache-diff.md. The
+ * real-jiti integration test (`sources.test.ts`) is the canary.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 import type { App } from "../app.js";
+import { resolveAppFromModule } from "../_load.js";
+import { isUserFile } from "../_package_paths.js";
 
 /**
- * Run `appLoader` and return the user-source files that were loaded as
- * a side effect.
+ * Import `configPath` through jiti and return both the resolved {@link App}
+ * and the user-source files loaded as a side effect.
  *
- * Returns absolute file paths. Filters out files in `node_modules` and
- * inside the ghagen package itself.
+ * Returns absolute file paths, filtering out `node_modules` and files inside
+ * the ghagen package itself. The App is resolved via the shared
+ * {@link resolveAppFromModule} policy; pass `appLoader` to override how the
+ * App is obtained (the jiti import — and therefore file tracking — always
+ * runs regardless, so a custom loader does not disable the cache diff).
  */
 export async function trackUserFiles(
   configPath: string,
-  appLoader?: (configPath: string) => Promise<App>,
+  appLoader?: (configPath: string) => Promise<App> | App,
 ): Promise<{ app: App; files: Set<string> }> {
   const jiti = createJiti(configPath, { fsCache: false });
   const beforeKeys = new Set<string>(Object.keys(jiti.cache));
 
-  let app: App;
-  if (appLoader) {
-    app = await appLoader(configPath);
-  } else {
-    const mod = (await jiti.import(configPath)) as {
-      app?: App;
-      createApp?: () => App | Promise<App>;
-      default?: { app?: App; createApp?: () => App | Promise<App> };
-    };
-    const m = mod.default ?? mod;
-    if (typeof m.createApp === "function") {
-      app = await m.createApp();
-    } else if (m.app) {
-      app = m.app;
-    } else {
-      throw new Error(
-        `${configPath}: must export 'app' or 'createApp()' (got: ${
-          Object.keys(mod).join(", ") || "<empty>"
-        })`,
-      );
-    }
-  }
+  // Always import through this jiti instance so the cache diff observes
+  // every file it loads — including plain-CommonJS helpers routed through
+  // native require, the case a `transform` hook would miss (ADR-0004).
+  const mod = await jiti.import(configPath);
 
   const afterKeys = new Set<string>(Object.keys(jiti.cache));
-  const newKeys = [...afterKeys].filter((k) => !beforeKeys.has(k));
-
   const files = new Set<string>();
-  for (const key of newKeys) {
-    if (isUserFile(key)) {
+  for (const key of afterKeys) {
+    if (!beforeKeys.has(key) && isUserFile(key)) {
       files.add(key);
     }
   }
-  // jiti's import() may not track the entry-point itself in some cases.
+  // jiti's import() may not surface the entry-point itself in some cases.
   // Always include the config file explicitly.
   if (isUserFile(configPath)) {
     files.add(configPath);
   }
 
+  const app = appLoader ? await appLoader(configPath) : await resolveAppFromModule(mod, configPath);
   return { app, files };
 }
 
@@ -106,35 +95,4 @@ export function locateUsesRefs(
     }
   }
   return result;
-}
-
-// ---- internal helpers ----
-
-const PACKAGE_INTERNAL_DIR: string = (() => {
-  try {
-    const url = new URL("..", import.meta.url);
-    const path = url.pathname;
-    return path.endsWith("/") ? path : `${path}/`;
-  } catch {
-    return "";
-  }
-})();
-
-function isUserFile(path: string): boolean {
-  if (!path) {
-    return false;
-  }
-  if (path.includes("/node_modules/")) {
-    return false;
-  }
-  // Skip URLs that aren't real filesystem paths.
-  if (path.startsWith("data:") || path.startsWith("node:")) {
-    return false;
-  }
-  if (PACKAGE_INTERNAL_DIR && path.startsWith(PACKAGE_INTERNAL_DIR)) {
-    if (!path.includes(".test.")) {
-      return false;
-    }
-  }
-  return true;
 }

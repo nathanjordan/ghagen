@@ -7,6 +7,7 @@
  */
 
 import callsites from "callsites";
+import { isInternalFrame } from "./_package_paths.js";
 
 /** Location of a single source line. */
 export interface SourceLocation {
@@ -14,44 +15,6 @@ export interface SourceLocation {
   readonly file: string;
   /** Line number (1-indexed). */
   readonly line: number;
-}
-
-// Detect ghagen's own source/dist directory at module-load time. Used to
-// recognise ghagen-internal frames in the stack so they can be skipped
-// when locating the user's call site.
-//
-// `import.meta.url` always points at this file. From it we compute the
-// "package source root" — the parent of the directory containing this
-// file (e.g. `.../packages/typescript/src/` or
-// `.../node_modules/@ghagen/ghagen/dist/`). Any frame whose path starts
-// with that prefix is treated as internal, EXCEPT test files (whose
-// paths contain `.test.`), so that ghagen's own tests can capture
-// themselves as the call site.
-const PACKAGE_INTERNAL_DIR: string = (() => {
-  try {
-    const url = new URL(".", import.meta.url);
-    const path = url.pathname;
-    return path.endsWith("/") ? path : `${path}/`;
-  } catch {
-    return "";
-  }
-})();
-
-function isInternalFrame(filename: string): boolean {
-  if (filename.includes("/node_modules/")) {
-    // node_modules path — but NOT if it's a vitest/mocha test file: in
-    // most setups tests don't live under node_modules so this is rare.
-    return true;
-  }
-  if (PACKAGE_INTERNAL_DIR && filename.startsWith(PACKAGE_INTERNAL_DIR)) {
-    // Internal to ghagen's own source/dist. Allow `.test.` files
-    // through so ghagen's own unit tests can capture themselves.
-    if (filename.includes(".test.")) {
-      return false;
-    }
-    return true;
-  }
-  return false;
 }
 
 /**
