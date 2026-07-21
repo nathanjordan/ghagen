@@ -77,7 +77,9 @@ Divergence between the committed schema Snapshot and the current upstream schema
 ## Surface notes (TypeScript)
 
 - Models are products of **factory functions** (`workflow()`, `job()`, `step()`) over a `data` bag,
-  with a shared `Model` base providing `walk()` / `children()` and `toYamlMap()`.
+  with one shared `Model` class carrying `kind` + **ModelSpec** and providing `walk()` /
+  `children()`. Models do not serialize themselves — the Emitter owns all recursion (ADR-0001,
+  amended).
 - `toYaml()` / `toYamlFile()` are **free functions**, narrowed to `WorkflowModel | ActionModel`
   (the **Document** types) so a bare model cannot be serialized to a file.
 - Generated types are imported into the models for compile-time author-conformance against the
@@ -87,5 +89,5 @@ Divergence between the committed schema Snapshot and the current upstream schema
 
 > **Dev:** "`toYaml` takes a `Model` — can I pass a step model?"
 > **Maintainer:** "The signature is narrowed to `WorkflowModel | ActionModel` — the **Document**
-> types. A step model has `toYamlMap()` for nesting but isn't a **Document**, so `toYaml` rejects
-> it at compile time."
+> types. A step model isn't a **Document**, so `toYaml` rejects it at compile time; the **Emitter**
+> recurses into it while emitting its containing Document."

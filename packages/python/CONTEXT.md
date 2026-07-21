@@ -77,8 +77,9 @@ Divergence between the committed schema Snapshot and the current upstream schema
 ## Surface notes (Python)
 
 - Models are Pydantic classes. **Document** is a base class; **Workflow** and **Action** extend it.
-- `to_yaml()` / `to_yaml_file()` are **methods** on Document that delegate to a private emitter
-  free function. Nested models expose `to_commented_map()`.
+- `to_yaml()` / `to_yaml_file()` are **methods** on Document that delegate to the Emitter's
+  `emit()` / `emit_file()`. Models do not serialize themselves — the Emitter owns all recursion
+  (ADR-0001, amended).
 - User input is validated at construction (Pydantic). Schema faithfulness is checked by integration
   tests, not by generated types (see ADR-0003).
 
@@ -86,4 +87,5 @@ Divergence between the committed schema Snapshot and the current upstream schema
 
 > **Dev:** "Can I call `to_yaml()` on a **Step**?"
 > **Maintainer:** "No — only a **Document** (a **Workflow** or **Action**) serializes to a file. A
-> **Step** has `to_commented_map()` for nesting, but it isn't a **Document**."
+> **Step** doesn't serialize itself at all; the **Emitter** recurses into it while emitting the
+> Document that contains it."
