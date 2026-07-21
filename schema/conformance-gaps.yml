@@ -1,0 +1,38 @@
+# Shared conformance allow-list for the hand-written ghagen models.
+#
+# Names the schema properties ghagen's ergonomic models intentionally do NOT
+# expose, per canonical Snapshot and scope. Both conformance sweeps read this
+# one file:
+#
+#   - Python (packages/python/tests/test_schema/test_conformance.py) walks each
+#     Snapshot against the Pydantic model surface (model_fields reflection).
+#   - TypeScript (packages/typescript/src/models/conformance.test.ts) walks the
+#     same Snapshots against the ModelSpec fieldMaps.
+#
+# Because both ports are held to the SAME allow-list, both suites passing means
+# the two ports model the same property set -- cross-port surface agreement,
+# structurally. A property upstream but absent from a port's models (and not
+# listed here) fails that port's sweep; a listed name no longer in the schema
+# is flagged as stale.
+#
+# Keys are <snapshot>.<scope>; the scope set is defined by each port's sweep.
+# Every entry needs an inline comment: why the gap is intentional, or
+# "# TODO: unmodeled" if it is a genuine gap worth tracking.
+
+workflow_schema:
+  workflow: []
+  job:
+    # TODO: unmodeled -- newer, rarely-used runner-snapshot field with no
+    # ergonomic model equivalent yet; emitted verbatim via the raw escape
+    # hatch (CommentedMap) if a user needs it.
+    - snapshot
+  step: []
+
+action_schema:
+  action: []
+  compositeRuns: []
+  dockerRuns: []
+  nodeRuns: []
+  actionInput: []
+  actionOutput: []
+  branding: []

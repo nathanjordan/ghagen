@@ -1,0 +1,10 @@
+{
+  "workflow": {
+    "url": "https://json.schemastore.org/github-workflow.json",
+    "filename": "workflow_schema.json"
+  },
+  "action": {
+    "url": "https://json.schemastore.org/github-action.json",
+    "filename": "action_schema.json"
+  }
+}

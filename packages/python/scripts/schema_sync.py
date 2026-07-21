@@ -6,24 +6,21 @@ ghagen tracks two schemas from SchemaStore -- the workflow schema (for
 single canonical snapshot at the repo root under ``schema/``. That snapshot is
 consumed by both test suites, the TypeScript codegen, and drift detection.
 
-Drift detection here is a pure JSON comparison: fetch the upstream schemas and
-diff them against the committed canonical snapshot. No Python models are
-generated (the hand-written Pydantic models are the public API; the schema is a
-conformance target -- see ADR-0003).
+No Python models are generated (the hand-written Pydantic models are the public
+API; the schema is a conformance target -- see ADR-0003). Drift is detected in
+CI by running ``sync`` and diffing the snapshot with ``git`` (see
+``.github/workflows/schema-drift.yml``), so no bespoke diff helper lives here.
 
 Usage::
 
     uv run python packages/python/scripts/schema_sync.py sync         # overwrite
-    uv run python packages/python/scripts/schema_sync.py check-drift   # exit 1 on drift
 """
 
 from __future__ import annotations
 
 import argparse
-import difflib
 import json
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -35,17 +32,13 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 #: Canonical schema snapshot directory (single source of truth).
 SCHEMA_DIR = REPO_ROOT / "schema"
 
-#: Registry of known schemas. Keyed by short name.
-SCHEMAS: dict[str, dict[str, str]] = {
-    "workflow": {
-        "url": "https://json.schemastore.org/github-workflow.json",
-        "filename": "workflow_schema.json",
-    },
-    "action": {
-        "url": "https://json.schemastore.org/github-action.json",
-        "filename": "action_schema.json",
-    },
-}
+#: Shared schema registry: name -> {url, filename}. Read by this tool and by
+#: ``packages/typescript/scripts/generate-types.ts``; adding a schema is a
+#: single edit there.
+MANIFEST_PATH = SCHEMA_DIR / "manifest.json"
+
+#: Registry of known schemas, keyed by short name (loaded from the manifest).
+SCHEMAS: dict[str, dict[str, str]] = json.loads(MANIFEST_PATH.read_text())
 
 
 def fetch_schema(name: str = "workflow") -> dict[str, Any]:
@@ -92,60 +85,9 @@ def save_all_schemas(schema_dir: Path | None = None) -> list[Path]:
     return written
 
 
-def check_drift(schema_dir: Path | None = None) -> tuple[bool, str]:
-    """Compare the committed canonical snapshot against upstream.
-
-    Fetches every registered schema fresh and diffs it against the committed
-    JSON. No models are generated -- drift is a pure JSON comparison.
-
-    Returns ``(has_drift, diff_output)`` where *has_drift* is ``True`` when any
-    upstream schema differs from the committed snapshot.
-    """
-    if schema_dir is None:
-        schema_dir = SCHEMA_DIR
-
-    diffs: list[str] = []
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        save_all_schemas(tmp_path)
-
-        for info in SCHEMAS.values():
-            filename = info["filename"]
-            snapshot_file = schema_dir / filename
-            fresh_file = tmp_path / filename
-
-            if not snapshot_file.exists():
-                diffs.append(f"Missing snapshot: {snapshot_file}\n")
-                continue
-
-            committed = snapshot_file.read_text()
-            upstream = fresh_file.read_text()
-            if committed != upstream:
-                diff = difflib.unified_diff(
-                    committed.splitlines(keepends=True),
-                    upstream.splitlines(keepends=True),
-                    fromfile=f"{filename} (committed)",
-                    tofile=f"{filename} (upstream)",
-                )
-                diffs.append("".join(diff))
-
-    return (bool(diffs), "\n".join(diffs))
-
-
 def _cmd_sync() -> int:
     for dest in save_all_schemas():
         print(f"Saved schema to {dest}")
-    return 0
-
-
-def _cmd_check_drift() -> int:
-    has_drift, diff_output = check_drift()
-    if has_drift:
-        print("Schema drift detected:\n")
-        print(diff_output)
-        return 1
-    print("No schema drift detected.")
     return 0
 
 
@@ -156,15 +98,8 @@ def main(argv: list[str] | None = None) -> int:
         "sync",
         help="Fetch upstream schemas and overwrite the canonical snapshot.",
     )
-    sub.add_parser(
-        "check-drift",
-        help="Fetch upstream and diff against the snapshot; exit 1 on drift.",
-    )
-    args = parser.parse_args(argv)
-
-    if args.command == "sync":
-        return _cmd_sync()
-    return _cmd_check_drift()
+    parser.parse_args(argv)
+    return _cmd_sync()
 
 
 if __name__ == "__main__":

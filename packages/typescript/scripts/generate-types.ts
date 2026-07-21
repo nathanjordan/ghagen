@@ -9,7 +9,7 @@
  */
 
 import { compileFromFile } from "json-schema-to-typescript";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -35,16 +35,25 @@ interface SchemaTarget {
   outputFile: string;
 }
 
-const TARGETS: SchemaTarget[] = [
-  {
-    schemaFile: "workflow_schema.json",
-    outputFile: "workflow-types.generated.ts",
-  },
-  {
-    schemaFile: "action_schema.json",
-    outputFile: "action-types.generated.ts",
-  },
-];
+/** One entry of the shared schema registry (`schema/manifest.json`). */
+interface SchemaManifestEntry {
+  url: string;
+  filename: string;
+}
+
+// Shared schema registry (name -> upstream URL -> snapshot filename), also read
+// by packages/python/scripts/schema_sync.py. Adding a schema is a single edit
+// there. The generated-types filename is derived from the snapshot filename:
+// `<name>_schema.json` -> `<name>-types.generated.ts`.
+const MANIFEST_PATH = resolve(SCHEMA_DIR, "manifest.json");
+const manifest: Record<string, SchemaManifestEntry> = JSON.parse(
+  readFileSync(MANIFEST_PATH, "utf8"),
+);
+
+const TARGETS: SchemaTarget[] = Object.values(manifest).map((entry) => ({
+  schemaFile: entry.filename,
+  outputFile: entry.filename.replace(/_schema\.json$/, "-types.generated.ts"),
+}));
 
 async function main() {
   for (const target of TARGETS) {
