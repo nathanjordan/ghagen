@@ -11,8 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ghagen.emitter.comments import attach_model_comment
 from ghagen.emitter.header import DEFAULT, HeaderInput, format_header
-from ghagen.emitter.yaml_writer import attach_comment, dump_yaml
+from ghagen.emitter.yaml_writer import dump_yaml
 
 if TYPE_CHECKING:
     from ghagen.models._base import GhagenModel
@@ -54,8 +55,9 @@ def to_yaml(
 
     cm = model.to_commented_map()
 
-    if model.comment and cm:
-        attach_comment(cm, next(iter(cm.keys())), comment=model.comment)
+    # The root model's OWN comment, rendered on the map as a whole — the same
+    # helper that closes the nested map-value gap.
+    attach_model_comment(cm, comment=model.comment, eol_comment=model.eol_comment)
 
     header_str = format_header(header, model._source_location)
     return dump_yaml(cm, header=header_str)

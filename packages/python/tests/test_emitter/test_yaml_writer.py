@@ -1,16 +1,20 @@
 """Tests for the YAML emitter."""
 
+import pytest
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
-from ruamel.yaml.scalarstring import LiteralScalarString
+from ruamel.yaml.scalarstring import LiteralScalarString, PlainScalarString
 
+from ghagen._commented import with_comment
 from ghagen._raw import Raw
 from ghagen.emitter.yaml_writer import (
     _apply_block_scalar_style,
-    attach_comment,
+    _yaml_key,
     dump_yaml,
     to_ordered_commented_map,
+    to_yaml_node,
     unwrap_raw,
 )
+from ghagen.models.step import Step
 
 
 def test_unwrap_raw_scalar():
@@ -47,26 +51,6 @@ def test_to_ordered_commented_map_unknown_keys():
     assert list(cm.keys()) == ["a", "m", "z"]
 
 
-def test_attach_block_comment():
-    cm = CommentedMap({"key": "value"})
-    attach_comment(cm, "key", comment="This is a comment")
-    yaml_str = dump_yaml(cm)
-    assert "# This is a comment" in yaml_str
-
-
-def test_attach_eol_comment():
-    cm = CommentedMap({"key": "value"})
-    attach_comment(cm, "key", eol_comment="inline note")
-    yaml_str = dump_yaml(cm)
-    assert "inline note" in yaml_str
-
-
-def test_attach_comment_to_seq():
-    seq = CommentedSeq(["a", "b", "c"])
-    attach_comment(seq, 1, comment="Before b")
-    # Just verify it doesn't raise - comment rendering is ruamel's job
-
-
 def test_dump_yaml_basic():
     cm = CommentedMap({"name": "test", "value": 42})
     result = dump_yaml(cm)
@@ -79,118 +63,6 @@ def test_dump_yaml_with_header():
     result = dump_yaml(cm, header="# My header\n")
     assert result.startswith("# My header\n")
     assert "key: value" in result
-
-
-# --- Sequence item comment behavior tests ---
-
-
-def test_eol_comment_on_scalar_seq_item():
-    """EOL comments on scalar sequence items render inline correctly."""
-    seq = CommentedSeq(["main", "develop"])
-    attach_comment(seq, 0, eol_comment="primary branch")
-    cm = CommentedMap({"branches": seq})
-    result = dump_yaml(cm)
-    assert "- main  # primary branch" in result
-
-
-def test_block_comment_on_scalar_seq_item():
-    """Block comments on scalar sequence items render before the item."""
-    seq = CommentedSeq(["main", "develop"])
-    attach_comment(seq, 1, comment="feature branch")
-    cm = CommentedMap({"branches": seq})
-    result = dump_yaml(cm)
-    assert "# feature branch" in result
-    # The comment appears before the second item
-    lines = result.strip().split("\n")
-    comment_idx = next(i for i, line in enumerate(lines) if "feature branch" in line)
-    develop_idx = next(i for i, line in enumerate(lines) if "develop" in line)
-    assert comment_idx < develop_idx
-
-
-def test_eol_comment_on_map_seq_item_renders_inline():
-    """EOL comments on map-seq items render inline with the first key."""
-    seq = CommentedSeq()
-    seq.append(CommentedMap({"uses": "actions/checkout@v4"}))
-    seq.append(CommentedMap({"run": "echo hello"}))
-    attach_comment(seq, 0, eol_comment="checkout step")
-    cm = CommentedMap({"steps": seq})
-    result = dump_yaml(cm)
-    assert "- uses: actions/checkout@v4  # checkout step" in result
-
-
-def test_eol_comment_on_empty_map_seq_item_falls_back():
-    """EOL comment on an empty map-seq item falls back to the seq index."""
-    seq = CommentedSeq()
-    seq.append(CommentedMap())
-    attach_comment(seq, 0, eol_comment="empty item")
-    cm = CommentedMap({"items": seq})
-    # Should not raise; comment text is present somewhere.
-    result = dump_yaml(cm)
-    assert "empty item" in result
-
-
-def test_block_comment_on_map_seq_item_is_indented():
-    """Block comments on map-seq items render between items at the dash column."""
-    seq = CommentedSeq()
-    seq.append(CommentedMap({"uses": "actions/checkout@v4"}))
-    seq.append(CommentedMap({"run": "echo hello"}))
-    attach_comment(seq, 1, comment="Run the tests")
-    cm = CommentedMap({"steps": seq})
-    result = dump_yaml(cm)
-    lines = result.split("\n")
-    # Top-level "steps" key: dashes are indentless under the map value, so
-    # column 0. The comment line must start at column 0, before the second
-    # item's dash.
-    comment_idx = next(i for i, line in enumerate(lines) if "Run the tests" in line)
-    assert lines[comment_idx] == "# Run the tests"
-    assert lines[comment_idx + 1] == "- run: echo hello"
-
-
-def test_block_comment_on_nested_map_seq_item_is_indented():
-    """Block comment on a deeply nested seq item is indented to the dash column."""
-    inner_seq = CommentedSeq()
-    inner_seq.append(CommentedMap({"uses": "actions/checkout@v4"}))
-    inner_seq.append(CommentedMap({"name": "Test", "run": "pytest"}))
-    attach_comment(inner_seq, 1, comment="Run tests")
-
-    cm = CommentedMap()
-    jobs = CommentedMap()
-    test_job = CommentedMap()
-    test_job["runs-on"] = "ubuntu-latest"
-    test_job["steps"] = inner_seq
-    jobs["test"] = test_job
-    cm["jobs"] = jobs
-
-    result = dump_yaml(cm)
-    # jobs (map) -> test (map, indent +2=4) -> steps (indentless seq, stays
-    # at 4). The dash and the comment should both sit at column 4.
-    assert "    # Run tests" in result
-    comment_line_idx = next(
-        i for i, line in enumerate(result.split("\n")) if "# Run tests" in line
-    )
-    lines = result.split("\n")
-    assert lines[comment_line_idx] == "    # Run tests"
-    assert lines[comment_line_idx + 1] == "    - name: Test"
-
-
-def test_block_comment_on_nested_map_field_is_indented():
-    """Block comment on a nested CommentedMap field is indented to the key column."""
-    inner = CommentedMap({"name": "Test", "needs": "lint"})
-    attach_comment(inner, "needs", comment="Wait for lint to pass")
-
-    cm = CommentedMap()
-    jobs = CommentedMap()
-    jobs["test"] = inner
-    cm["jobs"] = jobs
-
-    result = dump_yaml(cm)
-    # jobs (map, 0) -> test (map, +2=2) -> needs (key at col 4)
-    lines = result.split("\n")
-    comment_idx = next(
-        i for i, line in enumerate(lines) if "Wait for lint to pass" in line
-    )
-    assert lines[comment_idx] == "    # Wait for lint to pass"
-    assert lines[comment_idx + 1].startswith("    needs:")
 
 
 # --- Multiline string block-scalar auto-conversion tests ---
@@ -239,3 +111,112 @@ def test_nested_multiline_string_conversion():
     assert "run: |" in result
     assert "  line1" in result
     assert "  line2" in result
+
+
+# --- to_yaml_node recursive helper tests ---
+
+
+@pytest.mark.parametrize("value", ["x", 42, True, None])
+def test_to_yaml_node_scalar_identity(value):
+    """Plain scalars pass through to_yaml_node unchanged."""
+    assert to_yaml_node(value) == value
+
+
+def test_to_yaml_node_raw_scalar():
+    """Raw scalars unwrap to their inner value."""
+    assert to_yaml_node(Raw("x")) == "x"
+
+
+def test_to_yaml_node_raw_multiline_is_plain_scalar():
+    """Raw multiline str becomes a PlainScalarString (bypasses block-literal cast)."""
+    node = to_yaml_node(Raw("a\nb"))
+    assert isinstance(node, PlainScalarString)
+    assert not isinstance(node, LiteralScalarString)
+    assert str(node) == "a\nb"
+
+
+def test_to_yaml_node_commented_scalar_returns_inner():
+    """A Commented-wrapped scalar yields the inner value (comment is caller's job)."""
+    assert to_yaml_node(with_comment("hello", "note")) == "hello"
+
+
+def test_to_yaml_node_dict_becomes_commented_map():
+    """A plain dict becomes a CommentedMap with recursively converted values."""
+    node = to_yaml_node({"a": Raw("1"), "b": {"c": 2}})
+    assert isinstance(node, CommentedMap)
+    assert node["a"] == "1"
+    assert isinstance(node["b"], CommentedMap)
+    assert node["b"]["c"] == 2
+
+
+def test_to_yaml_node_commented_map_passthrough():
+    """An existing CommentedMap is passed through unchanged (same object)."""
+    cm = CommentedMap({"k": "v"})
+    assert to_yaml_node(cm) is cm
+
+
+def test_to_yaml_node_list_of_scalars_becomes_seq():
+    """A list of scalars becomes a CommentedSeq."""
+    node = to_yaml_node(["a", "b"])
+    assert isinstance(node, CommentedSeq)
+    assert list(node) == ["a", "b"]
+
+
+def test_to_yaml_node_list_with_model_item_comments():
+    """Item comments from GhagenModel entries attach at the right index."""
+    steps = [
+        Step(uses="actions/checkout@v4", comment="checkout"),
+        Step(run="echo hi", eol_comment="say hi"),
+    ]
+    seq = to_yaml_node(steps)
+    cm = CommentedMap({"steps": seq})
+    result = dump_yaml(cm)
+    assert "# checkout" in result
+    assert "- run: echo hi  # say hi" in result
+
+
+def test_to_yaml_node_ghagen_model_equals_to_commented_map():
+    """A GhagenModel node equals the model's own to_commented_map()."""
+    step = Step(name="build", run="make")
+    node = to_yaml_node(step)
+    assert isinstance(node, CommentedMap)
+    assert node == step.to_commented_map()
+
+
+# --- _yaml_key alias resolver tests ---
+
+
+def test_yaml_key_plain_field_name():
+    """A field with no alias resolves to its own name."""
+    assert _yaml_key("name", Step.model_fields["name"]) == "name"
+
+
+def test_yaml_key_serialization_alias():
+    """serialization_alias wins for output keys."""
+    assert _yaml_key("if_", Step.model_fields["if_"]) == "if"
+    assert (
+        _yaml_key("working_directory", Step.model_fields["working_directory"])
+        == "working-directory"
+    )
+
+
+def test_yaml_key_validation_alias_string(monkeypatch):
+    """A string validation_alias (no serialization_alias) is used."""
+    from pydantic.fields import FieldInfo
+
+    fi = FieldInfo()
+    monkeypatch.setattr(fi, "alias", None, raising=False)
+    monkeypatch.setattr(fi, "validation_alias", "valias", raising=False)
+    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
+    assert _yaml_key("field", fi) == "valias"
+
+
+def test_yaml_key_alias_fallback(monkeypatch):
+    """alias is used when no serialization_alias or string validation_alias."""
+    from pydantic.fields import FieldInfo
+
+    fi = FieldInfo()
+    monkeypatch.setattr(fi, "alias", "the_alias", raising=False)
+    monkeypatch.setattr(fi, "validation_alias", None, raising=False)
+    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
+    assert _yaml_key("field", fi) == "the_alias"

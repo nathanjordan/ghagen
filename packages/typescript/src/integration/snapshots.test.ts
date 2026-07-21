@@ -41,6 +41,7 @@ describe("snapshot tests", () => {
         lint: job({
           name: "Lint",
           runsOn: "ubuntu-latest",
+          comment: "Run linters before tests",
           steps: [
             step({ uses: "actions/checkout@v4" }),
             step({ name: "Ruff", run: "ruff check .", eolComment: "fast Python linter" }),

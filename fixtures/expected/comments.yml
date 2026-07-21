@@ -6,6 +6,7 @@ on: # trigger configuration
     - main
 jobs:
   lint:
+    # Run linters before tests
     name: Lint
     runs-on: ubuntu-latest
     steps:

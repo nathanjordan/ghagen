@@ -1,5 +1,6 @@
-import { Document, Scalar, YAMLMap, YAMLSeq } from "yaml";
+import { Document, YAMLMap } from "yaml";
 import { StepModel, cloneModel, type Document as GhagenDocument } from "../models/_base.js";
+import { attachModelComment } from "./comments.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { dedentScript } from "../_dedent.js";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -51,37 +52,6 @@ function formatYamlComment(comment: string): string {
     .join("\n");
 }
 
-/** Prepend a block comment before the first key in the map. */
-function attachBlockComment(map: YAMLMap, comment: string): void {
-  const firstPair = map.items[0];
-  if (!firstPair) {
-    return;
-  }
-  const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
-  const existing = key.commentBefore;
-  key.commentBefore = existing ? `${comment}\n${existing}` : comment;
-  firstPair.key = key;
-}
-
-/** Attach an end-of-line comment to the last value in the map. */
-function attachEolComment(map: YAMLMap, comment: string): void {
-  const lastPair = map.items[map.items.length - 1];
-  if (!lastPair) {
-    return;
-  }
-  if (
-    lastPair.value instanceof Scalar ||
-    lastPair.value instanceof YAMLMap ||
-    lastPair.value instanceof YAMLSeq
-  ) {
-    lastPair.value.comment = comment;
-  } else {
-    const val = new Scalar(lastPair.value);
-    val.comment = comment;
-    lastPair.value = val;
-  }
-}
-
 /**
  * Widen the gap before inline `#` comments from 1 space to 2 to match
  * ruamel.yaml's convention. The lookbehind condition (non-whitespace,
@@ -121,12 +91,11 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
   }
 
   if (doc.contents instanceof YAMLMap) {
-    if (target.meta.comment) {
-      attachBlockComment(doc.contents, target.meta.comment);
-    }
-    if (target.meta.eolComment) {
-      attachEolComment(doc.contents, target.meta.eolComment);
-    }
+    // The root model's OWN comment, rendered on the map as a whole — the same
+    // helper that closes the nested map-value gap.
+    attachModelComment(doc.contents, target.meta.comment, target.meta.eolComment, {
+      atSeqItem: false,
+    });
   }
 
   const yaml = doc.toString({

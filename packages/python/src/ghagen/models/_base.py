@@ -3,23 +3,22 @@
 from __future__ import annotations
 
 import sys
-import warnings
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
-from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.comments import CommentedMap
 
-from ghagen._commented import Commented, is_commented, unwrap_commented
+from ghagen._commented import Commented, is_commented
 from ghagen._raw import Raw
 from ghagen.emitter import emit
+from ghagen.emitter.comments import attach
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.emitter.yaml_writer import (
-    attach_comment,
-    attach_field_comments,
+    _yaml_key,
     to_ordered_commented_map,
-    unwrap_raw,
+    to_yaml_node,
 )
 
 # Frame path fragments that mark a frame as "internal" to ghagen/pydantic.
@@ -56,23 +55,6 @@ def _find_user_frame() -> tuple[str, int] | None:
     return None
 
 
-def _unwrap_commented_dict(data: dict[str, Any]) -> dict[str, Any]:
-    """Unwrap Commented values in a model_dump result dict."""
-    result: dict[str, Any] = {}
-    for k, v in data.items():
-        if isinstance(v, Commented):
-            result[k] = v.value
-        elif isinstance(v, dict):
-            result[k] = _unwrap_commented_dict(v)
-        elif isinstance(v, list):
-            result[k] = [
-                item.value if isinstance(item, Commented) else item for item in v
-            ]
-        else:
-            result[k] = v
-    return result
-
-
 def _scan_for_models(key: str, value: Any) -> Iterator[tuple[str, GhagenModel]]:
     """Yield ``(key, model)`` for every GhagenModel reachable from *value*.
 
@@ -91,6 +73,11 @@ def _scan_for_models(key: str, value: Any) -> Iterator[tuple[str, GhagenModel]]:
     elif isinstance(value, (list, tuple)):
         for item in value:
             yield from _scan_for_models(key, item)
+
+
+# Fields carrying serialization policy rather than YAML content; structurally
+# excluded from output (they declare ``exclude=True``).
+_META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
 
 
 class GhagenModel(BaseModel):
@@ -189,195 +176,48 @@ class GhagenModel(BaseModel):
         """
         return []
 
-    def _collect_commented_fields(
-        self,
-    ) -> tuple[dict[str, str], dict[str, str]]:
-        """Walk model fields and collect comments from Commented wrappers.
-
-        Returns ``(field_comments, field_eol_comments)`` dicts keyed by
-        the YAML alias name.
-        """
-        field_comments: dict[str, str] = {}
-        field_eol_comments: dict[str, str] = {}
-        for field_name, field_info in type(self).model_fields.items():
-            value = getattr(self, field_name, None)
-            if not is_commented(value):
-                continue
-
-            # Determine the YAML key name (alias or field name)
-            alias = field_info.alias or field_name
-            if field_info.validation_alias and isinstance(
-                field_info.validation_alias, str
-            ):
-                alias = field_info.validation_alias
-            ser_alias = (
-                field_info.serialization_alias
-                if field_info.serialization_alias
-                else alias
-            )
-
-            if value.comment:
-                field_comments[ser_alias] = value.comment
-            if value.eol_comment:
-                field_eol_comments[ser_alias] = value.eol_comment
-
-        return field_comments, field_eol_comments
-
-    def _serialize_value(self, value: Any) -> Any:
-        """Recursively serialize a value for YAML output."""
-        if isinstance(value, Commented):
-            return self._serialize_value(value.value)
-        if isinstance(value, Raw):
-            # Route through unwrap_raw to preserve PlainScalarString wrapping
-            # of Raw[str] values (which bypasses the block-scalar auto-cast).
-            return unwrap_raw(value)
-        if isinstance(value, GhagenModel):
-            return value.to_commented_map()
-        if isinstance(value, CommentedMap):
-            return value
-        if isinstance(value, dict):
-            result = CommentedMap()
-            for k, v in value.items():
-                result[k] = self._serialize_value(v)
-            return result
-        if isinstance(value, list):
-            return self._serialize_list(value)
-        return unwrap_raw(value)
-
-    def _serialize_list(self, items: list[Any]) -> CommentedSeq:
-        """Serialize a list, attaching comments from GhagenModel items."""
-        seq = CommentedSeq()
-        for item in items:
-            seq.append(self._serialize_value(item))
-
-        # Attach comments from GhagenModel items to the sequence
-        for idx, item in enumerate(items):
-            if isinstance(item, GhagenModel):
-                if item.comment:
-                    attach_comment(seq, idx, comment=item.comment)
-                if item.eol_comment:
-                    attach_comment(seq, idx, eol_comment=item.eol_comment)
-
-        return seq
-
     def to_commented_map(self) -> CommentedMap:
-        """Serialize this model to a CommentedMap with comments and ordering.
+        """Serialize this model to a CommentedMap in a single field walk.
 
-        Applies canonical key ordering, merges extras, attaches comments,
-        and runs the ``post_process`` callback if set.
+        Walks the model's own fields directly (no ``model_dump``): applies
+        ``exclude_none`` / ``exclude_unset`` semantics, canonical key
+        ordering, harvests per-field comments from Commented wrappers, merges
+        extras, attaches comments, and runs the ``post_process`` hook. Python
+        peer of TypeScript's ``Model.toYamlMap``.
 
         Returns:
             A :class:`ruamel.yaml.comments.CommentedMap` ready for YAML emission.
         """
-        # Dump model fields (by alias, excluding None/unset).
-        # Suppress Pydantic serialization warnings for Commented wrappers
-        # (they survive in fields via the wrap validator and Pydantic doesn't
-        # know how to serialize them — we unwrap them immediately after).
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="Pydantic serializer warnings",
-                category=UserWarning,
-            )
-            data = self.model_dump(
-                by_alias=True,
-                exclude_none=True,
-                exclude_unset=True,
-                exclude={
-                    "extras",
-                    "post_process",
-                    "comment",
-                    "eol_comment",
-                },
-            )
+        # Single walk: collect set, non-None fields under their YAML keys.
+        raw: dict[str, Any] = {}
+        for field_name, field_info in type(self).model_fields.items():
+            if field_name in _META_FIELDS:
+                continue
+            if field_name not in self.model_fields_set:  # exclude_unset
+                continue
+            value = getattr(self, field_name, None)
+            if value is None:  # exclude_none (checked on the raw wrapper)
+                continue
+            raw[_yaml_key(field_name, field_info)] = value
 
-        # Unwrap Commented values that survived model_dump (the serializer
-        # doesn't know about them since they're not in field type annotations).
-        data = _unwrap_commented_dict(data)
+        ordered = to_ordered_commented_map(raw, self._get_key_order())
 
-        # Unwrap Raw values
-        data = unwrap_raw(data)
+        cm = CommentedMap()
 
-        # Recursively serialize nested models
-        # We need to walk the original model fields to find nested GhagenModel
-        # instances that model_dump() converted to dicts
-        self._restore_nested_models(data)
-
-        # Apply canonical key ordering
-        cm = to_ordered_commented_map(data, self._get_key_order())
-
-        # Collect per-field comments from Commented wrappers
-        field_comments, field_eol_comments = self._collect_commented_fields()
-
-        # Merge extras (handle Commented wrappers in extras values)
-        for key, value in self.extras.items():
+        # Emit each field, attaching any Commented-wrapper comment inline at the
+        # point of emission (no collect-then-reattach two-pass). The comment
+        # module owns the actual placement.
+        for key, value in list(ordered.items()) + list(self.extras.items()):
             if is_commented(value):
-                if value.comment:
-                    field_comments[key] = value.comment
-                if value.eol_comment:
-                    field_eol_comments[key] = value.eol_comment
-                cm[key] = self._serialize_value(value.value)
+                cm[key] = to_yaml_node(value.value)
+                attach(cm, key, comment=value.comment, eol_comment=value.eol_comment)
             else:
-                cm[key] = self._serialize_value(value)
+                cm[key] = to_yaml_node(value)
 
-        # Attach field-level comments
-        attach_field_comments(
-            cm,
-            field_comments=field_comments or None,
-            field_eol_comments=field_eol_comments or None,
-        )
-
-        # Call post_process hook
         if self.post_process is not None:
             self.post_process(cm)
 
         return cm
-
-    def _restore_nested_models(self, data: dict[str, Any]) -> None:
-        """Replace dicts from model_dump with CommentedMaps from nested models."""
-        for field_name, field_info in type(self).model_fields.items():
-            if field_name in {
-                "extras",
-                "post_process",
-                "comment",
-                "eol_comment",
-            }:
-                continue
-
-            value = getattr(self, field_name, None)
-            if value is None:
-                continue
-
-            # Unwrap Commented before checking type
-            value = unwrap_commented(value)
-
-            # Determine the YAML key name (alias or field name)
-            alias = field_info.alias or field_name
-            if field_info.validation_alias and isinstance(
-                field_info.validation_alias, str
-            ):
-                alias = field_info.validation_alias
-            # serialization_alias takes precedence for output
-            ser_alias = (
-                field_info.serialization_alias
-                if field_info.serialization_alias
-                else alias
-            )
-
-            if ser_alias not in data:
-                continue
-
-            if isinstance(value, GhagenModel):
-                data[ser_alias] = value.to_commented_map()
-            elif isinstance(value, CommentedMap):
-                data[ser_alias] = value
-            elif isinstance(value, dict):
-                new_dict = CommentedMap()
-                for k, v in value.items():
-                    new_dict[k] = self._serialize_value(v)
-                data[ser_alias] = new_dict
-            elif isinstance(value, list):
-                data[ser_alias] = self._serialize_list(value)
 
 
 class Document(GhagenModel):

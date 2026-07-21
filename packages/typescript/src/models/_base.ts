@@ -1,5 +1,6 @@
 import { YAMLMap, YAMLSeq, Scalar, Pair } from "yaml";
 import { captureSourceLocation, type SourceLocation } from "../_source_location.js";
+import { attachFieldComment, attachModelComment } from "../emitter/comments.js";
 import {
   STEP_KEY_ORDER,
   JOB_KEY_ORDER,
@@ -255,43 +256,25 @@ export abstract class Model {
    * comment attachment, extras merging, and postProcess support. */
   toYamlMap(): YAMLMap {
     const map = new YAMLMap();
-    const fieldComments: Record<string, string> = {};
-    const fieldEolComments: Record<string, string> = {};
     const orderedKeys = getOrderedKeys(Object.keys(this.data), this.keyOrder);
 
-    for (const key of orderedKeys) {
-      let value = this.data[key];
-      if (isCommented(value)) {
-        if (value.comment) {
-          fieldComments[key] = value.comment;
-        }
-        if (value.eolComment) {
-          fieldEolComments[key] = value.eolComment;
-        }
-        value = value.value;
-      }
-      const pair = new Pair(new Scalar(key), toYamlValue(value));
-      map.items.push(pair);
-    }
-
+    // Emit each field, attaching any Commented-wrapper comment inline at the
+    // point of emission (no collect-then-reattach two-pass). The comment module
+    // owns the actual placement.
+    const entries: [string, unknown][] = orderedKeys.map((key) => [key, this.data[key]]);
     if (this.meta.extras) {
-      for (const [key, value] of Object.entries(this.meta.extras)) {
-        let unwrapped = value;
-        if (isCommented(value)) {
-          if (value.comment) {
-            fieldComments[key] = value.comment;
-          }
-          if (value.eolComment) {
-            fieldEolComments[key] = value.eolComment;
-          }
-          unwrapped = value.value;
-        }
-        const pair = new Pair(new Scalar(key), toYamlValue(unwrapped));
-        map.items.push(pair);
-      }
+      entries.push(...Object.entries(this.meta.extras));
     }
 
-    attachFieldComments(map, fieldComments, fieldEolComments);
+    for (const [key, value] of entries) {
+      if (isCommented(value)) {
+        const pair = new Pair(new Scalar(key), toYamlValue(value.value));
+        map.items.push(pair);
+        attachFieldComment(pair, value.comment, value.eolComment);
+      } else {
+        map.items.push(new Pair(new Scalar(key), toYamlValue(value)));
+      }
+    }
 
     if (this.meta.postProcess) {
       this.meta.postProcess(map);
@@ -709,49 +692,33 @@ function toYamlValue(value: unknown): unknown {
     return scalar;
   }
 
-  // Nested Model — recurse
+  // Nested Model as a map value — its own comment renders on the map as a
+  // whole (block before first key, EOL on last value).
   if (value instanceof Model) {
     const childMap = value.toYamlMap();
-
-    // Attach block comment from the nested model's meta
-    if (value.meta.comment && childMap.items.length > 0) {
-      const firstPair = childMap.items[0] as Pair;
-      const key = firstPair.key instanceof Scalar ? firstPair.key : new Scalar(firstPair.key);
-      key.commentBefore = value.meta.comment;
-      firstPair.key = key;
-    }
-
-    // Attach EOL comment to the first value in the map (the entry-point line)
-    if (value.meta.eolComment && childMap.items.length > 0) {
-      const firstPair = childMap.items[0] as Pair;
-      const val = firstPair.value instanceof Scalar ? firstPair.value : new Scalar(firstPair.value);
-      val.comment = value.meta.eolComment;
-      firstPair.value = val;
-    }
-
+    attachModelComment(childMap, value.meta.comment, value.meta.eolComment, {
+      atSeqItem: false,
+    });
     return childMap;
   }
 
   // Arrays
   if (Array.isArray(value)) {
     const seq = new YAMLSeq();
-    for (let i = 0; i < value.length; i++) {
-      const item = value[i];
-      const node = toYamlValue(item);
-
-      // If the item is a Model with a comment, attach it to the seq entry
-      if (item instanceof Model && item.meta.comment && node instanceof YAMLMap) {
-        // Comment is already attached to the first key inside toYamlMap's caller above.
-        // For sequence items, we need to set commentBefore on the map node itself.
-        (node as YAMLMap).commentBefore = item.meta.comment;
-        // Remove the duplicate from the first key if it was set
-        const firstPair = (node as YAMLMap).items[0] as Pair | undefined;
-        if (firstPair && firstPair.key instanceof Scalar) {
-          firstPair.key.commentBefore = null;
-        }
+    for (const item of value) {
+      // A Model list entry is built directly and its own comment attached on
+      // the seq entry (block above the dash). It never routes through the
+      // nested-Model branch above, so there is no wrong attach to undo — the
+      // container decision is made here, once.
+      if (item instanceof Model) {
+        const node = item.toYamlMap();
+        attachModelComment(node, item.meta.comment, item.meta.eolComment, {
+          atSeqItem: true,
+        });
+        seq.add(node);
+      } else {
+        seq.add(toYamlValue(item));
       }
-
-      seq.add(node);
     }
     return seq;
   }
@@ -804,46 +771,4 @@ function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
   }
 
   return [...ordered, ...remaining];
-}
-
-/**
- * Attach field-level comments (block and EOL) to map pairs.
- */
-function attachFieldComments(
-  map: YAMLMap,
-  fieldComments: Record<string, string>,
-  fieldEolComments: Record<string, string>,
-): void {
-  const hasComments = Object.keys(fieldComments).length > 0;
-  const hasEolComments = Object.keys(fieldEolComments).length > 0;
-  if (!hasComments && !hasEolComments) {
-    return;
-  }
-
-  for (const pair of map.items as Pair[]) {
-    const keyName = pair.key instanceof Scalar ? String(pair.key.value) : String(pair.key);
-
-    // Block comment before this field
-    if (hasComments && keyName in fieldComments) {
-      const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
-      key.commentBefore = fieldComments[keyName];
-      pair.key = key;
-    }
-
-    // End-of-line comment on this field's value
-    if (hasEolComments && keyName in fieldEolComments) {
-      if (pair.value instanceof YAMLMap || pair.value instanceof YAMLSeq) {
-        // For complex values, set comment on the key so it appears on the key line
-        const key = pair.key instanceof Scalar ? pair.key : new Scalar(pair.key);
-        key.comment = fieldEolComments[keyName];
-        pair.key = key;
-      } else if (pair.value instanceof Scalar) {
-        pair.value.comment = fieldEolComments[keyName];
-      } else {
-        const val = new Scalar(pair.value);
-        val.comment = fieldEolComments[keyName];
-        pair.value = val;
-      }
-    }
-  }
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import StringIO
 from typing import Any
 
+from pydantic.fields import FieldInfo
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import (
@@ -13,7 +14,9 @@ from ruamel.yaml.scalarstring import (
     ScalarString,
 )
 
+from ghagen._commented import Commented
 from ghagen._raw import Raw
+from ghagen.emitter.comments import attach, attach_model_comment
 
 
 def unwrap_raw(value: Any) -> Any:
@@ -62,75 +65,71 @@ def to_ordered_commented_map(
     return cm
 
 
-def attach_comment(
-    parent: CommentedMap | CommentedSeq,
-    key: str | int,
-    comment: str | None = None,
-    eol_comment: str | None = None,
-) -> None:
-    """Attach comments to a key in a CommentedMap or index in a CommentedSeq.
+def _to_yaml_seq(items: list[Any]) -> CommentedSeq:
+    """Serialize a list to a CommentedSeq, attaching each GhagenModel item's
+    OWN comment on the seq index.
 
-    Args:
-        parent: The CommentedMap or CommentedSeq to attach comments to.
-        key: The key (for maps) or index (for sequences) to attach comments to.
-        comment: Block comment to place before the key.
-        eol_comment: End-of-line comment to place after the value.
-
-    Notes:
-        When the target is a sequence index whose item is a non-empty
-        ``CommentedMap``, ``eol_comment`` is redirected to the inner map's
-        first key so the comment renders inline with that key rather than on
-        the dash line (a ruamel.yaml quirk when EOL-commenting seq indices
-        whose items are maps).
-
-        Block comments are stored with a placeholder column of 0; the actual
-        column is rewritten by :func:`_apply_pre_comment_columns` during
-        :func:`dump_yaml` so the comment aligns with its containing item.
+    Model items are serialized via :meth:`~GhagenModel.to_commented_map`
+    directly (not through :func:`to_yaml_node`) so their own comment lands
+    once, on the seq index (``attach(seq, idx, ...)``) — the container
+    decision for a list entry. Routing model items through
+    :func:`to_yaml_node` instead would additionally stamp the comment on the
+    child map's first key, double-attaching it.
     """
-    if isinstance(parent, CommentedMap) and isinstance(key, str):
-        if comment is not None:
-            parent.yaml_set_comment_before_after_key(key, before=comment)
-        if eol_comment is not None:
-            parent.yaml_add_eol_comment(eol_comment, key=key)
-        return
+    from ghagen.models._base import GhagenModel  # local: avoid import cycle
 
-    if isinstance(parent, CommentedSeq) and isinstance(key, int):
-        if comment is not None:
-            parent.yaml_set_comment_before_after_key(key, before=comment, indent=0)
-
-        if eol_comment is not None:
-            try:
-                item = parent[key]
-            except IndexError:
-                item = None
-            if isinstance(item, CommentedMap) and len(item) > 0:
-                first_key = next(iter(item.keys()))
-                item.yaml_add_eol_comment(eol_comment, key=first_key)
-            else:
-                parent.yaml_add_eol_comment(eol_comment, key=key)
+    seq = CommentedSeq()
+    for idx, item in enumerate(items):
+        if isinstance(item, GhagenModel):
+            seq.append(item.to_commented_map())
+            attach(seq, idx, comment=item.comment, eol_comment=item.eol_comment)
+        else:
+            seq.append(to_yaml_node(item))
+    return seq
 
 
-def attach_field_comments(
-    cm: CommentedMap,
-    field_comments: dict[str, str] | None = None,
-    field_eol_comments: dict[str, str] | None = None,
-) -> None:
-    """Attach per-field comments to a CommentedMap.
+def to_yaml_node(value: Any) -> Any:
+    """Convert any model value to a YAML node in one recursive pass.
 
-    Args:
-        cm: The CommentedMap to attach comments to.
-        field_comments: Mapping of field name to block comment.
-        field_eol_comments: Mapping of field name to end-of-line comment.
+    Python peer of TypeScript's ``toYamlValue``. This is the single place a
+    Commented / Raw / GhagenModel / dict / list / scalar becomes a ruamel node.
     """
-    if field_comments:
-        for key, comment in field_comments.items():
-            if key in cm:
-                attach_comment(cm, key, comment=comment)
+    from ghagen.models._base import GhagenModel  # local: avoid import cycle
 
-    if field_eol_comments:
-        for key, comment in field_eol_comments.items():
-            if key in cm:
-                attach_comment(cm, key, eol_comment=comment)
+    if isinstance(value, Commented):
+        return to_yaml_node(value.value)
+    if isinstance(value, Raw):
+        # Route through unwrap_raw to keep PlainScalarString wrapping of
+        # Raw[str] (bypasses the block-scalar auto-cast).
+        return unwrap_raw(value)
+    if isinstance(value, GhagenModel):
+        child = value.to_commented_map()
+        # A model as a map value renders its own comment on the map as a whole
+        # (block before first key, EOL after last value). Seq items never reach
+        # here — _to_yaml_seq serializes them directly and attaches on the index.
+        attach_model_comment(
+            child, comment=value.comment, eol_comment=value.eol_comment
+        )
+        return child
+    if isinstance(value, CommentedMap):
+        return value
+    if isinstance(value, dict):
+        cm = CommentedMap()
+        for k, v in value.items():
+            cm[k] = to_yaml_node(v)
+        return cm
+    if isinstance(value, list):
+        return _to_yaml_seq(value)
+    return unwrap_raw(value)
+
+
+def _yaml_key(field_name: str, field_info: FieldInfo) -> str:
+    """Resolve the YAML key for a model field: serialization_alias wins,
+    then a string validation_alias, then alias, else the field name."""
+    alias = field_info.alias or field_name
+    if isinstance(field_info.validation_alias, str):
+        alias = field_info.validation_alias
+    return field_info.serialization_alias or alias
 
 
 def _apply_block_scalar_style(node: Any) -> None:
