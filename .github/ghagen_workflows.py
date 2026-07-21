@@ -35,16 +35,43 @@ def _ci_workflow() -> Workflow:
         ),
         permissions=Permissions(contents=PermissionLevel.READ),
         jobs={
-            "lint": Job(
-                name="Lint",
+            "lint-py": Job(
+                name="Lint (Python)",
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Ruff check", run="uv run ruff check packages/python/src/ packages/python/tests/"),
-                    Step(name="Ruff format check", run="uv run ruff format --check packages/python/src/ packages/python/tests/"),
+                    Step(name="Lint", run="scripts/lint.sh py"),
+                    Step(name="Format check", run="scripts/fmt.sh py"),
+                ],
+            ),
+            "lint-ts": Job(
+                name="Lint (TypeScript)",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
+                    Step(name="Lint", run="scripts/lint.sh ts"),
+                    Step(name="Format check", run="scripts/fmt.sh ts"),
+                ],
+            ),
+            # actionlint and `ghagen deps check-synced` are language-neutral, so
+            # scripts/lint.sh only runs them under its default `all` scope (see the
+            # script). The per-language jobs above call it scoped to `py`/`ts` and
+            # never trigger them, so this job runs them directly instead.
+            "lint-meta": Job(
+                name="Lint (meta)",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
+                    Step(name="Sync", run="uv sync"),
                     Step(
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.12",
@@ -56,21 +83,29 @@ def _ci_workflow() -> Workflow:
                     ),
                 ],
             ),
-            "typecheck": Job(
-                name="Type check",
+            "typecheck-py": Job(
+                name="Type check (Python)",
                 runs_on="ubuntu-latest",
                 timeout_minutes=10,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
-                    Step(name="Pyright", run="uv run pyright packages/python/src/"),
-                    Step(name="tsc", run="npm run typecheck", working_directory="packages/typescript"),
+                    Step(name="Pyright", run="scripts/typecheck.sh py"),
                 ],
             ),
-            "test": Job(
+            "typecheck-ts": Job(
+                name="Type check (TypeScript)",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(name="tsc", run="scripts/typecheck.sh ts"),
+                ],
+            ),
+            "test-py": Job(
                 name="Test (Python ${{ matrix.python-version }})",
                 runs_on="ubuntu-latest",
                 timeout_minutes=15,
@@ -86,7 +121,18 @@ def _ci_workflow() -> Workflow:
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Set up Python", uses="actions/setup-python@v6", with_={"python-version": "${{ matrix.python-version }}"}),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Test", run="uv run pytest"),
+                    Step(name="Test", run="scripts/test.sh py"),
+                ],
+            ),
+            "test-ts": Job(
+                name="Test (TypeScript)",
+                runs_on="ubuntu-latest",
+                timeout_minutes=15,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(name="Test", run="scripts/test.sh ts"),
                 ],
             ),
             "check-sync": Job(
@@ -98,21 +144,6 @@ def _ci_workflow() -> Workflow:
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Sync", run="uv sync"),
                     Step(name="Verify workflows", run="uv run ghagen check-synced"),
-                ],
-            ),
-            "ts-lint": Job(
-                name="TypeScript lint & format",
-                runs_on="ubuntu-latest",
-                timeout_minutes=10,
-                steps=[
-                    Step(name="Checkout", uses="actions/checkout@v6"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
-                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
-                    Step(name="oxlint (typescript)", run="npm run lint", working_directory="packages/typescript"),
-                    Step(name="oxlint (docs)", run="npm run lint", working_directory="docs"),
-                    Step(name="oxfmt check (typescript)", run="npm run fmt:check", working_directory="packages/typescript"),
-                    Step(name="oxfmt check (docs)", run="npm run fmt:check", working_directory="docs"),
                 ],
             ),
             "test-action": Job(

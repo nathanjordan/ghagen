@@ -11,8 +11,8 @@ on:
 permissions:
   contents: read
 jobs:
-  lint:
-    name: Lint
+  lint-py:
+    name: Lint (Python)
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -21,10 +21,42 @@ jobs:
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
     - name: Sync
       run: uv sync
-    - name: Ruff check
-      run: uv run ruff check packages/python/src/ packages/python/tests/
-    - name: Ruff format check
-      run: uv run ruff format --check packages/python/src/ packages/python/tests/
+    - name: Lint
+      run: scripts/lint.sh py
+    - name: Format check
+      run: scripts/fmt.sh py
+    timeout-minutes: 10
+  lint-ts:
+    name: Lint (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+      with:
+        node-version: '24'
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
+    - name: Install docs deps
+      run: npm ci
+      working-directory: docs
+    - name: Lint
+      run: scripts/lint.sh ts
+    - name: Format check
+      run: scripts/fmt.sh ts
+    timeout-minutes: 10
+  lint-meta:
+    name: Lint (meta)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+    - name: Set up uv
+      uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+    - name: Sync
+      run: uv sync
     - name: actionlint
       uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca  # v1.7.12
     - name: ghagen deps check-synced
@@ -32,30 +64,36 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 10
-  typecheck:
-    name: Type check
+  typecheck-py:
+    name: Type check (Python)
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+    - name: Sync
+      run: uv sync
+    - name: Pyright
+      run: scripts/typecheck.sh py
+    timeout-minutes: 10
+  typecheck-ts:
+    name: Type check (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
     - name: Setup Node.js
       uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
       with:
         node-version: '24'
-    - name: Sync
-      run: uv sync
     - name: Install TS deps
       run: npm ci
       working-directory: packages/typescript
-    - name: Pyright
-      run: uv run pyright packages/python/src/
     - name: tsc
-      run: npm run typecheck
-      working-directory: packages/typescript
+      run: scripts/typecheck.sh ts
     timeout-minutes: 10
-  test:
+  test-py:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
@@ -76,7 +114,23 @@ jobs:
     - name: Sync
       run: uv sync
     - name: Test
-      run: uv run pytest
+      run: scripts/test.sh py
+    timeout-minutes: 15
+  test-ts:
+    name: Test (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+      with:
+        node-version: '24'
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
+    - name: Test
+      run: scripts/test.sh ts
     timeout-minutes: 15
   check-sync:
     name: Check workflow sync
@@ -90,35 +144,6 @@ jobs:
       run: uv sync
     - name: Verify workflows
       run: uv run ghagen check-synced
-    timeout-minutes: 10
-  ts-lint:
-    name: TypeScript lint & format
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
-    - name: Setup Node.js
-      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
-      with:
-        node-version: '24'
-    - name: Install TS deps
-      run: npm ci
-      working-directory: packages/typescript
-    - name: Install docs deps
-      run: npm ci
-      working-directory: docs
-    - name: oxlint (typescript)
-      run: npm run lint
-      working-directory: packages/typescript
-    - name: oxlint (docs)
-      run: npm run lint
-      working-directory: docs
-    - name: oxfmt check (typescript)
-      run: npm run fmt:check
-      working-directory: packages/typescript
-    - name: oxfmt check (docs)
-      run: npm run fmt:check
-      working-directory: docs
     timeout-minutes: 10
   test-action:
     name: Test action
