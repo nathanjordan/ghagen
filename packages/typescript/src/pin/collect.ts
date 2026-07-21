@@ -3,34 +3,26 @@
  */
 
 import type { App } from "../app.js";
-import { UsesRef } from "./uses.js";
+import { iterUsesSites } from "./sites.js";
 
 /**
- * Walk all items in *app* and return pinnable `uses:` strings.
+ * Walk every registered Document in *app* and return pinnable `uses:` strings.
  *
- * Scans:
- *   - Workflow jobs (`Job.uses` for reusable workflows, `Step.uses` for
- *     action references)
- *   - Composite Action steps (`Step.uses` inside `compositeRuns`)
+ * Iterates the `UsesSite`s of every Document (the single traversal policy —
+ * see `iterUsesSites`) and keeps the refs that are **Pinnable**.
  *
- * Skips local refs (`./…`), docker images (`docker://…`), and refs
- * already pinned to a 40-char SHA.
+ * Skips local refs (`./…`), docker images (`docker://…`), and refs already
+ * pinned to a 40-char SHA.
  */
 export function collectUsesRefs(app: App): Set<string> {
   const refs = new Set<string>();
 
-  for (const { item } of app._items) {
-    item.walk((model) => {
-      if (model.kind === "step" || model.kind === "job") {
-        const uses = model.data["uses"];
-        if (typeof uses === "string") {
-          const parsed = UsesRef.parse(uses);
-          if (parsed !== null && parsed.isPinnable) {
-            refs.add(uses);
-          }
-        }
+  for (const document of app.documents()) {
+    for (const site of iterUsesSites(document)) {
+      if (site.ref.isPinnable) {
+        refs.add(site.uses);
       }
-    });
+    }
   }
 
   return refs;

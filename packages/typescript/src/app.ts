@@ -33,7 +33,7 @@ export class App {
   readonly headerTxt: string | null | ((vars: HeaderVariables) => string) | undefined;
   readonly lockfilePath: string | null;
 
-  /** @internal — registered items, exposed for transforms. */
+  /** @internal — registered items with their output paths. */
   readonly _items: RegisteredItem[] = [];
   readonly _userTransforms: readonly Transform[];
   /** @internal — auto-dedent flag from `.ghagen.yml`, threaded into emit. */
@@ -91,6 +91,16 @@ export class App {
    */
   add(item: Document, path: string): void {
     this._items.push({ item, relPath: path });
+  }
+
+  /**
+   * The registered Documents (Workflows and Actions), in registration order.
+   *
+   * The public accessor for pin and other read-only consumers; the
+   * `{ item, relPath }` storage stays internal to `App`.
+   */
+  documents(): Document[] {
+    return this._items.map(({ item }) => item);
   }
 
   /** Register a workflow at `.github/workflows/{filename}`. */

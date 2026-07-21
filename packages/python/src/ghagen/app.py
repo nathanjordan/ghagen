@@ -82,6 +82,14 @@ class App:
         options = load_options(self.root)
         self._auto_dedent = options.auto_dedent
 
+    def documents(self) -> list[_Item]:
+        """Return the registered Documents (Workflows and Actions).
+
+        The public accessor for pin and other read-only consumers; the
+        ``(item, path)`` storage stays private to ``App``.
+        """
+        return [item for item, _path in self._items]
+
     def add(self, item: _Item, path: str | Path) -> None:
         """Register an item at an explicit path relative to ``root``.
 
