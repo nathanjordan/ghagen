@@ -7,17 +7,15 @@ import {
   compositeRuns,
   dockerRuns,
   nodeRuns,
+  ACTION_SPEC,
+  ACTION_INPUT_SPEC,
+  ACTION_OUTPUT_SPEC,
+  BRANDING_SPEC,
+  COMPOSITE_RUNS_SPEC,
+  DOCKER_RUNS_SPEC,
+  NODE_RUNS_SPEC,
 } from "./action.js";
 import { step } from "./step.js";
-import {
-  ACTION_KEY_ORDER,
-  ACTION_INPUT_KEY_ORDER,
-  ACTION_OUTPUT_KEY_ORDER,
-  BRANDING_KEY_ORDER,
-  COMPOSITE_RUNS_KEY_ORDER,
-  DOCKER_RUNS_KEY_ORDER,
-  NODE_RUNS_KEY_ORDER,
-} from "../emitter/key-order.js";
 
 describe("actionInputDef", () => {
   it("creates an input def with description, required, default, and deprecationMessage", () => {
@@ -32,7 +30,7 @@ describe("actionInputDef", () => {
     expect(inp.data.default).toBe("abc");
     expect(inp.data.deprecationMessage).toBe("Use token_v2");
     expect(inp.kind).toBe("actionInput");
-    expect(inp.keyOrder).toEqual(ACTION_INPUT_KEY_ORDER);
+    expect(inp.spec).toBe(ACTION_INPUT_SPEC);
   });
 });
 
@@ -45,7 +43,7 @@ describe("actionOutputDef", () => {
     expect(out.data.description).toBe("The result");
     expect(out.data.value).toBe("${{ steps.run.outputs.result }}");
     expect(out.kind).toBe("actionOutput");
-    expect(out.keyOrder).toEqual(ACTION_OUTPUT_KEY_ORDER);
+    expect(out.spec).toBe(ACTION_OUTPUT_SPEC);
   });
 
   it("creates an output def with description only (no value)", () => {
@@ -61,7 +59,7 @@ describe("branding", () => {
     expect(b.data.icon).toBe("zap");
     expect(b.data.color).toBe("blue");
     expect(b.kind).toBe("branding");
-    expect(b.keyOrder).toEqual(BRANDING_KEY_ORDER);
+    expect(b.spec).toBe(BRANDING_SPEC);
   });
 });
 
@@ -72,7 +70,7 @@ describe("compositeRuns", () => {
     expect(cr.data.using).toBe("composite");
     expect(cr.data.steps).toEqual([s]);
     expect(cr.kind).toBe("compositeRuns");
-    expect(cr.keyOrder).toEqual(COMPOSITE_RUNS_KEY_ORDER);
+    expect(cr.spec).toBe(COMPOSITE_RUNS_SPEC);
   });
 });
 
@@ -93,7 +91,7 @@ describe("dockerRuns", () => {
     expect(dr.data).not.toHaveProperty("preEntrypoint");
     expect(dr.data).not.toHaveProperty("postEntrypoint");
     expect(dr.kind).toBe("dockerRuns");
-    expect(dr.keyOrder).toEqual(DOCKER_RUNS_KEY_ORDER);
+    expect(dr.spec).toBe(DOCKER_RUNS_SPEC);
   });
 });
 
@@ -112,7 +110,7 @@ describe("nodeRuns", () => {
     expect(nr.data).not.toHaveProperty("preIf");
     expect(nr.data).not.toHaveProperty("postIf");
     expect(nr.kind).toBe("nodeRuns");
-    expect(nr.keyOrder).toEqual(NODE_RUNS_KEY_ORDER);
+    expect(nr.spec).toBe(NODE_RUNS_SPEC);
   });
 });
 
@@ -140,6 +138,6 @@ describe("action", () => {
     expect(a.data.outputs).toEqual({ result: out });
     expect(a.data.runs).toBe(runs);
     expect(a.kind).toBe("action");
-    expect(a.keyOrder).toEqual(ACTION_KEY_ORDER);
+    expect(a.spec).toBe(ACTION_SPEC);
   });
 });

@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { workflow } from "./workflow.js";
+import { workflow, WORKFLOW_SPEC } from "./workflow.js";
 import { isModel } from "./_base.js";
 import { job, concurrency } from "./job.js";
 import { step } from "./step.js";
 import { on } from "./trigger.js";
 import { permissions } from "./permissions.js";
-import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
 
 describe("workflow", () => {
   it("creates a basic workflow with name, on, and jobs", () => {
@@ -107,7 +106,7 @@ describe("workflow", () => {
     expect(w.data.concurrency).toBe(c);
   });
 
-  it("has correct kind and keyOrder", () => {
+  it("has correct kind and spec", () => {
     const j = job({ runsOn: "ubuntu-latest", steps: [] });
     const w = workflow({
       name: "CI",
@@ -115,6 +114,6 @@ describe("workflow", () => {
       jobs: { build: j },
     });
     expect(w.kind).toBe("workflow");
-    expect(w.keyOrder).toEqual(WORKFLOW_KEY_ORDER);
+    expect(w.spec).toBe(WORKFLOW_SPEC);
   });
 });

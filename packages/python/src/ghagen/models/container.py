@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
-from ghagen.emitter.key_order import CONTAINER_KEY_ORDER
+from typing import ClassVar
+
 from ghagen.models._base import GhagenModel
+from ghagen.models.spec import ModelSpec
+
+CONTAINER_SPEC = ModelSpec(
+    yaml_keys={
+        "image": "image",
+        "credentials": "credentials",
+        "env": "env",
+        "ports": "ports",
+        "volumes": "volumes",
+        "options": "options",
+    },
+    order=("image", "credentials", "env", "ports", "volumes", "options"),
+)
 
 
 class Container(GhagenModel):
     """Container configuration for a job or service."""
+
+    SPEC: ClassVar[ModelSpec] = CONTAINER_SPEC
 
     image: str
     credentials: dict[str, str] | None = None
@@ -15,9 +31,6 @@ class Container(GhagenModel):
     ports: list[str | int] | None = None
     volumes: list[str] | None = None
     options: str | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return CONTAINER_KEY_ORDER
 
 
 class Service(Container):

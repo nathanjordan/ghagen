@@ -1,6 +1,6 @@
 import type { PermissionsEvent as SchemaPermissions } from "../schema/workflow-types.generated.js";
-import { PermissionsModel, extractMeta, mapFields } from "./_base.js";
-import type { WithMeta } from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
+import type { WithMeta, ModelSpec, PermissionsModel } from "./_base.js";
 import type { PermissionLevel } from "./common.js";
 
 /**
@@ -37,21 +37,40 @@ export interface PermissionsInput {
   statuses?: PermissionLevel;
 }
 
-const PERMISSIONS_FIELD_MAP = {
-  actions: "actions",
-  checks: "checks",
-  contents: "contents",
-  deployments: "deployments",
-  discussions: "discussions",
-  idToken: "id-token",
-  issues: "issues",
-  packages: "packages",
-  pages: "pages",
-  pullRequests: "pull-requests",
-  repositoryProjects: "repository-projects",
-  securityEvents: "security-events",
-  statuses: "statuses",
-} as const satisfies Record<keyof PermissionsInput, keyof SchemaPermissions>;
+/** Serialization spec for {@link PermissionsModel}. */
+export const PERMISSIONS_SPEC: ModelSpec = {
+  kind: "permissions",
+  fieldMap: {
+    actions: "actions",
+    checks: "checks",
+    contents: "contents",
+    deployments: "deployments",
+    discussions: "discussions",
+    idToken: "id-token",
+    issues: "issues",
+    packages: "packages",
+    pages: "pages",
+    pullRequests: "pull-requests",
+    repositoryProjects: "repository-projects",
+    securityEvents: "security-events",
+    statuses: "statuses",
+  } satisfies Record<keyof PermissionsInput, keyof SchemaPermissions>,
+  order: [
+    "actions",
+    "checks",
+    "contents",
+    "deployments",
+    "discussions",
+    "id-token",
+    "issues",
+    "packages",
+    "pages",
+    "pull-requests",
+    "repository-projects",
+    "security-events",
+    "statuses",
+  ],
+};
 
 /**
  * Create a permissions model for controlling `GITHUB_TOKEN` scope access.
@@ -70,6 +89,5 @@ const PERMISSIONS_FIELD_MAP = {
  */
 export function permissions(input: WithMeta<PermissionsInput>): PermissionsModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, PERMISSIONS_FIELD_MAP);
-  return new PermissionsModel(yamlData, meta);
+  return buildModel<PermissionsModel>(PERMISSIONS_SPEC, data as Record<string, unknown>, meta);
 }

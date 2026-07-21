@@ -2,23 +2,97 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import Field
 
 from ghagen._raw import Raw
-from ghagen.emitter.key_order import (
-    CONCURRENCY_KEY_ORDER,
-    DEFAULTS_KEY_ORDER,
-    ENVIRONMENT_KEY_ORDER,
-    JOB_KEY_ORDER,
-    MATRIX_KEY_ORDER,
-    STRATEGY_KEY_ORDER,
-)
 from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.container import Container, Service
 from ghagen.models.permissions import Permissions
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
+
+MATRIX_SPEC = ModelSpec(
+    yaml_keys={"include": "include", "exclude": "exclude"},
+    order=("include", "exclude"),
+)
+
+STRATEGY_SPEC = ModelSpec(
+    yaml_keys={
+        "matrix": "matrix",
+        "fail_fast": "fail-fast",
+        "max_parallel": "max-parallel",
+    },
+    order=("matrix", "fail-fast", "max-parallel"),
+)
+
+ENVIRONMENT_SPEC = ModelSpec(
+    yaml_keys={"name": "name", "url": "url"},
+    order=("name", "url"),
+)
+
+CONCURRENCY_SPEC = ModelSpec(
+    yaml_keys={"group": "group", "cancel_in_progress": "cancel-in-progress"},
+    order=("group", "cancel-in-progress"),
+)
+
+DEFAULTS_SPEC = ModelSpec(yaml_keys={"run": "run"}, order=("run",))
+
+DEFAULTS_RUN_SPEC = ModelSpec(
+    yaml_keys={"shell": "shell", "working_directory": "working-directory"},
+    order=("shell", "working-directory"),
+)
+
+JOB_OUTPUT_SPEC = ModelSpec(
+    yaml_keys={"description": "description", "value": "value"},
+    order=("description", "value"),
+)
+
+JOB_SPEC = ModelSpec(
+    yaml_keys={
+        "name": "name",
+        "runs_on": "runs-on",
+        "needs": "needs",
+        "if_": "if",
+        "permissions": "permissions",
+        "environment": "environment",
+        "strategy": "strategy",
+        "env": "env",
+        "defaults": "defaults",
+        "steps": "steps",
+        "outputs": "outputs",
+        "timeout_minutes": "timeout-minutes",
+        "continue_on_error": "continue-on-error",
+        "concurrency": "concurrency",
+        "services": "services",
+        "container": "container",
+        "uses": "uses",
+        "with_": "with",
+        "secrets": "secrets",
+    },
+    order=(
+        "name",
+        "runs-on",
+        "needs",
+        "if",
+        "permissions",
+        "environment",
+        "strategy",
+        "env",
+        "defaults",
+        "steps",
+        "outputs",
+        "timeout-minutes",
+        "continue-on-error",
+        "concurrency",
+        "services",
+        "container",
+        "uses",
+        "with",
+        "secrets",
+    ),
+)
 
 
 class Matrix(GhagenModel):
@@ -38,74 +112,66 @@ class Matrix(GhagenModel):
         )
     """
 
+    SPEC: ClassVar[ModelSpec] = MATRIX_SPEC
+
     include: list[dict[str, Any]] | None = None
     exclude: list[dict[str, Any]] | None = None
-
-    def _get_key_order(self) -> list[str]:
-        # Dynamic dimension keys come before include/exclude
-        return MATRIX_KEY_ORDER
 
 
 class Strategy(GhagenModel):
     """Job strategy configuration (matrix, fail-fast, max-parallel)."""
 
+    SPEC: ClassVar[ModelSpec] = STRATEGY_SPEC
+
     matrix: OrRaw[Matrix] | None = None
     fail_fast: bool | None = Field(None, serialization_alias="fail-fast")
     max_parallel: int | None = Field(None, serialization_alias="max-parallel")
-
-    def _get_key_order(self) -> list[str]:
-        return STRATEGY_KEY_ORDER
 
 
 class Environment(GhagenModel):
     """Job environment configuration."""
 
+    SPEC: ClassVar[ModelSpec] = ENVIRONMENT_SPEC
+
     name: str
     url: str | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return ENVIRONMENT_KEY_ORDER
 
 
 class Concurrency(GhagenModel):
     """Concurrency configuration for workflows or jobs."""
+
+    SPEC: ClassVar[ModelSpec] = CONCURRENCY_SPEC
 
     group: str
     cancel_in_progress: bool | None = Field(
         None, serialization_alias="cancel-in-progress"
     )
 
-    def _get_key_order(self) -> list[str]:
-        return CONCURRENCY_KEY_ORDER
-
 
 class Defaults(GhagenModel):
     """Default settings for all run steps in a job or workflow."""
 
-    run: OrRaw[DefaultsRun] | None = None
+    SPEC: ClassVar[ModelSpec] = DEFAULTS_SPEC
 
-    def _get_key_order(self) -> list[str]:
-        return DEFAULTS_KEY_ORDER
+    run: OrRaw[DefaultsRun] | None = None
 
 
 class DefaultsRun(GhagenModel):
     """Default run step settings."""
 
+    SPEC: ClassVar[ModelSpec] = DEFAULTS_RUN_SPEC
+
     shell: str | Raw[str] | None = None
     working_directory: str | None = Field(None, serialization_alias="working-directory")
-
-    def _get_key_order(self) -> list[str]:
-        return ["shell", "working-directory"]
 
 
 class JobOutput(GhagenModel):
     """A job output definition."""
 
+    SPEC: ClassVar[ModelSpec] = JOB_OUTPUT_SPEC
+
     description: str | None = None
     value: str
-
-    def _get_key_order(self) -> list[str]:
-        return ["description", "value"]
 
 
 class Job(GhagenModel):
@@ -114,6 +180,8 @@ class Job(GhagenModel):
     Supports both regular jobs (with steps) and reusable workflow jobs
     (with uses).
     """
+
+    SPEC: ClassVar[ModelSpec] = JOB_SPEC
 
     name: str | None = None
     runs_on: str | list[str] | Raw[str] | Raw[list[str]] | None = Field(
@@ -153,6 +221,3 @@ class Job(GhagenModel):
     uses: str | None = None
     with_: OrRaw[dict[str, Any]] | None = Field(None, serialization_alias="with")
     secrets: OrRaw[dict[str, str] | str] | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return JOB_KEY_ORDER

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from ruamel.yaml.comments import CommentedMap
@@ -16,10 +16,10 @@ from ghagen.emitter import emit
 from ghagen.emitter.comments import attach
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.emitter.yaml_writer import (
-    _yaml_key,
     to_ordered_commented_map,
     to_yaml_node,
 )
+from ghagen.models.spec import ModelSpec
 
 _T = TypeVar("_T")
 
@@ -107,6 +107,10 @@ class GhagenModel(BaseModel):
         arbitrary_types_allowed=True,
     )
 
+    # Per-model serialization spec (field → YAML key mapping + emission order).
+    # Every concrete model sets this next to its class definition.
+    SPEC: ClassVar[ModelSpec]
+
     extras: dict[str, Any] = Field(default_factory=dict, exclude=True)
     post_process: Callable[[CommentedMap], None] | None = Field(None, exclude=True)
     comment: str | None = Field(None, exclude=True)
@@ -177,28 +181,25 @@ class GhagenModel(BaseModel):
 
         yield from _visit([], self)
 
-    def _get_key_order(self) -> list[str]:
-        """Return the canonical key ordering for this model type.
-
-        Subclasses should override this to provide their specific ordering.
-        """
-        return []
-
     def to_commented_map(self) -> CommentedMap:
         """Serialize this model to a CommentedMap in a single field walk.
 
         Walks the model's own fields directly (no ``model_dump``): applies
         ``exclude_none`` / ``exclude_unset`` semantics, canonical key
         ordering, harvests per-field comments from Commented wrappers, merges
-        extras, attaches comments, and runs the ``post_process`` hook. Python
-        peer of TypeScript's ``Model.toYamlMap``.
+        extras, attaches comments, and runs the ``post_process`` hook. Field →
+        YAML key mapping and emission order both come from the model's
+        :class:`~ghagen.models.spec.ModelSpec`. Python peer of TypeScript's
+        ``Model.toYamlMap``.
 
         Returns:
             A :class:`ruamel.yaml.comments.CommentedMap` ready for YAML emission.
         """
+        spec = type(self).SPEC
+
         # Single walk: collect set, non-None fields under their YAML keys.
         raw: dict[str, Any] = {}
-        for field_name, field_info in type(self).model_fields.items():
+        for field_name in type(self).model_fields:
             if field_name in _META_FIELDS:
                 continue
             if field_name not in self.model_fields_set:  # exclude_unset
@@ -206,9 +207,9 @@ class GhagenModel(BaseModel):
             value = getattr(self, field_name, None)
             if value is None:  # exclude_none (checked on the raw wrapper)
                 continue
-            raw[_yaml_key(field_name, field_info)] = value
+            raw[spec.yaml_keys.get(field_name, field_name)] = value
 
-        ordered = to_ordered_commented_map(raw, self._get_key_order())
+        ordered = to_ordered_commented_map(raw, list(spec.order))
 
         cm = CommentedMap()
 

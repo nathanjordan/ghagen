@@ -1,13 +1,6 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../schema/workflow-types.generated.js";
-import {
-  WorkflowModel,
-  extractMeta,
-  isModel,
-  isCommented,
-  withComment,
-  withEolComment,
-} from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
 import type {
   OnModel,
   PermissionsModel,
@@ -16,6 +9,8 @@ import type {
   JobModel,
   WithMeta,
   Raw,
+  ModelSpec,
+  WorkflowModel,
 } from "./_base.js";
 import type { OnInput } from "./trigger.js";
 import { on } from "./trigger.js";
@@ -50,16 +45,27 @@ export interface WorkflowInput {
   jobs: Record<string, JobModel | YAMLMap>;
 }
 
-const WORKFLOW_FIELD_MAP = {
-  name: "name",
-  runName: "run-name",
-  on: "on",
-  permissions: "permissions",
-  env: "env",
-  defaults: "defaults",
-  concurrency: "concurrency",
-  jobs: "jobs",
-} as const satisfies Record<keyof WorkflowInput, keyof SchemaWorkflow>;
+/** Serialization spec for {@link WorkflowModel}. */
+export const WORKFLOW_SPEC: ModelSpec = {
+  kind: "workflow",
+  fieldMap: {
+    name: "name",
+    runName: "run-name",
+    on: "on",
+    permissions: "permissions",
+    env: "env",
+    defaults: "defaults",
+    concurrency: "concurrency",
+    jobs: "jobs",
+  } satisfies Record<keyof WorkflowInput, keyof SchemaWorkflow>,
+  order: ["name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"],
+  wrap: {
+    on: { factory: on, mode: "model" },
+    permissions: { factory: permissions, mode: "objectModel" },
+    defaults: { factory: defaults, mode: "objectModel" },
+    concurrency: { factory: concurrency, mode: "objectModel" },
+  },
+};
 
 /**
  * Create a workflow model representing a complete GitHub Actions workflow
@@ -86,43 +92,5 @@ const WORKFLOW_FIELD_MAP = {
  */
 export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
   const [data, meta] = extractMeta(input);
-  const yamlData: Record<string, unknown> = {};
-
-  for (const [camelKey, yamlKey] of Object.entries(WORKFLOW_FIELD_MAP)) {
-    let value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) {
-      continue;
-    }
-
-    // Peel off Commented wrapper before auto-wrapping, re-apply after
-    let commented: { comment?: string; eolComment?: string } | null = null;
-    if (isCommented(value)) {
-      commented = { comment: value.comment, eolComment: value.eolComment };
-      value = value.value;
-    }
-
-    if (camelKey === "on" && !isModel(value)) {
-      value = on(value as OnInput);
-    } else if (camelKey === "permissions" && typeof value === "object" && !isModel(value)) {
-      value = permissions(value as PermissionsInput);
-    } else if (camelKey === "defaults" && typeof value === "object" && !isModel(value)) {
-      value = defaults(value as DefaultsInput);
-    } else if (camelKey === "concurrency" && typeof value === "object" && !isModel(value)) {
-      value = concurrency(value as ConcurrencyInput);
-    }
-
-    // Re-wrap with Commented if needed
-    if (commented) {
-      if (commented.comment) {
-        value = withComment(value, commented.comment);
-      }
-      if (commented.eolComment) {
-        value = withEolComment(value, commented.eolComment);
-      }
-    }
-
-    yamlData[yamlKey] = value;
-  }
-
-  return new WorkflowModel(yamlData, meta);
+  return buildModel<WorkflowModel>(WORKFLOW_SPEC, data as Record<string, unknown>, meta);
 }

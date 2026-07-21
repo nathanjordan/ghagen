@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { step } from "./step.js";
+import { step, STEP_SPEC } from "./step.js";
 import { job } from "./job.js";
 import { workflow } from "./workflow.js";
 import { isModel, raw } from "./_base.js";
 import { toYaml } from "../emitter/yaml-writer.js";
-import { STEP_KEY_ORDER } from "../emitter/key-order.js";
 
 describe("step", () => {
   it("creates a basic run step", () => {
@@ -68,10 +67,10 @@ describe("step", () => {
     expect(s.data).not.toHaveProperty("comment");
   });
 
-  it("has correct kind, keyOrder, and passes isModel", () => {
+  it("has correct kind, spec, and passes isModel", () => {
     const s = step({ run: "echo hi" });
     expect(s.kind).toBe("step");
-    expect(s.keyOrder).toEqual(STEP_KEY_ORDER);
+    expect(s.spec).toBe(STEP_SPEC);
     expect(isModel(s)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import type { Container as SchemaContainer } from "../schema/workflow-types.generated.js";
-import { ContainerModel, ServiceModel, extractMeta, mapFields } from "./_base.js";
-import type { WithMeta } from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
+import type { WithMeta, ModelSpec, ContainerModel, ServiceModel } from "./_base.js";
 
 /**
  * Input properties for defining a container used in a GitHub Actions job.
@@ -30,7 +30,23 @@ const CONTAINER_FIELD_MAP = {
   ports: "ports",
   volumes: "volumes",
   options: "options",
-} as const satisfies Record<keyof ContainerInput, keyof SchemaContainer>;
+} satisfies Record<keyof ContainerInput, keyof SchemaContainer>;
+
+const CONTAINER_ORDER = ["image", "credentials", "env", "ports", "volumes", "options"];
+
+/** Serialization spec for {@link ContainerModel}. */
+export const CONTAINER_SPEC: ModelSpec = {
+  kind: "container",
+  fieldMap: CONTAINER_FIELD_MAP,
+  order: CONTAINER_ORDER,
+};
+
+/** Serialization spec for {@link ServiceModel} (identical shape, distinct kind). */
+export const SERVICE_SPEC: ModelSpec = {
+  kind: "service",
+  fieldMap: CONTAINER_FIELD_MAP,
+  order: CONTAINER_ORDER,
+};
 
 /**
  * Create a container model for use as a job-level container.
@@ -52,8 +68,7 @@ const CONTAINER_FIELD_MAP = {
  */
 export function container(input: WithMeta<ContainerInput>): ContainerModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, CONTAINER_FIELD_MAP);
-  return new ContainerModel(yamlData, meta);
+  return buildModel<ContainerModel>(CONTAINER_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -77,6 +92,5 @@ export function container(input: WithMeta<ContainerInput>): ContainerModel {
  */
 export function service(input: WithMeta<ContainerInput>): ServiceModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, CONTAINER_FIELD_MAP);
-  return new ServiceModel(yamlData, meta);
+  return buildModel<ServiceModel>(SERVICE_SPEC, data as Record<string, unknown>, meta);
 }

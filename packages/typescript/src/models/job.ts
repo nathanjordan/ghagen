@@ -3,24 +3,21 @@ import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
 } from "../schema/workflow-types.generated.js";
-import {
+import { buildModel, extractMeta, Model } from "./_base.js";
+import type {
   JobModel,
   StrategyModel,
   MatrixModel,
   ConcurrencyModel,
   DefaultsModel,
   EnvironmentModel,
-  extractMeta,
-  mapFields,
-  isModel,
-} from "./_base.js";
-import type {
   StepModel,
   PermissionsModel,
   ContainerModel,
   ServiceModel,
   WithMeta,
   Raw,
+  ModelSpec,
 } from "./_base.js";
 import type { PermissionsInput } from "./permissions.js";
 import { permissions } from "./permissions.js";
@@ -62,9 +59,22 @@ export interface MatrixInput {
  * })
  * ```
  */
+/**
+ * Serialization spec for {@link MatrixModel}.
+ *
+ * `fieldMap` names only the static keys; dynamic axis keys (e.g.
+ * `"node-version"`) are user-defined and pass straight through, so the factory
+ * stores the raw data bag rather than routing through {@link buildModel}.
+ */
+export const MATRIX_SPEC: ModelSpec = {
+  kind: "matrix",
+  fieldMap: { include: "include", exclude: "exclude" },
+  order: ["include", "exclude"],
+};
+
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
-  return new MatrixModel(data as Record<string, unknown>, meta);
+  return new Model(MATRIX_SPEC, data as Record<string, unknown>, meta) as MatrixModel;
 }
 
 /**
@@ -97,22 +107,17 @@ export interface StrategyInput {
  * })
  * ```
  */
+/** Serialization spec for {@link StrategyModel}. */
+export const STRATEGY_SPEC: ModelSpec = {
+  kind: "strategy",
+  fieldMap: { matrix_: "matrix", failFast: "fail-fast", maxParallel: "max-parallel" },
+  order: ["matrix", "fail-fast", "max-parallel"],
+  wrap: { matrix_: { factory: matrix, mode: "model" } },
+};
+
 export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
-  const [rawData, meta] = extractMeta(input);
-  const data = rawData as StrategyInput;
-  const normalized: Record<string, unknown> = {};
-  if (data.matrix_ !== undefined) {
-    normalized["matrix"] = isModel(data.matrix_)
-      ? data.matrix_
-      : matrix(data.matrix_ as MatrixInput);
-  }
-  if (data.failFast !== undefined) {
-    normalized["fail-fast"] = data.failFast;
-  }
-  if (data.maxParallel !== undefined) {
-    normalized["max-parallel"] = data.maxParallel;
-  }
-  return new StrategyModel(normalized, meta);
+  const [data, meta] = extractMeta(input);
+  return buildModel<StrategyModel>(STRATEGY_SPEC, data as Record<string, unknown>, meta);
 }
 
 // ---- Concurrency ----
@@ -128,10 +133,15 @@ export interface ConcurrencyInput {
   cancelInProgress?: boolean;
 }
 
-const CONCURRENCY_FIELD_MAP = {
-  group: "group",
-  cancelInProgress: "cancel-in-progress",
-} as const satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>;
+/** Serialization spec for {@link ConcurrencyModel}. */
+export const CONCURRENCY_SPEC: ModelSpec = {
+  kind: "concurrency",
+  fieldMap: {
+    group: "group",
+    cancelInProgress: "cancel-in-progress",
+  } satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>,
+  order: ["group", "cancel-in-progress"],
+};
 
 /**
  * Create a concurrency model that prevents concurrent runs in the same group.
@@ -149,8 +159,7 @@ const CONCURRENCY_FIELD_MAP = {
  */
 export function concurrency(input: WithMeta<ConcurrencyInput>): ConcurrencyModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, CONCURRENCY_FIELD_MAP);
-  return new ConcurrencyModel(yamlData, meta);
+  return buildModel<ConcurrencyModel>(CONCURRENCY_SPEC, data as Record<string, unknown>, meta);
 }
 
 // ---- Defaults ----
@@ -187,6 +196,18 @@ export interface DefaultsInput {
  * })
  * ```
  */
+/**
+ * Serialization spec for {@link DefaultsModel}.
+ *
+ * The nested `run` object (shell + working-directory) is a plain map, not a
+ * Model, so the factory builds it by hand rather than via {@link buildModel}.
+ */
+export const DEFAULTS_SPEC: ModelSpec = {
+  kind: "defaults",
+  fieldMap: { run: "run" },
+  order: ["run"],
+};
+
 export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
   const [rawData, meta] = extractMeta(input);
   const data = rawData as DefaultsInput;
@@ -201,7 +222,7 @@ export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
     }
     yamlData["run"] = runData;
   }
-  return new DefaultsModel(yamlData, meta);
+  return new Model(DEFAULTS_SPEC, yamlData, meta) as DefaultsModel;
 }
 
 // ---- Environment ----
@@ -216,10 +237,15 @@ export interface EnvironmentInput {
   url?: string;
 }
 
-const ENVIRONMENT_FIELD_MAP = {
-  name: "name",
-  url: "url",
-} as const satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>;
+/** Serialization spec for {@link EnvironmentModel}. */
+export const ENVIRONMENT_SPEC: ModelSpec = {
+  kind: "environment",
+  fieldMap: {
+    name: "name",
+    url: "url",
+  } satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>,
+  order: ["name", "url"],
+};
 
 /**
  * Create an environment model for deployment environment configuration.
@@ -234,8 +260,7 @@ const ENVIRONMENT_FIELD_MAP = {
  */
 export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, ENVIRONMENT_FIELD_MAP);
-  return new EnvironmentModel(yamlData, meta);
+  return buildModel<EnvironmentModel>(ENVIRONMENT_SPEC, data as Record<string, unknown>, meta);
 }
 
 // ---- Job output ----
@@ -299,27 +324,61 @@ export interface JobInput {
   secrets?: Record<string, string> | "inherit";
 }
 
-const JOB_FIELD_MAP = {
-  name: "name",
-  runsOn: "runs-on",
-  needs: "needs",
-  if_: "if",
-  permissions: "permissions",
-  environment: "environment",
-  strategy: "strategy",
-  env: "env",
-  defaults: "defaults",
-  steps: "steps",
-  outputs: "outputs",
-  timeoutMinutes: "timeout-minutes",
-  continueOnError: "continue-on-error",
-  concurrency: "concurrency",
-  services: "services",
-  container: "container",
-  uses: "uses",
-  with_: "with",
-  secrets: "secrets",
-} as const;
+/** Serialization spec for {@link JobModel}. */
+export const JOB_SPEC: ModelSpec = {
+  kind: "job",
+  fieldMap: {
+    name: "name",
+    runsOn: "runs-on",
+    needs: "needs",
+    if_: "if",
+    permissions: "permissions",
+    environment: "environment",
+    strategy: "strategy",
+    env: "env",
+    defaults: "defaults",
+    steps: "steps",
+    outputs: "outputs",
+    timeoutMinutes: "timeout-minutes",
+    continueOnError: "continue-on-error",
+    concurrency: "concurrency",
+    services: "services",
+    container: "container",
+    uses: "uses",
+    with_: "with",
+    secrets: "secrets",
+  },
+  order: [
+    "name",
+    "runs-on",
+    "needs",
+    "if",
+    "permissions",
+    "environment",
+    "strategy",
+    "env",
+    "defaults",
+    "steps",
+    "outputs",
+    "timeout-minutes",
+    "continue-on-error",
+    "concurrency",
+    "services",
+    "container",
+    "uses",
+    "with",
+    "secrets",
+  ],
+  wrap: {
+    permissions: { factory: permissions, mode: "objectModel" },
+    environment: { factory: environment, mode: "objectModel" },
+    strategy: { factory: strategy, mode: "objectModel" },
+    defaults: { factory: defaults, mode: "objectModel" },
+    concurrency: { factory: concurrency, mode: "objectModel" },
+    container: { factory: container, mode: "objectModel" },
+    services: { factory: service, mode: "map" },
+  },
+};
 
 /**
  * Create a job model for use in a workflow's `jobs` map. Plain-object values
@@ -344,44 +403,5 @@ const JOB_FIELD_MAP = {
  */
 export function job(input: WithMeta<JobInput>): JobModel {
   const [data, meta] = extractMeta(input);
-  const yamlData: Record<string, unknown> = {};
-
-  // Map simple fields
-  for (const [camelKey, yamlKey] of Object.entries(JOB_FIELD_MAP)) {
-    const value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) {
-      continue;
-    }
-
-    // Auto-wrap plain objects with appropriate factory
-    if (camelKey === "permissions" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = permissions(value as PermissionsInput);
-    } else if (camelKey === "environment" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = environment(value as EnvironmentInput);
-    } else if (camelKey === "strategy" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = strategy(value as StrategyInput);
-    } else if (camelKey === "defaults" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = defaults(value as DefaultsInput);
-    } else if (camelKey === "concurrency" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = concurrency(value as ConcurrencyInput);
-    } else if (camelKey === "container" && typeof value === "object" && !isModel(value)) {
-      yamlData[yamlKey] = container(value as ContainerInput);
-    } else if (camelKey === "services" && typeof value === "object" && !isModel(value)) {
-      const services: Record<string, unknown> = {};
-      for (const [name, svc] of Object.entries(value as Record<string, unknown>)) {
-        if (typeof svc === "string") {
-          services[name] = svc;
-        } else if (isModel(svc)) {
-          services[name] = svc;
-        } else {
-          services[name] = service(svc as ContainerInput);
-        }
-      }
-      yamlData[yamlKey] = services;
-    } else {
-      yamlData[yamlKey] = value;
-    }
-  }
-
-  return new JobModel(yamlData, meta);
+  return buildModel<JobModel>(JOB_SPEC, data as Record<string, unknown>, meta);
 }

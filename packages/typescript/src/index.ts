@@ -25,6 +25,20 @@ export {
   isCommented,
   unwrapCommented,
   Model,
+} from "./models/_base.js";
+// Model kind aliases: a single `Model` class is discriminated by `kind`, so
+// these are type-only narrowings (`Model & { kind: "step" }`), not classes.
+export type {
+  Commented,
+  Commentable,
+  Document,
+  Raw,
+  ModelKind,
+  ModelMeta,
+  ModelSpec,
+  WrapRule,
+  WithMeta,
+  ModelOf,
   StepModel,
   JobModel,
   WorkflowModel,
@@ -34,6 +48,7 @@ export {
   PRTriggerModel,
   ScheduleTriggerModel,
   WorkflowDispatchModel,
+  WorkflowDispatchInputModel,
   WorkflowCallModel,
   PermissionsModel,
   StrategyModel,
@@ -49,15 +64,6 @@ export {
   CompositeRunsModel,
   DockerRunsModel,
   NodeRunsModel,
-} from "./models/_base.js";
-export type {
-  Commented,
-  Commentable,
-  Document,
-  Raw,
-  ModelKind,
-  ModelMeta,
-  WithMeta,
 } from "./models/_base.js";
 
 export { step } from "./models/step.js";

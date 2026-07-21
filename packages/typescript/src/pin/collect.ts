@@ -3,7 +3,6 @@
  */
 
 import type { App } from "../app.js";
-import { StepModel, JobModel } from "../models/_base.js";
 import { UsesRef } from "./uses.js";
 
 /**
@@ -22,7 +21,7 @@ export function collectUsesRefs(app: App): Set<string> {
 
   for (const { item } of app._items) {
     item.walk((model) => {
-      if (model instanceof StepModel || model instanceof JobModel) {
+      if (model.kind === "step" || model.kind === "job") {
         const uses = model.data["uses"];
         if (typeof uses === "string") {
           const parsed = UsesRef.parse(uses);

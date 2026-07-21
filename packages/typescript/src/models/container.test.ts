@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { container, service } from "./container.js";
-import { CONTAINER_KEY_ORDER } from "../emitter/key-order.js";
+import { container, service, CONTAINER_SPEC, SERVICE_SPEC } from "./container.js";
 
 describe("container", () => {
   it("creates a container with image only", () => {
@@ -46,10 +45,11 @@ describe("service", () => {
 });
 
 describe("container/service key order", () => {
-  it("both use CONTAINER_KEY_ORDER", () => {
+  it("both share the container key order (distinct kinds)", () => {
     const c = container({ image: "node:20" });
     const s = service({ image: "node:20" });
-    expect(c.keyOrder).toEqual(CONTAINER_KEY_ORDER);
-    expect(s.keyOrder).toEqual(CONTAINER_KEY_ORDER);
+    expect(c.spec).toBe(CONTAINER_SPEC);
+    expect(s.spec).toBe(SERVICE_SPEC);
+    expect(c.spec.order).toEqual(s.spec.order);
   });
 });

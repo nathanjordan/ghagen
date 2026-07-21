@@ -2,16 +2,39 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
 from ghagen._raw import Raw
-from ghagen.emitter.key_order import WORKFLOW_KEY_ORDER
 from ghagen.models._base import Document, OrRaw
 from ghagen.models.job import Concurrency, Defaults, Job
 from ghagen.models.permissions import Permissions
+from ghagen.models.spec import ModelSpec
 from ghagen.models.trigger import On
+
+WORKFLOW_SPEC = ModelSpec(
+    yaml_keys={
+        "name": "name",
+        "run_name": "run-name",
+        "on": "on",
+        "permissions": "permissions",
+        "env": "env",
+        "defaults": "defaults",
+        "concurrency": "concurrency",
+        "jobs": "jobs",
+    },
+    order=(
+        "name",
+        "run-name",
+        "on",
+        "permissions",
+        "env",
+        "defaults",
+        "concurrency",
+        "jobs",
+    ),
+)
 
 
 class Workflow(Document):
@@ -34,6 +57,8 @@ class Workflow(Document):
         print(workflow.to_yaml())
     """
 
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_SPEC
+
     name: str | None = None
     run_name: str | None = Field(
         None,
@@ -48,6 +73,3 @@ class Workflow(Document):
     defaults: OrRaw[Defaults] | None = None
     concurrency: OrRaw[str | Concurrency] | None = None
     jobs: dict[str, OrRaw[Job]] = Field(default_factory=dict)
-
-    def _get_key_order(self) -> list[str]:
-        return WORKFLOW_KEY_ORDER

@@ -2,14 +2,43 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import Field
 
 from ghagen._raw import Raw
-from ghagen.emitter.key_order import STEP_KEY_ORDER
 from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.common import ShellType
+from ghagen.models.spec import ModelSpec
+
+STEP_SPEC = ModelSpec(
+    yaml_keys={
+        "id": "id",
+        "name": "name",
+        "if_": "if",
+        "uses": "uses",
+        "run": "run",
+        "with_": "with",
+        "env": "env",
+        "shell": "shell",
+        "working_directory": "working-directory",
+        "continue_on_error": "continue-on-error",
+        "timeout_minutes": "timeout-minutes",
+    },
+    order=(
+        "id",
+        "name",
+        "if",
+        "uses",
+        "run",
+        "with",
+        "env",
+        "shell",
+        "working-directory",
+        "continue-on-error",
+        "timeout-minutes",
+    ),
+)
 
 
 class Step(GhagenModel):
@@ -17,6 +46,8 @@ class Step(GhagenModel):
 
     A step either runs a shell command (`run`) or uses an action (`uses`).
     """
+
+    SPEC: ClassVar[ModelSpec] = STEP_SPEC
 
     id: str | None = None
     name: str | None = None
@@ -50,6 +81,3 @@ class Step(GhagenModel):
         serialization_alias="timeout-minutes",
         description="Maximum minutes the step can run before being cancelled.",
     )
-
-    def _get_key_order(self) -> list[str]:
-        return STEP_KEY_ORDER

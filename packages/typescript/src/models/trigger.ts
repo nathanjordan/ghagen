@@ -1,15 +1,15 @@
-import {
+import { Model, buildModel, buildYamlData, extractMeta } from "./_base.js";
+import type {
   OnModel,
   PushTriggerModel,
   PRTriggerModel,
   ScheduleTriggerModel,
   WorkflowDispatchModel,
+  WorkflowDispatchInputModel,
   WorkflowCallModel,
-  extractMeta,
-  mapFields,
-  isModel,
+  WithMeta,
+  ModelSpec,
 } from "./_base.js";
-import type { WithMeta } from "./_base.js";
 
 /**
  * Input for `push` event trigger configuration. Filters which pushes
@@ -30,14 +30,19 @@ export interface PushTriggerInput {
   pathsIgnore?: string[];
 }
 
-const PUSH_TRIGGER_FIELD_MAP = {
-  branches: "branches",
-  branchesIgnore: "branches-ignore",
-  tags: "tags",
-  tagsIgnore: "tags-ignore",
-  paths: "paths",
-  pathsIgnore: "paths-ignore",
-} as const;
+/** Serialization spec for {@link PushTriggerModel}. */
+export const PUSH_TRIGGER_SPEC: ModelSpec = {
+  kind: "pushTrigger",
+  fieldMap: {
+    branches: "branches",
+    branchesIgnore: "branches-ignore",
+    tags: "tags",
+    tagsIgnore: "tags-ignore",
+    paths: "paths",
+    pathsIgnore: "paths-ignore",
+  },
+  order: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore"],
+};
 
 /**
  * Create a push trigger model for the `on.push` configuration.
@@ -56,8 +61,7 @@ const PUSH_TRIGGER_FIELD_MAP = {
  */
 export function pushTrigger(input: WithMeta<PushTriggerInput>): PushTriggerModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, PUSH_TRIGGER_FIELD_MAP);
-  return new PushTriggerModel(yamlData, meta);
+  return buildModel<PushTriggerModel>(PUSH_TRIGGER_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -81,15 +85,20 @@ export interface PRTriggerInput {
   types?: string[];
 }
 
-const PR_TRIGGER_FIELD_MAP = {
-  branches: "branches",
-  branchesIgnore: "branches-ignore",
-  tags: "tags",
-  tagsIgnore: "tags-ignore",
-  paths: "paths",
-  pathsIgnore: "paths-ignore",
-  types: "types",
-} as const;
+/** Serialization spec for {@link PRTriggerModel}. */
+export const PR_TRIGGER_SPEC: ModelSpec = {
+  kind: "prTrigger",
+  fieldMap: {
+    branches: "branches",
+    branchesIgnore: "branches-ignore",
+    tags: "tags",
+    tagsIgnore: "tags-ignore",
+    paths: "paths",
+    pathsIgnore: "paths-ignore",
+    types: "types",
+  },
+  order: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore", "types"],
+};
 
 /**
  * Create a pull request trigger model for the `on.pull_request` or
@@ -108,8 +117,7 @@ const PR_TRIGGER_FIELD_MAP = {
  */
 export function prTrigger(input: WithMeta<PRTriggerInput>): PRTriggerModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, PR_TRIGGER_FIELD_MAP);
-  return new PRTriggerModel(yamlData, meta);
+  return buildModel<PRTriggerModel>(PR_TRIGGER_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -133,9 +141,20 @@ export interface ScheduleTriggerInput {
  * scheduleTrigger({ cron: "0 0 * * 1" }) // Every Monday at midnight
  * ```
  */
+/** Serialization spec for {@link ScheduleTriggerModel}. */
+export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
+  kind: "scheduleTrigger",
+  fieldMap: { cron: "cron", timezone: "timezone" },
+  order: ["cron", "timezone"],
+};
+
 export function scheduleTrigger(input: WithMeta<ScheduleTriggerInput>): ScheduleTriggerModel {
   const [data, meta] = extractMeta(input);
-  return new ScheduleTriggerModel(data as Record<string, unknown>, meta);
+  return buildModel<ScheduleTriggerModel>(
+    SCHEDULE_TRIGGER_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
 }
 
 /**
@@ -184,9 +203,51 @@ export interface WorkflowDispatchInput {
  * })
  * ```
  */
+/**
+ * Serialization spec for a single `workflow_dispatch` input definition.
+ *
+ * Gives dispatch input defs canonical key ordering (description, required,
+ * default, type, options) instead of the user's insertion order.
+ */
+export const WORKFLOW_DISPATCH_INPUT_SPEC: ModelSpec = {
+  kind: "workflowDispatchInput",
+  fieldMap: {
+    description: "description",
+    required: "required",
+    default: "default",
+    type: "type",
+    options: "options",
+  },
+  order: ["description", "required", "default", "type", "options"],
+};
+
+/** Wrap one `workflow_dispatch` input def into an ordered model. */
+function workflowDispatchInputDef(
+  input: WithMeta<WorkflowDispatchInputDef>,
+): WorkflowDispatchInputModel {
+  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
+  return buildModel<WorkflowDispatchInputModel>(
+    WORKFLOW_DISPATCH_INPUT_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
+}
+
+/** Serialization spec for {@link WorkflowDispatchModel}. */
+export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
+  kind: "workflowDispatch",
+  fieldMap: { inputs: "inputs" },
+  order: ["inputs"],
+  wrap: { inputs: { factory: workflowDispatchInputDef, mode: "map" } },
+};
+
 export function workflowDispatch(input: WithMeta<WorkflowDispatchInput>): WorkflowDispatchModel {
   const [data, meta] = extractMeta(input);
-  return new WorkflowDispatchModel(data as Record<string, unknown>, meta);
+  return buildModel<WorkflowDispatchModel>(
+    WORKFLOW_DISPATCH_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
 }
 
 /**
@@ -259,9 +320,16 @@ export interface WorkflowCallInput {
  * })
  * ```
  */
+/** Serialization spec for {@link WorkflowCallModel}. */
+export const WORKFLOW_CALL_SPEC: ModelSpec = {
+  kind: "workflowCall",
+  fieldMap: { inputs: "inputs", outputs: "outputs", secrets: "secrets" },
+  order: ["inputs", "outputs", "secrets"],
+};
+
 export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
   const [data, meta] = extractMeta(input);
-  return new WorkflowCallModel(data as Record<string, unknown>, meta);
+  return buildModel<WorkflowCallModel>(WORKFLOW_CALL_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -339,41 +407,61 @@ export interface OnInput {
   workflowRun?: Record<string, unknown>;
 }
 
-const ON_FIELD_MAP = {
-  push: "push",
-  pullRequest: "pull_request",
-  pullRequestTarget: "pull_request_target",
-  workflowDispatch: "workflow_dispatch",
-  workflowCall: "workflow_call",
-  schedule: "schedule",
-  branchProtectionRule: "branch_protection_rule",
-  checkRun: "check_run",
-  checkSuite: "check_suite",
-  create: "create",
-  delete_: "delete",
-  deployment: "deployment",
-  deploymentStatus: "deployment_status",
-  discussion: "discussion",
-  discussionComment: "discussion_comment",
-  fork: "fork",
-  gollum: "gollum",
-  issueComment: "issue_comment",
-  issues: "issues",
-  label: "label",
-  mergeGroup: "merge_group",
-  milestone: "milestone",
-  pageBuild: "page_build",
-  project: "project",
-  projectCard: "project_card",
-  projectColumn: "project_column",
-  public: "public",
-  registryPackage: "registry_package",
-  release: "release",
-  repositoryDispatch: "repository_dispatch",
-  status: "status",
-  watch: "watch",
-  workflowRun: "workflow_run",
-} as const;
+/**
+ * Serialization spec for {@link OnModel}.
+ *
+ * `order` is empty: `on()` sorts the wrapped keys alphabetically before
+ * constructing the model (matching Python's alphabetical trigger emission).
+ * The typed trigger fields carry auto-wrap rules; the plain-object event
+ * fields pass through untouched.
+ */
+export const ON_SPEC: ModelSpec = {
+  kind: "on",
+  fieldMap: {
+    push: "push",
+    pullRequest: "pull_request",
+    pullRequestTarget: "pull_request_target",
+    workflowDispatch: "workflow_dispatch",
+    workflowCall: "workflow_call",
+    schedule: "schedule",
+    branchProtectionRule: "branch_protection_rule",
+    checkRun: "check_run",
+    checkSuite: "check_suite",
+    create: "create",
+    delete_: "delete",
+    deployment: "deployment",
+    deploymentStatus: "deployment_status",
+    discussion: "discussion",
+    discussionComment: "discussion_comment",
+    fork: "fork",
+    gollum: "gollum",
+    issueComment: "issue_comment",
+    issues: "issues",
+    label: "label",
+    mergeGroup: "merge_group",
+    milestone: "milestone",
+    pageBuild: "page_build",
+    project: "project",
+    projectCard: "project_card",
+    projectColumn: "project_column",
+    public: "public",
+    registryPackage: "registry_package",
+    release: "release",
+    repositoryDispatch: "repository_dispatch",
+    status: "status",
+    watch: "watch",
+    workflowRun: "workflow_run",
+  },
+  order: [],
+  wrap: {
+    push: { factory: pushTrigger, mode: "model" },
+    pullRequest: { factory: prTrigger, mode: "model" },
+    pullRequestTarget: { factory: prTrigger, mode: "model" },
+    workflowDispatch: { factory: workflowDispatch, mode: "dispatch" },
+    workflowCall: { factory: workflowCall, mode: "model" },
+    schedule: { factory: scheduleTrigger, mode: "list" },
+  },
+};
 
 /**
  * Create a trigger configuration model for the `on:` section of a workflow.
@@ -395,46 +483,13 @@ const ON_FIELD_MAP = {
  */
 export function on(input: WithMeta<OnInput>): OnModel {
   const [data, meta] = extractMeta(input);
-  const yamlData: Record<string, unknown> = {};
+  const yamlData = buildYamlData(ON_SPEC, data as Record<string, unknown>);
 
-  for (const [camelKey, yamlKey] of Object.entries(ON_FIELD_MAP)) {
-    const value = (data as Record<string, unknown>)[camelKey];
-    if (value === undefined) {
-      continue;
-    }
-
-    // Auto-wrap plain objects with appropriate factory for typed triggers
-    if (camelKey === "push" && !isModel(value)) {
-      yamlData[yamlKey] = pushTrigger(value as PushTriggerInput);
-    } else if (
-      (camelKey === "pullRequest" || camelKey === "pullRequestTarget") &&
-      !isModel(value)
-    ) {
-      yamlData[yamlKey] = prTrigger(value as PRTriggerInput);
-    } else if (camelKey === "workflowDispatch") {
-      if (typeof value === "boolean" || value === null) {
-        yamlData[yamlKey] = value;
-      } else if (!isModel(value)) {
-        yamlData[yamlKey] = workflowDispatch(value as WorkflowDispatchInput);
-      } else {
-        yamlData[yamlKey] = value;
-      }
-    } else if (camelKey === "workflowCall" && !isModel(value)) {
-      yamlData[yamlKey] = workflowCall(value as WorkflowCallInput);
-    } else if (camelKey === "schedule" && Array.isArray(value)) {
-      yamlData[yamlKey] = value.map((item) =>
-        isModel(item) ? item : scheduleTrigger(item as ScheduleTriggerInput),
-      );
-    } else {
-      yamlData[yamlKey] = value;
-    }
-  }
-
-  // Sort keys alphabetically (matching Python behavior — no explicit ON_KEY_ORDER)
+  // Sort keys alphabetically (matching Python behavior — no explicit trigger order).
   const sortedData: Record<string, unknown> = {};
   for (const key of Object.keys(yamlData).sort()) {
     sortedData[key] = yamlData[key];
   }
 
-  return new OnModel(sortedData, meta);
+  return new Model(ON_SPEC, sortedData, meta) as OnModel;
 }

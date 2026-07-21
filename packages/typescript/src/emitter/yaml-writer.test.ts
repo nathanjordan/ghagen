@@ -5,34 +5,22 @@ import { tmpdir } from "node:os";
 import { YAMLMap, Scalar, Pair } from "yaml";
 import { toYaml, toYamlFile } from "./yaml-writer.js";
 import type { HeaderVariables } from "./header.js";
-import { Model, JobModel, raw, withComment, withEolComment } from "../models/_base.js";
-import type { ModelMeta } from "../models/_base.js";
+import { Model, raw, withComment, withEolComment } from "../models/_base.js";
+import type { ModelMeta, ModelSpec } from "../models/_base.js";
+import { JOB_SPEC } from "../models/job.js";
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal Model subclass for testing YAML serialization in isolation. */
-class TestModel extends Model {
-  readonly kind = "test" as const;
-  constructor(
-    data: Record<string, unknown>,
-    meta: Record<string, unknown>,
-    readonly keyOrder: readonly string[] = [],
-  ) {
-    super(data, meta as ModelMeta);
-  }
-  clone() {
-    return new TestModel({ ...this.data }, { ...this.meta }, this.keyOrder);
-  }
-}
-
+/** Build a bare Model with an ad-hoc spec for testing serialization in isolation. */
 function simpleModel(
   data: Record<string, unknown> = {},
   meta: Record<string, unknown> = {},
-  keyOrder: readonly string[] = [],
+  order: readonly string[] = [],
 ) {
-  return new TestModel(data, meta, keyOrder);
+  const spec = { kind: "step", fieldMap: {}, order } as unknown as ModelSpec;
+  return new Model(spec, data, meta as ModelMeta);
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +83,11 @@ describe("toYaml()", () => {
 // ---------------------------------------------------------------------------
 describe("toYamlMap() key ordering", () => {
   it("orders keys according to keyOrder, then remaining in insertion order", () => {
-    const m = new JobModel({ steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} }, {});
+    const m = new Model(
+      JOB_SPEC,
+      { steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} },
+      {},
+    );
     const map = m.toYamlMap();
     const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
     // JOB_KEY_ORDER puts name, runs-on, ... env, ... steps

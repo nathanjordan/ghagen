@@ -6,7 +6,7 @@
  * comment via `withEolComment()`.
  */
 
-import { StepModel, JobModel, isCommented, withEolComment } from "../models/_base.js";
+import { isCommented, withEolComment } from "../models/_base.js";
 import type { Document } from "../models/_base.js";
 import type { Transform } from "../transforms.js";
 import type { Lockfile } from "./lockfile.js";
@@ -27,7 +27,7 @@ export type PinTransform = Transform;
 export function pinTransform(lockfile: Lockfile): PinTransform {
   return function pin(item: Document): Document {
     item.walk((model) => {
-      if (model instanceof StepModel || model instanceof JobModel) {
+      if (model.kind === "step" || model.kind === "job") {
         let uses = model.data["uses"];
         if (isCommented(uses)) {
           uses = uses.value;

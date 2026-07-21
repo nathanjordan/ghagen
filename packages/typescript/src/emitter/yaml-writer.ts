@@ -1,5 +1,5 @@
 import { Document, YAMLMap } from "yaml";
-import { StepModel, cloneModel, type Document as GhagenDocument } from "../models/_base.js";
+import { cloneModel, type Document as GhagenDocument } from "../models/_base.js";
 import { attachModelComment } from "./comments.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { dedentScript } from "../_dedent.js";
@@ -37,7 +37,7 @@ export interface ToYamlOptions {
 function dedentSteps(model: GhagenDocument): GhagenDocument {
   const clone = cloneModel(model);
   clone.walk((node) => {
-    if (node instanceof StepModel && typeof node.data["run"] === "string") {
+    if (node.kind === "step" && typeof node.data["run"] === "string") {
       node.data["run"] = dedentScript(node.data["run"] as string);
     }
   });

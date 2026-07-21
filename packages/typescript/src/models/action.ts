@@ -1,6 +1,11 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../schema/action-types.generated.js";
-import {
+import { buildModel, extractMeta } from "./_base.js";
+import type {
+  StepModel,
+  WithMeta,
+  Raw,
+  ModelSpec,
   ActionModel,
   ActionInputModel,
   ActionOutputModel,
@@ -8,19 +13,7 @@ import {
   CompositeRunsModel,
   DockerRunsModel,
   NodeRunsModel,
-  extractMeta,
-  mapFields,
 } from "./_base.js";
-import type { StepModel, WithMeta, Raw } from "./_base.js";
-import {
-  ACTION_KEY_ORDER,
-  ACTION_INPUT_KEY_ORDER,
-  ACTION_OUTPUT_KEY_ORDER,
-  BRANDING_KEY_ORDER,
-  COMPOSITE_RUNS_KEY_ORDER,
-  DOCKER_RUNS_KEY_ORDER,
-  NODE_RUNS_KEY_ORDER,
-} from "../emitter/key-order.js";
 
 // ---------------------------------------------------------------------------
 // Input interfaces
@@ -159,61 +152,97 @@ export interface ActionInput {
 }
 
 // ---------------------------------------------------------------------------
-// Field maps (camelCase -> YAML key)
+// Serialization specs
 // ---------------------------------------------------------------------------
 
-const ACTION_INPUT_DEF_FIELD_MAP = {
-  description: "description",
-  required: "required",
-  default: "default",
-  deprecationMessage: "deprecationMessage",
-} as const satisfies Record<string, (typeof ACTION_INPUT_KEY_ORDER)[number]>;
+/** Serialization spec for {@link ActionInputModel}. */
+export const ACTION_INPUT_SPEC: ModelSpec = {
+  kind: "actionInput",
+  fieldMap: {
+    description: "description",
+    required: "required",
+    default: "default",
+    deprecationMessage: "deprecationMessage",
+  },
+  order: ["description", "required", "default", "deprecationMessage"],
+};
 
-const ACTION_OUTPUT_DEF_FIELD_MAP = {
-  description: "description",
-  value: "value",
-} as const satisfies Record<string, (typeof ACTION_OUTPUT_KEY_ORDER)[number]>;
+/** Serialization spec for {@link ActionOutputModel}. */
+export const ACTION_OUTPUT_SPEC: ModelSpec = {
+  kind: "actionOutput",
+  fieldMap: { description: "description", value: "value" },
+  order: ["description", "value"],
+};
 
-const BRANDING_FIELD_MAP = {
-  icon: "icon",
-  color: "color",
-} as const satisfies Record<string, (typeof BRANDING_KEY_ORDER)[number]>;
+/** Serialization spec for {@link BrandingModel}. */
+export const BRANDING_SPEC: ModelSpec = {
+  kind: "branding",
+  fieldMap: { icon: "icon", color: "color" },
+  order: ["icon", "color"],
+};
 
-const COMPOSITE_RUNS_FIELD_MAP = {
-  using: "using",
-  steps: "steps",
-} as const satisfies Record<string, (typeof COMPOSITE_RUNS_KEY_ORDER)[number]>;
+/** Serialization spec for {@link CompositeRunsModel}. */
+export const COMPOSITE_RUNS_SPEC: ModelSpec = {
+  kind: "compositeRuns",
+  fieldMap: { using: "using", steps: "steps" },
+  order: ["using", "steps"],
+};
 
-const DOCKER_RUNS_FIELD_MAP = {
-  using: "using",
-  image: "image",
-  env: "env",
-  args: "args",
-  preEntrypoint: "pre-entrypoint",
-  preIf: "pre-if",
-  entrypoint: "entrypoint",
-  postEntrypoint: "post-entrypoint",
-  postIf: "post-if",
-} as const satisfies Record<string, (typeof DOCKER_RUNS_KEY_ORDER)[number]>;
+/** Serialization spec for {@link DockerRunsModel}. */
+export const DOCKER_RUNS_SPEC: ModelSpec = {
+  kind: "dockerRuns",
+  fieldMap: {
+    using: "using",
+    image: "image",
+    env: "env",
+    args: "args",
+    preEntrypoint: "pre-entrypoint",
+    preIf: "pre-if",
+    entrypoint: "entrypoint",
+    postEntrypoint: "post-entrypoint",
+    postIf: "post-if",
+  },
+  order: [
+    "using",
+    "image",
+    "env",
+    "args",
+    "pre-entrypoint",
+    "pre-if",
+    "entrypoint",
+    "post-entrypoint",
+    "post-if",
+  ],
+};
 
-const NODE_RUNS_FIELD_MAP = {
-  using: "using",
-  main: "main",
-  pre: "pre",
-  post: "post",
-  preIf: "pre-if",
-  postIf: "post-if",
-} as const satisfies Record<string, (typeof NODE_RUNS_KEY_ORDER)[number]>;
+/** Serialization spec for {@link NodeRunsModel}. */
+export const NODE_RUNS_SPEC: ModelSpec = {
+  kind: "nodeRuns",
+  fieldMap: {
+    using: "using",
+    main: "main",
+    pre: "pre",
+    post: "post",
+    preIf: "pre-if",
+    postIf: "post-if",
+  },
+  order: ["using", "main", "pre", "post", "pre-if", "post-if"],
+};
 
-const ACTION_FIELD_MAP = {
-  name: "name",
-  description: "description",
-  author: "author",
-  branding: "branding",
-  inputs: "inputs",
-  outputs: "outputs",
-  runs: "runs",
-} as const satisfies Record<string, (typeof ACTION_KEY_ORDER)[number]>;
+/** Serialization spec for {@link ActionModel}. */
+export const ACTION_SPEC: ModelSpec = {
+  kind: "action",
+  fieldMap: {
+    name: "name",
+    description: "description",
+    author: "author",
+    branding: "branding",
+    inputs: "inputs",
+    outputs: "outputs",
+    runs: "runs",
+  } satisfies Record<string, keyof SchemaAction>,
+  order: ["name", "description", "author", "branding", "inputs", "outputs", "runs"],
+};
 
 // ---------------------------------------------------------------------------
 // Factory functions
@@ -238,10 +267,7 @@ const ACTION_FIELD_MAP = {
  */
 export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new ActionInputModel(
-    mapFields(data as Record<string, unknown>, ACTION_INPUT_DEF_FIELD_MAP),
-    meta,
-  );
+  return buildModel<ActionInputModel>(ACTION_INPUT_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -262,10 +288,7 @@ export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInpu
  */
 export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOutputModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new ActionOutputModel(
-    mapFields(data as Record<string, unknown>, ACTION_OUTPUT_DEF_FIELD_MAP),
-    meta,
-  );
+  return buildModel<ActionOutputModel>(ACTION_OUTPUT_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -281,7 +304,7 @@ export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOu
  */
 export function branding(input: WithMeta<BrandingInput>): BrandingModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new BrandingModel(mapFields(data as Record<string, unknown>, BRANDING_FIELD_MAP), meta);
+  return buildModel<BrandingModel>(BRANDING_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -303,10 +326,7 @@ export function branding(input: WithMeta<BrandingInput>): BrandingModel {
  */
 export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new CompositeRunsModel(
-    mapFields(data as Record<string, unknown>, COMPOSITE_RUNS_FIELD_MAP),
-    meta,
-  );
+  return buildModel<CompositeRunsModel>(COMPOSITE_RUNS_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -329,10 +349,7 @@ export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRun
  */
 export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new DockerRunsModel(
-    mapFields(data as Record<string, unknown>, DOCKER_RUNS_FIELD_MAP),
-    meta,
-  );
+  return buildModel<DockerRunsModel>(DOCKER_RUNS_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -355,7 +372,7 @@ export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
  */
 export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new NodeRunsModel(mapFields(data as Record<string, unknown>, NODE_RUNS_FIELD_MAP), meta);
+  return buildModel<NodeRunsModel>(NODE_RUNS_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -379,5 +396,5 @@ export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
  */
 export function action(input: WithMeta<ActionInput>): ActionModel {
   const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return new ActionModel(mapFields(data as Record<string, unknown>, ACTION_FIELD_MAP), meta);
+  return buildModel<ActionModel>(ACTION_SPEC, data as Record<string, unknown>, meta);
 }

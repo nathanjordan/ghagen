@@ -1,6 +1,6 @@
 import type { Step as SchemaStep } from "../schema/workflow-types.generated.js";
-import { StepModel, extractMeta, mapFields } from "./_base.js";
-import type { WithMeta, Raw } from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
+import type { WithMeta, Raw, ModelSpec, StepModel } from "./_base.js";
 import type { ShellType } from "./common.js";
 
 /**
@@ -33,19 +33,36 @@ export interface StepInput {
   timeoutMinutes?: number;
 }
 
-const STEP_FIELD_MAP = {
-  id: "id",
-  name: "name",
-  if_: "if",
-  uses: "uses",
-  run: "run",
-  with_: "with",
-  env: "env",
-  shell: "shell",
-  workingDirectory: "working-directory",
-  continueOnError: "continue-on-error",
-  timeoutMinutes: "timeout-minutes",
-} as const satisfies Record<keyof StepInput, keyof SchemaStep>;
+/** Serialization spec for {@link StepModel}. */
+export const STEP_SPEC: ModelSpec = {
+  kind: "step",
+  fieldMap: {
+    id: "id",
+    name: "name",
+    if_: "if",
+    uses: "uses",
+    run: "run",
+    with_: "with",
+    env: "env",
+    shell: "shell",
+    workingDirectory: "working-directory",
+    continueOnError: "continue-on-error",
+    timeoutMinutes: "timeout-minutes",
+  } satisfies Record<keyof StepInput, keyof SchemaStep>,
+  order: [
+    "id",
+    "name",
+    "if",
+    "uses",
+    "run",
+    "with",
+    "env",
+    "shell",
+    "working-directory",
+    "continue-on-error",
+    "timeout-minutes",
+  ],
+};
 
 /**
  * Create a step model for use inside a job's `steps` array.
@@ -69,7 +86,6 @@ const STEP_FIELD_MAP = {
  */
 export function step(input: WithMeta<StepInput>): StepModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = mapFields(data as Record<string, unknown>, STEP_FIELD_MAP);
   // `run` holds the raw string; dedent is applied at emit time (ADR-0002).
-  return new StepModel(yamlData, meta);
+  return buildModel<StepModel>(STEP_SPEC, data as Record<string, unknown>, meta);
 }

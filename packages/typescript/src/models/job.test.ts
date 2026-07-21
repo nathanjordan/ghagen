@@ -1,16 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { job, strategy, matrix, concurrency, defaults, environment } from "./job.js";
+import {
+  job,
+  strategy,
+  matrix,
+  concurrency,
+  defaults,
+  environment,
+  JOB_SPEC,
+  STRATEGY_SPEC,
+  MATRIX_SPEC,
+  CONCURRENCY_SPEC,
+  DEFAULTS_SPEC,
+  ENVIRONMENT_SPEC,
+} from "./job.js";
 import { isModel } from "./_base.js";
 import { step } from "./step.js";
 import { permissions } from "./permissions.js";
-import {
-  JOB_KEY_ORDER,
-  STRATEGY_KEY_ORDER,
-  MATRIX_KEY_ORDER,
-  CONCURRENCY_KEY_ORDER,
-  DEFAULTS_KEY_ORDER,
-  ENVIRONMENT_KEY_ORDER,
-} from "../emitter/key-order.js";
 
 describe("job", () => {
   it("creates a basic job with runsOn and steps", () => {
@@ -133,10 +138,10 @@ describe("job", () => {
     expect(j.data.concurrency).toBe("ci-group");
   });
 
-  it("has correct kind and keyOrder", () => {
+  it("has correct kind and spec", () => {
     const j = job({ runsOn: "ubuntu-latest", steps: [] });
     expect(j.kind).toBe("job");
-    expect(j.keyOrder).toEqual(JOB_KEY_ORDER);
+    expect(j.spec).toBe(JOB_SPEC);
   });
 });
 
@@ -158,10 +163,10 @@ describe("strategy", () => {
     expect(isModel(s.data.matrix)).toBe(true);
   });
 
-  it("has correct kind and keyOrder", () => {
+  it("has correct kind and spec", () => {
     const s = strategy({ failFast: false });
     expect(s.kind).toBe("strategy");
-    expect(s.keyOrder).toEqual(STRATEGY_KEY_ORDER);
+    expect(s.spec).toBe(STRATEGY_SPEC);
   });
 });
 
@@ -178,7 +183,7 @@ describe("matrix", () => {
     expect(m.data.include).toEqual([{ os: "windows-latest", node: 20 }]);
     expect(m.data.exclude).toEqual([{ os: "ubuntu-latest", node: 18 }]);
     expect(m.kind).toBe("matrix");
-    expect(m.keyOrder).toEqual(MATRIX_KEY_ORDER);
+    expect(m.spec).toBe(MATRIX_SPEC);
   });
 });
 
@@ -189,7 +194,7 @@ describe("concurrency", () => {
     expect(c.data["cancel-in-progress"]).toBe(true);
     expect(c.data).not.toHaveProperty("cancelInProgress");
     expect(c.kind).toBe("concurrency");
-    expect(c.keyOrder).toEqual(CONCURRENCY_KEY_ORDER);
+    expect(c.spec).toBe(CONCURRENCY_SPEC);
   });
 });
 
@@ -201,7 +206,7 @@ describe("defaults", () => {
     expect(run["working-directory"]).toBe("/app");
     expect(run).not.toHaveProperty("workingDirectory");
     expect(d.kind).toBe("defaults");
-    expect(d.keyOrder).toEqual(DEFAULTS_KEY_ORDER);
+    expect(d.spec).toBe(DEFAULTS_SPEC);
   });
 });
 
@@ -211,6 +216,6 @@ describe("environment", () => {
     expect(e.data.name).toBe("production");
     expect(e.data.url).toBe("https://example.com");
     expect(e.kind).toBe("environment");
-    expect(e.keyOrder).toEqual(ENVIRONMENT_KEY_ORDER);
+    expect(e.spec).toBe(ENVIRONMENT_SPEC);
   });
 });

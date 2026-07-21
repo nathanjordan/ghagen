@@ -17,21 +17,88 @@ Only the ``runs`` subsection varies.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
-from ghagen.emitter.key_order import (
-    ACTION_INPUT_KEY_ORDER,
-    ACTION_KEY_ORDER,
-    ACTION_OUTPUT_KEY_ORDER,
-    BRANDING_KEY_ORDER,
-    COMPOSITE_RUNS_KEY_ORDER,
-    DOCKER_RUNS_KEY_ORDER,
-    NODE_RUNS_KEY_ORDER,
-)
 from ghagen.models._base import Document, GhagenModel, OrRaw
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
+
+ACTION_INPUT_SPEC = ModelSpec(
+    yaml_keys={
+        "description": "description",
+        "required": "required",
+        "default": "default",
+        "deprecation_message": "deprecationMessage",
+    },
+    order=("description", "required", "default", "deprecationMessage"),
+)
+
+ACTION_OUTPUT_SPEC = ModelSpec(
+    yaml_keys={"description": "description", "value": "value"},
+    order=("description", "value"),
+)
+
+BRANDING_SPEC = ModelSpec(
+    yaml_keys={"icon": "icon", "color": "color"},
+    order=("icon", "color"),
+)
+
+COMPOSITE_RUNS_SPEC = ModelSpec(
+    yaml_keys={"using": "using", "steps": "steps"},
+    order=("using", "steps"),
+)
+
+DOCKER_RUNS_SPEC = ModelSpec(
+    yaml_keys={
+        "using": "using",
+        "image": "image",
+        "env": "env",
+        "args": "args",
+        "pre_entrypoint": "pre-entrypoint",
+        "pre_if": "pre-if",
+        "entrypoint": "entrypoint",
+        "post_entrypoint": "post-entrypoint",
+        "post_if": "post-if",
+    },
+    order=(
+        "using",
+        "image",
+        "env",
+        "args",
+        "pre-entrypoint",
+        "pre-if",
+        "entrypoint",
+        "post-entrypoint",
+        "post-if",
+    ),
+)
+
+NODE_RUNS_SPEC = ModelSpec(
+    yaml_keys={
+        "using": "using",
+        "main": "main",
+        "pre": "pre",
+        "post": "post",
+        "pre_if": "pre-if",
+        "post_if": "post-if",
+    },
+    order=("using", "main", "pre", "post", "pre-if", "post-if"),
+)
+
+ACTION_SPEC = ModelSpec(
+    yaml_keys={
+        "name": "name",
+        "description": "description",
+        "author": "author",
+        "branding": "branding",
+        "inputs": "inputs",
+        "outputs": "outputs",
+        "runs": "runs",
+    },
+    order=("name", "description", "author", "branding", "inputs", "outputs", "runs"),
+)
 
 
 class ActionInput(GhagenModel):
@@ -42,6 +109,8 @@ class ActionInput(GhagenModel):
     support ``deprecationMessage``.
     """
 
+    SPEC: ClassVar[ModelSpec] = ACTION_INPUT_SPEC
+
     description: str | None = None
     required: bool | None = None
     default: str | None = None
@@ -50,9 +119,6 @@ class ActionInput(GhagenModel):
         serialization_alias="deprecationMessage",
         description="Warning message shown when a deprecated input is used.",
     )
-
-    def _get_key_order(self) -> list[str]:
-        return ACTION_INPUT_KEY_ORDER
 
 
 class ActionOutput(GhagenModel):
@@ -64,21 +130,19 @@ class ActionOutput(GhagenModel):
     itself writes outputs via ``$GITHUB_OUTPUT``.
     """
 
+    SPEC: ClassVar[ModelSpec] = ACTION_OUTPUT_SPEC
+
     description: str | None = None
     value: str | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return ACTION_OUTPUT_KEY_ORDER
 
 
 class Branding(GhagenModel):
     """Branding (icon + color) shown in the GitHub Marketplace."""
 
+    SPEC: ClassVar[ModelSpec] = BRANDING_SPEC
+
     icon: str | None = None
     color: str | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return BRANDING_KEY_ORDER
 
 
 class CompositeRuns(GhagenModel):
@@ -89,15 +153,14 @@ class CompositeRuns(GhagenModel):
     workspace. ``run`` steps must set an explicit ``shell``.
     """
 
+    SPEC: ClassVar[ModelSpec] = COMPOSITE_RUNS_SPEC
+
     using: Literal["composite"] = "composite"
     steps: list[OrRaw[Step]] = Field(default_factory=list)
 
     def model_post_init(self, _context: Any) -> None:
         # Ensure ``using`` is always emitted even when it takes the default.
         self.__pydantic_fields_set__.add("using")
-
-    def _get_key_order(self) -> list[str]:
-        return COMPOSITE_RUNS_KEY_ORDER
 
 
 class DockerRuns(GhagenModel):
@@ -107,6 +170,8 @@ class DockerRuns(GhagenModel):
     ``docker://registry/image:tag`` reference. ``pre-if`` / ``post-if``
     gate the execution of the optional pre/post entrypoints.
     """
+
+    SPEC: ClassVar[ModelSpec] = DOCKER_RUNS_SPEC
 
     using: Literal["docker"] = "docker"
     image: str
@@ -121,9 +186,6 @@ class DockerRuns(GhagenModel):
     def model_post_init(self, _context: Any) -> None:
         self.__pydantic_fields_set__.add("using")
 
-    def _get_key_order(self) -> list[str]:
-        return DOCKER_RUNS_KEY_ORDER
-
 
 class NodeRuns(GhagenModel):
     """The ``runs:`` section for a JavaScript/Node action.
@@ -133,15 +195,14 @@ class NodeRuns(GhagenModel):
     setup/cleanup scripts with ``pre-if``/``post-if`` guards.
     """
 
+    SPEC: ClassVar[ModelSpec] = NODE_RUNS_SPEC
+
     using: str
     main: str
     pre: str | None = None
     post: str | None = None
     pre_if: str | None = Field(None, serialization_alias="pre-if")
     post_if: str | None = Field(None, serialization_alias="post-if")
-
-    def _get_key_order(self) -> list[str]:
-        return NODE_RUNS_KEY_ORDER
 
 
 class Action(Document):
@@ -177,6 +238,8 @@ class Action(Document):
         print(action.to_yaml())
     """
 
+    SPEC: ClassVar[ModelSpec] = ACTION_SPEC
+
     name: str
     description: str
     author: str | None = None
@@ -184,9 +247,6 @@ class Action(Document):
     inputs: dict[str, OrRaw[ActionInput]] | None = None
     outputs: dict[str, OrRaw[ActionOutput]] | None = None
     runs: OrRaw[CompositeRuns | DockerRuns | NodeRuns]
-
-    def _get_key_order(self) -> list[str]:
-        return ACTION_KEY_ORDER
 
 
 __all__ = [

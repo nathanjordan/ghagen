@@ -1,29 +1,9 @@
 import { YAMLMap, YAMLSeq, Scalar, Pair } from "yaml";
 import { captureSourceLocation, type SourceLocation } from "../_source_location.js";
 import { attachFieldComment, attachModelComment } from "../emitter/comments.js";
-import {
-  STEP_KEY_ORDER,
-  JOB_KEY_ORDER,
-  WORKFLOW_KEY_ORDER,
-  ON_KEY_ORDER,
-  TRIGGER_KEY_ORDER,
-  STRATEGY_KEY_ORDER,
-  MATRIX_KEY_ORDER,
-  CONCURRENCY_KEY_ORDER,
-  DEFAULTS_KEY_ORDER,
-  ENVIRONMENT_KEY_ORDER,
-  CONTAINER_KEY_ORDER,
-  PERMISSIONS_KEY_ORDER,
-  WORKFLOW_DISPATCH_KEY_ORDER,
-  WORKFLOW_CALL_KEY_ORDER,
-  ACTION_KEY_ORDER,
-  ACTION_INPUT_KEY_ORDER,
-  ACTION_OUTPUT_KEY_ORDER,
-  BRANDING_KEY_ORDER,
-  COMPOSITE_RUNS_KEY_ORDER,
-  DOCKER_RUNS_KEY_ORDER,
-  NODE_RUNS_KEY_ORDER,
-} from "../emitter/key-order.js";
+import type { ModelSpec, WrapRule } from "./spec.js";
+
+export type { ModelSpec, WrapRule } from "./spec.js";
 
 // ---- Commented<T> value wrapper ----
 
@@ -175,23 +155,6 @@ export function extractMeta<T extends object>(input: T): [Omit<T, keyof ModelMet
   return [data as Omit<T, keyof ModelMeta>, meta as ModelMeta];
 }
 
-/**
- * Map camelCase input fields to kebab-case YAML keys.
- * Skips undefined values.
- */
-export function mapFields(
-  data: Record<string, unknown>,
-  fieldMap: Record<string, string>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [camelKey, yamlKey] of Object.entries(fieldMap)) {
-    if (data[camelKey] !== undefined) {
-      result[yamlKey] = data[camelKey];
-    }
-  }
-  return result;
-}
-
 // ---- Model base class ----
 
 /** Union of all concrete model `kind` discriminants. */
@@ -205,6 +168,7 @@ export type ModelKind =
   | "prTrigger"
   | "scheduleTrigger"
   | "workflowDispatch"
+  | "workflowDispatchInput"
   | "workflowCall"
   | "permissions"
   | "strategy"
@@ -222,16 +186,20 @@ export type ModelKind =
   | "nodeRuns";
 
 /**
- * Base class for all ghagen model objects.
+ * The one concrete model type for every ghagen node.
+ *
+ * A `Model` carries its `data` bag, `meta`, and a {@link ModelSpec} — the spec
+ * supplies both the discriminant `kind` and the emission key order, so there is
+ * no per-type subclass. Factories build the right kind by passing the matching
+ * spec; the discriminated-union aliases below (e.g. {@link StepModel}) narrow a
+ * `Model` by its `kind` for callers.
  *
  * Models are intentionally NOT frozen — `data` and `meta` must remain
  * runtime-mutable so synthesis-time transforms (like `PinTransform`) can
  * rewrite fields after a `cloneModel` deep copy.
  */
-export abstract class Model {
-  abstract readonly kind: ModelKind;
-  abstract readonly keyOrder: readonly string[];
-
+export class Model {
+  readonly spec: ModelSpec;
   readonly data: Record<string, unknown>;
   readonly meta: ModelMeta;
   /**
@@ -243,20 +211,27 @@ export abstract class Model {
   readonly sourceLocation: SourceLocation | null;
 
   constructor(
+    spec: ModelSpec,
     data: Record<string, unknown>,
     meta: ModelMeta,
     sourceLocation?: SourceLocation | null,
   ) {
+    this.spec = spec;
     this.data = data;
     this.meta = meta;
     this.sourceLocation = sourceLocation !== undefined ? sourceLocation : captureSourceLocation();
+  }
+
+  /** This model's discriminant, sourced from its spec. */
+  get kind(): ModelKind {
+    return this.spec.kind;
   }
 
   /** Render this model to a YAMLMap with canonical key ordering,
    * comment attachment, extras merging, and postProcess support. */
   toYamlMap(): YAMLMap {
     const map = new YAMLMap();
-    const orderedKeys = getOrderedKeys(Object.keys(this.data), this.keyOrder);
+    const orderedKeys = getOrderedKeys(Object.keys(this.data), this.spec.order);
 
     // Emit each field, attaching any Commented-wrapper comment inline at the
     // point of emission (no collect-then-reattach two-pass). The comment module
@@ -283,11 +258,12 @@ export abstract class Model {
     return map;
   }
 
-  /** Deep clone. Each subclass returns its own type. */
-  abstract clone(): Model;
+  /** Deep clone carrying the same spec. */
+  clone(): Model {
+    return new Model(this.spec, cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
+  }
 
-  /** Yield child Models found in data. Base provides generic scan;
-   * subclasses can override for precision. */
+  /** Yield child Models found in data. */
   *children(): Iterable<{ key: string; model: Model }> {
     for (const [key, value] of Object.entries(this.data)) {
       yield* scanForModels(key, value);
@@ -309,6 +285,141 @@ export abstract class Model {
   }
 }
 
+// ---- Model kind aliases (discriminated narrowing over the single Model) ----
+
+/** A {@link Model} narrowed to a specific `kind` discriminant. */
+export type ModelOf<K extends ModelKind> = Model & { readonly kind: K };
+
+export type StepModel = ModelOf<"step">;
+export type JobModel = ModelOf<"job">;
+export type WorkflowModel = ModelOf<"workflow">;
+export type ActionModel = ModelOf<"action">;
+export type OnModel = ModelOf<"on">;
+export type PushTriggerModel = ModelOf<"pushTrigger">;
+export type PRTriggerModel = ModelOf<"prTrigger">;
+export type ScheduleTriggerModel = ModelOf<"scheduleTrigger">;
+export type WorkflowDispatchModel = ModelOf<"workflowDispatch">;
+export type WorkflowDispatchInputModel = ModelOf<"workflowDispatchInput">;
+export type WorkflowCallModel = ModelOf<"workflowCall">;
+export type PermissionsModel = ModelOf<"permissions">;
+export type StrategyModel = ModelOf<"strategy">;
+export type MatrixModel = ModelOf<"matrix">;
+export type ConcurrencyModel = ModelOf<"concurrency">;
+export type DefaultsModel = ModelOf<"defaults">;
+export type EnvironmentModel = ModelOf<"environment">;
+export type ContainerModel = ModelOf<"container">;
+export type ServiceModel = ModelOf<"service">;
+export type ActionInputModel = ModelOf<"actionInput">;
+export type ActionOutputModel = ModelOf<"actionOutput">;
+export type BrandingModel = ModelOf<"branding">;
+export type CompositeRunsModel = ModelOf<"compositeRuns">;
+export type DockerRunsModel = ModelOf<"dockerRuns">;
+export type NodeRunsModel = ModelOf<"nodeRuns">;
+
+/**
+ * A top-level model that maps 1:1 to a generated YAML file (ADR-0001).
+ *
+ * Only a Workflow or Action is a Document — the sole models that may be
+ * serialized to a file via {@link toYaml} / {@link toYamlFile}. Nested
+ * models (steps, jobs, …) provide `toYamlMap()` for embedding but are not
+ * Documents.
+ */
+export type Document = WorkflowModel | ActionModel;
+
+/**
+ * Map camelCase input fields to YAML keys and apply the spec's inline-input
+ * auto-wrap rules, returning the resulting `data` record (no Model built).
+ *
+ * Replaces the hand-rolled promotion ladders that lived inside `workflow()`,
+ * `job()`, and `on()`. A `Commented` wrapper on a field is peeled before
+ * wrapping and re-applied after, so `withComment(...)` survives around a
+ * plain-object shorthand. `on()` calls this directly because it sorts keys
+ * before constructing its Model.
+ */
+export function buildYamlData(
+  spec: ModelSpec,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const wrap = spec.wrap ?? {};
+  const yamlData: Record<string, unknown> = {};
+
+  for (const [camelKey, yamlKey] of Object.entries(spec.fieldMap)) {
+    let value = data[camelKey];
+    if (value === undefined) {
+      continue;
+    }
+
+    // Peel a Commented wrapper before auto-wrapping, re-apply it after.
+    let commented: { comment?: string; eolComment?: string } | null = null;
+    if (isCommented(value)) {
+      commented = { comment: value.comment, eolComment: value.eolComment };
+      value = value.value;
+    }
+
+    const rule = wrap[camelKey];
+    if (rule !== undefined) {
+      value = applyWrapRule(rule, value);
+    }
+
+    if (commented) {
+      if (commented.comment) {
+        value = withComment(value, commented.comment);
+      }
+      if (commented.eolComment) {
+        value = withEolComment(value, commented.eolComment);
+      }
+    }
+
+    yamlData[yamlKey] = value;
+  }
+
+  return yamlData;
+}
+
+/**
+ * Build a Model of the spec's kind from raw camelCase input — the common
+ * factory path. Thin wrapper over {@link buildYamlData}.
+ */
+export function buildModel<M extends Model = Model>(
+  spec: ModelSpec,
+  data: Record<string, unknown>,
+  meta: ModelMeta,
+): M {
+  return new Model(spec, buildYamlData(spec, data), meta) as M;
+}
+
+/** Apply one {@link WrapRule} to a field value; see {@link WrapRule.mode}. */
+function applyWrapRule(rule: WrapRule, value: unknown): unknown {
+  const factory = rule.factory as (input: unknown) => Model;
+  switch (rule.mode) {
+    case "model":
+      return isModel(value) ? value : factory(value);
+    case "objectModel":
+      return typeof value === "object" && value !== null && !isModel(value)
+        ? factory(value)
+        : value;
+    case "list":
+      return Array.isArray(value)
+        ? value.map((item) => (isModel(item) ? item : factory(item)))
+        : value;
+    case "map": {
+      if (typeof value !== "object" || value === null || isModel(value)) {
+        return value;
+      }
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value)) {
+        out[k] = typeof v === "string" || isModel(v) ? v : factory(v);
+      }
+      return out;
+    }
+    case "dispatch":
+      if (typeof value === "boolean" || value === null) {
+        return value;
+      }
+      return isModel(value) ? value : factory(value);
+  }
+}
+
 // ---- children() helpers ----
 
 function* scanForModels(key: string, value: unknown): Iterable<{ key: string; model: Model }> {
@@ -324,246 +435,6 @@ function* scanForModels(key: string, value: unknown): Iterable<{ key: string; mo
     for (const [k, v] of Object.entries(value)) {
       yield* scanForModels(k, v);
     }
-  }
-}
-
-// ---- Concrete model subclasses ----
-
-/** Model produced by the {@link step} factory. */
-export class StepModel extends Model {
-  readonly kind = "step" as const;
-  readonly keyOrder = STEP_KEY_ORDER;
-  clone(): StepModel {
-    return new StepModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link job} factory. */
-export class JobModel extends Model {
-  readonly kind = "job" as const;
-  readonly keyOrder = JOB_KEY_ORDER;
-  clone(): JobModel {
-    return new JobModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link workflow} factory. */
-export class WorkflowModel extends Model {
-  readonly kind = "workflow" as const;
-  readonly keyOrder = WORKFLOW_KEY_ORDER;
-  clone(): WorkflowModel {
-    return new WorkflowModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link action} factory. */
-export class ActionModel extends Model {
-  readonly kind = "action" as const;
-  readonly keyOrder = ACTION_KEY_ORDER;
-  clone(): ActionModel {
-    return new ActionModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/**
- * A top-level model that maps 1:1 to a generated YAML file (ADR-0001).
- *
- * Only a Workflow or Action is a Document — the sole models that may be
- * serialized to a file via {@link toYaml} / {@link toYamlFile}. Nested
- * models (steps, jobs, …) provide `toYamlMap()` for embedding but are not
- * Documents.
- */
-export type Document = WorkflowModel | ActionModel;
-
-/** Model produced by the {@link on} factory. */
-export class OnModel extends Model {
-  readonly kind = "on" as const;
-  readonly keyOrder = ON_KEY_ORDER;
-  clone(): OnModel {
-    return new OnModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link pushTrigger} factory. */
-export class PushTriggerModel extends Model {
-  readonly kind = "pushTrigger" as const;
-  readonly keyOrder = TRIGGER_KEY_ORDER;
-  clone(): PushTriggerModel {
-    return new PushTriggerModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link prTrigger} factory. */
-export class PRTriggerModel extends Model {
-  readonly kind = "prTrigger" as const;
-  readonly keyOrder = TRIGGER_KEY_ORDER;
-  clone(): PRTriggerModel {
-    return new PRTriggerModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link scheduleTrigger} factory. */
-export class ScheduleTriggerModel extends Model {
-  readonly kind = "scheduleTrigger" as const;
-  readonly keyOrder = [] as const;
-  clone(): ScheduleTriggerModel {
-    return new ScheduleTriggerModel(
-      cloneRecord(this.data),
-      cloneMeta(this.meta),
-      this.sourceLocation,
-    );
-  }
-}
-
-/** Model produced by the {@link workflowDispatch} factory. */
-export class WorkflowDispatchModel extends Model {
-  readonly kind = "workflowDispatch" as const;
-  readonly keyOrder = WORKFLOW_DISPATCH_KEY_ORDER;
-  clone(): WorkflowDispatchModel {
-    return new WorkflowDispatchModel(
-      cloneRecord(this.data),
-      cloneMeta(this.meta),
-      this.sourceLocation,
-    );
-  }
-}
-
-/** Model produced by the {@link workflowCall} factory. */
-export class WorkflowCallModel extends Model {
-  readonly kind = "workflowCall" as const;
-  readonly keyOrder = WORKFLOW_CALL_KEY_ORDER;
-  clone(): WorkflowCallModel {
-    return new WorkflowCallModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link permissions} factory. */
-export class PermissionsModel extends Model {
-  readonly kind = "permissions" as const;
-  readonly keyOrder = PERMISSIONS_KEY_ORDER;
-  clone(): PermissionsModel {
-    return new PermissionsModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link strategy} factory. */
-export class StrategyModel extends Model {
-  readonly kind = "strategy" as const;
-  readonly keyOrder = STRATEGY_KEY_ORDER;
-  clone(): StrategyModel {
-    return new StrategyModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link matrix} factory. */
-export class MatrixModel extends Model {
-  readonly kind = "matrix" as const;
-  readonly keyOrder = MATRIX_KEY_ORDER;
-  clone(): MatrixModel {
-    return new MatrixModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link concurrency} factory. */
-export class ConcurrencyModel extends Model {
-  readonly kind = "concurrency" as const;
-  readonly keyOrder = CONCURRENCY_KEY_ORDER;
-  clone(): ConcurrencyModel {
-    return new ConcurrencyModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link defaults} factory. */
-export class DefaultsModel extends Model {
-  readonly kind = "defaults" as const;
-  readonly keyOrder = DEFAULTS_KEY_ORDER;
-  clone(): DefaultsModel {
-    return new DefaultsModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link environment} factory. */
-export class EnvironmentModel extends Model {
-  readonly kind = "environment" as const;
-  readonly keyOrder = ENVIRONMENT_KEY_ORDER;
-  clone(): EnvironmentModel {
-    return new EnvironmentModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link container} factory. */
-export class ContainerModel extends Model {
-  readonly kind = "container" as const;
-  readonly keyOrder = CONTAINER_KEY_ORDER;
-  clone(): ContainerModel {
-    return new ContainerModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link service} factory. */
-export class ServiceModel extends Model {
-  readonly kind = "service" as const;
-  readonly keyOrder = CONTAINER_KEY_ORDER;
-  clone(): ServiceModel {
-    return new ServiceModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link actionInputDef} factory. */
-export class ActionInputModel extends Model {
-  readonly kind = "actionInput" as const;
-  readonly keyOrder = ACTION_INPUT_KEY_ORDER;
-  clone(): ActionInputModel {
-    return new ActionInputModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link actionOutputDef} factory. */
-export class ActionOutputModel extends Model {
-  readonly kind = "actionOutput" as const;
-  readonly keyOrder = ACTION_OUTPUT_KEY_ORDER;
-  clone(): ActionOutputModel {
-    return new ActionOutputModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link branding} factory. */
-export class BrandingModel extends Model {
-  readonly kind = "branding" as const;
-  readonly keyOrder = BRANDING_KEY_ORDER;
-  clone(): BrandingModel {
-    return new BrandingModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link compositeRuns} factory. */
-export class CompositeRunsModel extends Model {
-  readonly kind = "compositeRuns" as const;
-  readonly keyOrder = COMPOSITE_RUNS_KEY_ORDER;
-  clone(): CompositeRunsModel {
-    return new CompositeRunsModel(
-      cloneRecord(this.data),
-      cloneMeta(this.meta),
-      this.sourceLocation,
-    );
-  }
-}
-
-/** Model produced by the {@link dockerRuns} factory. */
-export class DockerRunsModel extends Model {
-  readonly kind = "dockerRuns" as const;
-  readonly keyOrder = DOCKER_RUNS_KEY_ORDER;
-  clone(): DockerRunsModel {
-    return new DockerRunsModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
-  }
-}
-
-/** Model produced by the {@link nodeRuns} factory. */
-export class NodeRunsModel extends Model {
-  readonly kind = "nodeRuns" as const;
-  readonly keyOrder = NODE_RUNS_KEY_ORDER;
-  clone(): NodeRunsModel {
-    return new NodeRunsModel(cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
   }
 }
 

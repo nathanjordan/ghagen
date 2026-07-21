@@ -3,14 +3,16 @@ import {
   raw,
   isRaw,
   isModel,
+  isCommented,
+  withComment,
   extractMeta,
-  mapFields,
-  WorkflowModel,
-  StepModel,
-  JobModel,
+  buildYamlData,
   Model,
 } from "./_base.js";
-import { WORKFLOW_KEY_ORDER } from "../emitter/key-order.js";
+import type { ModelSpec } from "./_base.js";
+import { WORKFLOW_SPEC } from "./workflow.js";
+import { STEP_SPEC } from "./step.js";
+import { JOB_SPEC } from "./job.js";
 
 // ---------------------------------------------------------------------------
 // raw()
@@ -68,43 +70,42 @@ describe("isRaw()", () => {
 // ---------------------------------------------------------------------------
 describe("Model class", () => {
   it("returns an object with the correct kind", () => {
-    const m = new WorkflowModel({}, {});
+    const m = new Model(WORKFLOW_SPEC, {}, {});
     expect(m.kind).toBe("workflow");
   });
 
   it("stores data", () => {
     const data = { name: "ci" };
-    const m = new WorkflowModel(data, {});
+    const m = new Model(WORKFLOW_SPEC, data, {});
     expect(m.data).toEqual(data);
   });
 
   it("stores meta", () => {
     const meta = { comment: "hello" };
-    const m = new WorkflowModel({}, meta);
+    const m = new Model(WORKFLOW_SPEC, {}, meta);
     expect(m.meta).toEqual(meta);
   });
 
-  it("has correct keyOrder from the subclass", () => {
-    const m = new WorkflowModel({}, {});
-    expect(m.keyOrder).toEqual(WORKFLOW_KEY_ORDER);
+  it("carries its spec (kind + key order)", () => {
+    const m = new Model(WORKFLOW_SPEC, {}, {});
+    expect(m.spec).toBe(WORKFLOW_SPEC);
   });
 
   it("returns a non-frozen object so transforms can mutate data", () => {
-    const m = new StepModel({}, {});
+    const m = new Model(STEP_SPEC, {}, {});
     expect(Object.isFrozen(m)).toBe(false);
   });
 
   it("captures a source location at the call site", () => {
-    const m = new StepModel({}, {});
+    const m = new Model(STEP_SPEC, {}, {});
     expect(m.sourceLocation).not.toBeNull();
     expect(m.sourceLocation?.file).toContain("_base.test");
     expect(typeof m.sourceLocation?.line).toBe("number");
   });
 
   it("is an instance of Model", () => {
-    const m = new StepModel({}, {});
+    const m = new Model(STEP_SPEC, {}, {});
     expect(m).toBeInstanceOf(Model);
-    expect(m).toBeInstanceOf(StepModel);
   });
 });
 
@@ -113,7 +114,7 @@ describe("Model class", () => {
 // ---------------------------------------------------------------------------
 describe("isModel()", () => {
   it("returns true for a model", () => {
-    const m = new JobModel({}, {});
+    const m = new Model(JOB_SPEC, {}, {});
     expect(isModel(m)).toBe(true);
   });
 
@@ -168,27 +169,40 @@ describe("extractMeta()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// mapFields()
+// buildYamlData() — field mapping + wrap application
 // ---------------------------------------------------------------------------
-describe("mapFields()", () => {
-  it("maps camelCase keys to output keys via a field map", () => {
+describe("buildYamlData()", () => {
+  it("maps camelCase keys to YAML keys via the spec fieldMap", () => {
+    const spec = {
+      kind: "job",
+      fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
+      order: [],
+    } as unknown as ModelSpec;
     const data = { runsOn: "ubuntu-latest", timeoutMinutes: 10 };
-    const fieldMap = { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" };
-    expect(mapFields(data, fieldMap)).toEqual({
+    expect(buildYamlData(spec, data)).toEqual({
       "runs-on": "ubuntu-latest",
       "timeout-minutes": 10,
     });
   });
 
-  it("skips undefined values", () => {
-    const data = { runsOn: "ubuntu-latest", timeoutMinutes: undefined };
-    const fieldMap = { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" };
-    expect(mapFields(data, fieldMap)).toEqual({ "runs-on": "ubuntu-latest" });
+  it("skips undefined values and keys not in the field map", () => {
+    const spec = {
+      kind: "job",
+      fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
+      order: [],
+    } as unknown as ModelSpec;
+    const data = { runsOn: "ubuntu-latest", timeoutMinutes: undefined, extra: "ignored" };
+    expect(buildYamlData(spec, data)).toEqual({ "runs-on": "ubuntu-latest" });
   });
 
-  it("ignores data keys not in the field map", () => {
-    const data = { runsOn: "ubuntu-latest", extra: "ignored" };
-    const fieldMap = { runsOn: "runs-on" };
-    expect(mapFields(data, fieldMap)).toEqual({ "runs-on": "ubuntu-latest" });
+  it("peels and re-applies a Commented wrapper around a wrapped field", () => {
+    const spec = {
+      kind: "job",
+      fieldMap: { env: "env" },
+      order: [],
+    } as unknown as ModelSpec;
+    const data = { env: withComment({ CI: "true" }, "environment") };
+    const out = buildYamlData(spec, data);
+    expect(isCommented(out["env"])).toBe(true);
   });
 });

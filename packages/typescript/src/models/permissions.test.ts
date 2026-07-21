@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { permissions } from "./permissions.js";
-import { PERMISSIONS_KEY_ORDER } from "../emitter/key-order.js";
+import { permissions, PERMISSIONS_SPEC } from "./permissions.js";
 
 describe("permissions", () => {
   it("creates permissions with contents and pullRequests", () => {
@@ -58,9 +57,9 @@ describe("permissions", () => {
     expect(Object.keys(p.data)).toEqual(["contents"]);
   });
 
-  it("has correct kind and keyOrder", () => {
+  it("has correct kind and spec", () => {
     const p = permissions({ contents: "read" });
     expect(p.kind).toBe("permissions");
-    expect(p.keyOrder).toEqual(PERMISSIONS_KEY_ORDER);
+    expect(p.spec).toBe(PERMISSIONS_SPEC);
   });
 });

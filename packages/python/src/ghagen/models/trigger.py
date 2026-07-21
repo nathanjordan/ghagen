@@ -2,22 +2,125 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
 from ghagen._raw import Raw
-from ghagen.emitter.key_order import (
-    TRIGGER_KEY_ORDER,
-    WORKFLOW_CALL_KEY_ORDER,
-    WORKFLOW_DISPATCH_INPUT_KEY_ORDER,
-    WORKFLOW_DISPATCH_KEY_ORDER,
-)
 from ghagen.models._base import GhagenModel, OrRaw
+from ghagen.models.spec import ModelSpec
+
+PUSH_TRIGGER_SPEC = ModelSpec(
+    yaml_keys={
+        "branches": "branches",
+        "branches_ignore": "branches-ignore",
+        "tags": "tags",
+        "tags_ignore": "tags-ignore",
+        "paths": "paths",
+        "paths_ignore": "paths-ignore",
+    },
+    order=(
+        "branches",
+        "branches-ignore",
+        "tags",
+        "tags-ignore",
+        "paths",
+        "paths-ignore",
+    ),
+)
+
+PR_TRIGGER_SPEC = ModelSpec(
+    yaml_keys={
+        "branches": "branches",
+        "branches_ignore": "branches-ignore",
+        "paths": "paths",
+        "paths_ignore": "paths-ignore",
+        "types": "types",
+    },
+    order=("branches", "branches-ignore", "paths", "paths-ignore", "types"),
+)
+
+SCHEDULE_TRIGGER_SPEC = ModelSpec(yaml_keys={"cron": "cron"}, order=("cron",))
+
+WORKFLOW_DISPATCH_INPUT_SPEC = ModelSpec(
+    yaml_keys={
+        "description": "description",
+        "required": "required",
+        "default": "default",
+        "type": "type",
+        "options": "options",
+    },
+    order=("description", "required", "default", "type", "options"),
+)
+
+WORKFLOW_DISPATCH_SPEC = ModelSpec(
+    yaml_keys={"inputs": "inputs"},
+    order=("inputs",),
+)
+
+WORKFLOW_CALL_INPUT_SPEC = ModelSpec(
+    yaml_keys={
+        "description": "description",
+        "required": "required",
+        "default": "default",
+        "type": "type",
+    },
+    order=("description", "required", "default", "type"),
+)
+
+WORKFLOW_CALL_OUTPUT_SPEC = ModelSpec(
+    yaml_keys={"description": "description", "value": "value"},
+    order=("description", "value"),
+)
+
+WORKFLOW_CALL_SECRET_SPEC = ModelSpec(
+    yaml_keys={"description": "description", "required": "required"},
+    order=("description", "required"),
+)
+
+WORKFLOW_CALL_SPEC = ModelSpec(
+    yaml_keys={"inputs": "inputs", "outputs": "outputs", "secrets": "secrets"},
+    order=("inputs", "outputs", "secrets"),
+)
+
+# ``On`` has no canonical trigger order: keys emit alphabetically (empty order).
+ON_SPEC = ModelSpec(
+    yaml_keys={
+        "push": "push",
+        "pull_request": "pull_request",
+        "pull_request_target": "pull_request_target",
+        "workflow_dispatch": "workflow_dispatch",
+        "workflow_call": "workflow_call",
+        "workflow_run": "workflow_run",
+        "schedule": "schedule",
+        "release": "release",
+        "issues": "issues",
+        "issue_comment": "issue_comment",
+        "create": "create",
+        "delete": "delete",
+        "fork": "fork",
+        "page_build": "page_build",
+        "deployment": "deployment",
+        "deployment_status": "deployment_status",
+        "check_run": "check_run",
+        "check_suite": "check_suite",
+        "label": "label",
+        "milestone": "milestone",
+        "project": "project",
+        "project_card": "project_card",
+        "project_column": "project_column",
+        "public": "public",
+        "registry_package": "registry_package",
+        "status": "status",
+        "watch": "watch",
+    },
+)
 
 
 class PushTrigger(GhagenModel):
     """Configuration for push event triggers."""
+
+    SPEC: ClassVar[ModelSpec] = PUSH_TRIGGER_SPEC
 
     branches: list[str] | None = None
     branches_ignore: list[str] | None = Field(
@@ -28,12 +131,11 @@ class PushTrigger(GhagenModel):
     paths: list[str] | None = None
     paths_ignore: list[str] | None = Field(None, serialization_alias="paths-ignore")
 
-    def _get_key_order(self) -> list[str]:
-        return TRIGGER_KEY_ORDER
-
 
 class PRTrigger(GhagenModel):
     """Configuration for pull_request event triggers."""
+
+    SPEC: ClassVar[ModelSpec] = PR_TRIGGER_SPEC
 
     branches: list[str] | None = None
     branches_ignore: list[str] | None = Field(
@@ -43,21 +145,19 @@ class PRTrigger(GhagenModel):
     paths_ignore: list[str] | None = Field(None, serialization_alias="paths-ignore")
     types: list[str] | None = None
 
-    def _get_key_order(self) -> list[str]:
-        return TRIGGER_KEY_ORDER
-
 
 class ScheduleTrigger(GhagenModel):
     """Configuration for schedule (cron) triggers."""
 
-    cron: str
+    SPEC: ClassVar[ModelSpec] = SCHEDULE_TRIGGER_SPEC
 
-    def _get_key_order(self) -> list[str]:
-        return ["cron"]
+    cron: str
 
 
 class WorkflowDispatchInput(GhagenModel):
     """An input parameter for workflow_dispatch triggers."""
+
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_DISPATCH_INPUT_SPEC
 
     description: str | None = None
     required: bool | None = None
@@ -65,60 +165,52 @@ class WorkflowDispatchInput(GhagenModel):
     type: str | Raw[str] | None = None
     options: list[str] | None = None
 
-    def _get_key_order(self) -> list[str]:
-        return WORKFLOW_DISPATCH_INPUT_KEY_ORDER
-
 
 class WorkflowDispatchTrigger(GhagenModel):
     """Configuration for workflow_dispatch (manual) triggers."""
 
-    inputs: dict[str, OrRaw[WorkflowDispatchInput]] | None = None
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_DISPATCH_SPEC
 
-    def _get_key_order(self) -> list[str]:
-        return WORKFLOW_DISPATCH_KEY_ORDER
+    inputs: dict[str, OrRaw[WorkflowDispatchInput]] | None = None
 
 
 class WorkflowCallInput(GhagenModel):
     """An input parameter for workflow_call (reusable workflow) triggers."""
+
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_CALL_INPUT_SPEC
 
     description: str | None = None
     required: bool | None = None
     default: str | None = None
     type: str | Raw[str] | None = None
 
-    def _get_key_order(self) -> list[str]:
-        return ["description", "required", "default", "type"]
-
 
 class WorkflowCallOutput(GhagenModel):
     """An output for workflow_call triggers."""
 
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_CALL_OUTPUT_SPEC
+
     description: str | None = None
     value: str
-
-    def _get_key_order(self) -> list[str]:
-        return ["description", "value"]
 
 
 class WorkflowCallSecret(GhagenModel):
     """A secret for workflow_call triggers."""
 
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_CALL_SECRET_SPEC
+
     description: str | None = None
     required: bool | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return ["description", "required"]
 
 
 class WorkflowCallTrigger(GhagenModel):
     """Configuration for workflow_call (reusable workflow) triggers."""
 
+    SPEC: ClassVar[ModelSpec] = WORKFLOW_CALL_SPEC
+
     inputs: dict[str, OrRaw[WorkflowCallInput]] | None = None
     outputs: dict[str, OrRaw[WorkflowCallOutput]] | None = None
     secrets: dict[str, OrRaw[WorkflowCallSecret]] | None = None
-
-    def _get_key_order(self) -> list[str]:
-        return WORKFLOW_CALL_KEY_ORDER
 
 
 class On(GhagenModel):
@@ -127,6 +219,8 @@ class On(GhagenModel):
     Supports all GitHub Actions event types. Common ones have typed fields;
     use extras for less common events.
     """
+
+    SPEC: ClassVar[ModelSpec] = ON_SPEC
 
     push: OrRaw[PushTrigger] | None = None
     pull_request: OrRaw[PRTrigger] | None = Field(
@@ -159,10 +253,6 @@ class On(GhagenModel):
     registry_package: OrRaw[dict[str, Any]] | None = None
     status: OrRaw[dict[str, Any]] | None = None
     watch: OrRaw[dict[str, Any]] | None = None
-
-    def _get_key_order(self) -> list[str]:
-        # No strong canonical order for trigger types; emit in declaration order
-        return []
 
     @model_validator(mode="after")
     def _normalize_workflow_dispatch(self) -> On:
