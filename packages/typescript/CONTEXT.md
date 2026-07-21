@@ -22,6 +22,11 @@ A composite / docker / node action definition, generated to `action.yml`.
 **Step**, **Job**:
 The nested units inside a Workflow (a Job contains Steps).
 
+**ImageSnapshot**:
+A custom runner-image generation request on a Job (`jobs.<id>.snapshot`) — image name plus optional
+version.
+_Avoid_: snapshot (reserved for the schema **Snapshot**).
+
 **Transform**:
 A synthesis-time mutation applied to a clone of a Document before emission (e.g. the pin transform).
 _Avoid_: plugin, hook, middleware.

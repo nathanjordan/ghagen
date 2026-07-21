@@ -76,6 +76,9 @@ jobs:
         - 5432
     container:
       image: python:3.13
+    snapshot:
+      image-name: custom-ubuntu
+      version: '1.0'
   deploy:
     needs:
     - test

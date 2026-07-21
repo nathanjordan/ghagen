@@ -15,6 +15,7 @@ import type {
   PermissionsModel,
   ContainerModel,
   ServiceModel,
+  ImageSnapshotModel,
   WithMeta,
   Raw,
   ModelSpec,
@@ -23,6 +24,8 @@ import type { PermissionsInput } from "./permissions.js";
 import { permissions } from "./permissions.js";
 import type { ContainerInput } from "./container.js";
 import { container, service } from "./container.js";
+import type { ImageSnapshotInput } from "./image-snapshot.js";
+import { imageSnapshot } from "./image-snapshot.js";
 
 // ---- Strategy / Matrix ----
 
@@ -315,6 +318,8 @@ export interface JobInput {
   services?: Record<string, ServiceModel | ContainerInput | string>;
   /** Container to run the job in. Can be a `ContainerModel`, a `ContainerInput`, or an image string. */
   container?: ContainerModel | ContainerInput | string;
+  /** Custom runner-image generation request. A string is the image name (string syntax); an `ImageSnapshotModel` or inline `ImageSnapshotInput` adds an optional version (mapping syntax). */
+  snapshot?: string | ImageSnapshotInput | ImageSnapshotModel;
   // Reusable workflow job fields
   /** Reusable workflow reference (e.g., `"org/repo/.github/workflows/ci.yml@main"`). Mutually exclusive with `steps`. */
   uses?: string;
@@ -344,6 +349,7 @@ export const JOB_SPEC: ModelSpec = {
     concurrency: "concurrency",
     services: "services",
     container: "container",
+    snapshot: "snapshot",
     uses: "uses",
     with_: "with",
     secrets: "secrets",
@@ -365,6 +371,7 @@ export const JOB_SPEC: ModelSpec = {
     "concurrency",
     "services",
     "container",
+    "snapshot",
     "uses",
     "with",
     "secrets",
@@ -377,6 +384,7 @@ export const JOB_SPEC: ModelSpec = {
     concurrency: { factory: concurrency, mode: "objectModel" },
     container: { factory: container, mode: "objectModel" },
     services: { factory: service, mode: "map" },
+    snapshot: { factory: imageSnapshot, mode: "objectModel" },
   },
 };
 

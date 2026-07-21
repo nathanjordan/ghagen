@@ -201,6 +201,7 @@ describe("snapshot tests", () => {
           runsOn: "ubuntu-latest",
           needs: "lint",
           container: { image: "python:3.13" },
+          snapshot: { imageName: "custom-ubuntu", version: "1.0" },
           services: {
             db: { image: "postgres:16", env: { POSTGRES_PASSWORD: "test" }, ports: [5432] },
           },

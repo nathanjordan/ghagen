@@ -21,11 +21,7 @@
 
 workflow_schema:
   workflow: []
-  job:
-    # TODO: unmodeled -- newer, rarely-used runner-snapshot field with no
-    # ergonomic model equivalent yet; emitted verbatim via the raw escape
-    # hatch (CommentedMap) if a user needs it.
-    - snapshot
+  job: []
   step: []
 
 action_schema:

@@ -9,6 +9,7 @@ from pydantic import Field
 from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.container import Container, Service
+from ghagen.models.image_snapshot import ImageSnapshot
 from ghagen.models.permissions import Permissions
 from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
@@ -67,6 +68,7 @@ JOB_SPEC = ModelSpec(
         "concurrency": "concurrency",
         "services": "services",
         "container": "container",
+        "snapshot": "snapshot",
         "uses": "uses",
         "with_": "with",
         "secrets": "secrets",
@@ -88,6 +90,7 @@ JOB_SPEC = ModelSpec(
         "concurrency",
         "services",
         "container",
+        "snapshot",
         "uses",
         "with",
         "secrets",
@@ -216,6 +219,12 @@ class Job(GhagenModel):
     concurrency: OrRaw[str | Concurrency] | None = None
     services: dict[str, OrRaw[Service | str]] | None = None
     container: OrRaw[Container | str] | None = None
+    snapshot: OrRaw[str | ImageSnapshot] | None = Field(
+        None,
+        description="Custom runner-image generation request. A string is the "
+        "image name (string syntax); an ImageSnapshot adds an optional version "
+        "(mapping syntax).",
+    )
 
     # Reusable workflow job fields
     uses: str | None = None

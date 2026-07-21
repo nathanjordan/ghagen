@@ -40,6 +40,7 @@ job = Job(
 | `concurrency`       | `str \| Concurrency \| None`           | `None`  | Concurrency group for this job. See [Workflow - Concurrency](/python/api/workflow/#concurrency). |
 | `services`          | `dict[str, Service \| str] \| None`    | `None`  | Service containers for the job. Values can be `Service` objects or image strings.                |
 | `container`         | `Container \| str \| None`             | `None`  | Container to run the job in. Can be a `Container` object or an image string.                     |
+| `snapshot`          | `str \| ImageSnapshot \| None`         | `None`  | Custom runner-image request. A `str` is the image name; an `ImageSnapshot` adds a version.       |
 
 #### Reusable workflow fields
 
@@ -151,3 +152,21 @@ Service container configuration. Has the same shape as `Container` and is used f
 | `ports`       | `list[str \| int] \| None` | `None`   | Ports to expose.                       |
 | `volumes`     | `list[str] \| None`        | `None`   | Volumes to mount.                      |
 | `options`     | `str \| None`              | `None`   | Additional `docker create` options.    |
+
+## ImageSnapshot
+
+A custom runner-image generation request for a job (`jobs.<job_id>.snapshot`), using the mapping
+syntax. For the string syntax (image name only), pass a plain `str` to `Job(snapshot=...)` instead.
+
+```python
+from ghagen import ImageSnapshot
+
+snapshot = ImageSnapshot(image_name="custom-ubuntu", version="1.2")
+```
+
+### Parameters
+
+| Parameter    | Type          | Default  | Description                                                         |
+| ------------ | ------------- | -------- | ------------------------------------------------------------------- |
+| `image_name` | `str`         | required | Name of the image to create or version. Serialized as `image-name`. |
+| `version`    | `str \| None` | `None`   | Optional version (`1`, `1.2`, or `1*` wildcard). No patch versions. |

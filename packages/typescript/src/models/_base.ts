@@ -177,6 +177,7 @@ export type ModelKind =
   | "environment"
   | "container"
   | "service"
+  | "imageSnapshot"
   | "actionInput"
   | "actionOutput"
   | "branding"
@@ -277,6 +278,7 @@ export type DefaultsModel = ModelOf<"defaults">;
 export type EnvironmentModel = ModelOf<"environment">;
 export type ContainerModel = ModelOf<"container">;
 export type ServiceModel = ModelOf<"service">;
+export type ImageSnapshotModel = ModelOf<"imageSnapshot">;
 export type ActionInputModel = ModelOf<"actionInput">;
 export type ActionOutputModel = ModelOf<"actionOutput">;
 export type BrandingModel = ModelOf<"branding">;

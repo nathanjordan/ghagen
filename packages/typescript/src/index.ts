@@ -58,6 +58,7 @@ export type {
   EnvironmentModel,
   ContainerModel,
   ServiceModel,
+  ImageSnapshotModel,
   ActionInputModel,
   ActionOutputModel,
   BrandingModel,
@@ -95,6 +96,9 @@ export type { PermissionsInput } from "./models/permissions.js";
 
 export { container, service } from "./models/container.js";
 export type { ContainerInput } from "./models/container.js";
+
+export { imageSnapshot } from "./models/image-snapshot.js";
+export type { ImageSnapshotInput } from "./models/image-snapshot.js";
 
 export { job, strategy, matrix, concurrency, defaults, environment } from "./models/job.js";
 export type {

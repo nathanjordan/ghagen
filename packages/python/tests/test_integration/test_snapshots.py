@@ -13,6 +13,7 @@ from ghagen import (
     CompositeRuns,
     Container,
     DockerRuns,
+    ImageSnapshot,
     Job,
     Matrix,
     NodeRuns,
@@ -287,6 +288,7 @@ def test_full_featured(snapshot: Snapshot):
                 runs_on="ubuntu-latest",
                 needs="lint",
                 container=Container(image="python:3.13"),
+                snapshot=ImageSnapshot(image_name="custom-ubuntu", version="1.0"),
                 services={
                     "db": Service(
                         image="postgres:16",

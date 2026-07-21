@@ -23,6 +23,7 @@ from ghagen.models.action import (
 )
 from ghagen.models.common import ExpressionStr
 from ghagen.models.container import Container, Service
+from ghagen.models.image_snapshot import ImageSnapshot
 from ghagen.models.job import Job, Matrix, Strategy
 from ghagen.models.permissions import Permissions
 from ghagen.models.step import Step
@@ -56,6 +57,7 @@ __all__ = [
     "NodeRuns",
     "Container",
     "Service",
+    "ImageSnapshot",
     "Job",
     "Matrix",
     "Strategy",
