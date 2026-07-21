@@ -14,7 +14,6 @@ from ghagen.models.step import Step
 from ghagen.models.workflow import Workflow
 from ghagen.pin.lockfile import Lockfile
 from ghagen.pin.uses import UsesRef
-from ghagen.transforms import SynthContext
 
 
 class PinError(Exception):
@@ -31,7 +30,7 @@ class PinTransform:
     def __init__(self, lockfile: Lockfile) -> None:
         self._lockfile = lockfile
 
-    def __call__(self, item: Workflow | Action, ctx: SynthContext) -> Workflow | Action:
+    def __call__(self, item: Workflow | Action) -> Workflow | Action:
         for _path, model in item.walk():
             if isinstance(model, Step):
                 self._pin_step(model)

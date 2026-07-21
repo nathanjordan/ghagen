@@ -7,7 +7,7 @@
  */
 
 import { StepModel, JobModel, isCommented, withEolComment } from "../models/_base.js";
-import type { SynthContext, SynthItem, Transform } from "../transforms.js";
+import type { SynthItem, Transform } from "../transforms.js";
 import type { Lockfile } from "./lockfile.js";
 import { UsesRef } from "./uses.js";
 
@@ -24,7 +24,7 @@ export type PinTransform = Transform;
 
 /** Build a `Transform` that mutates a model to pin `uses:` refs. */
 export function pinTransform(lockfile: Lockfile): PinTransform {
-  return function pin(item: SynthItem, _ctx: SynthContext): SynthItem {
+  return function pin(item: SynthItem): SynthItem {
     item.walk((model) => {
       if (model instanceof StepModel || model instanceof JobModel) {
         let uses = model.data["uses"];

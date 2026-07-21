@@ -8,8 +8,6 @@ import { action, compositeRuns } from "../models/action.js";
 import { cloneModel, isCommented } from "../models/_base.js";
 import type { Model, Commented } from "../models/_base.js";
 
-const ctx = { workflowKey: "ci", itemType: "workflow" as const, root: "/" };
-
 function makeLockfile(): Lockfile {
   const lf = new Lockfile();
   lf.merge([
@@ -36,7 +34,7 @@ describe("pinTransform()", () => {
     });
     const cloned = cloneModel(wf);
     const transform = pinTransform(makeLockfile());
-    transform(cloned, ctx);
+    transform(cloned);
 
     const jobs = cloned.data["jobs"] as Record<string, Model>;
     const steps = jobs["test"]!.data["steps"] as Model[];
@@ -59,7 +57,7 @@ describe("pinTransform()", () => {
     });
     const cloned = cloneModel(wf);
     const transform = pinTransform(makeLockfile());
-    expect(() => transform(cloned, ctx)).toThrow(PinError);
+    expect(() => transform(cloned)).toThrow(PinError);
   });
 
   it("leaves a hand-pinned SHA untouched (never throws PinError)", () => {
@@ -76,7 +74,7 @@ describe("pinTransform()", () => {
     // Empty lockfile: a lookup would throw, so this proves the SHA ref is
     // skipped before any lockfile consultation.
     const transform = pinTransform(new Lockfile());
-    expect(() => transform(cloned, ctx)).not.toThrow();
+    expect(() => transform(cloned)).not.toThrow();
 
     const jobs = cloned.data["jobs"] as Record<string, Model>;
     const steps = jobs["test"]!.data["steps"] as Model[];
@@ -94,7 +92,7 @@ describe("pinTransform()", () => {
     });
     const cloned = cloneModel(wf);
     const transform = pinTransform(makeLockfile());
-    expect(() => transform(cloned, ctx)).not.toThrow();
+    expect(() => transform(cloned)).not.toThrow();
   });
 
   it("pins job.uses (reusable workflow refs)", () => {
@@ -109,7 +107,7 @@ describe("pinTransform()", () => {
     (j.data as Record<string, string>)["uses"] = "actions/checkout@v4";
     const wf = workflow({ jobs: { test: j } });
     const cloned = cloneModel(wf);
-    pinTransform(makeLockfile())(cloned, ctx);
+    pinTransform(makeLockfile())(cloned);
 
     const jobs = cloned.data["jobs"] as Record<string, Model>;
     const jobUses = jobs["test"]!.data["uses"];
@@ -130,7 +128,7 @@ describe("pinTransform()", () => {
       }),
     });
     const cloned = cloneModel(a);
-    pinTransform(makeLockfile())(cloned, { ...ctx, itemType: "action" });
+    pinTransform(makeLockfile())(cloned);
     const runs = cloned.data["runs"] as Model;
     const steps = runs.data["steps"] as Model[];
     const actionUses = steps[0]!.data["uses"];

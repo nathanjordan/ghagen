@@ -14,7 +14,7 @@ import type { ActionModel, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
 import type { HeaderVariables } from "./emitter/header.js";
 import { toYaml } from "./emitter/yaml-writer.js";
-import type { SynthContext, SynthItem, Transform } from "./transforms.js";
+import type { SynthItem, Transform } from "./transforms.js";
 import { mkdir } from "node:fs/promises";
 
 /** Conventional directory for GitHub Actions workflows inside a repository. */
@@ -114,7 +114,7 @@ export class App {
     const written: string[] = [];
     for (const { item, relPath } of this._items) {
       const full = resolve(this.rootAbsPath, relPath);
-      const working = this._applyTransforms(item, relPath, transforms);
+      const working = this._applyTransforms(item, transforms);
       await mkdir(dirname(full), { recursive: true });
       writeFileSync(full, toYaml(working, { header: this.headerTxt, autoDedent: this.autoDedent }));
       written.push(full);
@@ -134,7 +134,7 @@ export class App {
 
     for (const { item, relPath } of this._items) {
       const full = resolve(this.rootAbsPath, relPath);
-      const working = this._applyTransforms(item, relPath, transforms);
+      const working = this._applyTransforms(item, transforms);
       const expected = toYaml(working, {
         header: this.headerTxt,
         autoDedent: this.autoDedent,
@@ -180,31 +180,15 @@ export class App {
   }
 
   /** @internal */
-  private _applyTransforms(
-    item: SynthItem,
-    relPath: string,
-    transforms: readonly Transform[],
-  ): SynthItem {
+  private _applyTransforms(item: SynthItem, transforms: readonly Transform[]): SynthItem {
     if (transforms.length === 0) {
       return item;
     }
 
     let working = cloneModel(item);
-    const ctx: SynthContext = {
-      workflowKey: stem(relPath),
-      itemType: item.kind === "workflow" ? "workflow" : "action",
-      root: this.rootAbsPath,
-    };
     for (const transform of transforms) {
-      working = transform(working, ctx);
+      working = transform(working);
     }
     return working;
   }
-}
-
-/** Return the basename of `path` without its final extension. */
-function stem(path: string): string {
-  const base = path.replace(/^.*[\\/]/, "");
-  const dot = base.lastIndexOf(".");
-  return dot > 0 ? base.slice(0, dot) : base;
 }

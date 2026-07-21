@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 
@@ -15,20 +14,11 @@ from ghagen.models.trigger import On, PushTrigger
 from ghagen.models.workflow import Workflow
 from ghagen.pin.lockfile import Lockfile, PinEntry
 from ghagen.pin.transform import PinError, PinTransform
-from ghagen.transforms import SynthContext
 
 SHA_CHECKOUT = "a" * 40
 SHA_SETUP_PY = "b" * 40
 SHA_REUSABLE = "c" * 40
 SAMPLE_TIME = datetime(2026, 4, 9, tzinfo=UTC)
-
-
-def _ctx() -> SynthContext:
-    return SynthContext(workflow_key="ci", item_type="workflow", root=Path("."))
-
-
-def _action_ctx() -> SynthContext:
-    return SynthContext(workflow_key="action", item_type="action", root=Path("."))
 
 
 def _lockfile(**pins: str) -> Lockfile:
@@ -54,7 +44,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         step = result.jobs["build"].steps[0]
         assert is_commented(step.uses)
         assert step.uses.value == f"actions/checkout@{SHA_CHECKOUT}"
@@ -80,7 +70,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         steps = result.jobs["build"].steps
         assert is_commented(steps[0].uses)
         assert steps[0].uses.value == f"actions/checkout@{SHA_CHECKOUT}"
@@ -98,7 +88,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         job = result.jobs["call"]
         assert is_commented(job.uses)
         assert (
@@ -118,7 +108,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         assert result.jobs["build"].steps[0].uses == "./local-action"
 
     def test_skips_docker(self):
@@ -133,7 +123,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         assert result.jobs["build"].steps[0].uses == "docker://node:18"
 
     def test_missing_entry_raises(self):
@@ -149,7 +139,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         with pytest.raises(PinError, match="No lockfile entry"):
-            transform(wf, _ctx())
+            transform(wf)
 
     def test_skips_run_steps(self):
         lf = _lockfile()
@@ -163,7 +153,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         assert result.jobs["build"].steps[0].run == "echo hello"
 
     def test_hand_pinned_sha_is_left_untouched(self):
@@ -180,7 +170,7 @@ class TestPinTransform:
             },
         )
         transform = PinTransform(lf)
-        result = transform(wf, _ctx())
+        result = transform(wf)
         assert result.jobs["build"].steps[0].uses == f"actions/checkout@{sha}"
 
 
@@ -203,7 +193,7 @@ class TestPinTransformAction:
             ),
         )
         transform = PinTransform(lf)
-        result = transform(action, _action_ctx())
+        result = transform(action)
         assert isinstance(result, Action)
         assert isinstance(result.runs, CompositeRuns)
         step = result.runs.steps[0]
@@ -227,7 +217,7 @@ class TestPinTransformAction:
         )
         transform = PinTransform(lf)
         with pytest.raises(PinError, match="No lockfile entry"):
-            transform(action, _action_ctx())
+            transform(action)
 
     def test_docker_action_is_passthrough(self):
         """DockerRuns has no pinnable refs; transform must leave it alone."""
@@ -238,7 +228,7 @@ class TestPinTransformAction:
             runs=DockerRuns(image="docker://alpine:3"),
         )
         transform = PinTransform(lf)
-        result = transform(action, _action_ctx())
+        result = transform(action)
         assert isinstance(result, Action)
         assert isinstance(result.runs, DockerRuns)
         assert result.runs.image == "docker://alpine:3"

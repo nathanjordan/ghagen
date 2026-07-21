@@ -3,7 +3,8 @@
 **Status:** accepted
 
 Project options that affect YAML output (notably `auto_dedent`) are applied at **serialization
-time** and threaded explicitly — through `SynthContext` on the `App.synth` path and through a
+time** and threaded explicitly — as an `auto_dedent`/`autoDedent` keyword argument read from
+`self._auto_dedent`/`this.autoDedent` on the `App.synth` path, and through a
 `to_yaml(auto_dedent=...)` parameter on the standalone path. Model-specific output quirks (e.g. the
 `On` trigger's `schedule` reshape and empty `workflow_dispatch` → null) are normalized at
 **construction time** via validators/factories. No module-level mutable global carries configuration.

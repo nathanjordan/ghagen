@@ -148,7 +148,7 @@ export { cloneModel } from "./models/_base.js";
 export { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR } from "./app.js";
 
 // Transforms
-export type { Transform, SynthContext, SynthItem } from "./transforms.js";
+export type { Transform, SynthItem } from "./transforms.js";
 
 // Pin subsystem
 export {

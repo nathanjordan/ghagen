@@ -9,7 +9,7 @@ from ghagen.config import load_options
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
-from ghagen.transforms import SynthContext, Transform
+from ghagen.transforms import Transform
 
 _Item = Workflow | Action
 
@@ -135,22 +135,14 @@ class App:
         transforms.extend(self._transforms)
         return transforms
 
-    def _apply_transforms(
-        self, item: _Item, rel_path: Path, transforms: list[Transform]
-    ) -> _Item:
+    def _apply_transforms(self, item: _Item, transforms: list[Transform]) -> _Item:
         """Deep-copy a model and apply all transforms."""
         if not transforms:
             return item
 
         working = item.model_copy(deep=True)
-        item_type = "workflow" if isinstance(item, Workflow) else "action"
-        ctx = SynthContext(
-            workflow_key=rel_path.stem,
-            item_type=item_type,
-            root=self.root,
-        )
         for transform in transforms:
-            working = transform(working, ctx)
+            working = transform(working)
         return working
 
     def synth(self) -> list[Path]:
@@ -163,7 +155,7 @@ class App:
         written: list[Path] = []
         for item, rel_path in self._items:
             full = self.root / rel_path
-            working = self._apply_transforms(item, rel_path, transforms)
+            working = self._apply_transforms(item, transforms)
             working.to_yaml_file(
                 full, header=self.header, auto_dedent=self._auto_dedent
             )
@@ -182,7 +174,7 @@ class App:
 
         for item, rel_path in self._items:
             full = self.root / rel_path
-            working = self._apply_transforms(item, rel_path, transforms)
+            working = self._apply_transforms(item, transforms)
             expected = working.to_yaml(
                 header=self.header, auto_dedent=self._auto_dedent
             )
