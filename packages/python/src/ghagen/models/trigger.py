@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field, model_validator
-from ruamel.yaml.comments import CommentedMap
 
 from ghagen._raw import Raw
 from ghagen.emitter.key_order import (
@@ -14,7 +13,7 @@ from ghagen.emitter.key_order import (
     WORKFLOW_DISPATCH_INPUT_KEY_ORDER,
     WORKFLOW_DISPATCH_KEY_ORDER,
 )
-from ghagen.models._base import GhagenModel
+from ghagen.models._base import GhagenModel, OrRaw
 
 
 class PushTrigger(GhagenModel):
@@ -73,7 +72,7 @@ class WorkflowDispatchInput(GhagenModel):
 class WorkflowDispatchTrigger(GhagenModel):
     """Configuration for workflow_dispatch (manual) triggers."""
 
-    inputs: dict[str, WorkflowDispatchInput | CommentedMap] | None = None
+    inputs: dict[str, OrRaw[WorkflowDispatchInput]] | None = None
 
     def _get_key_order(self) -> list[str]:
         return WORKFLOW_DISPATCH_KEY_ORDER
@@ -114,9 +113,9 @@ class WorkflowCallSecret(GhagenModel):
 class WorkflowCallTrigger(GhagenModel):
     """Configuration for workflow_call (reusable workflow) triggers."""
 
-    inputs: dict[str, WorkflowCallInput | CommentedMap] | None = None
-    outputs: dict[str, WorkflowCallOutput | CommentedMap] | None = None
-    secrets: dict[str, WorkflowCallSecret | CommentedMap] | None = None
+    inputs: dict[str, OrRaw[WorkflowCallInput]] | None = None
+    outputs: dict[str, OrRaw[WorkflowCallOutput]] | None = None
+    secrets: dict[str, OrRaw[WorkflowCallSecret]] | None = None
 
     def _get_key_order(self) -> list[str]:
         return WORKFLOW_CALL_KEY_ORDER
@@ -129,37 +128,37 @@ class On(GhagenModel):
     use extras for less common events.
     """
 
-    push: PushTrigger | CommentedMap | None = None
-    pull_request: PRTrigger | CommentedMap | None = Field(
+    push: OrRaw[PushTrigger] | None = None
+    pull_request: OrRaw[PRTrigger] | None = Field(
         None, serialization_alias="pull_request"
     )
-    pull_request_target: PRTrigger | CommentedMap | None = Field(
+    pull_request_target: OrRaw[PRTrigger] | None = Field(
         None, serialization_alias="pull_request_target"
     )
-    workflow_dispatch: WorkflowDispatchTrigger | CommentedMap | bool | None = None
-    workflow_call: WorkflowCallTrigger | CommentedMap | None = None
-    workflow_run: dict[str, Any] | CommentedMap | None = None
-    schedule: list[ScheduleTrigger | CommentedMap] | None = None
-    release: dict[str, Any] | CommentedMap | None = None
-    issues: dict[str, Any] | CommentedMap | None = None
-    issue_comment: dict[str, Any] | CommentedMap | None = None
-    create: dict[str, Any] | CommentedMap | None = None
-    delete: dict[str, Any] | CommentedMap | None = None
-    fork: dict[str, Any] | CommentedMap | None = None
-    page_build: dict[str, Any] | CommentedMap | None = None
-    deployment: dict[str, Any] | CommentedMap | None = None
-    deployment_status: dict[str, Any] | CommentedMap | None = None
-    check_run: dict[str, Any] | CommentedMap | None = None
-    check_suite: dict[str, Any] | CommentedMap | None = None
-    label: dict[str, Any] | CommentedMap | None = None
-    milestone: dict[str, Any] | CommentedMap | None = None
-    project: dict[str, Any] | CommentedMap | None = None
-    project_card: dict[str, Any] | CommentedMap | None = None
-    project_column: dict[str, Any] | CommentedMap | None = None
-    public: dict[str, Any] | CommentedMap | None = None
-    registry_package: dict[str, Any] | CommentedMap | None = None
-    status: dict[str, Any] | CommentedMap | None = None
-    watch: dict[str, Any] | CommentedMap | None = None
+    workflow_dispatch: OrRaw[WorkflowDispatchTrigger | bool] | None = None
+    workflow_call: OrRaw[WorkflowCallTrigger] | None = None
+    workflow_run: OrRaw[dict[str, Any]] | None = None
+    schedule: list[OrRaw[ScheduleTrigger]] | None = None
+    release: OrRaw[dict[str, Any]] | None = None
+    issues: OrRaw[dict[str, Any]] | None = None
+    issue_comment: OrRaw[dict[str, Any]] | None = None
+    create: OrRaw[dict[str, Any]] | None = None
+    delete: OrRaw[dict[str, Any]] | None = None
+    fork: OrRaw[dict[str, Any]] | None = None
+    page_build: OrRaw[dict[str, Any]] | None = None
+    deployment: OrRaw[dict[str, Any]] | None = None
+    deployment_status: OrRaw[dict[str, Any]] | None = None
+    check_run: OrRaw[dict[str, Any]] | None = None
+    check_suite: OrRaw[dict[str, Any]] | None = None
+    label: OrRaw[dict[str, Any]] | None = None
+    milestone: OrRaw[dict[str, Any]] | None = None
+    project: OrRaw[dict[str, Any]] | None = None
+    project_card: OrRaw[dict[str, Any]] | None = None
+    project_column: OrRaw[dict[str, Any]] | None = None
+    public: OrRaw[dict[str, Any]] | None = None
+    registry_package: OrRaw[dict[str, Any]] | None = None
+    status: OrRaw[dict[str, Any]] | None = None
+    watch: OrRaw[dict[str, Any]] | None = None
 
     def _get_key_order(self) -> list[str]:
         # No strong canonical order for trigger types; emit in declaration order

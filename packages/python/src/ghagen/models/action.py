@@ -20,7 +20,6 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import Field
-from ruamel.yaml.comments import CommentedMap
 
 from ghagen.emitter.key_order import (
     ACTION_INPUT_KEY_ORDER,
@@ -31,7 +30,7 @@ from ghagen.emitter.key_order import (
     DOCKER_RUNS_KEY_ORDER,
     NODE_RUNS_KEY_ORDER,
 )
-from ghagen.models._base import Document, GhagenModel
+from ghagen.models._base import Document, GhagenModel, OrRaw
 from ghagen.models.step import Step
 
 
@@ -91,7 +90,7 @@ class CompositeRuns(GhagenModel):
     """
 
     using: Literal["composite"] = "composite"
-    steps: list[Step | CommentedMap] = Field(default_factory=list)
+    steps: list[OrRaw[Step]] = Field(default_factory=list)
 
     def model_post_init(self, _context: Any) -> None:
         # Ensure ``using`` is always emitted even when it takes the default.
@@ -181,10 +180,10 @@ class Action(Document):
     name: str
     description: str
     author: str | None = None
-    branding: Branding | CommentedMap | None = None
-    inputs: dict[str, ActionInput | CommentedMap] | None = None
-    outputs: dict[str, ActionOutput | CommentedMap] | None = None
-    runs: CompositeRuns | DockerRuns | NodeRuns | CommentedMap
+    branding: OrRaw[Branding] | None = None
+    inputs: dict[str, OrRaw[ActionInput]] | None = None
+    outputs: dict[str, OrRaw[ActionOutput]] | None = None
+    runs: OrRaw[CompositeRuns | DockerRuns | NodeRuns]
 
     def _get_key_order(self) -> list[str]:
         return ACTION_KEY_ORDER

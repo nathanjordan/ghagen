@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field
-from ruamel.yaml.comments import CommentedMap
 
 from ghagen._raw import Raw
 from ghagen.emitter.key_order import (
@@ -16,7 +15,7 @@ from ghagen.emitter.key_order import (
     MATRIX_KEY_ORDER,
     STRATEGY_KEY_ORDER,
 )
-from ghagen.models._base import GhagenModel
+from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.container import Container, Service
 from ghagen.models.permissions import Permissions
 from ghagen.models.step import Step
@@ -50,7 +49,7 @@ class Matrix(GhagenModel):
 class Strategy(GhagenModel):
     """Job strategy configuration (matrix, fail-fast, max-parallel)."""
 
-    matrix: Matrix | CommentedMap | None = None
+    matrix: OrRaw[Matrix] | None = None
     fail_fast: bool | None = Field(None, serialization_alias="fail-fast")
     max_parallel: int | None = Field(None, serialization_alias="max-parallel")
 
@@ -83,7 +82,7 @@ class Concurrency(GhagenModel):
 class Defaults(GhagenModel):
     """Default settings for all run steps in a job or workflow."""
 
-    run: DefaultsRun | CommentedMap | None = None
+    run: OrRaw[DefaultsRun] | None = None
 
     def _get_key_order(self) -> list[str]:
         return DEFAULTS_KEY_ORDER
@@ -129,13 +128,13 @@ class Job(GhagenModel):
         description="Conditional expression that must evaluate "
         "to true for this job to run.",
     )
-    permissions: Permissions | CommentedMap | None = None
-    environment: str | Environment | CommentedMap | None = None
-    strategy: Strategy | CommentedMap | None = None
+    permissions: OrRaw[Permissions] | None = None
+    environment: OrRaw[str | Environment] | None = None
+    strategy: OrRaw[Strategy] | None = None
     env: dict[str, str] | None = None
-    defaults: Defaults | CommentedMap | None = None
-    steps: list[Step | CommentedMap] | None = None
-    outputs: dict[str, str | JobOutput | CommentedMap] | None = None
+    defaults: OrRaw[Defaults] | None = None
+    steps: list[OrRaw[Step]] | None = None
+    outputs: dict[str, OrRaw[str | JobOutput]] | None = None
     timeout_minutes: int | None = Field(
         None,
         serialization_alias="timeout-minutes",
@@ -146,16 +145,14 @@ class Job(GhagenModel):
         serialization_alias="continue-on-error",
         description="Allow the workflow to continue when this job fails.",
     )
-    concurrency: str | Concurrency | CommentedMap | None = None
-    services: dict[str, Service | str | CommentedMap] | None = None
-    container: Container | str | CommentedMap | None = None
+    concurrency: OrRaw[str | Concurrency] | None = None
+    services: dict[str, OrRaw[Service | str]] | None = None
+    container: OrRaw[Container | str] | None = None
 
     # Reusable workflow job fields
     uses: str | None = None
-    with_: dict[str, Any] | CommentedMap | None = Field(
-        None, serialization_alias="with"
-    )
-    secrets: dict[str, str] | str | CommentedMap | None = None
+    with_: OrRaw[dict[str, Any]] | None = Field(None, serialization_alias="with")
+    secrets: OrRaw[dict[str, str] | str] | None = None
 
     def _get_key_order(self) -> list[str]:
         return JOB_KEY_ORDER

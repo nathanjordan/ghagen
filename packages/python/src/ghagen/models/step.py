@@ -5,11 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import Field
-from ruamel.yaml.comments import CommentedMap
 
 from ghagen._raw import Raw
 from ghagen.emitter.key_order import STEP_KEY_ORDER
-from ghagen.models._base import GhagenModel
+from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.common import ShellType
 
 
@@ -29,7 +28,7 @@ class Step(GhagenModel):
     )
     uses: str | None = None
     run: str | None = None
-    with_: dict[str, Any] | CommentedMap | None = Field(
+    with_: OrRaw[dict[str, Any]] | None = Field(
         None,
         serialization_alias="with",
         description="Input parameters for the action specified by ``uses``.",

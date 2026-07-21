@@ -2,7 +2,7 @@
 
 One type replaces the scattered ``@``-splits and the divergent pinnability
 predicate that used to live in :mod:`ghagen.pin.collect`,
-:mod:`ghagen.pin.transform`, :mod:`ghagen.pin.resolve`, and the deps CLI.
+:mod:`ghagen.pin.transform`, :mod:`ghagen.pin.github`, and the deps CLI.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from ruamel.yaml.comments import CommentedMap
@@ -20,6 +20,14 @@ from ghagen.emitter.yaml_writer import (
     to_ordered_commented_map,
     to_yaml_node,
 )
+
+_T = TypeVar("_T")
+
+# Escape hatch for every field: accept the modeled type, or a raw
+# CommentedMap passed straight through to YAML unmodeled. ``requires-python``
+# is >=3.11, so this is a TypeVar-based generic alias rather than a PEP 695
+# ``type`` statement (3.12+).
+OrRaw = _T | CommentedMap
 
 # Frame path fragments that mark a frame as "internal" to ghagen/pydantic.
 # When walking the stack to find the user-code construction site, frames

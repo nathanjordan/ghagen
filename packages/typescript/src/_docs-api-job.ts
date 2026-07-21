@@ -1,3 +1,4 @@
+// Hand-synced with the index.ts barrel — index.ts is the source of truth.
 /**
  * Job model and related configuration.
  * @packageDocumentation

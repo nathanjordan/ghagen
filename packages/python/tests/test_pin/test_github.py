@@ -13,6 +13,7 @@ import pytest
 
 from ghagen.pin.github import (
     GitHubClient,
+    ResolveError,
     Response,
     TransportError,
     _commit_sha,
@@ -20,7 +21,6 @@ from ghagen.pin.github import (
     _parse_next_link,
     _ref_urls,
 )
-from ghagen.pin.resolve import ResolveError
 
 SHA = "a" * 40
 TAG_SHA = "b" * 40

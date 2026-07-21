@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { ResolveError } from "./resolve.js";
 import {
   GitHubClient,
+  ResolveError,
   TransportError,
   type HttpClient,
   type HttpResponse,
@@ -11,7 +11,6 @@ import {
   parseNextLink,
   refUrls,
 } from "./github.js";
-
 const SHA = "a".repeat(40);
 const TAG_SHA = "b".repeat(40);
 

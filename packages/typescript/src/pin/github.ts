@@ -11,8 +11,6 @@
  * unit-tested directly.
  */
 
-import { ResolveError } from "./resolve.js";
-
 const API_BASE = "https://api.github.com";
 const API_TIMEOUT_MS = 30_000;
 
@@ -28,6 +26,14 @@ export class TransportError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "TransportError";
+  }
+}
+
+/** Raised when a ref cannot be resolved to a commit SHA. */
+export class ResolveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ResolveError";
   }
 }
 

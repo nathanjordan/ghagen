@@ -22,8 +22,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ghagen.pin.resolve import ResolveError
-
 _API_BASE = "https://api.github.com"
 
 
@@ -35,6 +33,10 @@ class TransportError(Exception):
     transport errors — they are returned as :class:`Response` objects for
     :class:`GitHubClient` to map.
     """
+
+
+class ResolveError(Exception):
+    """Raised when a ref cannot be resolved to a commit SHA."""
 
 
 @dataclass(frozen=True)

@@ -8,10 +8,10 @@ export {
   readLockfile,
   writeLockfile,
 } from "./lockfile.js";
-export { ResolveError } from "./resolve.js";
 export {
   GitHubClient,
   FetchTransport,
+  ResolveError,
   TransportError,
   type HttpClient,
   type HttpResponse,

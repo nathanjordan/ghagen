@@ -13,9 +13,8 @@
 import { resolve } from "node:path";
 import type { App } from "../app.js";
 import { collectUsesRefs } from "./collect.js";
-import type { GitHubClient } from "./github.js";
+import { ResolveError, type GitHubClient } from "./github.js";
 import { readLockfile, writeLockfile } from "./lockfile.js";
-import { ResolveError } from "./resolve.js";
 import { locateUsesRefs } from "./sources.js";
 import { applyUpdates } from "./update.js";
 import { UsesRef } from "./uses.js";

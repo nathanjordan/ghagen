@@ -10,11 +10,11 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { loadOptions } from "./config.js";
 import { cloneModel } from "./models/_base.js";
-import type { ActionModel, WorkflowModel } from "./models/_base.js";
+import type { ActionModel, Document, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
 import type { HeaderVariables } from "./emitter/header.js";
 import { toYaml } from "./emitter/yaml-writer.js";
-import type { SynthItem, Transform } from "./transforms.js";
+import type { Transform } from "./transforms.js";
 import { mkdir } from "node:fs/promises";
 
 /** Conventional directory for GitHub Actions workflows inside a repository. */
@@ -23,7 +23,7 @@ export const DEFAULT_WORKFLOWS_DIR = ".github/workflows";
 const DEFAULT_LOCKFILE_REL = ".ghagen.lock.yml";
 
 interface RegisteredItem {
-  readonly item: SynthItem;
+  readonly item: Document;
   /** Output path relative to `root`. */
   readonly relPath: string;
 }
@@ -89,7 +89,7 @@ export class App {
    * Use this escape hatch when you need to write to a path that doesn't fit the standard
    * conventions. For the common cases, prefer `addWorkflow()` / `addAction()`.
    */
-  add(item: SynthItem, path: string): void {
+  add(item: Document, path: string): void {
     this._items.push({ item, relPath: path });
   }
 
@@ -180,7 +180,7 @@ export class App {
   }
 
   /** @internal */
-  private _applyTransforms(item: SynthItem, transforms: readonly Transform[]): SynthItem {
+  private _applyTransforms(item: Document, transforms: readonly Transform[]): Document {
     if (transforms.length === 0) {
       return item;
     }

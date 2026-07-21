@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from ghagen.pin.collect import collect_uses_refs
+from ghagen.pin.github import ResolveError
 from ghagen.pin.lockfile import PinEntry, read_lockfile, write_lockfile
-from ghagen.pin.resolve import ResolveError
 from ghagen.pin.sources import locate_uses_refs
 from ghagen.pin.update import apply_updates
 from ghagen.pin.uses import UsesRef

@@ -74,28 +74,6 @@ class GhagenOptions:
     auto_dedent: bool = True
 
 
-def _parse_bool(value: Any, key: str, source: str) -> bool:
-    if not isinstance(value, bool):
-        raise ValueError(
-            f"{source}: [options].{key} must be a boolean, got {type(value).__name__}"
-        )
-    return value
-
-
-def _extract_from_ghagen_yml(path: Path) -> GhagenOptions | None:
-    data = load_yaml_config(path)
-    options = data.get("options")
-    if options is None:
-        return None
-    if not isinstance(options, dict):
-        raise ValueError(f"{path}: [options] must be a table")
-    return GhagenOptions(
-        auto_dedent=_parse_bool(
-            options.get("auto_dedent", True), "auto_dedent", str(path)
-        ),
-    )
-
-
 def load_options(start: Path | None = None) -> GhagenOptions:
     """Load project options from ``.ghagen.yml`` at the repository root.
 
@@ -110,10 +88,21 @@ def load_options(start: Path | None = None) -> GhagenOptions:
             Defaults to the current working directory.
     """
     root = find_app_root(start)
-    if root is not None:
-        ghagen_yml = root / GHAGEN_YML_MARKER
-        result = _extract_from_ghagen_yml(ghagen_yml)
-        if result is not None:
-            return result
+    if root is None:
+        return GhagenOptions()
 
-    return GhagenOptions()
+    path = root / GHAGEN_YML_MARKER
+    options = load_yaml_config(path).get("options")
+    if options is None:
+        return GhagenOptions()
+    if not isinstance(options, dict):
+        raise ValueError(f"{path}: [options] must be a table")
+
+    auto_dedent = options.get("auto_dedent", True)
+    if not isinstance(auto_dedent, bool):
+        raise ValueError(
+            f"{path}: [options].auto_dedent must be a boolean, "
+            f"got {type(auto_dedent).__name__}"
+        )
+
+    return GhagenOptions(auto_dedent=auto_dedent)

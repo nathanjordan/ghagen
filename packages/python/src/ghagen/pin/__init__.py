@@ -12,7 +12,13 @@ from ghagen.pin.engine import (
     pin,
     upgrade,
 )
-from ghagen.pin.github import GitHubClient, HttpClient, Response, UrllibTransport
+from ghagen.pin.github import (
+    GitHubClient,
+    HttpClient,
+    ResolveError,
+    Response,
+    UrllibTransport,
+)
 from ghagen.pin.lockfile import (
     Lockfile,
     LockfileError,
@@ -20,7 +26,6 @@ from ghagen.pin.lockfile import (
     read_lockfile,
     write_lockfile,
 )
-from ghagen.pin.resolve import ResolveError
 from ghagen.pin.transform import PinTransform
 from ghagen.pin.uses import UsesRef
 

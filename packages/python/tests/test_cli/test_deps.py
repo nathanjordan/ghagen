@@ -569,7 +569,7 @@ class TestUpgradeErrorHandling:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_upgrade_project(tmp_path)
 
-        from ghagen.pin.resolve import ResolveError
+        from ghagen.pin.github import ResolveError
 
         def mock_tags_with_error(owner, repo, *, token=None):
             if repo == "checkout":

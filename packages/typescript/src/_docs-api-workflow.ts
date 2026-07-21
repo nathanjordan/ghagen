@@ -1,3 +1,4 @@
+// Hand-synced with the index.ts barrel — index.ts is the source of truth.
 /**
  * Workflow model and related defaults.
  * @packageDocumentation

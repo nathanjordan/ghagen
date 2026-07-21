@@ -10,10 +10,7 @@
  *     models → cloneModel → [Transform₁] → … → toYaml → disk
  */
 
-import type { ActionModel, WorkflowModel } from "./models/_base.js";
-
-/** A workflow or action ready for synthesis. */
-export type SynthItem = WorkflowModel | ActionModel;
+import type { Document } from "./models/_base.js";
 
 /**
  * A model-level transform applied during synthesis.
@@ -22,4 +19,4 @@ export type SynthItem = WorkflowModel | ActionModel;
  * mutate it freely. The returned value (which may be the same object)
  * is passed to the next transform in the pipeline.
  */
-export type Transform = (item: SynthItem) => SynthItem;
+export type Transform = (item: Document) => Document;
