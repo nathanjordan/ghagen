@@ -30,7 +30,7 @@ export interface WrapRule {
  * discriminant `kind`, the camelCase-input → YAML-key `fieldMap`, the canonical
  * emission `order`, and the optional inline-input auto-`wrap` map. Declared next
  * to the factory and read by both the factory (field mapping + wrapping) and the
- * Emitter ({@link Model.toYamlMap} key ordering). Replaces the old per-factory
+ * Emitter (`modelToYamlMap` key ordering). Replaces the old per-factory
  * `*_FIELD_MAP` constants and `emitter/key-order.ts` tables.
  */
 export interface ModelSpec {

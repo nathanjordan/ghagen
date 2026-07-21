@@ -1,19 +1,20 @@
 """Tests for the Step model."""
 
 from ghagen import Job, Raw, Step, Workflow
+from ghagen.emitter.nodes import _model_to_map
 from ghagen.models.common import ShellType
 
 
 def test_basic_run_step():
     step = Step(name="Run tests", run="pytest")
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["name"] == "Run tests"
     assert cm["run"] == "pytest"
 
 
 def test_basic_uses_step():
     step = Step(uses="actions/checkout@v4")
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["uses"] == "actions/checkout@v4"
     assert "name" not in cm
     assert "run" not in cm
@@ -25,7 +26,7 @@ def test_step_with_alias():
         uses="actions/setup-python@v5",
         with_={"python-version": "3.12"},
     )
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert "with" in cm
     assert cm["with"]["python-version"] == "3.12"
     assert "with_" not in cm
@@ -37,7 +38,7 @@ def test_step_if_alias():
         run="echo 'only on main'",
         if_="github.ref == 'refs/heads/main'",
     )
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert "if" in cm
     assert cm["if"] == "github.ref == 'refs/heads/main'"
     assert "if_" not in cm
@@ -45,13 +46,13 @@ def test_step_if_alias():
 
 def test_step_shell_typed():
     step = Step(run="echo hi", shell=ShellType.BASH)
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["shell"] == "bash"
 
 
 def test_step_shell_raw_escape():
     step = Step(run="echo hi", shell=Raw("future-shell"))
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["shell"] == "future-shell"
 
 
@@ -60,7 +61,7 @@ def test_step_extras():
         uses="actions/checkout@v4",
         extras={"new-feature": True},
     )
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["new-feature"] is True
 
 
@@ -72,7 +73,7 @@ def test_step_key_ordering():
         env={"FOO": "bar"},
         shell=ShellType.BASH,
     )
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     keys = list(cm.keys())
     assert keys.index("id") < keys.index("name")
     assert keys.index("name") < keys.index("run")
@@ -82,7 +83,7 @@ def test_step_key_ordering():
 
 def test_step_excludes_none_and_unset():
     step = Step(uses="actions/checkout@v4")
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert "name" not in cm
     assert "run" not in cm
     assert "shell" not in cm
@@ -94,7 +95,7 @@ def test_step_post_process():
         cm["injected"] = "value"
 
     step = Step(uses="actions/checkout@v4", post_process=add_key)
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["injected"] == "value"
 
 
@@ -130,11 +131,18 @@ def test_run_none():
     assert step.run is None
 
 
-def test_to_commented_map_does_not_dedent():
-    """Dedent lives in the document emitter, not in ``to_commented_map``."""
+def test_model_to_map_without_dedent_keeps_raw_run():
+    """``_model_to_map`` defaults ``auto_dedent=False``: ``run`` stays raw."""
     step = Step(name="Build", run="\n    echo building\n    make all\n")
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["run"] == "\n    echo building\n    make all\n"
+
+
+def test_model_to_map_auto_dedent_dedents_run():
+    """``_model_to_map(auto_dedent=True)`` dedents a Step's ``run`` at node build."""
+    step = Step(name="Build", run="\n    echo building\n    make all\n")
+    cm = _model_to_map(step, auto_dedent=True)
+    assert cm["run"] == "echo building\nmake all\n"
 
 
 def test_to_yaml_dedents_by_default():

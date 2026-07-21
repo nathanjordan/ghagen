@@ -1,6 +1,5 @@
-import { YAMLMap, YAMLSeq, Scalar, Pair } from "yaml";
+import { YAMLMap } from "yaml";
 import { captureSourceLocation, type SourceLocation } from "../_source_location.js";
-import { attachFieldComment, attachModelComment } from "../emitter/comments.js";
 import type { ModelSpec, WrapRule } from "./spec.js";
 
 export type { ModelSpec, WrapRule } from "./spec.js";
@@ -227,37 +226,6 @@ export class Model {
     return this.spec.kind;
   }
 
-  /** Render this model to a YAMLMap with canonical key ordering,
-   * comment attachment, extras merging, and postProcess support. */
-  toYamlMap(): YAMLMap {
-    const map = new YAMLMap();
-    const orderedKeys = getOrderedKeys(Object.keys(this.data), this.spec.order);
-
-    // Emit each field, attaching any Commented-wrapper comment inline at the
-    // point of emission (no collect-then-reattach two-pass). The comment module
-    // owns the actual placement.
-    const entries: [string, unknown][] = orderedKeys.map((key) => [key, this.data[key]]);
-    if (this.meta.extras) {
-      entries.push(...Object.entries(this.meta.extras));
-    }
-
-    for (const [key, value] of entries) {
-      if (isCommented(value)) {
-        const pair = new Pair(new Scalar(key), toYamlValue(value.value));
-        map.items.push(pair);
-        attachFieldComment(pair, value.comment, value.eolComment);
-      } else {
-        map.items.push(new Pair(new Scalar(key), toYamlValue(value)));
-      }
-    }
-
-    if (this.meta.postProcess) {
-      this.meta.postProcess(map);
-    }
-
-    return map;
-  }
-
   /** Deep clone carrying the same spec. */
   clone(): Model {
     return new Model(this.spec, cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
@@ -321,8 +289,9 @@ export type NodeRunsModel = ModelOf<"nodeRuns">;
  *
  * Only a Workflow or Action is a Document — the sole models that may be
  * serialized to a file via {@link toYaml} / {@link toYamlFile}. Nested
- * models (steps, jobs, …) provide `toYamlMap()` for embedding but are not
- * Documents.
+ * models (steps, jobs, …) are serialized by the emitter for embedding but are
+ * not Documents. Models carry only data + spec; the recursion lives entirely
+ * in the emitter (ADR-0001 amendment).
  */
 export type Document = WorkflowModel | ActionModel;
 
@@ -541,105 +510,4 @@ function cloneMeta(meta: ModelMeta): ModelMeta {
     out.postProcess = meta.postProcess;
   }
   return out;
-}
-
-// ---- YAML serialization helpers (used by Model.toYamlMap) ----
-
-/** Convert any value to a YAML node. */
-function toYamlValue(value: unknown): unknown {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  // Commented values — unwrap and recurse
-  if (isCommented(value)) {
-    return toYamlValue(value.value);
-  }
-
-  // Raw values — unwrap and emit as plain scalar
-  if (isRaw(value)) {
-    const scalar = new Scalar(value.value);
-    scalar.type = Scalar.PLAIN;
-    return scalar;
-  }
-
-  // Nested Model as a map value — its own comment renders on the map as a
-  // whole (block before first key, EOL on last value).
-  if (value instanceof Model) {
-    const childMap = value.toYamlMap();
-    attachModelComment(childMap, value.meta.comment, value.meta.eolComment, {
-      atSeqItem: false,
-    });
-    return childMap;
-  }
-
-  // Arrays
-  if (Array.isArray(value)) {
-    const seq = new YAMLSeq();
-    for (const item of value) {
-      // A Model list entry is built directly and its own comment attached on
-      // the seq entry (block above the dash). It never routes through the
-      // nested-Model branch above, so there is no wrong attach to undo — the
-      // container decision is made here, once.
-      if (item instanceof Model) {
-        const node = item.toYamlMap();
-        attachModelComment(node, item.meta.comment, item.meta.eolComment, {
-          atSeqItem: true,
-        });
-        seq.add(node);
-      } else {
-        seq.add(toYamlValue(item));
-      }
-    }
-    return seq;
-  }
-
-  // Plain objects (Record<string, unknown>)
-  if (typeof value === "object" && value !== null) {
-    const map = new YAMLMap();
-    for (const [k, v] of Object.entries(value)) {
-      if (v === undefined) {
-        continue;
-      }
-      const pair = new Pair(new Scalar(k), toYamlValue(v));
-      map.items.push(pair);
-    }
-    return map;
-  }
-
-  // Strings — use block literal for multiline
-  if (typeof value === "string" && value.includes("\n")) {
-    const scalar = new Scalar(value);
-    scalar.type = Scalar.BLOCK_LITERAL;
-    return scalar;
-  }
-
-  // Primitives (string, number, boolean)
-  return value;
-}
-
-/**
- * Sort keys by canonical order: ordered keys first (in specified order),
- * then remaining keys in their original insertion order.
- */
-function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
-  const orderSet = new Set(keyOrder);
-  const ordered: string[] = [];
-  const remaining: string[] = [];
-
-  // Add keys that appear in the canonical order
-  for (const key of keyOrder) {
-    if (keys.includes(key)) {
-      ordered.push(key);
-    }
-  }
-
-  // Add remaining keys in insertion order
-  for (const key of keys) {
-    if (!orderSet.has(key)) {
-      remaining.push(key);
-    }
-  }
-
-  return [...ordered, ...remaining];
 }

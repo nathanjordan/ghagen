@@ -13,8 +13,9 @@ import ghagen.models.action  # noqa: F401  (ensure all model modules import)
 import ghagen.models.job  # noqa: F401
 import ghagen.models.trigger  # noqa: F401
 import ghagen.models.workflow  # noqa: F401
+from ghagen.emitter.nodes import _META_FIELDS
 from ghagen.emitter.yaml_writer import _yaml_key
-from ghagen.models._base import _META_FIELDS, Document, GhagenModel
+from ghagen.models._base import Document, GhagenModel
 from ghagen.models.trigger import On
 
 

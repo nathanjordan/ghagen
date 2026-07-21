@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from ghagen.emitter.nodes import _model_to_map
 from ghagen.helpers.expressions import expr
 from ghagen.models.step import Step
 
@@ -257,5 +258,5 @@ def test_private_attr_raises():
 
 def test_expr_in_step_if():
     step = Step(name="Test", run="echo hi", if_=str(expr.github.ref == "main"))
-    cm = step.to_commented_map()
+    cm = _model_to_map(step)
     assert cm["if"] == "${{ github.ref == 'main' }}"

@@ -1,4 +1,13 @@
-"""Tests for the YAML emitter."""
+"""Tests for the YAML rendering passes and the node dispatcher.
+
+``dump_yaml`` and the block-scalar / comment-column passes are the emitter's
+whole-tree rendering stage and are exercised directly. The value → node
+dispatch (`_to_node`, `unwrap_raw`, `to_ordered_commented_map`) lives in
+:mod:`ghagen.emitter.nodes`; those are low-level probes into the emitter's
+recursion core, kept because the behaviors (Raw see-through, key ordering,
+seq-item comment placement) are cheaper to pin at the node level than to
+reverse-engineer from rendered YAML.
+"""
 
 import pytest
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -6,15 +15,26 @@ from ruamel.yaml.scalarstring import LiteralScalarString, PlainScalarString
 
 from ghagen._commented import with_comment
 from ghagen._raw import Raw
+from ghagen.emitter.nodes import (
+    _model_to_map,
+    _to_node,
+    to_ordered_commented_map,
+    unwrap_raw,
+)
 from ghagen.emitter.yaml_writer import (
     _apply_block_scalar_style,
     _yaml_key,
     dump_yaml,
-    to_ordered_commented_map,
-    to_yaml_node,
-    unwrap_raw,
 )
 from ghagen.models.step import Step
+
+
+def _node(value):
+    """Dispatch a value through the emitter's node core (auto_dedent off)."""
+    return _to_node(value, auto_dedent=False)
+
+
+# --- unwrap_raw: Raw see-through (single home for the Raw → scalar rule) ---
 
 
 def test_unwrap_raw_scalar():
@@ -37,6 +57,9 @@ def test_unwrap_raw_passthrough():
     assert unwrap_raw("plain") == "plain"
     assert unwrap_raw(42) == 42
     assert unwrap_raw(None) is None
+
+
+# --- to_ordered_commented_map: canonical key ordering ---
 
 
 def test_to_ordered_commented_map():
@@ -113,77 +136,77 @@ def test_nested_multiline_string_conversion():
     assert "  line2" in result
 
 
-# --- to_yaml_node recursive helper tests ---
+# --- _to_node recursive dispatcher tests (low-level probes) ---
 
 
 @pytest.mark.parametrize("value", ["x", 42, True, None])
-def test_to_yaml_node_scalar_identity(value):
-    """Plain scalars pass through to_yaml_node unchanged."""
-    assert to_yaml_node(value) == value
+def test_to_node_scalar_identity(value):
+    """Plain scalars pass through _to_node unchanged."""
+    assert _node(value) == value
 
 
-def test_to_yaml_node_raw_scalar():
+def test_to_node_raw_scalar():
     """Raw scalars unwrap to their inner value."""
-    assert to_yaml_node(Raw("x")) == "x"
+    assert _node(Raw("x")) == "x"
 
 
-def test_to_yaml_node_raw_multiline_is_plain_scalar():
+def test_to_node_raw_multiline_is_plain_scalar():
     """Raw multiline str becomes a PlainScalarString (bypasses block-literal cast)."""
-    node = to_yaml_node(Raw("a\nb"))
+    node = _node(Raw("a\nb"))
     assert isinstance(node, PlainScalarString)
     assert not isinstance(node, LiteralScalarString)
     assert str(node) == "a\nb"
 
 
-def test_to_yaml_node_commented_scalar_returns_inner():
+def test_to_node_commented_scalar_returns_inner():
     """A Commented-wrapped scalar yields the inner value (comment is caller's job)."""
-    assert to_yaml_node(with_comment("hello", "note")) == "hello"
+    assert _node(with_comment("hello", "note")) == "hello"
 
 
-def test_to_yaml_node_dict_becomes_commented_map():
+def test_to_node_dict_becomes_commented_map():
     """A plain dict becomes a CommentedMap with recursively converted values."""
-    node = to_yaml_node({"a": Raw("1"), "b": {"c": 2}})
+    node = _node({"a": Raw("1"), "b": {"c": 2}})
     assert isinstance(node, CommentedMap)
     assert node["a"] == "1"
     assert isinstance(node["b"], CommentedMap)
     assert node["b"]["c"] == 2
 
 
-def test_to_yaml_node_commented_map_passthrough():
+def test_to_node_commented_map_passthrough():
     """An existing CommentedMap is passed through unchanged (same object)."""
     cm = CommentedMap({"k": "v"})
-    assert to_yaml_node(cm) is cm
+    assert _node(cm) is cm
 
 
-def test_to_yaml_node_list_of_scalars_becomes_seq():
+def test_to_node_list_of_scalars_becomes_seq():
     """A list of scalars becomes a CommentedSeq."""
-    node = to_yaml_node(["a", "b"])
+    node = _node(["a", "b"])
     assert isinstance(node, CommentedSeq)
     assert list(node) == ["a", "b"]
 
 
-def test_to_yaml_node_list_with_model_item_comments():
+def test_to_node_list_with_model_item_comments():
     """Item comments from GhagenModel entries attach at the right index."""
     steps = [
         Step(uses="actions/checkout@v4", comment="checkout"),
         Step(run="echo hi", eol_comment="say hi"),
     ]
-    seq = to_yaml_node(steps)
+    seq = _node(steps)
     cm = CommentedMap({"steps": seq})
     result = dump_yaml(cm)
     assert "# checkout" in result
     assert "- run: echo hi  # say hi" in result
 
 
-def test_to_yaml_node_ghagen_model_equals_to_commented_map():
-    """A GhagenModel node equals the model's own to_commented_map()."""
+def test_to_node_ghagen_model_matches_model_to_map():
+    """A GhagenModel node has the same keys/values as _model_to_map for it."""
     step = Step(name="build", run="make")
-    node = to_yaml_node(step)
+    node = _node(step)
     assert isinstance(node, CommentedMap)
-    assert node == step.to_commented_map()
+    assert node == _model_to_map(step)
 
 
-# --- _yaml_key alias resolver tests ---
+# --- _yaml_key alias resolver tests (spec/alias agreement helper) ---
 
 
 def test_yaml_key_plain_field_name():

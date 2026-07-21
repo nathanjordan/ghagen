@@ -6,7 +6,7 @@ place (or returns a replacement), and the result is serialized to YAML.
 
 Pipeline::
 
-    models → deep copy → [Transform₁] → … → to_commented_map() → dump_yaml()
+    models → deep copy → [Transform₁] → … → emitter.emit() → YAML
 """
 
 from __future__ import annotations

@@ -3,6 +3,7 @@
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen import Job, On, Step, Workflow
+from ghagen.emitter.nodes import _model_to_map
 from ghagen.models.trigger import PushTrigger
 
 
@@ -57,7 +58,7 @@ def test_workflow_key_ordering():
         on=On(push=PushTrigger(branches=["main"])),
         jobs={"test": Job(runs_on="ubuntu-latest", steps=[])},
     )
-    cm = workflow.to_commented_map()
+    cm = _model_to_map(workflow)
     keys = list(cm.keys())
     assert keys.index("name") < keys.index("on")
     assert keys.index("on") < keys.index("env")
@@ -72,6 +73,6 @@ def test_workflow_with_raw_job():
             "raw": CommentedMap({"runs-on": "self-hosted"}),
         },
     )
-    cm = workflow.to_commented_map()
+    cm = _model_to_map(workflow)
     assert isinstance(cm["jobs"]["raw"], CommentedMap)
     assert cm["jobs"]["raw"]["runs-on"] == "self-hosted"

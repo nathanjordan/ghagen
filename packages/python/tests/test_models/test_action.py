@@ -14,6 +14,7 @@ from ghagen import (
     NodeRuns,
     Step,
 )
+from ghagen.emitter.nodes import _model_to_map
 
 
 def test_minimal_composite_action() -> None:
@@ -23,7 +24,7 @@ def test_minimal_composite_action() -> None:
         description="A minimal composite action",
         runs=CompositeRuns(steps=[Step(run="echo hi", shell="bash")]),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     assert cm["name"] == "Minimal"
     assert cm["description"] == "A minimal composite action"
     assert cm["runs"]["using"] == "composite"
@@ -66,7 +67,7 @@ def test_composite_action_full() -> None:
             ],
         ),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     assert cm["author"] == "ghagen"
     assert cm["branding"]["icon"] == "check-circle"
     assert cm["branding"]["color"] == "green"
@@ -94,7 +95,7 @@ def test_docker_action() -> None:
             post_if="always()",
         ),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     runs = cm["runs"]
     assert runs["using"] == "docker"
     assert runs["image"] == "Dockerfile"
@@ -121,7 +122,7 @@ def test_node_action() -> None:
             post_if="always()",
         ),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     runs = cm["runs"]
     assert runs["using"] == "node20"
     assert runs["main"] == "dist/index.js"
@@ -142,7 +143,7 @@ def test_action_key_ordering() -> None:
         outputs={"bar": ActionOutput(description="bar", value="baz")},
         runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     keys = list(cm.keys())
     assert keys == [
         "name",
@@ -161,7 +162,7 @@ def test_action_input_deprecation_message_alias() -> None:
         description="legacy",
         deprecation_message="Use new_input instead.",
     )
-    cm = input_.to_commented_map()
+    cm = _model_to_map(input_)
     assert "deprecationMessage" in cm
     assert cm["deprecationMessage"] == "Use new_input instead."
     assert "deprecation_message" not in cm
@@ -175,7 +176,7 @@ def test_action_input_key_ordering() -> None:
         default="x",
         deprecation_message="old",
     )
-    cm = input_.to_commented_map()
+    cm = _model_to_map(input_)
     keys = list(cm.keys())
     assert keys == ["description", "required", "default", "deprecationMessage"]
 
@@ -183,7 +184,7 @@ def test_action_input_key_ordering() -> None:
 def test_branding_key_ordering() -> None:
     """Branding keys: icon before color."""
     branding = Branding(icon="heart", color="red")
-    cm = branding.to_commented_map()
+    cm = _model_to_map(branding)
     assert list(cm.keys()) == ["icon", "color"]
 
 
@@ -219,7 +220,7 @@ def test_action_extras_merge() -> None:
         runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
         extras={"x-custom": "value"},
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     assert cm["x-custom"] == "value"
 
 
@@ -250,7 +251,7 @@ def test_action_runs_commented_map_passthrough() -> None:
         description="Uses a raw CommentedMap",
         runs=raw_runs,
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     assert cm["runs"]["using"] == "composite"
     assert cm["runs"]["steps"][0]["run"] == "echo raw"
 
@@ -265,7 +266,7 @@ def test_action_output_without_value() -> None:
         },
         runs=DockerRuns(image="Dockerfile"),
     )
-    cm = action.to_commented_map()
+    cm = _model_to_map(action)
     output = cm["outputs"]["result"]
     assert output["description"] == "The result"
     assert "value" not in output
@@ -274,12 +275,12 @@ def test_action_output_without_value() -> None:
 def test_composite_runs_defaults_to_composite_using() -> None:
     """``CompositeRuns()`` always emits ``using: composite``."""
     runs = CompositeRuns(steps=[Step(run="echo", shell="bash")])
-    cm = runs.to_commented_map()
+    cm = _model_to_map(runs)
     assert cm["using"] == "composite"
 
 
 def test_docker_runs_defaults_to_docker_using() -> None:
     """``DockerRuns(image=...)`` always emits ``using: docker``."""
     runs = DockerRuns(image="Dockerfile")
-    cm = runs.to_commented_map()
+    cm = _model_to_map(runs)
     assert cm["using"] == "docker"

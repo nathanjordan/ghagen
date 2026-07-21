@@ -11,6 +11,21 @@ from ruamel.yaml.scalarstring import PlainScalarString, ScalarString
 T = TypeVar("T")
 
 
+def raw_scalar(inner: Any) -> Any:
+    """Return a ``Raw``'s inner value as a YAML-ready scalar.
+
+    A plain ``str`` is wrapped in :class:`~ruamel.yaml.scalarstring.PlainScalarString`
+    so the emitter's block-scalar auto-conversion leaves it alone — the ``Raw``
+    escape-hatch contract is to emit the inner value verbatim. This is the single
+    home for the ``Raw`` → ``PlainScalarString`` rule, shared by this module's
+    pydantic serializer and the emitter's node dispatch
+    (:func:`ghagen.emitter.nodes.unwrap_raw`).
+    """
+    if isinstance(inner, str) and not isinstance(inner, ScalarString):
+        return PlainScalarString(inner)
+    return inner
+
+
 class Raw(Generic[T]):
     """Escape hatch that bypasses type constraints, emitting the inner value as-is.
 
@@ -60,7 +75,4 @@ class Raw(Generic[T]):
 
     @staticmethod
     def _serialize(value: Raw[Any]) -> Any:
-        inner = value.value
-        if isinstance(inner, str) and not isinstance(inner, ScalarString):
-            return PlainScalarString(inner)
-        return inner
+        return raw_scalar(value.value)

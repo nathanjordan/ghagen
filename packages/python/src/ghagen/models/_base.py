@@ -10,15 +10,9 @@ from typing import Any, ClassVar, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from ruamel.yaml.comments import CommentedMap
 
-from ghagen._commented import Commented, is_commented
+from ghagen._commented import Commented
 from ghagen._raw import Raw
-from ghagen.emitter import emit
-from ghagen.emitter.comments import attach
 from ghagen.emitter.header import DEFAULT, HeaderInput
-from ghagen.emitter.yaml_writer import (
-    to_ordered_commented_map,
-    to_yaml_node,
-)
 from ghagen.models.spec import ModelSpec
 
 _T = TypeVar("_T")
@@ -29,19 +23,25 @@ _T = TypeVar("_T")
 # ``type`` statement (3.12+).
 OrRaw = _T | CommentedMap
 
-# Frame path fragments that mark a frame as "internal" to ghagen/pydantic.
-# When walking the stack to find the user-code construction site, frames
-# matching any of these substrings are skipped.
-_INTERNAL_FRAME_MARKERS: tuple[str, ...] = (
-    "/pydantic/",
-    "/ghagen/models/",
-    "/ghagen/emitter/",
-)
+# Root of the installed ``ghagen`` package (…/ghagen). Any frame inside it is
+# ghagen-internal — regardless of the submodule (models/, emitter/, helpers/,
+# pin/, …). Deriving the prefix from the package location instead of a
+# hand-listed set of subdir substrings means a model constructed via a new
+# subpackage still attributes the correct user frame (round-2 fix: the old
+# ``/ghagen/models/`` + ``/ghagen/emitter/`` list mis-attributed helpers/pin
+# construction sites).
+_GHAGEN_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _is_internal_frame(filename: str) -> bool:
-    """Return True if ``filename`` is inside pydantic or ghagen internals."""
-    return any(marker in filename for marker in _INTERNAL_FRAME_MARKERS)
+    """Return True if ``filename`` is inside pydantic or the ghagen package."""
+    if "pydantic" in Path(filename).parts:
+        return True
+    try:
+        resolved = Path(filename).resolve()
+    except (OSError, ValueError):  # pragma: no cover — defensive
+        return False
+    return resolved == _GHAGEN_ROOT or _GHAGEN_ROOT in resolved.parents
 
 
 def _find_user_frame() -> tuple[str, int] | None:
@@ -83,11 +83,6 @@ def _scan_for_models(key: str, value: Any) -> Iterator[tuple[str, GhagenModel]]:
             yield from _scan_for_models(key, item)
 
 
-# Fields carrying serialization policy rather than YAML content; structurally
-# excluded from output (they declare ``exclude=True``).
-_META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
-
-
 class GhagenModel(BaseModel):
     """Base model for all ghagen types.
 
@@ -99,6 +94,11 @@ class GhagenModel(BaseModel):
 
     Per-field comments are attached via :func:`~ghagen.with_comment` and
     :func:`~ghagen.with_eol_comment` wrappers on individual field values.
+
+    A model carries only data plus its :class:`~ghagen.models.spec.ModelSpec`;
+    serialization to YAML nodes lives entirely in the emitter
+    (:mod:`ghagen.emitter.nodes`), which reads the spec. Models never call back
+    into the emitter (ADR-0001 amendment).
     """
 
     model_config = ConfigDict(
@@ -181,61 +181,16 @@ class GhagenModel(BaseModel):
 
         yield from _visit([], self)
 
-    def to_commented_map(self) -> CommentedMap:
-        """Serialize this model to a CommentedMap in a single field walk.
-
-        Walks the model's own fields directly (no ``model_dump``): applies
-        ``exclude_none`` / ``exclude_unset`` semantics, canonical key
-        ordering, harvests per-field comments from Commented wrappers, merges
-        extras, attaches comments, and runs the ``post_process`` hook. Field →
-        YAML key mapping and emission order both come from the model's
-        :class:`~ghagen.models.spec.ModelSpec`. Python peer of TypeScript's
-        ``Model.toYamlMap``.
-
-        Returns:
-            A :class:`ruamel.yaml.comments.CommentedMap` ready for YAML emission.
-        """
-        spec = type(self).SPEC
-
-        # Single walk: collect set, non-None fields under their YAML keys.
-        raw: dict[str, Any] = {}
-        for field_name in type(self).model_fields:
-            if field_name in _META_FIELDS:
-                continue
-            if field_name not in self.model_fields_set:  # exclude_unset
-                continue
-            value = getattr(self, field_name, None)
-            if value is None:  # exclude_none (checked on the raw wrapper)
-                continue
-            raw[spec.yaml_keys.get(field_name, field_name)] = value
-
-        ordered = to_ordered_commented_map(raw, list(spec.order))
-
-        cm = CommentedMap()
-
-        # Emit each field, attaching any Commented-wrapper comment inline at the
-        # point of emission (no collect-then-reattach two-pass). The comment
-        # module owns the actual placement.
-        for key, value in list(ordered.items()) + list(self.extras.items()):
-            if is_commented(value):
-                cm[key] = to_yaml_node(value.value)
-                attach(cm, key, comment=value.comment, eol_comment=value.eol_comment)
-            else:
-                cm[key] = to_yaml_node(value)
-
-        if self.post_process is not None:
-            self.post_process(cm)
-
-        return cm
-
 
 class Document(GhagenModel):
     """A top-level model that maps 1:1 to a generated YAML file.
 
     Only :class:`~ghagen.Workflow` and :class:`~ghagen.Action` are Documents:
     they are the sole models that may be serialized to a file, via
-    :meth:`to_yaml` / :meth:`to_yaml_file`. Nested models (Step, Job, …)
-    provide :meth:`~GhagenModel.to_commented_map` for embedding but are not
+    :meth:`to_yaml` / :meth:`to_yaml_file`. Both methods are thin delegates to
+    the emitter's :func:`~ghagen.emitter.emit` (imported call-time so the
+    emitter stays a one-way ``emitter`` → ``models`` dependency). Nested models
+    (Step, Job, …) are serialized by the emitter for embedding but are not
     Documents and cannot be emitted to a file.
     """
 
@@ -265,7 +220,9 @@ class Document(GhagenModel):
         Returns:
             The complete YAML string.
         """
-        return emit.to_yaml(self, header, auto_dedent=auto_dedent)
+        from ghagen.emitter import emit
+
+        return emit(self, header=header, auto_dedent=auto_dedent)
 
     def to_yaml_file(
         self,
@@ -283,4 +240,6 @@ class Document(GhagenModel):
             auto_dedent: When true (the default), each Step's ``run``
                 script is dedented at emit time.
         """
-        emit.to_yaml_file(self, path, header, auto_dedent=auto_dedent)
+        from ghagen.emitter import emit_file
+
+        emit_file(self, path, header=header, auto_dedent=auto_dedent)
