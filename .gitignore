@@ -50,3 +50,8 @@ dist/
 
 # Worktrees
 .worktrees/
+
+# Test fixture: a fake installed package the sources-tracking canary test
+# asserts is excluded. Must be committed despite the global node_modules rule.
+!packages/typescript/fixtures/sources-project/node_modules/
+!packages/typescript/fixtures/sources-project/node_modules/**
