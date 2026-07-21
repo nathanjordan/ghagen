@@ -288,4 +288,4 @@ export function buildDepsCommand(): Command {
 }
 
 /** Public re-exports useful for testing. */
-export { depsPin, depsCheckSynced, depsUpgrade };
+export { depsPin, depsCheckSynced, depsUpgrade, bumpToJson, staleToJson };

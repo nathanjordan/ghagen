@@ -14,7 +14,6 @@ from ghagen import (
     Permissions,
     PRTrigger,
     PushTrigger,
-    Raw,
     ScheduleTrigger,
     Step,
     Strategy,
@@ -527,6 +526,290 @@ def _ghagen_check_action() -> Action:
     )
 
 
+def _ghagen_update_action() -> Action:
+    """ghagen's own composite action wrapping ``ghagen deps upgrade``.
+
+    Dogfooding: replaces the hand-written ``check-deps/action.yml`` so it is
+    generated, pinned, and drift-checked exactly like ``check-synth``. The
+    PR/issue-body builders use ``python3 - <<'PY'`` heredocs (same mechanism as
+    ``_release_workflow``'s homebrew-bump step), which ``auto_dedent`` and the
+    ``<<'PY'`` sentinel keep intact.
+    """
+    return Action(
+        name="ghagen Update",
+        description=(
+            "Detect and apply dependency updates for "
+            "ghagen-managed GitHub Actions workflows"
+        ),
+        branding=Branding(icon="refresh-cw", color="blue"),
+        inputs={
+            "mode": ActionInput(
+                description="Detection mode: 'versions', 'lockfile', or 'all'",
+                required=False,
+                default="all",
+            ),
+            "output": ActionInput(
+                description="Output type: 'pr' or 'issue'",
+                required=False,
+                default="pr",
+            ),
+            "config": ActionInput(
+                description="Path to ghagen config file",
+                required=False,
+                default=".github/ghagen_workflows.py",
+            ),
+            "python-version": ActionInput(
+                description="Python version to use",
+                required=False,
+                default="3.13",
+            ),
+            "ghagen-version": ActionInput(
+                description="ghagen version to install (empty for latest)",
+                required=False,
+                default="",
+            ),
+            "token": ActionInput(
+                description="GitHub token for API calls and PR/issue creation",
+                required=False,
+                default="${{ github.token }}",
+            ),
+            "labels": ActionInput(
+                description="Comma-separated labels to apply to PRs/issues",
+                required=False,
+                default="",
+            ),
+            "branch-prefix": ActionInput(
+                description="Branch name prefix for PRs",
+                required=False,
+                default="ghagen-update/",
+            ),
+            "commit-message-prefix": ActionInput(
+                description='Optional prefix for commit messages (e.g. "chore(deps):")',
+                required=False,
+                default="",
+            ),
+            "group": ActionInput(
+                description="Group all updates into a single PR/issue",
+                required=False,
+                default="false",
+            ),
+        },
+        runs=CompositeRuns(
+            steps=[
+                Step(
+                    uses="actions/setup-python@v6",
+                    with_={"python-version": "${{ inputs.python-version }}"},
+                ),
+                Step(
+                    name="Install ghagen",
+                    run="""
+                        if [ -n "${{ inputs.ghagen-version }}" ]; then
+                          pip install "ghagen==${{ inputs.ghagen-version }}"
+                        else
+                          pip install ghagen
+                        fi
+                    """,
+                    shell="bash",
+                ),
+                Step(
+                    name="Detect outdated dependencies",
+                    id="detect",
+                    env={"GITHUB_TOKEN": "${{ inputs.token }}"},
+                    run="""
+                        set -euo pipefail
+
+                        JSON_FILE=$(mktemp)
+                        ghagen deps upgrade --check --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
+
+                        VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
+                        LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
+
+                        echo "json_file=$JSON_FILE" >> "$GITHUB_OUTPUT"
+                        echo "version_bumps=$VERSION_BUMPS" >> "$GITHUB_OUTPUT"
+                        echo "lockfile_stale=$LOCKFILE_STALE" >> "$GITHUB_OUTPUT"
+
+                        TOTAL=$((VERSION_BUMPS + LOCKFILE_STALE))
+                        echo "total_updates=$TOTAL" >> "$GITHUB_OUTPUT"
+
+                        if [ "$TOTAL" -eq 0 ]; then
+                          echo "No dependency updates found."
+                        else
+                          echo "Found $VERSION_BUMPS version bump(s) and $LOCKFILE_STALE stale lockfile entry/entries."
+                        fi
+                    """,
+                    shell="bash",
+                ),
+                Step(
+                    name="Exit early if no updates",
+                    if_="steps.detect.outputs.total_updates == '0'",
+                    run='echo "Everything is up to date."',
+                    shell="bash",
+                ),
+                Step(
+                    name="Create PR",
+                    if_="steps.detect.outputs.total_updates != '0' && inputs.output == 'pr'",
+                    env={
+                        "GITHUB_TOKEN": "${{ inputs.token }}",
+                        "GH_TOKEN": "${{ inputs.token }}",
+                    },
+                    run=r"""
+                        set -euo pipefail
+
+                        BRANCH="${{ inputs.branch-prefix }}$(date +%Y%m%d)"
+                        PREFIX="${{ inputs.commit-message-prefix }}"
+
+                        # Build label args as an array to avoid eval
+                        LABEL_ARGS=()
+                        if [ -n "${{ inputs.labels }}" ]; then
+                          IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
+                          for label in "${LABELS[@]}"; do
+                            trimmed=$(echo "$label" | xargs)
+                            LABEL_ARGS+=(--label "$trimmed")
+                          done
+                        fi
+
+                        # Check if branch/PR already exists
+                        EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+                        if [ -n "$EXISTING_PR" ]; then
+                          echo "PR #$EXISTING_PR already exists for branch $BRANCH. Skipping."
+                          exit 0
+                        fi
+
+                        git config user.name "github-actions[bot]"
+                        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                        git checkout -b "$BRANCH"
+
+                        # Apply version bumps if any
+                        if [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
+                          ghagen deps upgrade --mode versions --config "${{ inputs.config }}"
+                        fi
+
+                        # Refresh lockfile
+                        if [ "${{ steps.detect.outputs.lockfile_stale }}" != "0" ] || [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
+                          ghagen deps pin --config "${{ inputs.config }}" --update
+                        fi
+
+                        # Check if there are actual changes
+                        if git diff --quiet && git diff --cached --quiet; then
+                          echo "No file changes after applying updates."
+                          exit 0
+                        fi
+
+                        # Build commit message
+                        COMMIT_MSG="update ghagen action dependencies"
+                        if [ -n "$PREFIX" ]; then
+                          COMMIT_MSG="${PREFIX} ${COMMIT_MSG}"
+                        fi
+
+                        git add -A
+                        git commit -m "$COMMIT_MSG"
+                        git push -u origin "$BRANCH"
+
+                        # Build PR body via Python to a temp file (avoids shell quoting issues)
+                        BODY_FILE=$(mktemp)
+                        export BODY_FILE
+                        export JSON_FILE="${{ steps.detect.outputs.json_file }}"
+                        python3 - <<'PY'
+                        import json, os
+                        d = json.load(open(os.environ['JSON_FILE']))
+                        lines = ['## ghagen dependency update', '']
+
+                        bumps = d.get('version_bumps', [])
+                        if bumps:
+                            lines.append('### Version bumps')
+                            lines.append('')
+                            for b in bumps:
+                                lines.append(f'- `{b["uses"]}` -> `{b["latest"]}` [{b["severity"]}]')
+                            lines.append('')
+
+                        stale = d.get('lockfile_stale', [])
+                        if stale:
+                            lines.append('### Lockfile maintenance')
+                            lines.append('')
+                            for s in stale:
+                                lines.append(f'- `{s["uses"]}` SHA refreshed')
+                            lines.append('')
+
+                        with open(os.environ['BODY_FILE'], 'w') as f:
+                            f.write('\n'.join(lines))
+                        PY
+
+                        gh pr create --title "$COMMIT_MSG" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                        rm -f "$BODY_FILE"
+                    """,
+                    shell="bash",
+                ),
+                Step(
+                    name="Create issue",
+                    if_="steps.detect.outputs.total_updates != '0' && inputs.output == 'issue'",
+                    env={"GH_TOKEN": "${{ inputs.token }}"},
+                    run=r"""
+                        set -euo pipefail
+
+                        TITLE="ghagen dependency updates available ($(date +%Y-%m-%d))"
+
+                        # Build label args as an array
+                        LABEL_ARGS=()
+                        if [ -n "${{ inputs.labels }}" ]; then
+                          IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
+                          for label in "${LABELS[@]}"; do
+                            trimmed=$(echo "$label" | xargs)
+                            LABEL_ARGS+=(--label "$trimmed")
+                          done
+                        fi
+
+                        # Check if issue already exists
+                        EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+                        if [ -n "$EXISTING" ]; then
+                          echo "Issue #$EXISTING already exists. Skipping."
+                          exit 0
+                        fi
+
+                        # Build issue body via Python to a temp file
+                        BODY_FILE=$(mktemp)
+                        export BODY_FILE
+                        export JSON_FILE="${{ steps.detect.outputs.json_file }}"
+                        python3 - <<'PY'
+                        import json, os
+                        d = json.load(open(os.environ['JSON_FILE']))
+                        lines = []
+
+                        bumps = d.get('version_bumps', [])
+                        if bumps:
+                            lines.append('## Version updates available')
+                            lines.append('')
+                            for b in bumps:
+                                files = ', '.join(f'`{f}`' for f in b.get('source_files', []))
+                                line = f'- [ ] `{b["uses"]}` -> `{b["latest"]}` [{b["severity"]}]'
+                                if files:
+                                    line += f'  in {files}'
+                                lines.append(line)
+                            lines.append('')
+
+                        stale = d.get('lockfile_stale', [])
+                        if stale:
+                            lines.append('## Stale lockfile entries')
+                            lines.append('')
+                            lines.append('Run `ghagen deps pin --update` to refresh.')
+                            lines.append('')
+                            for s in stale:
+                                lines.append(f'- [ ] `{s["uses"]}` — SHA changed')
+                            lines.append('')
+
+                        with open(os.environ['BODY_FILE'], 'w') as f:
+                            f.write('\n'.join(lines))
+                        PY
+
+                        gh issue create --title "$TITLE" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                        rm -f "$BODY_FILE"
+                    """,
+                    shell="bash",
+                ),
+            ],
+        ),
+    )
+
+
 def create_app() -> App:
     """Create the ghagen App with all workflows and the composite action."""
     app = App()
@@ -535,4 +818,5 @@ def create_app() -> App:
     app.add_workflow(_release_workflow(), "release.yml")
     app.add_workflow(_docs_workflow(), "docs.yml")
     app.add_action(_ghagen_check_action(), dir="check-synth")
+    app.add_action(_ghagen_update_action(), dir="check-deps")
     return app
