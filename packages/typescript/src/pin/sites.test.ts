@@ -36,7 +36,9 @@ describe("iterUsesSites()", () => {
 
   it("carries the parsed ref on each site", () => {
     const wf = workflow({
-      jobs: { build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "actions/checkout@v4" })] }) },
+      jobs: {
+        build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "actions/checkout@v4" })] }),
+      },
     });
     const sites = [...iterUsesSites(wf)];
     expect(sites).toHaveLength(1);
@@ -73,7 +75,9 @@ describe("iterUsesSites()", () => {
 
   it("yields no site for docker refs", () => {
     const wf = workflow({
-      jobs: { build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "docker://node:18" })] }) },
+      jobs: {
+        build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "docker://node:18" })] }),
+      },
     });
     expect([...iterUsesSites(wf)]).toHaveLength(0);
   });
@@ -135,7 +139,9 @@ describe("iterUsesSites()", () => {
 describe("UsesSite.replace()", () => {
   it("wraps the new value with the original ref as an EOL comment", () => {
     const wf = workflow({
-      jobs: { build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "actions/checkout@v4" })] }) },
+      jobs: {
+        build: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "actions/checkout@v4" })] }),
+      },
     });
     const site = [...iterUsesSites(wf)][0]!;
     site.replace(site.ref.withSha(SHA));

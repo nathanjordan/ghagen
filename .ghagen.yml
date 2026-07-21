@@ -1,0 +1,4 @@
+# ghagen app root marker. Root discovery walks ancestors for this file;
+# without it, generated headers fall back to absolute source paths, which
+# are environment-specific and break `ghagen check-synced` in CI.
+# Options omitted — defaults apply (auto_dedent: true).

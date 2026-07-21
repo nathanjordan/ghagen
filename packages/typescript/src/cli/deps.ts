@@ -156,7 +156,12 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   }
 
   const format = opts.format;
-  if (format !== undefined && format !== "json" && format !== "pr-body" && format !== "issue-body") {
+  if (
+    format !== undefined &&
+    format !== "json" &&
+    format !== "pr-body" &&
+    format !== "issue-body"
+  ) {
     throw new CliError(
       `Error: unknown --format value '${format}' (valid: json, pr-body, issue-body)`,
       2,

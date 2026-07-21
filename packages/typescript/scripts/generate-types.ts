@@ -9,6 +9,7 @@
  */
 
 import { compileFromFile } from "json-schema-to-typescript";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -56,6 +57,7 @@ const TARGETS: SchemaTarget[] = Object.values(manifest).map((entry) => ({
 }));
 
 async function main() {
+  const outputPaths: string[] = [];
   for (const target of TARGETS) {
     const schemaPath = resolve(SCHEMA_DIR, target.schemaFile);
     const outputPath = resolve(OUTPUT_DIR, target.outputFile);
@@ -74,8 +76,14 @@ async function main() {
     });
 
     writeFileSync(outputPath, BANNER + ts);
+    outputPaths.push(outputPath);
     console.log(`  -> ${outputPath}`);
   }
+
+  // json-schema-to-typescript formats with its bundled prettier, which
+  // disagrees with the repo's oxfmt style — reformat so regeneration is
+  // stable under `fmt.sh` and CI's format check.
+  execFileSync("npx", ["oxfmt", ...outputPaths], { cwd: ROOT, stdio: "inherit" });
 
   console.log("Done.");
 }

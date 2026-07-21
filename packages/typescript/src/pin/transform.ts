@@ -38,7 +38,9 @@ export function pinTransform(lockfile: Lockfile): PinTransform {
       }
       const entry = lockfile.get(site.uses);
       if (entry === undefined) {
-        throw new PinError(`No lockfile entry for '${site.uses}'. Run \`ghagen deps pin\` to resolve it.`);
+        throw new PinError(
+          `No lockfile entry for '${site.uses}'. Run \`ghagen deps pin\` to resolve it.`,
+        );
       }
       site.replace(site.ref.withSha(entry.sha));
     }
