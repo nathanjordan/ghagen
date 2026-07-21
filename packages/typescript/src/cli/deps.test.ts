@@ -36,7 +36,8 @@ vi.mock("./_common.js", async (importOriginal) => {
   };
 });
 
-const { bumpToJson, staleToJson, depsUpgrade } = await import("./deps.js");
+const { bumpToJson, staleToJson, depsUpgrade, renderPrBody, renderIssueBody } =
+  await import("./deps.js");
 
 function emptyReport(overrides: Partial<UpgradeReport> = {}): UpgradeReport {
   return { versionBumps: [], lockfileStale: [], changedFiles: [], warnings: [], ...overrides };
@@ -118,6 +119,41 @@ describe("deps upgrade --json contract", () => {
   });
 });
 
+describe("deps upgrade markdown format contract", () => {
+  const bumps: VersionBump[] = [
+    {
+      uses: "actions/checkout@v5",
+      current: "v5",
+      latest: "v6",
+      severity: "major",
+      source_files: [".github/ghagen_workflows.py"],
+    },
+    {
+      uses: "actions/setup-node@v3",
+      current: "v3",
+      latest: "v4",
+      severity: "major",
+      source_files: [],
+    },
+  ];
+  const stale: LockfileStaleEntry[] = [
+    {
+      uses: "actions/setup-python@v6",
+      current_sha: "ece7cb06caefa5fff74198d8649806c4678c61a1",
+      latest_sha: "aaaa1111bbbb2222cccc3333dddd4444eeee5555",
+      source_files: [".github/ghagen_workflows.py"],
+    },
+  ];
+
+  test("renderPrBody matches the shared golden fixture", () => {
+    expect(renderPrBody(bumps, stale)).toEqual(loadFixture("upgrade_pr_body.md"));
+  });
+
+  test("renderIssueBody matches the shared golden fixture", () => {
+    expect(renderIssueBody(bumps, stale)).toEqual(loadFixture("upgrade_issue_body.md"));
+  });
+});
+
 describe("deps upgrade CLI --json mode behavior", () => {
   test("--mode versions omits the lockfile_stale key", async () => {
     trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
@@ -136,7 +172,7 @@ describe("deps upgrade CLI --json mode behavior", () => {
     );
 
     const out = captureStdout();
-    await depsUpgrade({ mode: "versions", json: true, check: true, token: "fake" });
+    await depsUpgrade({ mode: "versions", format: "json", check: true, token: "fake" });
     out.restore();
 
     const data = JSON.parse(out.text());
@@ -161,7 +197,7 @@ describe("deps upgrade CLI --json mode behavior", () => {
     );
 
     const out = captureStdout();
-    await depsUpgrade({ mode: "lockfile", json: true, check: true, token: "fake" });
+    await depsUpgrade({ mode: "lockfile", format: "json", check: true, token: "fake" });
     out.restore();
 
     const data = JSON.parse(out.text());
@@ -176,7 +212,7 @@ describe("deps upgrade CLI --json mode behavior", () => {
 
     for (const mode of ["versions", "lockfile", "all"] as const) {
       const out = captureStdout();
-      await depsUpgrade({ mode, json: true, check: true, token: "fake" });
+      await depsUpgrade({ mode, format: "json", check: true, token: "fake" });
       out.restore();
 
       expect(JSON.parse(out.text())).toEqual({ version_bumps: [], lockfile_stale: [] });

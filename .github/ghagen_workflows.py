@@ -650,12 +650,11 @@ def _ghagen_update_action() -> Action:
                         set -euo pipefail
 
                         JSON_FILE=$(mktemp)
-                        ghagen deps upgrade --check --json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
+                        ghagen deps upgrade --check --format json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
 
                         VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
                         LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
 
-                        echo "json_file=$JSON_FILE" >> "$GITHUB_OUTPUT"
                         echo "version_bumps=$VERSION_BUMPS" >> "$GITHUB_OUTPUT"
                         echo "lockfile_stale=$LOCKFILE_STALE" >> "$GITHUB_OUTPUT"
 
@@ -706,6 +705,11 @@ def _ghagen_update_action() -> Action:
                           exit 0
                         fi
 
+                        # Render the PR body before applying updates, so the report
+                        # reflects the pending changes rather than the post-apply state.
+                        BODY_FILE=$(mktemp)
+                        ghagen deps upgrade --check --format pr-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
+
                         git config user.name "github-actions[bot]"
                         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                         git checkout -b "$BRANCH"
@@ -723,6 +727,7 @@ def _ghagen_update_action() -> Action:
                         # Check if there are actual changes
                         if git diff --quiet && git diff --cached --quiet; then
                           echo "No file changes after applying updates."
+                          rm -f "$BODY_FILE"
                           exit 0
                         fi
 
@@ -735,35 +740,6 @@ def _ghagen_update_action() -> Action:
                         git add -A
                         git commit -m "$COMMIT_MSG"
                         git push -u origin "$BRANCH"
-
-                        # Build PR body via Python to a temp file (avoids shell quoting issues)
-                        BODY_FILE=$(mktemp)
-                        export BODY_FILE
-                        export JSON_FILE="${{ steps.detect.outputs.json_file }}"
-                        python3 - <<'PY'
-                        import json, os
-                        d = json.load(open(os.environ['JSON_FILE']))
-                        lines = ['## ghagen dependency update', '']
-
-                        bumps = d.get('version_bumps', [])
-                        if bumps:
-                            lines.append('### Version bumps')
-                            lines.append('')
-                            for b in bumps:
-                                lines.append(f'- `{b["uses"]}` -> `{b["latest"]}` [{b["severity"]}]')
-                            lines.append('')
-
-                        stale = d.get('lockfile_stale', [])
-                        if stale:
-                            lines.append('### Lockfile maintenance')
-                            lines.append('')
-                            for s in stale:
-                                lines.append(f'- `{s["uses"]}` SHA refreshed')
-                            lines.append('')
-
-                        with open(os.environ['BODY_FILE'], 'w') as f:
-                            f.write('\n'.join(lines))
-                        PY
 
                         gh pr create --title "$COMMIT_MSG" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
                         rm -f "$BODY_FILE"
@@ -796,40 +772,9 @@ def _ghagen_update_action() -> Action:
                           exit 0
                         fi
 
-                        # Build issue body via Python to a temp file
+                        # Render the issue body from the upgrade report
                         BODY_FILE=$(mktemp)
-                        export BODY_FILE
-                        export JSON_FILE="${{ steps.detect.outputs.json_file }}"
-                        python3 - <<'PY'
-                        import json, os
-                        d = json.load(open(os.environ['JSON_FILE']))
-                        lines = []
-
-                        bumps = d.get('version_bumps', [])
-                        if bumps:
-                            lines.append('## Version updates available')
-                            lines.append('')
-                            for b in bumps:
-                                files = ', '.join(f'`{f}`' for f in b.get('source_files', []))
-                                line = f'- [ ] `{b["uses"]}` -> `{b["latest"]}` [{b["severity"]}]'
-                                if files:
-                                    line += f'  in {files}'
-                                lines.append(line)
-                            lines.append('')
-
-                        stale = d.get('lockfile_stale', [])
-                        if stale:
-                            lines.append('## Stale lockfile entries')
-                            lines.append('')
-                            lines.append('Run `ghagen deps pin --update` to refresh.')
-                            lines.append('')
-                            for s in stale:
-                                lines.append(f'- [ ] `{s["uses"]}` — SHA changed')
-                            lines.append('')
-
-                        with open(os.environ['BODY_FILE'], 'w') as f:
-                            f.write('\n'.join(lines))
-                        PY
+                        ghagen deps upgrade --check --format issue-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
 
                         gh issue create --title "$TITLE" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
                         rm -f "$BODY_FILE"

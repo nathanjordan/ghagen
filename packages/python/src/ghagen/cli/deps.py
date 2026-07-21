@@ -142,8 +142,13 @@ def deps_upgrade(
     check: bool = typer.Option(
         False, "--check", help="Check for available upgrades without applying"
     ),
-    json: bool = typer.Option(
-        False, "--json", help="Output in machine-readable JSON format"
+    output_format: str | None = typer.Option(
+        None,
+        "--format",
+        help=(
+            "Output format: 'json', 'pr-body', or 'issue-body' "
+            "(default: human-readable text)"
+        ),
     ),
     mode: str = typer.Option(
         "all",
@@ -161,6 +166,15 @@ def deps_upgrade(
     if mode not in ("versions", "lockfile", "all"):
         typer.echo(
             f"Error: unknown --mode value '{mode}' (valid: versions, lockfile, all)",
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    valid_formats = ("json", "pr-body", "issue-body")
+    if output_format is not None and output_format not in valid_formats:
+        typer.echo(
+            f"Error: unknown --format value '{output_format}' "
+            "(valid: json, pr-body, issue-body)",
             err=True,
         )
         raise typer.Exit(2)
@@ -194,18 +208,22 @@ def deps_upgrade(
     check_lockfile = mode in ("lockfile", "all")
 
     if not report.version_bumps and not report.lockfile_stale:
-        if json:
+        if output_format == "json":
             typer.echo(
                 json_mod.dumps(
                     {"version_bumps": [], "lockfile_stale": []},
                     indent=2,
                 )
             )
+        elif output_format == "pr-body":
+            typer.echo(_render_pr_body([], []), nl=False)
+        elif output_format == "issue-body":
+            typer.echo(_render_issue_body([], []), nl=False)
         else:
             typer.echo("Everything is up to date.")
         raise typer.Exit(0)
 
-    if json:
+    if output_format == "json":
         result: dict = {}
         if check_versions:
             result["version_bumps"] = [
@@ -216,12 +234,20 @@ def deps_upgrade(
                 _stale_to_json(entry) for entry in report.lockfile_stale
             ]
         typer.echo(json_mod.dumps(result, indent=2))
+    elif output_format == "pr-body":
+        typer.echo(
+            _render_pr_body(report.version_bumps, report.lockfile_stale), nl=False
+        )
+    elif output_format == "issue-body":
+        typer.echo(
+            _render_issue_body(report.version_bumps, report.lockfile_stale), nl=False
+        )
     else:
         _print_human_report(report.version_bumps, report.lockfile_stale)
 
 
 def _bump_to_json(bump: VersionBump) -> dict:
-    """Serialize a version bump for ``--json`` (omitting empty ``source_files``)."""
+    """Serialize a version bump for ``--format json`` (omits empty ``source_files``)."""
     entry: dict = {
         "uses": bump.uses,
         "current": bump.current,
@@ -234,7 +260,7 @@ def _bump_to_json(bump: VersionBump) -> dict:
 
 
 def _stale_to_json(stale: LockfileStaleEntry) -> dict:
-    """Serialize a stale entry for ``--json`` (omitting empty ``source_files``)."""
+    """Serialize a stale entry for ``--format json`` (omits empty ``source_files``)."""
     entry: dict = {
         "uses": stale.uses,
         "current_sha": stale.current_sha,
@@ -243,6 +269,68 @@ def _stale_to_json(stale: LockfileStaleEntry) -> dict:
     if stale.source_files:
         entry["source_files"] = list(stale.source_files)
     return entry
+
+
+def _render_pr_body(
+    version_bumps: list[VersionBump],
+    lockfile_stale: list[LockfileStaleEntry],
+) -> str:
+    """Render the pull-request body markdown for an upgrade report.
+
+    Golden-file tested against ``fixtures/expected/upgrade_pr_body.md`` and kept
+    byte-identical with the TypeScript port's ``renderPrBody``.
+    """
+    lines = ["## ghagen dependency update", ""]
+
+    if version_bumps:
+        lines.append("### Version bumps")
+        lines.append("")
+        for bump in version_bumps:
+            lines.append(f"- `{bump.uses}` -> `{bump.latest}` [{bump.severity}]")
+        lines.append("")
+
+    if lockfile_stale:
+        lines.append("### Lockfile maintenance")
+        lines.append("")
+        for entry in lockfile_stale:
+            lines.append(f"- `{entry.uses}` SHA refreshed")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _render_issue_body(
+    version_bumps: list[VersionBump],
+    lockfile_stale: list[LockfileStaleEntry],
+) -> str:
+    """Render the issue body markdown for an upgrade report.
+
+    Golden-file tested against ``fixtures/expected/upgrade_issue_body.md`` and
+    kept byte-identical with the TypeScript port's ``renderIssueBody``.
+    """
+    lines: list[str] = []
+
+    if version_bumps:
+        lines.append("## Version updates available")
+        lines.append("")
+        for bump in version_bumps:
+            line = f"- [ ] `{bump.uses}` -> `{bump.latest}` [{bump.severity}]"
+            if bump.source_files:
+                files = ", ".join(f"`{f}`" for f in bump.source_files)
+                line += f"  in {files}"
+            lines.append(line)
+        lines.append("")
+
+    if lockfile_stale:
+        lines.append("## Stale lockfile entries")
+        lines.append("")
+        lines.append("Run `ghagen deps pin --update` to refresh.")
+        lines.append("")
+        for entry in lockfile_stale:
+            lines.append(f"- [ ] `{entry.uses}` — SHA changed")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def _print_human_report(

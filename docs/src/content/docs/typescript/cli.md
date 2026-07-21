@@ -174,19 +174,20 @@ applies updates to source files (version bumps). Use `--check` for a
 dry-run report without modifying files.
 
 ```bash
-npx ghagen deps upgrade              # Apply available updates to source files
-npx ghagen deps upgrade --check      # Report available updates without applying
-npx ghagen deps upgrade --check --json  # Machine-readable JSON report
+npx ghagen deps upgrade                     # Apply available updates to source files
+npx ghagen deps upgrade --check             # Report available updates without applying
+npx ghagen deps upgrade --check --format json  # Machine-readable JSON report
 ```
 
 ### Options
 
-| Option                | Description                                                                     |
-| --------------------- | ------------------------------------------------------------------------------- |
-| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                     |
-| `--check`             | Report available updates without applying changes (dry-run mode).               |
-| `--json`              | Output results as JSON (only valid with `--check`).                             |
-| `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. |
+| Option                | Description                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                                   |
+| `--check`             | Report available updates without applying changes (dry-run mode).                             |
+| `--format FORMAT`     | Output format: `json`, `pr-body`, or `issue-body`. Omit for human-readable text.              |
+| `--mode MODE`         | Detection mode: `versions`, `lockfile`, or `all` (default).                                    |
+| `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`.                |
 
 ### Exit codes
 

@@ -8,7 +8,12 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from ghagen.cli.deps import _bump_to_json, _stale_to_json
+from ghagen.cli.deps import (
+    _bump_to_json,
+    _render_issue_body,
+    _render_pr_body,
+    _stale_to_json,
+)
 from ghagen.cli.main import app
 from ghagen.pin.engine import LockfileStaleEntry, VersionBump
 
@@ -228,7 +233,8 @@ class TestUpgradeVersionsMode:
         _setup_upgrade_project(tmp_path)
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "versions", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -252,7 +258,8 @@ class TestUpgradeVersionsMode:
         _setup_upgrade_project(tmp_path)
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "versions", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -290,7 +297,8 @@ class TestUpgradeLockfileMode:
         _setup_upgrade_project(tmp_path, with_lockfile=True)
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "lockfile", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "lockfile", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -329,7 +337,8 @@ app.add_workflow(ci, "ci.yml")
         )
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "lockfile", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "lockfile", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -349,7 +358,7 @@ class TestUpgradeAllMode:
         monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
         _setup_upgrade_project(tmp_path, with_lockfile=True)
 
-        result = runner.invoke(app, ["deps", "upgrade", "--json", "--check"])
+        result = runner.invoke(app, ["deps", "upgrade", "--format", "json", "--check"])
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
         assert "version_bumps" in data
@@ -453,7 +462,16 @@ class TestUpgradeNoUpdates:
             ),
         ):
             result = runner.invoke(
-                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+                app,
+                [
+                    "deps",
+                    "upgrade",
+                    "--mode",
+                    "versions",
+                    "--format",
+                    "json",
+                    "--check",
+                ],
             )
 
         assert result.exit_code == 0, result.output
@@ -498,7 +516,16 @@ app.add_workflow(ci, "ci.yml")
             patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=mock_tags),
         ):
             result = runner.invoke(
-                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+                app,
+                [
+                    "deps",
+                    "upgrade",
+                    "--mode",
+                    "versions",
+                    "--format",
+                    "json",
+                    "--check",
+                ],
             )
 
         assert result.exit_code == 0, result.output
@@ -581,7 +608,16 @@ class TestUpgradeErrorHandling:
             side_effect=mock_tags_with_error,
         ):
             result = runner.invoke(
-                app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+                app,
+                [
+                    "deps",
+                    "upgrade",
+                    "--mode",
+                    "versions",
+                    "--format",
+                    "json",
+                    "--check",
+                ],
             )
 
         assert result.exit_code == 0, result.output
@@ -652,7 +688,9 @@ app.add_workflow(ci, "ci.yml")
             "ghagen.pin.sources.track_user_files",
             side_effect=_mock_track_user_files,
         ):
-            result = runner.invoke(app, ["deps", "upgrade", "--json", "--check"])
+            result = runner.invoke(
+                app, ["deps", "upgrade", "--format", "json", "--check"]
+            )
 
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -736,7 +774,8 @@ class TestUpgradeJsonContract:
         _setup_upgrade_project(tmp_path)
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "versions", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "versions", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -754,7 +793,8 @@ class TestUpgradeJsonContract:
         _setup_upgrade_project(tmp_path, with_lockfile=True)
 
         result = runner.invoke(
-            app, ["deps", "upgrade", "--mode", "lockfile", "--json", "--check"]
+            app,
+            ["deps", "upgrade", "--mode", "lockfile", "--format", "json", "--check"],
         )
         assert result.exit_code == 0, result.output
         data = json.loads(result.output)
@@ -797,9 +837,59 @@ app.add_workflow(ci, "ci.yml")
         ):
             for mode in ("versions", "lockfile", "all"):
                 result = runner.invoke(
-                    app, ["deps", "upgrade", "--mode", mode, "--json", "--check"]
+                    app,
+                    ["deps", "upgrade", "--mode", mode, "--format", "json", "--check"],
                 )
                 assert result.exit_code == 0, result.output
                 data = json.loads(result.output)
                 assert data == {"version_bumps": [], "lockfile_stale": []}
                 assert "helper_provided" not in result.output
+
+
+# -- deps upgrade markdown format contract -----------------------------------
+#
+# Pins the ``ghagen deps upgrade --format pr-body`` / ``--format issue-body``
+# renderers against the shared golden fixtures
+# (``fixtures/expected/upgrade_pr_body.md`` and ``upgrade_issue_body.md``),
+# asserted identically in the TypeScript port (``src/cli/deps.test.ts``).
+
+
+class TestUpgradeMarkdownContract:
+    """Renderer-level tests pinning pr-body/issue-body to shared fixtures."""
+
+    def _bumps(self) -> list[VersionBump]:
+        return [
+            VersionBump(
+                uses="actions/checkout@v5",
+                current="v5",
+                latest="v6",
+                severity="major",
+                source_files=[".github/ghagen_workflows.py"],
+            ),
+            VersionBump(
+                uses="actions/setup-node@v3",
+                current="v3",
+                latest="v4",
+                severity="major",
+            ),
+        ]
+
+    def _stale(self) -> list[LockfileStaleEntry]:
+        return [
+            LockfileStaleEntry(
+                uses="actions/setup-python@v6",
+                current_sha="ece7cb06caefa5fff74198d8649806c4678c61a1",
+                latest_sha="aaaa1111bbbb2222cccc3333dddd4444eeee5555",
+                source_files=[".github/ghagen_workflows.py"],
+            ),
+        ]
+
+    def test_pr_body_matches_golden_fixture(self):
+        rendered = _render_pr_body(self._bumps(), self._stale())
+        fixture = (FIXTURES_DIR / "upgrade_pr_body.md").read_text()
+        assert rendered == fixture
+
+    def test_issue_body_matches_golden_fixture(self):
+        rendered = _render_issue_body(self._bumps(), self._stale())
+        fixture = (FIXTURES_DIR / "upgrade_issue_body.md").read_text()
+        assert rendered == fixture

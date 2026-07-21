@@ -137,7 +137,7 @@ async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
 interface UpgradeOpts {
   config?: string;
   check?: boolean;
-  json?: boolean;
+  format?: string;
   mode?: "versions" | "lockfile" | "all";
   token?: string;
 }
@@ -153,6 +153,14 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const mode = opts.mode ?? "all";
   if (mode !== "versions" && mode !== "lockfile" && mode !== "all") {
     throw new CliError(`Error: unknown --mode value '${mode}' (valid: versions, lockfile, all)`, 2);
+  }
+
+  const format = opts.format;
+  if (format !== undefined && format !== "json" && format !== "pr-body" && format !== "issue-body") {
+    throw new CliError(
+      `Error: unknown --format value '${format}' (valid: json, pr-body, issue-body)`,
+      2,
+    );
   }
   const apply = !opts.check;
 
@@ -178,17 +186,21 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const checkLockfile = mode === "lockfile" || mode === "all";
 
   if (report.versionBumps.length === 0 && report.lockfileStale.length === 0) {
-    if (opts.json) {
+    if (format === "json") {
       process.stdout.write(
         JSON.stringify({ version_bumps: [], lockfile_stale: [] }, null, 2) + "\n",
       );
+    } else if (format === "pr-body") {
+      process.stdout.write(renderPrBody([], []));
+    } else if (format === "issue-body") {
+      process.stdout.write(renderIssueBody([], []));
     } else {
       process.stdout.write("Everything is up to date.\n");
     }
     return;
   }
 
-  if (opts.json) {
+  if (format === "json") {
     const result: {
       version_bumps?: Array<Record<string, unknown>>;
       lockfile_stale?: Array<Record<string, unknown>>;
@@ -200,12 +212,78 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
       result.lockfile_stale = report.lockfileStale.map(staleToJson);
     }
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } else if (format === "pr-body") {
+    process.stdout.write(renderPrBody(report.versionBumps, report.lockfileStale));
+  } else if (format === "issue-body") {
+    process.stdout.write(renderIssueBody(report.versionBumps, report.lockfileStale));
   } else {
     printHumanReport(report.versionBumps, report.lockfileStale);
   }
 }
 
-/** Serialize a version bump for `--json` (omitting empty `source_files`). */
+/**
+ * Render the pull-request body markdown for an upgrade report.
+ *
+ * Golden-file tested against `fixtures/expected/upgrade_pr_body.md` and kept
+ * byte-identical with the Python port's `_render_pr_body`.
+ */
+function renderPrBody(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): string {
+  const lines: string[] = ["## ghagen dependency update", ""];
+
+  if (versionBumps.length > 0) {
+    lines.push("### Version bumps", "");
+    for (const bump of versionBumps) {
+      lines.push(`- \`${bump.uses}\` -> \`${bump.latest}\` [${bump.severity}]`);
+    }
+    lines.push("");
+  }
+
+  if (lockfileStale.length > 0) {
+    lines.push("### Lockfile maintenance", "");
+    for (const entry of lockfileStale) {
+      lines.push(`- \`${entry.uses}\` SHA refreshed`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Render the issue body markdown for an upgrade report.
+ *
+ * Golden-file tested against `fixtures/expected/upgrade_issue_body.md` and kept
+ * byte-identical with the Python port's `_render_issue_body`.
+ */
+function renderIssueBody(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): string {
+  const lines: string[] = [];
+
+  if (versionBumps.length > 0) {
+    lines.push("## Version updates available", "");
+    for (const bump of versionBumps) {
+      let line = `- [ ] \`${bump.uses}\` -> \`${bump.latest}\` [${bump.severity}]`;
+      if (bump.source_files.length > 0) {
+        const files = bump.source_files.map((f) => `\`${f}\``).join(", ");
+        line += `  in ${files}`;
+      }
+      lines.push(line);
+    }
+    lines.push("");
+  }
+
+  if (lockfileStale.length > 0) {
+    lines.push("## Stale lockfile entries", "");
+    lines.push("Run `ghagen deps pin --update` to refresh.", "");
+    for (const entry of lockfileStale) {
+      lines.push(`- [ ] \`${entry.uses}\` — SHA changed`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/** Serialize a version bump for `--format json` (omitting empty `source_files`). */
 function bumpToJson(bump: VersionBump): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     uses: bump.uses,
@@ -219,7 +297,7 @@ function bumpToJson(bump: VersionBump): Record<string, unknown> {
   return entry;
 }
 
-/** Serialize a stale entry for `--json` (omitting empty `source_files`). */
+/** Serialize a stale entry for `--format json` (omitting empty `source_files`). */
 function staleToJson(stale: LockfileStaleEntry): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     uses: stale.uses,
@@ -279,7 +357,10 @@ export function buildDepsCommand(): Command {
     .description("Upgrade action dependencies to latest versions.")
     .option("-c, --config <path>", "Path to config file")
     .option("--check", "Check for available upgrades without applying")
-    .option("--json", "Output in machine-readable JSON format")
+    .option(
+      "--format <format>",
+      "Output format: json, pr-body, or issue-body (default: human-readable text)",
+    )
     .option("--mode <mode>", "Detection mode: versions, lockfile, or all", "all")
     .option("--token <token>", "GitHub token (default: $GITHUB_TOKEN)")
     .action(async (opts: UpgradeOpts) => depsUpgrade(opts));
@@ -288,4 +369,12 @@ export function buildDepsCommand(): Command {
 }
 
 /** Public re-exports useful for testing. */
-export { depsPin, depsCheckSynced, depsUpgrade, bumpToJson, staleToJson };
+export {
+  depsPin,
+  depsCheckSynced,
+  depsUpgrade,
+  bumpToJson,
+  staleToJson,
+  renderPrBody,
+  renderIssueBody,
+};
