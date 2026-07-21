@@ -51,6 +51,7 @@ author must understand and every future test must construct, in service of zero 
 ### Python — `transforms.py`
 
 Before:
+
 ```python
 @dataclass
 class SynthContext:
@@ -69,6 +70,7 @@ class Transform(Protocol):
 ```
 
 After:
+
 ```python
 @runtime_checkable
 class Transform(Protocol):
@@ -81,6 +83,7 @@ uses them — verify at implementation time.)
 ### Python — `app.py` (`_apply_transforms`)
 
 Before:
+
 ```python
 working = item.model_copy(deep=True)
 item_type = "workflow" if isinstance(item, Workflow) else "action"
@@ -95,6 +98,7 @@ return working
 ```
 
 After:
+
 ```python
 working = item.model_copy(deep=True)
 for transform in transforms:
@@ -108,6 +112,7 @@ deleted outright since it existed only to populate `ctx`.)
 ### TypeScript — `transforms.ts`
 
 Before:
+
 ```typescript
 /** Context available to transforms during synthesis. */
 export interface SynthContext {
@@ -120,6 +125,7 @@ export type Transform = (item: SynthItem, ctx: SynthContext) => SynthItem;
 ```
 
 After:
+
 ```typescript
 export type Transform = (item: SynthItem) => SynthItem;
 ```
@@ -127,6 +133,7 @@ export type Transform = (item: SynthItem) => SynthItem;
 ### TypeScript — `app.ts` (`_applyTransforms`)
 
 Before:
+
 ```typescript
 let working = cloneModel(item);
 const ctx: SynthContext = {
@@ -141,6 +148,7 @@ return working;
 ```
 
 After:
+
 ```typescript
 let working = cloneModel(item);
 for (const transform of transforms) {
@@ -165,6 +173,7 @@ TypeScript, after: `return function pin(item: SynthItem): SynthItem {`
 Repo is pre-1.0; breaking changes are freely allowed, no deprecation shim required.
 
 Public API surface that disappears:
+
 - Python: `ghagen.SynthContext` (exported from `ghagen/__init__.py`, both the import and the
   `__all__` entry).
 - TypeScript: `SynthContext` type, re-exported from `index.ts` alongside `Transform` and
@@ -220,9 +229,9 @@ explicit `auto_dedent`/`autoDedent` keyword argument to `to_yaml_file`/`to_yaml`
 in `App.__init__`/constructor from parsed project options). `SynthContext` was never in the
 `auto_dedent` path.
 
-ADR-0002's *substance* — no module-level mutable global carries configuration; options are threaded
+ADR-0002's _substance_ — no module-level mutable global carries configuration; options are threaded
 explicitly to the serialization call — is preserved by this spec and unaffected by deleting
-`SynthContext`. Only the ADR's *wording* is stale: the "through `SynthContext` on the `App.synth`
+`SynthContext`. Only the ADR's _wording_ is stale: the "through `SynthContext` on the `App.synth`
 path" clause should be corrected to describe the actual `auto_dedent=self._auto_dedent` keyword-arg
 threading, independent of whether `SynthContext` exists. Recommend a one-line wording fix to
 ADR-0002 (paragraph under "No construction-time config globals", first sentence) either alongside

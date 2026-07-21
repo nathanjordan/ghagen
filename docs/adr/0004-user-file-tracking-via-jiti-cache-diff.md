@@ -34,3 +34,13 @@ helper, and a plain-CJS helper, and assert the exact tracked file set.
 - Do not re-suggest migrating user-file tracking to the `transform` hook or to `module.register`
   loader hooks unless the integration test breaks and cache introspection is actually gone.
 - The fixture-project integration test is the canary; it must not be mocked.
+
+## Known limitation: native-ESM helpers are invisible
+
+Verified empirically (jiti 2.6.1) while writing the canary test: a `.mjs` helper is loaded through
+native `import()` and never enters `jiti.cache` (the instance exposes only the CommonJS-side
+cache; there is no ESM registry to diff). Its `uses:` refs are therefore silently skipped by
+`deps upgrade --apply`. The rejected `transform` hook shares the same blind spot (it never fires
+for natively-imported modules), so this was not a factor in choosing between mechanisms. The
+canary test pins the `.mjs` absence explicitly, so a future jiti that changes this behavior —
+either direction — turns the change into a red test rather than a silent one.

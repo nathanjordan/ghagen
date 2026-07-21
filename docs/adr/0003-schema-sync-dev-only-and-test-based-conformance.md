@@ -20,7 +20,7 @@ dependency.
 ## Considered options
 
 - **Generate-and-use-directly** (Kubernetes clients, AWS CDK L1, Pulumi, cdktf): regenerate models
-  from the schema on every change. Works cleanly when you *control or version* the schema — CDK's
+  from the schema on every change. Works cleanly when you _control or version_ the schema — CDK's
   team owns the CloudFormation spec, so it needs no drift detection. ghagen does **not** control
   SchemaStore's schema, which is exactly why it needs drift detection instead.
 - **Hand-written models + schema as conformance target** (chosen): far better DX than the hideous
@@ -34,7 +34,7 @@ The two languages enforce **different** things, by nature — do not "fix" this 
   hand-written models; `tsc` fails if they diverge from the schema. No runtime validation.
 - **Python**: runtime user-input validation via Pydantic on the hand-written models. Python lacks
   the structural typing to import a generated type and check a hand-written class against it, so its
-  *schema faithfulness* rests on integration tests that validate emitted YAML against the canonical
+  _schema faithfulness_ rests on integration tests that validate emitted YAML against the canonical
   snapshot.
 
 Do not re-suggest wiring the generated Python models back in for conformance — it was deliberately

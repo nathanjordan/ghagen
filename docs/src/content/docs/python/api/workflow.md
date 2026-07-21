@@ -54,8 +54,8 @@ Per-field comments are attached by wrapping individual field values with `with_c
 
 Generate the complete YAML string for this workflow.
 
-| Argument | Type                                                            | Default   | Description                                                                                                                                                                                                                                                                                                                                              |
-| -------- | --------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Argument | Type                                                           | Default   | Description                                                                                                                                                                                                                                                                                                   |
+| -------- | -------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `header` | `str \| None \| Callable[[HeaderVariables], str] \| _Sentinel` | `DEFAULT` | Header comment for the generated file. Omit to emit ghagen's default header. Pass `None` to skip the header. Pass a `str` to emit it verbatim (no `{variable}` substitution; literal braces are preserved). Pass a callable to receive a fully-populated `HeaderVariables` dict and emit the returned string. |
 
 Returns the complete YAML string.
@@ -64,9 +64,9 @@ Returns the complete YAML string.
 
 Write the workflow YAML to a file. Creates parent directories if they don't exist.
 
-| Argument | Type                                                            | Default   | Description                                                |
-| -------- | --------------------------------------------------------------- | --------- | ---------------------------------------------------------- |
-| `path`   | `str \| Path`                                                   | required  | File path to write to.                                     |
+| Argument | Type                                                           | Default   | Description                                                   |
+| -------- | -------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
+| `path`   | `str \| Path`                                                  | required  | File path to write to.                                        |
 | `header` | `str \| None \| Callable[[HeaderVariables], str] \| _Sentinel` | `DEFAULT` | Header comment. See `to_yaml()` for the four accepted shapes. |
 
 ## Defaults

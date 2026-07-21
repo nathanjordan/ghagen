@@ -41,7 +41,6 @@ The one intended output change (§4) landed: `fixtures/expected/comments.yml` no
 shows the `lint` job's `# Run linters before tests`, and the TS snapshot input
 gained the matching `comment`. Both ports produce byte-identical output.
 
-
 One deep module per port, living inside the Emitter, that owns every path by which a
 YAML comment lands on a node. Today that logic is smeared across three files per port and
 runs down three near-duplicate code paths; this spec collapses it behind one small
@@ -75,20 +74,20 @@ three files, per port.
 
 **Python** (3 files):
 
-| Path | Site | What it does |
-|------|------|--------------|
-| field comment | `models/_base.py::_collect_commented_fields` → `emitter/yaml_writer.py::attach_field_comments` → `attach_comment` | walks `model_fields`, pulls `comment`/`eol_comment` off `Commented` wrappers into two dicts, re-walks the map to attach them by key |
-| list-item comment | `models/_base.py::_serialize_list` (lines 253–259) → `attach_comment` | second loop over the same items; for each `GhagenModel` item attaches its own `.comment`/`.eol_comment` on the seq index |
-| Document-root comment | `emitter/emit.py::to_yaml` (lines 57–58) → `attach_comment` | attaches the root model's `.comment` before the first key |
+| Path                  | Site                                                                                                              | What it does                                                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| field comment         | `models/_base.py::_collect_commented_fields` → `emitter/yaml_writer.py::attach_field_comments` → `attach_comment` | walks `model_fields`, pulls `comment`/`eol_comment` off `Commented` wrappers into two dicts, re-walks the map to attach them by key |
+| list-item comment     | `models/_base.py::_serialize_list` (lines 253–259) → `attach_comment`                                             | second loop over the same items; for each `GhagenModel` item attaches its own `.comment`/`.eol_comment` on the seq index            |
+| Document-root comment | `emitter/emit.py::to_yaml` (lines 57–58) → `attach_comment`                                                       | attaches the root model's `.comment` before the first key                                                                           |
 
 **TypeScript** (2 files):
 
-| Path | Site | What it does |
-|------|------|--------------|
-| field comment | `models/_base.ts::toYamlMap` collects into `fieldComments`/`fieldEolComments` → `attachFieldComments` (same file) | mirror of the Python field path |
-| nested-model comment | `models/_base.ts::toYamlValue` nested-Model branch (lines 716–730) | sets `commentBefore` on the child map's first key + `comment` on the first value |
-| list-item comment | `models/_base.ts::toYamlValue` array branch (lines 742–752) | **re-does** the nested-model attach at a different target, then **undoes** the first one |
-| Document-root comment | `emitter/yaml-writer.ts::toYaml` → `attachBlockComment` / `attachEolComment` (same file) | attaches the root model's `comment`/`eolComment` |
+| Path                  | Site                                                                                                              | What it does                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| field comment         | `models/_base.ts::toYamlMap` collects into `fieldComments`/`fieldEolComments` → `attachFieldComments` (same file) | mirror of the Python field path                                                          |
+| nested-model comment  | `models/_base.ts::toYamlValue` nested-Model branch (lines 716–730)                                                | sets `commentBefore` on the child map's first key + `comment` on the first value         |
+| list-item comment     | `models/_base.ts::toYamlValue` array branch (lines 742–752)                                                       | **re-does** the nested-model attach at a different target, then **undoes** the first one |
+| Document-root comment | `emitter/yaml-writer.ts::toYaml` → `attachBlockComment` / `attachEolComment` (same file)                          | attaches the root model's `comment`/`eolComment`                                         |
 
 Three conceptual operations, six-plus implementations, four files touched to trace one
 behavior. `attach_comment` (Python) and the placement logic (TS) each encode a pile of
@@ -108,7 +107,7 @@ EOL redirect, block-comment column rewriting) with no single owner.
 
 The array branch calls `toYamlValue(item)`, which runs the nested-Model branch and wrongly
 stamps the comment on the first key; the array branch then has to overwrite it in the right
-place *and* null out the wrong one:
+place _and_ null out the wrong one:
 
 ```ts
 // _base.ts, toYamlValue array branch — lines 742–752 (verbatim)
@@ -125,8 +124,8 @@ if (item instanceof Model && item.meta.comment && node instanceof YAMLMap) {
 }
 ```
 
-**Root cause:** the nested-Model branch attaches the model's own comment *before knowing
-what container the model sits in*. Placement depends on container, so a second call site
+**Root cause:** the nested-Model branch attaches the model's own comment _before knowing
+what container the model sits in_. Placement depends on container, so a second call site
 must reverse the first. Two paths compute one attachment with opposite placement
 conventions; one clobbers the other. The workaround is the smear made visible.
 
@@ -160,8 +159,8 @@ comment get onto a node".
 ## 2. Design
 
 One new file per port, inside the Emitter, that owns **all** comment placement and **all**
-node-shape/quirk knowledge. The serializer decides *what* comment goes *where* (which node,
-which key/index); the module decides *how* to make the underlying library render it.
+node-shape/quirk knowledge. The serializer decides _what_ comment goes _where_ (which node,
+which key/index); the module decides _how_ to make the underlying library render it.
 
 ### Python — `emitter/comments.py`
 
@@ -296,7 +295,7 @@ is `attach(seq, idx, ...)`; the `yaml` library stores it on the **child node**'s
 `commentBefore`, so TS's seq path is `attachModelComment(node, …, {atSeqItem:true})`. That
 library difference is exactly the node-shape knowledge each module is meant to encapsulate;
 the two modules play the identical role while differing in internals. Parity is at the
-interface's *responsibility*, not its literal signature.
+interface's _responsibility_, not its literal signature.
 
 ---
 
@@ -394,7 +393,7 @@ if model.comment and cm:
     attach_comment(cm, next(iter(cm.keys())), comment=model.comment)
 ```
 
-**Python after** — one helper covers root *and* nested map value; EOL now supported; gap
+**Python after** — one helper covers root _and_ nested map value; EOL now supported; gap
 closed. Called by 0001's single pass wherever a `GhagenModel` yields a map:
 
 ```python
@@ -411,10 +410,13 @@ const childMap = value.toYamlMap();
 attachModelComment(childMap, value.meta.comment, value.meta.eolComment, { atSeqItem: false });
 return childMap;
 ```
+
 ```ts
 // toYaml (yaml-writer.ts), root:
 if (doc.contents instanceof YAMLMap) {
-  attachModelComment(doc.contents, target.meta.comment, target.meta.eolComment, { atSeqItem: false });
+  attachModelComment(doc.contents, target.meta.comment, target.meta.eolComment, {
+    atSeqItem: false,
+  });
 }
 ```
 
@@ -464,7 +466,7 @@ the module on hand-built nodes:
 1. A new `emitter/comments.py` and `emitter/comments.ts` are the **only** files that call
    ruamel comment APIs / set `commentBefore`/`comment` on `yaml` nodes. Grep confirms no
    comment-attachment remains in `_base`, `emit`/`yaml-writer` beyond call sites that
-   *delegate* to the module.
+   _delegate_ to the module.
 2. All three paths (field, list-item, root/nested-model) route through the module; the
    TypeScript array-branch "remove the duplicate" workaround is deleted.
 3. The Python parity gap is closed: a nested map-value model's own comment renders,
@@ -484,7 +486,7 @@ the module on hand-built nodes:
 - **Depends on spec 0001 (hard, same Python files).** 0001 rewrites
   `models/_base.py::to_commented_map` and `_serialize_value`/`_serialize_list`/
   `_restore_nested_models`/`_collect_commented_fields` into a single-pass Emitter helper.
-  0003's Python call sites are points *inside that new helper*. **Implement 0003 after 0001
+  0003's Python call sites are points _inside that new helper_. **Implement 0003 after 0001
   merges, not in parallel** — the two would edit the same methods and 0003's "after" targets
   code 0001 has not yet produced.
 - **TypeScript side is technically independent** of 0001 (no 0001 TS churn beyond narrowing

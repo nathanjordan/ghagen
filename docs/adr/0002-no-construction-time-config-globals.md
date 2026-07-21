@@ -13,7 +13,7 @@ time** and threaded explicitly — as an `auto_dedent`/`autoDedent` keyword argu
 
 `auto_dedent` was a module-level global set by `App.__init__` and read by the `Step` validator at
 construction time, so a `Step` built before its `App` dedented differently than one built after —
-action-at-a-distance with a thread-safety hazard. `auto_dedent` only affects YAML *output*, so
+action-at-a-distance with a thread-safety hazard. `auto_dedent` only affects YAML _output_, so
 applying it at output time removes the temporal coupling and makes the behavior testable by
 parameter instead of by mutating and restoring a global.
 

@@ -223,8 +223,9 @@ that is never type-checked or tested. Pre-commit already has to exclude the file
 **Problem:** the round-1 stretch item's blind spots. The Python conformance test walks only
 `workflow_schema.json`; the action Snapshot is unswept; nothing asserts the two ports model the
 same property set. Separately: Drift is detected two different ways (`schema_sync.py check-drift`
-+ difflib — tested but dead in CI — vs `schema-drift.yml`'s `sync` + `git diff`), and the schema
-registry is forked (`schema_sync.py:39-48` `SCHEMAS` vs `generate-types.ts:38-47` `TARGETS`).
+
+- difflib — tested but dead in CI — vs `schema-drift.yml`'s `sync` + `git diff`), and the schema
+  registry is forked (`schema_sync.py:39-48` `SCHEMAS` vs `generate-types.ts:38-47` `TARGETS`).
 
 **Design (decided): shared allow-list.**
 

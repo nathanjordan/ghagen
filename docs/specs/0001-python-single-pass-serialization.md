@@ -20,11 +20,11 @@ YAML in eight stages, most of which exist only to undo work an earlier stage did
 2. `_unwrap_commented_dict` (`:59-73`) — re-walks the dumped dict to unwrap `Commented` values
    the serializer left behind.
 3. `unwrap_raw` (`:299`) — re-walks again to unwrap `Raw`.
-4. `_restore_nested_models` (`:336-381`) — re-walks the *original model fields* a third time to
+4. `_restore_nested_models` (`:336-381`) — re-walks the _original model fields_ a third time to
    replace the `dict`s that step 1 produced with real `CommentedMap`s from
    `child.to_commented_map()`. This is pure undo of step 1.
 5. `to_ordered_commented_map` — apply key ordering.
-6. `_collect_commented_fields` (`:192-224`) — a *fourth* field walk to harvest per-field
+6. `_collect_commented_fields` (`:192-224`) — a _fourth_ field walk to harvest per-field
    comments from `Commented` wrappers (the same wrappers step 2 discarded).
 7. extras merge + `attach_field_comments`.
 8. `post_process`.
@@ -59,6 +59,7 @@ Costs:
 
   Two copies that must never drift, plus a third alias resolution implicitly inside
   `model_dump(by_alias=True)`.
+
 - **No direct unit tests.** `_unwrap_commented_dict`, `_restore_nested_models`,
   `_serialize_value`, and `_collect_commented_fields` are private passes with no unit coverage;
   they are exercised only end-to-end through the snapshot tests
@@ -84,15 +85,15 @@ New free function in `packages/python/src/ghagen/emitter/yaml_writer.py`, the Py
 (mirroring the current `_serialize_value:226-245` + `_serialize_list:247-261` exactly, so
 behavior is preserved byte-for-byte):
 
-| Case | Handling |
-| --- | --- |
-| `Commented` wrapper | unwrap and recurse on `.value` (comment already harvested by caller) |
-| `Raw` wrapper | `unwrap_raw(value)` — preserves `PlainScalarString` wrapping so the block-scalar auto-cast is bypassed |
-| `GhagenModel` | `value.to_commented_map()` (recursion into the thin method) |
-| `CommentedMap` | pass through unchanged (already a YAML node) |
-| `dict` | build a `CommentedMap`, recursing `to_yaml_node` over each value |
-| `list` (incl. `CommentedSeq`) | build a `CommentedSeq` via `_to_yaml_seq`, attaching item comments from `GhagenModel` entries |
-| scalar / other | `unwrap_raw(value)` (identity for plain scalars) |
+| Case                          | Handling                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `Commented` wrapper           | unwrap and recurse on `.value` (comment already harvested by caller)                                   |
+| `Raw` wrapper                 | `unwrap_raw(value)` — preserves `PlainScalarString` wrapping so the block-scalar auto-cast is bypassed |
+| `GhagenModel`                 | `value.to_commented_map()` (recursion into the thin method)                                            |
+| `CommentedMap`                | pass through unchanged (already a YAML node)                                                           |
+| `dict`                        | build a `CommentedMap`, recursing `to_yaml_node` over each value                                       |
+| `list` (incl. `CommentedSeq`) | build a `CommentedSeq` via `_to_yaml_seq`, attaching item comments from `GhagenModel` entries          |
+| scalar / other                | `unwrap_raw(value)` (identity for plain scalars)                                                       |
 
 The one wrinkle versus TS: the helper lives in the Emitter module but must recognise
 `GhagenModel`, and `models/_base.py` already imports from `yaml_writer`. To avoid an import
@@ -314,7 +315,7 @@ replicated exactly by the field walk. Precise rules — a field emits **iff all*
    (`trigger.py:168-183`) rewrites an already-set field to `Raw(None)` in place, so it stays
    set.
 3. **Not None (`exclude_none`).** `value is None` is checked on the **raw attribute value**
-   (the wrapper), *before* unwrapping — precisely what `model_dump` saw, since it never looked
+   (the wrapper), _before_ unwrapping — precisely what `model_dump` saw, since it never looked
    inside `Commented` / `Raw`. Consequence: a field normalized to `Raw(None)` (empty
    `workflow_dispatch`) is **not** None (it is a `Raw` object), so it survives the filter and
    `to_yaml_node` → `unwrap_raw` renders it as a bare null key — identical to today. A

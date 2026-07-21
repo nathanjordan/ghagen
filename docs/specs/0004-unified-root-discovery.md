@@ -20,7 +20,7 @@ other, plus a TypeScript-only structural and validation-coupling defect.
   given, calls `_entrypoint_from_ghagen_yml(Path.cwd())` (line 72), which
   reads `.ghagen.yml` **only** in `Path.cwd()` (`cli/_common.py:31-33`,
   `ghagen_yml = cwd / GHAGEN_YML_PATH; if not ghagen_yml.is_file(): return
-  None`) — no ancestor walk. If that misses, it probes
+None`) — no ancestor walk. If that misses, it probes
   `CONFIG_SEARCH_PATHS` (`.github/ghagen_workflows.py`,
   `ghagen_config.py`) also relative to `Path.cwd()` only
   (`cli/_common.py:76-79`).
@@ -110,10 +110,10 @@ both `options` and `entrypoint`, but the two call sites each parse the
 **whole** schema and use only their half:
 
 - `config.ts:62`, `loadOptions`: `const config =
-  ghagenYmlSchema.parse(data);` then reads `config.options` only
+ghagenYmlSchema.parse(data);` then reads `config.options` only
   (`config.ts:63-65`) — `entrypoint` is parsed and discarded.
 - `cli/_common.ts:58`, `entrypointFromGhagenYml`: `config =
-  ghagenYmlSchema.parse(data);` then reads `config.entrypoint` only
+ghagenYmlSchema.parse(data);` then reads `config.entrypoint` only
   (`cli/_common.ts:62-72`) — `options` is parsed and discarded.
 
 The `entrypoint` field is not dead code in the "unused" sense — it is
@@ -139,7 +139,7 @@ it instead of re-deriving "root" from a raw, non-walking `cwd`.
 - `find_app_root` unchanged (already correct, already the primary
   interface used by `load_options` and the header).
 - `_entrypoint_from_ghagen_yml` changes its parameter from a raw `cwd:
-  Path` to a resolved `root: Path` (the caller now supplies the already
+Path` to a resolved `root: Path` (the caller now supplies the already
   ancestor-walked root, not `Path.cwd()`). Body is otherwise unchanged —
   it still just reads `root / GHAGEN_YML_MARKER`.
 - `_find_config` calls `find_app_root()` once (ancestor walk from cwd) and
@@ -175,7 +175,7 @@ it instead of re-deriving "root" from a raw, non-walking `cwd`.
   the same file no longer causes `loadOptions()` to throw. This is the
   "wire it or delete it" call for the `entrypoint` field: it's already
   wired into `cli/_common.ts` (keep it there, unchanged), and it gets
-  *un*-wired from `loadOptions`, which never needed it. This mirrors
+  _un_-wired from `loadOptions`, which never needed it. This mirrors
   Python's existing `_extract_from_ghagen_yml`, which already only
   touches `options`.
 - `entrypointFromGhagenYml` changes its parameter from `cwd: string` to
@@ -349,7 +349,7 @@ Breaking changes are acceptable — ghagen is pre-1.0.
   present in an ancestor but the CLI runs from a subdirectory: candidates
   (`.github/ghagen_workflows.py`, `ghagen_config.py`, etc.) are now
   probed relative to the discovered root, not `cwd`. A project that
-  happened to have a stray `ghagen_config.py` in a subdirectory *and* a
+  happened to have a stray `ghagen_config.py` in a subdirectory _and_ a
   `.ghagen.yml` at the root will no longer pick up the subdirectory file
   by accident — this is a narrowing, not a widening, of what gets
   matched, and only affects the (already-fragile) implicit-filename
@@ -424,7 +424,7 @@ Breaking changes are acceptable — ghagen is pre-1.0.
 rather than dynamically importing a written-to-disk fixture config module.
 `jiti` loads modules through its own transform/loader — a genuine dynamic
 import of a fixture that constructs `new App()` produces an `App` instance
-from a *different* module graph than the one `resolveAppFromModule`'s
+from a _different_ module graph than the one `resolveAppFromModule`'s
 `instanceof App` check runs against under Vitest's transform, so it
 spuriously fails that check. This is a pre-existing property of the
 `loadApp`/`resolveAppFromModule` design (unrelated to this spec — no CLI
@@ -471,7 +471,7 @@ split:
   file edits, but 0005 has a **soft dependency**: `cli/deps.py`
   (`from ghagen.cli._common import _find_config, _load_app`) and
   `cli/deps.ts` (`import { CliError, findConfig, loadApp } from
-  "./_common.js"`) both import from the module this spec modifies. The
+"./_common.js"`) both import from the module this spec modifies. The
   signature of `_find_config`/`findConfig` (parameters, return type,
   error behavior) must stay stable across both specs' implementation
   windows, or land this spec first — 0005 only needs `_find_config`'s
