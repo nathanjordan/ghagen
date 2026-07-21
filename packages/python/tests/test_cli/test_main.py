@@ -273,3 +273,31 @@ def test_ghagen_yml_without_entrypoint_falls_back(tmp_path: Path, monkeypatch: o
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 0, result.output
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
+
+
+def test_entrypoint_resolved_from_subdirectory(tmp_path: Path, monkeypatch: object):
+    """`ghagen synth`/`check-synced` succeed when invoked from a subdirectory
+    of the project root, resolving .ghagen.yml's entrypoint via the same
+    ancestor walk used by load_options/find_app_root (regression test for
+    the split-locator bug: see docs/specs/0004-unified-root-discovery.md).
+    """
+    (tmp_path / "workflows").mkdir()
+    (tmp_path / "workflows" / "ci.py").write_text(_MINIMAL_WORKFLOW_SRC)
+    (tmp_path / ".ghagen.yml").write_text("entrypoint: workflows/ci.py\n")
+
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    monkeypatch.chdir(subdir)  # type: ignore[attr-defined]
+
+    result = runner.invoke(app, ["synth"])
+    assert result.exit_code == 0, result.output
+    assert "Synthesized 1" in result.output
+    # App() defaults root="." (unaffected by this spec), which resolves
+    # against cwd -- i.e. the subdirectory the CLI was invoked from. What
+    # this test guards is entrypoint *resolution*: `.ghagen.yml` one level
+    # up is found and its entrypoint script is loaded and executed.
+    assert (subdir / ".github" / "workflows" / "ci.yml").exists()
+
+    result = runner.invoke(app, ["check-synced"])
+    assert result.exit_code == 0, result.output
+    assert "up-to-date" in result.output

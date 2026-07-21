@@ -9,26 +9,25 @@ from pathlib import Path
 import typer
 
 from ghagen.app import App
-from ghagen.config import load_yaml_config
+from ghagen.config import GHAGEN_YML_MARKER, find_app_root, load_yaml_config
 
 CONFIG_SEARCH_PATHS = [
     ".github/ghagen_workflows.py",
     "ghagen_config.py",
 ]
 
-GHAGEN_YML_PATH = Path(".ghagen.yml")
 
-
-def _entrypoint_from_ghagen_yml(cwd: Path) -> Path | None:
+def _entrypoint_from_ghagen_yml(root: Path) -> Path | None:
     """Return the configured entrypoint path, or ``None`` if not set.
 
-    Reads ``.ghagen.yml`` (relative to *cwd*), extracts the top-level
-    ``entrypoint`` key, and resolves it relative to the yml file's
-    parent directory (the repo root). Returns ``None`` if the file or
-    key is absent. Raises ``typer.Exit(1)`` on malformed YAML, a
-    wrong-type value, or a resolved path that does not exist.
+    Reads ``.ghagen.yml`` in *root* (an already-discovered project root,
+    e.g. from :func:`ghagen.config.find_app_root`), extracts the
+    top-level ``entrypoint`` key, and resolves it relative to *root*.
+    Returns ``None`` if the file or key is absent. Raises
+    ``typer.Exit(1)`` on malformed YAML, a wrong-type value, or a
+    resolved path that does not exist.
     """
-    ghagen_yml = cwd / GHAGEN_YML_PATH
+    ghagen_yml = root / GHAGEN_YML_MARKER
     if not ghagen_yml.is_file():
         return None
 
@@ -69,21 +68,28 @@ def _find_config(config: str | None) -> Path:
             raise typer.Exit(1)
         return path
 
-    from_yml = _entrypoint_from_ghagen_yml(Path.cwd())
-    if from_yml is not None:
-        return from_yml
+    root = find_app_root()
+    if root is not None:
+        from_yml = _entrypoint_from_ghagen_yml(root)
+        if from_yml is not None:
+            return from_yml
 
-    for candidate in CONFIG_SEARCH_PATHS:
-        path = Path(candidate)
-        if path.exists():
-            return path
+        for candidate in CONFIG_SEARCH_PATHS:
+            path = root / candidate
+            if path.exists():
+                return path
+    else:
+        for candidate in CONFIG_SEARCH_PATHS:
+            path = Path(candidate)
+            if path.exists():
+                return path
 
     typer.echo(
         "Error: no config file found. Searched:\n"
         + "\n".join(f"  - {p}" for p in CONFIG_SEARCH_PATHS)
-        + f"\n  - {GHAGEN_YML_PATH} (top-level 'entrypoint' key)\n"
+        + f"\n  - {GHAGEN_YML_MARKER} (top-level 'entrypoint' key)\n"
         "\nUse --config to specify a path, set 'entrypoint' in "
-        f"{GHAGEN_YML_PATH}, or run `ghagen init` to create one.",
+        f"{GHAGEN_YML_MARKER}, or run `ghagen init` to create one.",
         err=True,
     )
     raise typer.Exit(1)

@@ -4,10 +4,7 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { createJiti } from "jiti";
 import { App } from "../app.js";
-import { ghagenYmlSchema } from "../_config-schema.js";
-import { loadYamlConfig } from "../_yaml-config.js";
-
-const GHAGEN_YML_PATH = ".ghagen.yml";
+import { GHAGEN_YML_MARKER, findAppRoot, ghagenYmlSchema, loadYamlConfig } from "../config.js";
 
 const CONFIG_SEARCH_PATHS: readonly string[] = [
   ".github/ghagen.workflows.ts",
@@ -41,8 +38,17 @@ export class CliError extends Error {
   }
 }
 
-function entrypointFromGhagenYml(cwd: string): string | null {
-  const ghagenYml = resolve(cwd, GHAGEN_YML_PATH);
+/**
+ * Return the configured entrypoint path, or `null` if not set.
+ *
+ * Reads `.ghagen.yml` in *root* (an already-discovered project root, e.g.
+ * from {@link findAppRoot}), extracts the top-level `entrypoint` key, and
+ * resolves it relative to *root*. Returns `null` if the file or key is
+ * absent. Throws {@link CliError} on malformed YAML, a wrong-type value, or
+ * a resolved path that does not exist.
+ */
+function entrypointFromGhagenYml(root: string): string | null {
+  const ghagenYml = resolve(root, GHAGEN_YML_MARKER);
   if (!existsSync(ghagenYml) || !statSync(ghagenYml).isFile()) {
     return null;
   }
@@ -89,24 +95,34 @@ export function findConfig(cliFlag?: string, cwd: string = process.cwd()): strin
     return path;
   }
 
-  const fromYml = entrypointFromGhagenYml(cwd);
-  if (fromYml !== null) {
-    return fromYml;
-  }
+  const root = findAppRoot(cwd);
+  if (root !== null) {
+    const fromYml = entrypointFromGhagenYml(root);
+    if (fromYml !== null) {
+      return fromYml;
+    }
 
-  for (const candidate of CONFIG_SEARCH_PATHS) {
-    const path = resolve(cwd, candidate);
-    if (existsSync(path) && statSync(path).isFile()) {
-      return path;
+    for (const candidate of CONFIG_SEARCH_PATHS) {
+      const path = resolve(root, candidate);
+      if (existsSync(path) && statSync(path).isFile()) {
+        return path;
+      }
+    }
+  } else {
+    for (const candidate of CONFIG_SEARCH_PATHS) {
+      const path = resolve(cwd, candidate);
+      if (existsSync(path) && statSync(path).isFile()) {
+        return path;
+      }
     }
   }
 
   throw new CliError(
     "Error: no config file found. Searched:\n" +
       CONFIG_SEARCH_PATHS.map((p) => `  - ${p}`).join("\n") +
-      `\n  - ${GHAGEN_YML_PATH} (top-level 'entrypoint' key)\n` +
+      `\n  - ${GHAGEN_YML_MARKER} (top-level 'entrypoint' key)\n` +
       "\nUse --config to specify a path, set 'entrypoint' in " +
-      `${GHAGEN_YML_PATH}, or run \`ghagen init\` to create one.`,
+      `${GHAGEN_YML_MARKER}, or run \`ghagen init\` to create one.`,
   );
 }
 
