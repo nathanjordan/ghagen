@@ -144,7 +144,7 @@ keys, or `Raw` / `raw()` to drop an expression into a field that expects a liter
 rest of the model fully typed.
 
 **How do I pin actions to commit SHAs?** Run `ghagen deps pin` to populate
-`.github/ghagen.lock.toml`; subsequent `ghagen synth` calls rewrite every `uses:` to its pinned SHA.
+`.ghagen.lock.yml`; subsequent `ghagen synth` calls rewrite every `uses:` to its pinned SHA.
 Wire `ghagen deps check-synced` into CI to catch unpinned additions.
 
 _More questions? See the [full FAQ](https://nathanjordan.github.io/ghagen/faq/)._
