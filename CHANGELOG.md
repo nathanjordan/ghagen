@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.6.0](https://github.com/nathanjordan/ghagen/compare/v0.5.0...v0.6.0) (2026-07-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** deps upgrade --json is replaced by --format json.
+* to_commented_map() (Python) and Model.toYamlMap() (TypeScript) are removed; serialize through Document.to_yaml()/toYaml() or the emitter surface.
+* the 24 per-model classes are no longer exported as values from the TS package; use the factories and kind discriminants. Spec self-consistency tests added in both ports.
+* SynthContext removed from public exports; Transform implementations take only the document.
+* replace header template with closure variant
+* Model field names drop underscore prefixes (_kind -> kind, _data -> data, _meta -> meta, _keyOrder -> keyOrder, _sourceLocation -> sourceLocation). createModel() and modelToYamlMap() are removed. Model classes are now exported as values for instanceof.
+* GhagenOptions.autoDedent renamed to auto_dedent to match the YAML key name.
+* remove ghagen lint feature
+* Configuration files must be migrated from .github/ghagen.toml to .ghagen.yml at the repo root. Lockfiles must be migrated from .github/ghagen.lock.toml to .ghagen.lock.yml. Entrypoint paths are now relative to the repo root instead of .github/.
+
+### feat\
+
+* migrate configuration from TOML to .ghagen.yml ([cd2629c](https://github.com/nathanjordan/ghagen/commit/cd2629c2e34d21349ad6d570bc41bd088d3d13e3))
+* remove ghagen lint feature ([0e05e34](https://github.com/nathanjordan/ghagen/commit/0e05e34757753a45a54c14a71cc90fa520057bee))
+* replace header template with closure variant ([2fccb42](https://github.com/nathanjordan/ghagen/commit/2fccb428d20cb7dfddae7600d3011194f0c094b7))
+
+
+### refactor\
+
+* replace Symbol-branded model objects with class hierarchy ([2550b87](https://github.com/nathanjordan/ghagen/commit/2550b879b95b308787e7f2e68c98c36213de438c))
+
+
+### Features
+
+* add ModelKind union type for model kind discriminants ([35a56b4](https://github.com/nathanjordan/ghagen/commit/35a56b43a4ceda924dc81f9c7eca5d34ed2d074a))
+* **ci:** scoped scripts as the single command seam; gate vitest in CI ([609088d](https://github.com/nathanjordan/ghagen/commit/609088d087d63dd98e3e691263a5ed452ab895f5))
+* **deps:** --format {json,pr-body,issue-body}; check-deps heredocs die ([658a6e1](https://github.com/nathanjordan/ghagen/commit/658a6e1858ba2b8debe660dd0e879f638f28dceb))
+* **docs:** add build step to dev script and update AGENTS.md ([a6f33ee](https://github.com/nathanjordan/ghagen/commit/a6f33ee30891e967f11846d7a67fb5ed2e4830ed))
+* **docs:** generate LLM-friendly documentation with starlight-llms-txt ([f4c5376](https://github.com/nathanjordan/ghagen/commit/f4c5376d1638109ac5d8253c3eb7af7b05a28919))
+* **docs:** group TypeScript API docs into 9 module sidebar sections ([e4143fe](https://github.com/nathanjordan/ghagen/commit/e4143febc2aefe74eb9fd2bac18a7a9d51d2cdcf))
+* **models:** add generic walk()/children() traversal (Python) ([261a9bd](https://github.com/nathanjordan/ghagen/commit/261a9bdfce8918d3f19554a57a1b7ec6375e89e9))
+* **models:** ImageSnapshot — model jobs.&lt;job_id&gt;.snapshot in both ports ([705bc15](https://github.com/nathanjordan/ghagen/commit/705bc15feccebf17bfcc4e8f2f8a9c49b0542c9c))
+* **pin:** track native-ESM helpers via module.register augmentation ([82ee55d](https://github.com/nathanjordan/ghagen/commit/82ee55d5cd6e1d8f79b3db5147eabb124000f58d))
+* **release:** switch npm publish to OIDC trusted publishing ([9871653](https://github.com/nathanjordan/ghagen/commit/9871653409995a56ed637a04c7c52174fae35e6c))
+* **scripts:** add docs dev server script ([ff5fc09](https://github.com/nathanjordan/ghagen/commit/ff5fc09e0aec0ae9da7229e44498813702f8c5f9))
+
+
+### Bug Fixes
+
+* **ci:** env-independent generated headers; oxfmt-stable generated types ([fb688cc](https://github.com/nathanjordan/ghagen/commit/fb688cc836b7a3d7008ea5ffa3a11a62a64a49e5))
+* **deps:** declare packaging as a runtime dependency ([1010fed](https://github.com/nathanjordan/ghagen/commit/1010fede16179f9327ebaf16883f46a023014a7d))
+* **deps:** treat upgrade report JSON as typed contract; dogfood check-deps ([ba404c9](https://github.com/nathanjordan/ghagen/commit/ba404c92050c6400baba42b4d81835ac9e9b26e0))
+* remove unused imports and useless string concatenation ([a02bbc2](https://github.com/nathanjordan/ghagen/commit/a02bbc2f81e8509a4541db73caabb9081b5f433f))
+* **test:** commit the sources-canary fixture's fake installed package ([e05bae6](https://github.com/nathanjordan/ghagen/commit/e05bae6578937e5fb403e48761afb08ca309860f))
+* **ts:** port dedent_script for Python parity; drop npm dedent ([c12ac56](https://github.com/nathanjordan/ghagen/commit/c12ac5687836be857b2392cd5f7fedb59fbbd957))
+
+
+### Documentation
+
+* architecture deepening plan round 2; amend ADR-0001; add ADR-0004 ([034f1e3](https://github.com/nathanjordan/ghagen/commit/034f1e375cd2ca5d5dd03cd0846e999892f19cad))
+* architecture deepening plan, domain glossary, and ADRs ([caaedb1](https://github.com/nathanjordan/ghagen/commit/caaedb1f24abfc5b0ef00f1a9297a9bb2abd2d78))
+* update CONTEXT surface notes for the amended Emitter seam ([0a75172](https://github.com/nathanjordan/ghagen/commit/0a75172ad8ddb594a7232264951556339c6515f1))
+
+
+### Code Refactoring
+
+* Emitter owns all serialization recursion (ADR-0001 amendment) ([6fec49e](https://github.com/nathanjordan/ghagen/commit/6fec49e9604d0b019c4b212a0187b6443648495b))
+* ModelSpec — per-model serialization spec in both ports ([919266d](https://github.com/nathanjordan/ghagen/commit/919266ddf9ad9a88ad5a2cca28d40a8caa3d62c3))
+* narrow Transform to (document) -&gt; document; drop SynthContext ([49a55b3](https://github.com/nathanjordan/ghagen/commit/49a55b3bb3a977065d66d8aa841ec3732ca7d362))
+* replace manual config validation with Zod 4 schema ([d881e01](https://github.com/nathanjordan/ghagen/commit/d881e01aa1ae8a341e5bfedc6b941a995fefb4f4))
+
 ## [0.5.0](https://github.com/nathanjordan/ghagen/compare/v0.4.0...v0.5.0) (2026-04-21)
 
 ### Features
