@@ -27,12 +27,23 @@ A synthesis-time mutation applied to a clone of a Document before emission (e.g.
 _Avoid_: plugin, hook, middleware.
 
 **Emitter**:
-The module that serializes a model tree to YAML — key ordering, comments, block scalars.
+The module that serializes a model tree to YAML — key ordering, comments, block scalars. Owns all
+serialization recursion (see ADR-0001, amended); models never serialize themselves.
+
+**ModelSpec**:
+The per-model serialization spec — YAML key names (field → emitted key), emission order, and the
+inline-input wrap map — declared next to the factory, consumed by the Emitter and factories.
+_Avoid_: field map, key-order table.
 
 ### Pinning
 
 **UsesRef**:
 A parsed `owner/repo[/path]@ref` action reference; knows whether it is **Pinnable**.
+
+**UsesSite**:
+One `uses:` occurrence inside a Document — a parsed **UsesRef** plus the ability to replace the
+ref in place. Pin's collect and transform both iterate UsesSites; the "which models carry `uses`"
+policy lives only in the UsesSite iterator.
 
 **Pinnable**:
 A UsesRef that is remote and not already a commit SHA, so it can be pinned. A ref already written as
@@ -60,7 +71,8 @@ Divergence between the committed schema Snapshot and the current upstream schema
 - A **Document** is a **Workflow** or an **Action**.
 - A **Workflow** contains **Jobs**, each containing **Steps**.
 - The **Emitter** serializes any model to a node; only a **Document** can be emitted to a file.
-- **Pin** consumes **UsesRefs** and a **Lockfile**; only **Pinnable** refs are pinned.
+- Every model declares a **ModelSpec**; the **Emitter** reads it for key names and ordering.
+- **Pin** iterates **UsesSites** over each **Document**; only **Pinnable** refs are pinned.
 
 ## Surface notes (TypeScript)
 
