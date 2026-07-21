@@ -1,6 +1,6 @@
 {
   "name": "@ghagen/ghagen",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Generate GitHub Actions workflow YAML from TypeScript/JavaScript code",
   "keywords": [
     "cd",
