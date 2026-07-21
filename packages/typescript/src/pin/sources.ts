@@ -6,21 +6,99 @@
  * shared predicate in `_package_paths.ts` (also used by
  * `_source_location.ts`).
  *
- * Implementation note: user-file tracking diffs `jiti.cache` before/after
- * importing the config. `cache` is typed, non-deprecated public surface —
- * jiti's own `types.d.ts` declares `Jiti extends NodeRequire { cache:
- * ModuleCache }` with no `@deprecated` marker (unlike its call/`resolve`
- * signatures). This mechanism is kept deliberately over the `transform`
- * hook, which misses plain-CommonJS helpers (native require, no transform
- * call); see docs/adr/0004-user-file-tracking-via-jiti-cache-diff.md. The
- * real-jiti integration test (`sources.test.ts`) is the canary.
+ * Implementation note: user-file tracking is a UNION of two observations.
+ *
+ * 1. The primary mechanism diffs `jiti.cache` before/after importing the
+ *    config. `cache` is typed, non-deprecated public surface — jiti's own
+ *    `types.d.ts` declares `Jiti extends NodeRequire { cache: ModuleCache }`
+ *    with no `@deprecated` marker (unlike its call/`resolve` signatures).
+ *    It is kept deliberately over the `transform` hook, which misses
+ *    plain-CommonJS helpers (native require, no transform call).
+ * 2. The cache diff cannot see native-ESM (`.mjs`) helpers: jiti loads them
+ *    through a plain in-process dynamic `import()` (its `nativeImport`) that
+ *    never enters `jiti.cache`. A Node module-customization hook registered
+ *    via `module.register` observes exactly those ESM loads and augments the
+ *    diff (see `ensureEsmHook` below).
+ *
+ * See docs/adr/0004-user-file-tracking-via-jiti-cache-diff.md. The real-jiti
+ * integration test (`sources.test.ts`) is the canary for both halves.
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { register } from "node:module";
+import { fileURLToPath } from "node:url";
+import { MessageChannel } from "node:worker_threads";
 import { createJiti } from "jiti";
 import type { App } from "../app.js";
 import { resolveAppFromModule } from "../_load.js";
 import { isUserFile } from "../_package_paths.js";
+
+/**
+ * Absolute-`file:` URLs of every ESM module loaded in this process, recorded
+ * by the `module.register` load hook. Native ESM caches process-globally, so
+ * a given `.mjs` fires the hook only on its first load — the union in
+ * {@link trackUserFiles} therefore reads the whole accumulated set (bounded
+ * to genuine user files by {@link isUserFile}) rather than a per-call diff,
+ * which would miss modules already imported earlier in the process.
+ */
+const esmLoadedUrls = new Set<string>();
+
+/**
+ * Resolves once the loader thread has run `initialize` and posted its ready
+ * sentinel. `trackUserFiles` awaits this before importing so the first import
+ * after registration is observed — otherwise the loader-thread handshake can
+ * race the import and its `load` messages arrive too late to record. `null`
+ * until {@link ensureEsmHook} runs (also its double-registration guard).
+ */
+let esmHookReady: Promise<void> | null = null;
+
+/**
+ * ESM load hook, evaluated on Node's loader thread. `initialize` posts a
+ * `{ ready: true }` sentinel so the main thread can await warm-up; `load`
+ * posts each loaded module URL, then delegates. Shipped as a `data:` module
+ * so no separate compiled file has to be resolved at runtime.
+ */
+const ESM_TRACK_HOOK = `
+  let port;
+  export async function initialize(data) {
+    port = data.port;
+    port.postMessage({ ready: true });
+  }
+  export async function load(url, context, nextLoad) {
+    if (port) port.postMessage({ url });
+    return nextLoad(url, context);
+  }
+`;
+
+/**
+ * Register the native-ESM load hook once per process and return a promise
+ * that resolves when its loader thread is ready. `module.register` has no
+ * deregister, so the hook stays permanently installed but inert: it only
+ * appends URLs to {@link esmLoadedUrls}, which callers read on demand.
+ */
+function ensureEsmHook(): Promise<void> {
+  if (esmHookReady) {
+    return esmHookReady;
+  }
+  const { port1, port2 } = new MessageChannel();
+  esmHookReady = new Promise<void>((resolve) => {
+    port1.on("message", (msg: { ready?: true; url?: string }) => {
+      if (msg.ready) {
+        resolve();
+      } else if (msg.url) {
+        esmLoadedUrls.add(msg.url);
+      }
+    });
+  });
+  // Recording must not keep the event loop alive on its own.
+  port1.unref();
+  register(`data:text/javascript,${encodeURIComponent(ESM_TRACK_HOOK)}`, {
+    parentURL: import.meta.url,
+    data: { port: port2 },
+    transferList: [port2],
+  });
+  return esmHookReady;
+}
 
 /**
  * Import `configPath` through jiti and return both the resolved {@link App}
@@ -36,6 +114,9 @@ export async function trackUserFiles(
   configPath: string,
   appLoader?: (configPath: string) => Promise<App> | App,
 ): Promise<{ app: App; files: Set<string> }> {
+  // Wait for the ESM load hook's loader thread to be ready before importing,
+  // so even the first import in the process is observed (ADR-0004 union).
+  await ensureEsmHook();
   const jiti = createJiti(configPath, { fsCache: false });
   const beforeKeys = new Set<string>(Object.keys(jiti.cache));
 
@@ -44,11 +125,29 @@ export async function trackUserFiles(
   // native require, the case a `transform` hook would miss (ADR-0004).
   const mod = await jiti.import(configPath);
 
+  // The ESM load hook posts URLs cross-thread; let queued messages drain
+  // before reading the recorded set. One macrotask turn is enough — the
+  // module has already loaded (hook returned) by the time import() resolves.
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
   const afterKeys = new Set<string>(Object.keys(jiti.cache));
   const files = new Set<string>();
+  // Primary: files jiti routed through its module cache.
   for (const key of afterKeys) {
     if (!beforeKeys.has(key) && isUserFile(key)) {
       files.add(key);
+    }
+  }
+  // Augment: native-ESM helpers the cache diff cannot see, observed by the
+  // `module.register` hook. Read the whole accumulated set (see
+  // `esmLoadedUrls`) — a per-call diff would miss modules already imported.
+  for (const url of esmLoadedUrls) {
+    if (!url.startsWith("file:")) {
+      continue;
+    }
+    const path = fileURLToPath(url);
+    if (isUserFile(path)) {
+      files.add(path);
     }
   }
   // jiti's import() may not surface the entry-point itself in some cases.

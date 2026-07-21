@@ -12,13 +12,15 @@
  *   - `cjs-helper.js`  — plain CommonJS, native require (in cache; the case
  *                        a `transform` hook would miss — the point of ADR-0004)
  *   - `esm-helper.mjs` — native ESM, loaded via `import()` and NEVER entered
- *                        into `jiti.cache` (documented blind spot below)
+ *                        into `jiti.cache`; caught instead by the
+ *                        `module.register` ESM load hook (ADR-0004 union)
  * plus a `node_modules/ghagen-internal` package that must be excluded.
  *
  * The `appLoader` argument only supplies the returned `App`; it exists to
  * sidestep the cross-realm `instanceof App` artifact under Vitest (jiti
  * loads `App` in its own module graph — see cli/main.test.ts). File
- * tracking still runs through the real, unmocked jiti.cache diff.
+ * tracking still runs through the real, unmocked jiti.cache diff plus the
+ * real, unmocked `module.register` hook.
  */
 
 import { describe, it, expect } from "vitest";
@@ -34,7 +36,7 @@ const configPath = resolve(FIXTURE_DIR, "ghagen.config.ts");
 const fixtureFile = (name: string) => resolve(FIXTURE_DIR, name);
 
 describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
-  it("tracks the config plus its transpiled and native-required helpers", async () => {
+  it("tracks the config plus its transpiled, native-required, and native-ESM helpers", async () => {
     const { files } = await trackUserFiles(configPath, async () => new App());
 
     expect(files.has(configPath)).toBe(true);
@@ -42,26 +44,33 @@ describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
     // The plain-CommonJS helper is the case a jiti `transform` hook would
     // miss (native require, no transform call); the cache diff catches it.
     expect(files.has(fixtureFile("cjs-helper.js"))).toBe(true);
+    // The native-ESM helper never enters `jiti.cache`; the `module.register`
+    // load hook catches it and the union folds it in (ADR-0004 resolution).
+    expect(files.has(fixtureFile("esm-helper.mjs"))).toBe(true);
 
     // node_modules (including the fixture's ghagen-internal package) and
     // ghagen's own source are excluded.
     expect([...files].some((f) => f.includes("/node_modules/"))).toBe(false);
     expect([...files].some((f) => f.includes("ghagen-internal"))).toBe(false);
 
-    // Exact tracked set: only the config and the two helpers jiti routes
-    // through its module cache.
+    // Exact tracked set: the config and all three helper flavours.
     expect(files).toEqual(
-      new Set([configPath, fixtureFile("ts-helper.ts"), fixtureFile("cjs-helper.js")]),
+      new Set([
+        configPath,
+        fixtureFile("ts-helper.ts"),
+        fixtureFile("cjs-helper.js"),
+        fixtureFile("esm-helper.mjs"),
+      ]),
     );
   });
 
-  it("does NOT track native-ESM .mjs helpers — a documented cache-diff blind spot", async () => {
+  it("tracks native-ESM .mjs helpers via the module.register hook", async () => {
     // A native ESM `.mjs` helper is loaded through Node's `import()` and
-    // never enters `jiti.cache`, so the cache diff cannot see it. This is a
-    // known limitation shared with the rejected `transform` hook (which also
-    // never fires for it), NOT a regression. Asserting the absence makes the
-    // canary fire if a future jiti release changes this in either direction.
+    // never enters `jiti.cache`, so the cache diff alone cannot see it. The
+    // `module.register` load hook observes exactly those ESM loads, so the
+    // union tracks it. Asserting its presence makes the canary fire if a
+    // future jiti or Node release breaks the hook in either direction.
     const { files } = await trackUserFiles(configPath, async () => new App());
-    expect(files.has(fixtureFile("esm-helper.mjs"))).toBe(false);
+    expect(files.has(fixtureFile("esm-helper.mjs"))).toBe(true);
   });
 });
