@@ -1,0 +1,25 @@
+{
+  "version_bumps": [
+    {
+      "uses": "actions/checkout@v5",
+      "current": "v5",
+      "latest": "v6",
+      "severity": "major",
+      "source_files": [".github/ghagen_workflows.py"]
+    },
+    {
+      "uses": "actions/setup-node@v3",
+      "current": "v3",
+      "latest": "v4",
+      "severity": "major"
+    }
+  ],
+  "lockfile_stale": [
+    {
+      "uses": "actions/setup-python@v6",
+      "current_sha": "ece7cb06caefa5fff74198d8649806c4678c61a1",
+      "latest_sha": "aaaa1111bbbb2222cccc3333dddd4444eeee5555",
+      "source_files": [".github/ghagen_workflows.py"]
+    }
+  ]
+}
