@@ -299,52 +299,59 @@ export interface ToDataOptions {
  * or `postProcess`; assert those via the YAML string.
  */
 export function toData(model: Model, options?: ToDataOptions): unknown {
-  const target =
-    (options?.autoDedent ?? false) && (model.kind === "workflow" || model.kind === "action")
-      ? dedentSteps(model as GhagenDocument)
-      : model;
-  return modelToData(target, options?.comments ?? false);
+  return modelToData(model, options?.comments ?? false, options?.autoDedent ?? false);
 }
 
 /** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */
-function modelToData(model: Model, comments: boolean): Record<string, unknown> {
+function modelToData(
+  model: Model,
+  comments: boolean,
+  autoDedent: boolean,
+): Record<string, unknown> {
   const entries = orderedEntries(model);
   const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
+  const isStep = model.kind === "step";
 
   const result: Record<string, unknown> = {};
   for (const [key, value] of entries) {
-    if (presentNull.has(key) && isEmptyMapValue(value)) {
-      result[key] = null;
-      continue;
-    }
-    if (isCommented(value)) {
-      const inner = valueToData(value.value, comments);
+    // autoDedent is applied wherever a Step's `run` is encountered in the
+    // recursion (matching Python), not gated on the document kind — so a bare
+    // Step or a Step nested in a job both dedent.
+    const field =
+      autoDedent && isStep && key === "run" && typeof value === "string"
+        ? dedentScript(value)
+        : value;
+    const emptyPresentNull = presentNull.has(key) && isEmptyMapValue(field);
+    if (isCommented(field)) {
+      const inner = emptyPresentNull ? null : valueToData(field.value, comments, autoDedent);
+      // A commented present-null map keeps its comment on the bare `key:`
+      // (mirrors Python's CommentNode(None, comment=...)).
       result[key] =
-        comments && (value.comment !== undefined || value.eolComment !== undefined)
-          ? commentNode(inner, value.comment, value.eolComment)
+        comments && (field.comment !== undefined || field.eolComment !== undefined)
+          ? commentNode(inner, field.comment, field.eolComment)
           : inner;
     } else {
-      result[key] = valueToData(value, comments);
+      result[key] = emptyPresentNull ? null : valueToData(field, comments, autoDedent);
     }
   }
   return result;
 }
 
 /** Convert any Model value to plain data — the peer of `toYamlValue`. */
-function valueToData(value: unknown, comments: boolean): unknown {
+function valueToData(value: unknown, comments: boolean, autoDedent: boolean): unknown {
   if (value === null || value === undefined) {
     return null;
   }
   // A Commented not at a mapping-field position: unwrap, drop the comment
   // (matches toYamlValue).
   if (isCommented(value)) {
-    return valueToData(value.value, comments);
+    return valueToData(value.value, comments, autoDedent);
   }
   if (isRaw(value)) {
-    return valueToData(value.value, comments);
+    return valueToData(value.value, comments, autoDedent);
   }
   if (value instanceof Model) {
-    const data = modelToData(value, comments);
+    const data = modelToData(value, comments, autoDedent);
     // A model's OWN comment is surfaced here (map value or seq item alike);
     // container placement differs in YAML but not in observed data.
     return comments && (value.meta.comment !== undefined || value.meta.eolComment !== undefined)
@@ -352,7 +359,7 @@ function valueToData(value: unknown, comments: boolean): unknown {
       : data;
   }
   if (Array.isArray(value)) {
-    return value.map((item) => valueToData(item, comments));
+    return value.map((item) => valueToData(item, comments, autoDedent));
   }
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
@@ -360,7 +367,7 @@ function valueToData(value: unknown, comments: boolean): unknown {
       if (v === undefined) {
         continue;
       }
-      out[k] = valueToData(v, comments);
+      out[k] = valueToData(v, comments, autoDedent);
     }
     return out;
   }

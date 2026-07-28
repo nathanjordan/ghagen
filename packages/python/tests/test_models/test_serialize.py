@@ -7,7 +7,7 @@ the public ``to_data`` surface rather than the private recursion core.
 
 from ghagen._commented import with_comment, with_eol_comment
 from ghagen.emitter import CommentNode, to_data
-from ghagen.models.job import Defaults, DefaultsRun
+from ghagen.models.job import Defaults, DefaultsRun, Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On
 from ghagen.models.workflow import Workflow
@@ -68,6 +68,29 @@ def test_defaults_run_shell_comment_preserved():
         comments=True,
     )
     assert data["run"]["shell"] == CommentNode("bash", comment="login shell")
+
+
+def test_defaults_run_shell_comment_in_emitted_yaml():
+    """The defaults.run.shell comment reaches the emitted YAML string.
+
+    Byte-level oracle mirroring TS ``job.test.ts`` "emits the run.shell comment
+    into YAML": ``to_data`` observes the wrapper, but only the rendered string
+    proves the comment survives the ruamel backend passes.
+    """
+    wf = Workflow(
+        name="W",
+        on=On(push={"branches": ["main"]}),
+        jobs={
+            "build": Job(
+                runs_on="ubuntu-latest",
+                defaults=Defaults(
+                    run=DefaultsRun(shell=with_comment("bash", "login shell"))
+                ),
+                steps=[Step(run="echo hi")],
+            )
+        },
+    )
+    assert "# login shell" in wf.to_yaml(header=None)
 
 
 def test_spec_yaml_key_used():

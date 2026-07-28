@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { parse } from "yaml";
 import { toData, toYaml } from "./yaml-writer.js";
 import { step } from "../models/step.js";
-import { job } from "../models/job.js";
+import { job, defaults, strategy, matrix } from "../models/job.js";
 import { workflow } from "../models/workflow.js";
+import { on } from "../models/trigger.js";
 import { raw, withComment, withEolComment } from "../models/_base.js";
 
 // `toData` is THE supported observation surface for model behaviour (proposal
@@ -101,5 +103,48 @@ describe("toData", () => {
     const data = toData(wf) as Record<string, unknown>;
     const yamlKeys = [...toYaml(wf).matchAll(/^([A-Za-z0-9_-]+):/gm)].map((m) => m[1]);
     expect(Object.keys(data)).toEqual(yamlKeys);
+  });
+
+  // Deep structural cross-check (proposal 02): the parsed emitted YAML tree
+  // must equal toData's output for a RICH document, so the two duplicated
+  // recursions cannot diverge on exclude/unwrap/present-null/dedent — not just
+  // top-level ordering. Comments are dropped by the YAML parse, so toData runs
+  // with comments off; autoDedent matches toYaml's default-on.
+  it("deep-matches the parsed emitted YAML for a rich document", () => {
+    const wf = workflow({
+      name: "CI",
+      on: on({
+        push: { branches: ["main"] },
+        workflowDispatch: {}, // present-null empty map
+        extras: { merge_group: {} }, // extra on the alphabetical On spec
+      }),
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          defaults: defaults({ run: { shell: withComment("bash", "login shell") } }),
+          strategy: strategy({
+            matrix: matrix({ extras: { "python-version": ["3.11", "3.12"] } }),
+          }),
+          steps: [
+            step({ uses: withEolComment("actions/checkout@v4", "pinned") }),
+            step({ name: "run", shell: raw("bash"), run: "  echo hi\n  echo bye" }),
+          ],
+        }),
+      },
+    });
+    const parsed = parse(toYaml(wf, { header: null }));
+    expect(toData(wf, { autoDedent: true })).toEqual(parsed);
+  });
+
+  it("keeps the comment on a commented empty present-null map (comments: true)", () => {
+    const model = on({ workflowDispatch: withComment({}, "note") });
+    const data = toData(model, { comments: true }) as Record<string, unknown>;
+    expect(data["workflow_dispatch"]).toEqual({ value: null, comment: "note" });
+  });
+
+  it("dedents a bare Step's run with autoDedent (recursion parity with Python)", () => {
+    const s = step({ run: "  echo one\n  echo two" });
+    const data = toData(s, { autoDedent: true }) as Record<string, unknown>;
+    expect(data["run"]).toBe("echo one\necho two");
   });
 });
