@@ -6,8 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from ghagen import ImageSnapshot, Job
-from ghagen.emitter.nodes import _model_to_map
-from ghagen.emitter.yaml_writer import dump_yaml
+from ghagen.emitter import to_data
 
 
 def test_mapping_syntax_fields():
@@ -62,17 +61,13 @@ def test_emits_mapping_syntax():
         runs_on="ubuntu-latest",
         snapshot=ImageSnapshot(image_name="custom-ubuntu", version="1.0"),
     )
-    result = dump_yaml(_model_to_map(job))
-    assert "snapshot:" in result
-    assert "image-name: custom-ubuntu" in result
-    assert "version: '1.0'" in result
+    assert to_data(job)["snapshot"] == {"image-name": "custom-ubuntu", "version": "1.0"}
 
 
 def test_emits_string_syntax():
     """A job with a plain-string snapshot emits the string syntax."""
     job = Job(runs_on="ubuntu-latest", snapshot="custom-ubuntu")
-    result = dump_yaml(_model_to_map(job))
-    assert "snapshot: custom-ubuntu" in result
+    assert to_data(job)["snapshot"] == "custom-ubuntu"
 
 
 def test_snapshot_emits_after_container():
@@ -82,5 +77,5 @@ def test_snapshot_emits_after_container():
         container="python:3.13",
         snapshot="custom-ubuntu",
     )
-    keys = list(_model_to_map(job).keys())
+    keys = list(to_data(job))
     assert keys.index("snapshot") == keys.index("container") + 1

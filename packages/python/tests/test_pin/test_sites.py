@@ -6,7 +6,8 @@ Workflow/Action models — no App, no network.
 
 from __future__ import annotations
 
-from ghagen._commented import is_commented, with_comment
+from ghagen._commented import with_comment
+from ghagen.emitter import CommentNode, to_data
 from ghagen.models.action import Action, CompositeRuns, DockerRuns, NodeRuns
 from ghagen.models.job import Job
 from ghagen.models.step import Step
@@ -174,9 +175,9 @@ class TestReplace:
         site = next(iter_uses_sites(wf))
         site.replace(site.ref.with_sha(SHA))
 
-        assert is_commented(step.uses)
-        assert step.uses.value == f"actions/checkout@{SHA}"
-        assert step.uses.eol_comment == "v4"
+        assert to_data(step, comments=True)["uses"] == CommentNode(
+            f"actions/checkout@{SHA}", eol_comment="v4"
+        )
 
     def test_replace_preserves_existing_block_comment(self):
         step = Step(uses=with_comment("actions/checkout@v4", "keep me"))
@@ -187,10 +188,9 @@ class TestReplace:
         site = next(iter_uses_sites(wf))
         site.replace(site.ref.with_sha(SHA))
 
-        assert is_commented(step.uses)
-        assert step.uses.value == f"actions/checkout@{SHA}"
-        assert step.uses.comment == "keep me"
-        assert step.uses.eol_comment == "v4"
+        assert to_data(step, comments=True)["uses"] == CommentNode(
+            f"actions/checkout@{SHA}", comment="keep me", eol_comment="v4"
+        )
 
     def test_replace_round_trip_in_emitted_yaml(self):
         step = Step(uses=with_comment("actions/checkout@v4", "please pin"))

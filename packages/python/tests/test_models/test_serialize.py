@@ -1,78 +1,75 @@
-"""Tests for the emitter's single-pass model serialization (``_model_to_map``).
+"""Tests for the emitter's single-pass model serialization, via ``to_data``.
 
 Covers the exclude_none / exclude_unset semantics and the extras + comment
-ordering that the single field walk must preserve (ADR-0001). ``_model_to_map``
-is the emitter's nested-model serializer — the direct successor to the old
-``GhagenModel.to_commented_map`` — driven here as a low-level probe.
+ordering that the single field walk must preserve (ADR-0001), observed through
+the public ``to_data`` surface rather than the private recursion core.
 """
 
 from ghagen._commented import with_comment, with_eol_comment
-from ghagen.emitter.nodes import _model_to_map
-from ghagen.emitter.yaml_writer import dump_yaml
+from ghagen.emitter import CommentNode, to_data
 from ghagen.models.step import Step
 from ghagen.models.trigger import On
+from ghagen.models.workflow import Workflow
 
 
 def test_unset_fields_dropped():
     """Only fields the user set are emitted (exclude_unset)."""
-    cm = _model_to_map(Step(name="x"))
-    assert list(cm.keys()) == ["name"]
-    assert cm["name"] == "x"
+    assert to_data(Step(name="x")) == {"name": "x"}
 
 
 def test_explicit_none_dropped():
     """A field explicitly set to None is dropped (exclude_none)."""
-    cm = _model_to_map(Step(name="x", run=None))
-    assert "run" not in cm
-    assert list(cm.keys()) == ["name"]
+    assert to_data(Step(name="x", run=None)) == {"name": "x"}
 
 
-def test_empty_workflow_dispatch_emits_null_key():
+def test_empty_workflow_dispatch_emits_present_null_key():
     """On with empty workflow_dispatch emits a present null key (Raw(None))."""
-    cm = _model_to_map(On(workflow_dispatch={}))
-    assert "workflow_dispatch" in cm
-    assert cm["workflow_dispatch"] is None
-    result = dump_yaml(cm)
-    assert "workflow_dispatch:" in result
-    assert "workflow_dispatch: {}" not in result
+    data = to_data(On(workflow_dispatch={}))
+    assert "workflow_dispatch" in data
+    assert data["workflow_dispatch"] is None
+    # Formatting (bare null key, not ``{}``) is a YAML concern — assert it on
+    # the emitted string via a wrapping workflow.
+    yaml = Workflow(name="W", on=On(workflow_dispatch={})).to_yaml(header=None)
+    assert "workflow_dispatch:" in yaml
+    assert "workflow_dispatch: {}" not in yaml
 
 
 def test_spec_yaml_key_used():
     """Fields emit under the YAML key declared in the model's ModelSpec."""
-    cm = _model_to_map(Step(if_="success()", working_directory="src"))
-    assert "if" in cm
-    assert "working-directory" in cm
-    assert "if_" not in cm
-    assert "working_directory" not in cm
+    data = to_data(Step(if_="success()", working_directory="src"))
+    assert "if" in data
+    assert "working-directory" in data
+    assert "if_" not in data
+    assert "working_directory" not in data
 
 
 def test_extras_appended_after_ordered_fields():
     """Extras land after the model's own ordered fields, in insertion order."""
-    step = Step(name="x", extras={"custom": "v", "another": "w"})
-    cm = _model_to_map(step)
-    keys = list(cm.keys())
+    data = to_data(Step(name="x", extras={"custom": "v", "another": "w"}))
+    keys = list(data)
     assert keys[0] == "name"
     assert keys[-2:] == ["custom", "another"]
 
 
 def test_commented_field_block_and_eol_comments():
-    """Block/eol comments on Commented field values land on the right keys."""
-    step = Step(
-        name=with_comment("build", "the step name"),
-        run=with_eol_comment("make", "run make"),
+    """Block/eol comments on Commented field values are observable as data."""
+    data = to_data(
+        Step(
+            name=with_comment("build", "the step name"),
+            run=with_eol_comment("make", "run make"),
+        ),
+        comments=True,
     )
-    result = dump_yaml(_model_to_map(step))
-    assert "# the step name" in result
-    assert "run: make # run make" in result
+    assert data["name"] == CommentNode("build", comment="the step name")
+    assert data["run"] == CommentNode("make", eol_comment="run make")
 
 
 def test_commented_extras_comments():
     """Comments on Commented extras values attach to the extra keys."""
-    step = Step(
-        name="x",
-        extras={"custom": with_comment("v", "extra note")},
+    step = Step(name="x", extras={"custom": with_comment("v", "extra note")})
+    # comments=False unwraps to the plain value.
+    assert to_data(step)["custom"] == "v"
+    # comments=True surfaces the attached comment as data.
+    assert to_data(step, comments=True)["custom"] == CommentNode(
+        "v", comment="extra note"
     )
-    cm = _model_to_map(step)
-    assert cm["custom"] == "v"
-    result = dump_yaml(cm)
-    assert "# extra note" in result

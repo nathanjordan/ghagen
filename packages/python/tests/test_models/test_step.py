@@ -1,68 +1,63 @@
 """Tests for the Step model."""
 
 from ghagen import Job, Raw, Step, Workflow
-from ghagen.emitter.nodes import _model_to_map
+from ghagen.emitter import to_data
 from ghagen.models.common import ShellType
 
 
 def test_basic_run_step():
-    step = Step(name="Run tests", run="pytest")
-    cm = _model_to_map(step)
-    assert cm["name"] == "Run tests"
-    assert cm["run"] == "pytest"
+    assert to_data(Step(name="Run tests", run="pytest")) == {
+        "name": "Run tests",
+        "run": "pytest",
+    }
 
 
 def test_basic_uses_step():
-    step = Step(uses="actions/checkout@v4")
-    cm = _model_to_map(step)
-    assert cm["uses"] == "actions/checkout@v4"
-    assert "name" not in cm
-    assert "run" not in cm
+    # Exhaustive ==: absence of name/run is asserted by equality.
+    assert to_data(Step(uses="actions/checkout@v4")) == {"uses": "actions/checkout@v4"}
 
 
 def test_step_with_alias():
-    step = Step(
-        name="Setup",
-        uses="actions/setup-python@v5",
-        with_={"python-version": "3.12"},
+    data = to_data(
+        Step(
+            name="Setup",
+            uses="actions/setup-python@v5",
+            with_={"python-version": "3.12"},
+        )
     )
-    cm = _model_to_map(step)
-    assert "with" in cm
-    assert cm["with"]["python-version"] == "3.12"
-    assert "with_" not in cm
+    assert data == {
+        "name": "Setup",
+        "uses": "actions/setup-python@v5",
+        "with": {"python-version": "3.12"},
+    }
 
 
 def test_step_if_alias():
-    step = Step(
-        name="Conditional",
-        run="echo 'only on main'",
-        if_="github.ref == 'refs/heads/main'",
+    data = to_data(
+        Step(
+            name="Conditional",
+            run="echo 'only on main'",
+            if_="github.ref == 'refs/heads/main'",
+        )
     )
-    cm = _model_to_map(step)
-    assert "if" in cm
-    assert cm["if"] == "github.ref == 'refs/heads/main'"
-    assert "if_" not in cm
+    assert data["if"] == "github.ref == 'refs/heads/main'"
+    assert "if_" not in data
 
 
 def test_step_shell_typed():
-    step = Step(run="echo hi", shell=ShellType.BASH)
-    cm = _model_to_map(step)
-    assert cm["shell"] == "bash"
+    assert to_data(Step(run="echo hi", shell=ShellType.BASH))["shell"] == "bash"
 
 
 def test_step_shell_raw_escape():
-    step = Step(run="echo hi", shell=Raw("future-shell"))
-    cm = _model_to_map(step)
-    assert cm["shell"] == "future-shell"
+    assert (
+        to_data(Step(run="echo hi", shell=Raw("future-shell")))["shell"]
+        == "future-shell"
+    )
 
 
 def test_step_extras():
-    step = Step(
-        uses="actions/checkout@v4",
-        extras={"new-feature": True},
-    )
-    cm = _model_to_map(step)
-    assert cm["new-feature"] is True
+    data = to_data(Step(uses="actions/checkout@v4", extras={"new-feature": True}))
+    assert data["new-feature"] is True
 
 
 def test_step_key_ordering():
@@ -73,8 +68,7 @@ def test_step_key_ordering():
         env={"FOO": "bar"},
         shell=ShellType.BASH,
     )
-    cm = _model_to_map(step)
-    keys = list(cm.keys())
+    keys = list(to_data(step))
     assert keys.index("id") < keys.index("name")
     assert keys.index("name") < keys.index("run")
     assert keys.index("run") < keys.index("env")
@@ -82,21 +76,17 @@ def test_step_key_ordering():
 
 
 def test_step_excludes_none_and_unset():
-    step = Step(uses="actions/checkout@v4")
-    cm = _model_to_map(step)
-    assert "name" not in cm
-    assert "run" not in cm
-    assert "shell" not in cm
-    assert "timeout-minutes" not in cm
+    assert to_data(Step(uses="actions/checkout@v4")) == {"uses": "actions/checkout@v4"}
 
 
 def test_step_post_process():
     def add_key(cm):
         cm["injected"] = "value"
 
+    # post_process is an emit-time hook (it mutates the backend node), so it is
+    # observed through the emitted YAML, not to_data.
     step = Step(uses="actions/checkout@v4", post_process=add_key)
-    cm = _model_to_map(step)
-    assert cm["injected"] == "value"
+    assert "injected: value" in _wrap(step).to_yaml(header=None)
 
 
 # --- Dedent-at-emit tests (ADR-0002) ---
@@ -131,18 +121,16 @@ def test_run_none():
     assert step.run is None
 
 
-def test_model_to_map_without_dedent_keeps_raw_run():
-    """``_model_to_map`` defaults ``auto_dedent=False``: ``run`` stays raw."""
+def test_to_data_without_dedent_keeps_raw_run():
+    """``to_data`` defaults ``auto_dedent=False``: ``run`` stays raw."""
     step = Step(name="Build", run="\n    echo building\n    make all\n")
-    cm = _model_to_map(step)
-    assert cm["run"] == "\n    echo building\n    make all\n"
+    assert to_data(step)["run"] == "\n    echo building\n    make all\n"
 
 
-def test_model_to_map_auto_dedent_dedents_run():
-    """``_model_to_map(auto_dedent=True)`` dedents a Step's ``run`` at node build."""
+def test_to_data_auto_dedent_dedents_run():
+    """``to_data(auto_dedent=True)`` dedents a Step's ``run`` at node build."""
     step = Step(name="Build", run="\n    echo building\n    make all\n")
-    cm = _model_to_map(step, auto_dedent=True)
-    assert cm["run"] == "echo building\nmake all\n"
+    assert to_data(step, auto_dedent=True)["run"] == "echo building\nmake all\n"
 
 
 def test_to_yaml_dedents_by_default():
