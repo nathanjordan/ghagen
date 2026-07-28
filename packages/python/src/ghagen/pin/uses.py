@@ -69,6 +69,18 @@ class UsesRef:
             return f"{self.owner}/{self.repo}/{self.path}"
         return f"{self.owner}/{self.repo}"
 
+    @property
+    def uses(self) -> str:
+        """Return the authored ``owner/repo[/path]@ref`` string — the lockfile key.
+
+        Losslessly reconstructs the string :meth:`parse` consumed: parsing
+        splits with no normalization, so ``action_part + "@" + ref`` is
+        byte-identical to the input. This is the dedup key and the lockfile
+        key, so a collected ref lines up with its lockfile entry by
+        construction.
+        """
+        return f"{self.action_part}@{self.ref}"
+
     def with_sha(self, sha: str) -> str:
         """Rebuild the reference as ``owner/repo[/path]@sha``."""
         return f"{self.action_part}@{sha}"

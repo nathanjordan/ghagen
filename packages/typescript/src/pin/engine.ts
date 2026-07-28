@@ -17,7 +17,7 @@ import { ResolveError, type GitHubClient } from "./github.js";
 import { readLockfile, writeLockfile } from "./lockfile.js";
 import { locateUsesRefs } from "./sources.js";
 import { applyUpdates } from "./update.js";
-import { UsesRef } from "./uses.js";
+import type { UsesRef } from "./uses.js";
 import { type BumpSeverity, classifyBump, findLatestTag, parseTag } from "./versions.js";
 
 // ---- pin ----
@@ -77,33 +77,27 @@ export async function pin(app: App, client: GitHubClient, opts: PinOptions): Pro
   const refs = collectUsesRefs(app);
   const lockfile = readLockfile(lockfilePath);
 
-  const toResolve = opts.update
-    ? new Set(refs)
-    : new Set([...refs].filter((r) => !lockfile.has(r)));
+  // `refs` is already sorted and parsed by `collectUsesRefs`; iterate directly.
+  const toResolve = opts.update ? refs : refs.filter((r) => !lockfile.has(r.uses));
 
   const now = new Date();
-  for (const uses of [...toResolve].sort()) {
-    const parsed = UsesRef.parse(uses);
-    if (parsed === null) {
-      report.warnings.push(`skipping ${JSON.stringify(uses)}: not a pinnable action reference`);
-      continue;
-    }
+  for (const ref of toResolve) {
     let sha: string;
     try {
-      sha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
+      sha = await client.resolveRef(ref.owner, ref.repo, ref.ref);
     } catch (err) {
       if (err instanceof ResolveError) {
-        report.errors.push(`${uses}: ${err.message}`);
+        report.errors.push(`${ref.uses}: ${err.message}`);
         continue;
       }
       throw err;
     }
-    lockfile.set(uses, { sha, resolvedAt: now });
-    report.resolved.push({ uses, sha });
+    lockfile.set(ref.uses, { sha, resolvedAt: now });
+    report.resolved.push({ uses: ref.uses, sha });
   }
 
   if (opts.prune) {
-    report.pruned = lockfile.prune(refs);
+    report.pruned = lockfile.prune(new Set(refs.map((r) => r.uses)));
   }
 
   if (report.resolved.length > 0 || report.pruned > 0) {
@@ -111,7 +105,7 @@ export async function pin(app: App, client: GitHubClient, opts: PinOptions): Pro
     report.written = true;
   }
 
-  report.upToDate = toResolve.size === 0 && report.pruned === 0;
+  report.upToDate = toResolve.length === 0 && report.pruned === 0;
   return report;
 }
 
@@ -150,9 +144,13 @@ export function checkSync(app: App, opts: CheckSyncOptions): SyncReport {
 
   const refs = collectUsesRefs(app);
   const lockfile = readLockfile(lockfilePath);
+  const usesSet = new Set(refs.map((r) => r.uses));
 
-  const missing = [...refs].filter((r) => !lockfile.has(r)).sort();
-  const extra = opts.prune ? [...lockfile.keys()].filter((r) => !refs.has(r)).sort() : [];
+  const missing = refs
+    .map((r) => r.uses)
+    .filter((uses) => !lockfile.has(uses))
+    .sort();
+  const extra = opts.prune ? [...lockfile.keys()].filter((r) => !usesSet.has(r)).sort() : [];
   return new SyncReport(missing, extra);
 }
 
@@ -212,32 +210,31 @@ export async function upgrade(
   };
 
   const refs = collectUsesRefs(app);
-  if (refs.size === 0) {
+  if (refs.length === 0) {
     return report;
   }
 
-  const refLocations = locateUsesRefs(refs, userFiles);
+  const refLocations = locateUsesRefs(new Set(refs.map((r) => r.uses)), userFiles);
 
   const checkVersions = opts.mode === "versions" || opts.mode === "all";
   const checkLockfile = opts.mode === "lockfile" || opts.mode === "all";
 
   if (checkVersions) {
-    // Group refs by owner/repo for efficient API calls.
-    const repoRefs = new Map<string, Array<{ uses: string; ref: string }>>();
-    for (const uses of [...refs].sort()) {
-      const parsed = UsesRef.parse(uses);
-      if (parsed === null) {
-        continue;
-      }
-      const key = `${parsed.owner}/${parsed.repo}`;
+    // Group refs by owner/repo for efficient API calls — parsing is free, so
+    // grouping is a cheap local step over the already-parsed refs.
+    const repoRefs = new Map<string, UsesRef[]>();
+    for (const ref of refs) {
+      const key = `${ref.owner}/${ref.repo}`;
       const list = repoRefs.get(key) ?? [];
-      list.push({ uses, ref: parsed.ref });
+      list.push(ref);
       repoRefs.set(key, list);
     }
 
     // Per-repo tag cache stays engine-local.
     const tagsCache = new Map<string, string[]>();
-    for (const [key, usesList] of [...repoRefs.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [key, repoRefList] of [...repoRefs.entries()].sort(([a], [b]) =>
+      a.localeCompare(b),
+    )) {
       const [owner, repo] = key.split("/", 2) as [string, string];
       let tags = tagsCache.get(key);
       if (tags === undefined) {
@@ -253,23 +250,23 @@ export async function upgrade(
         tagsCache.set(key, tags);
       }
 
-      for (const { uses, ref } of usesList) {
-        const latestTag = findLatestTag(ref, tags);
+      for (const ref of repoRefList) {
+        const latestTag = findLatestTag(ref.ref, tags);
         if (latestTag === null) {
           continue;
         }
-        const currentParsed = parseTag(ref);
+        const currentParsed = parseTag(ref.ref);
         const latestParsed = parseTag(latestTag);
         if (currentParsed === null || latestParsed === null) {
           continue;
         }
         const severity = classifyBump(currentParsed.version, latestParsed.version);
         report.versionBumps.push({
-          uses,
-          current: ref,
+          uses: ref.uses,
+          current: ref.ref,
           latest: latestTag,
           severity,
-          source_files: [...(refLocations.get(uses) ?? [])],
+          source_files: [...(refLocations.get(ref.uses) ?? [])],
         });
       }
     }
@@ -277,44 +274,38 @@ export async function upgrade(
 
   if (checkLockfile && app.lockfilePath !== null) {
     const lockfile = readLockfile(resolve(app.rootAbsPath, app.lockfilePath));
-    for (const uses of [...refs].sort()) {
-      const entry = lockfile.get(uses);
+    for (const ref of refs) {
+      const entry = lockfile.get(ref.uses);
       if (entry === undefined) {
-        continue;
-      }
-      const parsed = UsesRef.parse(uses);
-      if (parsed === null) {
         continue;
       }
       let currentSha: string;
       try {
-        currentSha = await client.resolveRef(parsed.owner, parsed.repo, parsed.ref);
+        currentSha = await client.resolveRef(ref.owner, ref.repo, ref.ref);
       } catch (err) {
         if (err instanceof ResolveError) {
-          report.warnings.push(`failed to resolve ${uses}: ${err.message}`);
+          report.warnings.push(`failed to resolve ${ref.uses}: ${err.message}`);
           continue;
         }
         throw err;
       }
       if (currentSha !== entry.sha) {
         report.lockfileStale.push({
-          uses,
+          uses: ref.uses,
           current_sha: entry.sha,
           latest_sha: currentSha,
-          source_files: [...(refLocations.get(uses) ?? [])],
+          source_files: [...(refLocations.get(ref.uses) ?? [])],
         });
       }
     }
   }
 
   if (opts.apply && report.versionBumps.length > 0) {
+    const refsByUses = new Map(refs.map((r) => [r.uses, r] as const));
     const updates = new Map<string, string>();
     for (const bump of report.versionBumps) {
-      const parsed = UsesRef.parse(bump.uses);
-      if (parsed === null) {
-        continue;
-      }
-      updates.set(bump.uses, parsed.withSha(bump.latest));
+      const ref = refsByUses.get(bump.uses)!;
+      updates.set(bump.uses, ref.withSha(bump.latest));
     }
     const refLocsObj = new Map<string, string[]>();
     for (const [k, v] of refLocations.entries()) {
