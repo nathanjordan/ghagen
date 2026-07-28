@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { job, strategy, matrix, concurrency, defaults, environment } from "./job.js";
-import { isModel } from "./_base.js";
-import { toData } from "../emitter/yaml-writer.js";
+import { isModel, withComment } from "./_base.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
 import { step } from "./step.js";
 import { permissions } from "./permissions.js";
+import { workflow } from "./workflow.js";
+import { on } from "./trigger.js";
 
 describe("job", () => {
   it("creates a basic job with runsOn and steps", () => {
@@ -186,6 +188,22 @@ describe("matrix", () => {
     });
     expect(m.kind).toBe("matrix");
   });
+
+  it("emits dynamic axes through buildModel, after include/exclude", () => {
+    // Dynamic axis keys pass through buildYamlData (spec.dynamicKeys) rather
+    // than a `new Model(...)` bypass; explicit order puts include/exclude
+    // first, then the axes in insertion order.
+    const m = matrix({
+      "node-version": ["18", "20"],
+      os: ["ubuntu-latest"],
+      exclude: [{ os: "ubuntu-latest" }],
+    });
+    expect(Object.keys(toData(m) as Record<string, unknown>)).toEqual([
+      "exclude",
+      "node-version",
+      "os",
+    ]);
+  });
 });
 
 describe("concurrency", () => {
@@ -207,6 +225,31 @@ describe("defaults", () => {
     expect(run["working-directory"]).toBe("/app");
     expect(run).not.toHaveProperty("workingDirectory");
     expect(d.kind).toBe("defaults");
+  });
+
+  it("preserves a Commented wrapper on run.shell (comment-drop regression)", () => {
+    // `run` is modelled as a DefaultsRunModel so shell/working-directory flow
+    // through buildModel's Commented peel/re-apply — the comment survives the
+    // nested map instead of being silently dropped by a hand-built object.
+    const d = defaults({ run: { shell: withComment("bash", "login shell") } });
+    const data = toData(d, { comments: true }) as Record<string, unknown>;
+    const run = data.run as Record<string, unknown>;
+    expect(run.shell).toEqual({ value: "bash", comment: "login shell" });
+  });
+
+  it("emits the run.shell comment into YAML", () => {
+    const wf = workflow({
+      name: "W",
+      on: on({ push: { branches: ["main"] } }),
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          defaults: defaults({ run: { shell: withComment("bash", "login shell") } }),
+          steps: [step({ run: "echo hi" })],
+        }),
+      },
+    });
+    expect(toYaml(wf, { header: null })).toContain("# login shell");
   });
 });
 

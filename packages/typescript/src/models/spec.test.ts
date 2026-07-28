@@ -8,6 +8,7 @@ import {
   STRATEGY_SPEC,
   CONCURRENCY_SPEC,
   DEFAULTS_SPEC,
+  DEFAULTS_RUN_SPEC,
   ENVIRONMENT_SPEC,
   JOB_SPEC,
 } from "./job.js";
@@ -41,6 +42,7 @@ const ALL_SPECS: ModelSpec[] = [
   STRATEGY_SPEC,
   CONCURRENCY_SPEC,
   DEFAULTS_SPEC,
+  DEFAULTS_RUN_SPEC,
   ENVIRONMENT_SPEC,
   JOB_SPEC,
   WORKFLOW_SPEC,
@@ -78,6 +80,7 @@ const ALL_KINDS: ModelKind[] = [
   "matrix",
   "concurrency",
   "defaults",
+  "defaultsRun",
   "environment",
   "container",
   "service",
@@ -96,16 +99,19 @@ describe("ModelSpec self-consistency", () => {
     expect(new Set(kinds).size).toBe(ALL_SPECS.length);
   });
 
-  it.each(ALL_SPECS)("$kind: order has no duplicates", (spec) => {
-    expect(new Set(spec.order).size).toBe(spec.order.length);
+  it.each(ALL_SPECS)("$kind: explicit order has no duplicates", (spec) => {
+    if (spec.order.kind !== "explicit") {
+      return;
+    }
+    expect(new Set(spec.order.keys).size).toBe(spec.order.keys.length);
   });
 
-  it.each(ALL_SPECS)("$kind: order is complete (== fieldMap values) or empty", (spec) => {
-    if (spec.order.length === 0) {
+  it.each(ALL_SPECS)("$kind: explicit order is complete (== fieldMap values)", (spec) => {
+    if (spec.order.kind !== "explicit") {
       return; // alphabetical-emission opt-in (the `on:` section)
     }
     const emitted = new Set(Object.values(spec.fieldMap));
-    expect(new Set(spec.order)).toEqual(emitted);
+    expect(new Set(spec.order.keys)).toEqual(emitted);
   });
 
   it.each(ALL_SPECS)("$kind: every wrap key is a field in the map", (spec) => {
@@ -114,8 +120,8 @@ describe("ModelSpec self-consistency", () => {
     }
   });
 
-  it("only the `on` spec uses empty order (alphabetical emission)", () => {
-    const empty = ALL_SPECS.filter((s) => s.order.length === 0).map((s) => s.kind);
-    expect(empty).toEqual(["on"]);
+  it("only the `on` spec uses alphabetical order", () => {
+    const alpha = ALL_SPECS.filter((s) => s.order.kind === "alphabetical").map((s) => s.kind);
+    expect(alpha).toEqual(["on"]);
   });
 });

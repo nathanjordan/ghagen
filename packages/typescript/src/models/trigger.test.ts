@@ -8,7 +8,8 @@ import {
   on,
 } from "./trigger.js";
 import { isModel } from "./_base.js";
-import { toData } from "../emitter/yaml-writer.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
+import { workflow } from "./workflow.js";
 
 describe("pushTrigger", () => {
   it("creates a push trigger with branches", () => {
@@ -143,5 +144,40 @@ describe("on", () => {
   it("has correct kind", () => {
     const o = on({ push: { branches: ["main"] } });
     expect(o.kind).toBe("on");
+  });
+
+  it("emits keys alphabetically, interleaving a dynamic extra event", () => {
+    // `workflowRun` (→ workflow_run) and a dynamic `merge_group` extra must
+    // interleave alphabetically with the typed fields — the sort lives in the
+    // Emitter (alphabetical OrderMode), not a factory pre-sort.
+    const o = on({
+      workflowRun: { types: ["completed"] },
+      push: { branches: ["main"] },
+      extras: { merge_group: {} },
+    });
+    expect(Object.keys(toData(o) as Record<string, unknown>)).toEqual([
+      "merge_group",
+      "push",
+      "workflow_run",
+    ]);
+  });
+
+  it("emits an empty workflowDispatch as a present-null key (toData)", () => {
+    const data = toData(on({ workflowDispatch: {} })) as Record<string, unknown>;
+    expect(data).toHaveProperty("workflow_dispatch");
+    expect(data["workflow_dispatch"]).toBeNull();
+  });
+
+  it("emits an empty workflowDispatch as a bare `workflow_dispatch:` key (YAML)", () => {
+    const yaml = toYaml(workflow({ name: "W", on: on({ workflowDispatch: {} }) }), {
+      header: null,
+    });
+    expect(yaml).toContain("workflow_dispatch:\n");
+    expect(yaml).not.toContain("workflow_dispatch: {}");
+  });
+
+  it("keeps a boolean workflowDispatch untouched (not present-null)", () => {
+    const data = toData(on({ workflowDispatch: true })) as Record<string, unknown>;
+    expect(data["workflow_dispatch"]).toBe(true);
   });
 });

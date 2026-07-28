@@ -49,19 +49,22 @@ export const STEP_SPEC: ModelSpec = {
     continueOnError: "continue-on-error",
     timeoutMinutes: "timeout-minutes",
   } satisfies Record<keyof StepInput, keyof SchemaStep>,
-  order: [
-    "id",
-    "name",
-    "if",
-    "uses",
-    "run",
-    "with",
-    "env",
-    "shell",
-    "working-directory",
-    "continue-on-error",
-    "timeout-minutes",
-  ],
+  order: {
+    kind: "explicit",
+    keys: [
+      "id",
+      "name",
+      "if",
+      "uses",
+      "run",
+      "with",
+      "env",
+      "shell",
+      "working-directory",
+      "continue-on-error",
+      "timeout-minutes",
+    ],
+  },
 };
 
 /**

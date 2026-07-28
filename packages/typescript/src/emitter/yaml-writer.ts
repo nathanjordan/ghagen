@@ -69,17 +69,22 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
  */
 function modelToYamlMap(model: Model): YAMLMap {
   const map = new YAMLMap();
-  const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
+  const entries = orderedEntries(model);
+  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
 
   // Emit each field, attaching any Commented-wrapper comment inline at the
   // point of emission (no collect-then-reattach two-pass). The comment module
   // owns the actual placement.
-  const entries: [string, unknown][] = orderedKeys.map((key) => [key, model.data[key]]);
-  if (model.meta.extras) {
-    entries.push(...Object.entries(model.meta.extras));
-  }
-
   for (const [key, value] of entries) {
+    // present-null-when-empty: an empty sub-map emits as a bare `key:` (null).
+    if (presentNull.has(key) && isEmptyMapValue(value)) {
+      const pair = new Pair(new Scalar(key), nullScalar());
+      map.items.push(pair);
+      if (isCommented(value)) {
+        attachFieldComment(pair, value.comment, value.eolComment);
+      }
+      continue;
+    }
     if (isCommented(value)) {
       const pair = new Pair(new Scalar(key), toYamlValue(value.value));
       map.items.push(pair);
@@ -170,29 +175,79 @@ function toYamlValue(value: unknown): unknown {
 }
 
 /**
- * Sort keys by canonical order: ordered keys first (in specified order),
- * then remaining keys in their original insertion order.
+ * Resolve a model's emitted `[key, value]` entries in canonical order, folding
+ * in `meta.extras` per the spec's {@link OrderMode} and `extrasPlacement`.
+ *
+ * The single home for both Emitter passes ({@link modelToYamlMap} and
+ * {@link modelToData}), so the YAML nodes and the observed data cannot disagree
+ * on ordering. `alphabetical` sorts every key (extras included); `explicit`
+ * places the ordered keys first, then the rest — with extras appended
+ * (`afterOrdered`, the default) or folded into the ordering pool
+ * (`withinOrder`).
  */
-function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
+function orderedEntries(model: Model): [string, unknown][] {
+  const data = model.data;
+  const extras = model.meta.extras ?? {};
+  const dataKeys = Object.keys(data);
+  const extrasKeys = Object.keys(extras);
+  const valueOf = (key: string): unknown => (key in data ? data[key] : extras[key]);
+
+  if (model.spec.order.kind === "alphabetical") {
+    const allKeys = [...new Set([...dataKeys, ...extrasKeys])].sort();
+    return allKeys.map((key) => [key, valueOf(key)]);
+  }
+
+  const orderKeys = model.spec.order.keys;
+  if ((model.spec.extrasPlacement ?? "afterOrdered") === "withinOrder") {
+    const pool = [...new Set([...dataKeys, ...extrasKeys])];
+    return orderExplicit(pool, orderKeys).map((key) => [key, valueOf(key)]);
+  }
+
+  const entries: [string, unknown][] = orderExplicit(dataKeys, orderKeys).map((key) => [
+    key,
+    data[key],
+  ]);
+  for (const key of extrasKeys) {
+    entries.push([key, extras[key]]);
+  }
+  return entries;
+}
+
+/**
+ * Order keys by an explicit key list: named keys first (in that order), then
+ * the remaining keys in their original insertion order.
+ */
+function orderExplicit(keys: string[], keyOrder: readonly string[]): string[] {
   const orderSet = new Set(keyOrder);
-  const ordered: string[] = [];
-  const remaining: string[] = [];
-
-  // Add keys that appear in the canonical order
-  for (const key of keyOrder) {
-    if (keys.includes(key)) {
-      ordered.push(key);
-    }
-  }
-
-  // Add remaining keys in insertion order
-  for (const key of keys) {
-    if (!orderSet.has(key)) {
-      remaining.push(key);
-    }
-  }
-
+  const ordered = keyOrder.filter((key) => keys.includes(key));
+  const remaining = keys.filter((key) => !orderSet.has(key));
   return [...ordered, ...remaining];
+}
+
+/**
+ * True when *value* resolves to an empty map — an empty sub-Model (no `data`,
+ * no extras) or a plain `{}`. Booleans, arrays, `Raw`, and non-empty maps are
+ * not empty maps. Powers the `presentNullWhenEmpty` rule.
+ */
+function isEmptyMapValue(value: unknown): boolean {
+  const v = isCommented(value) ? value.value : value;
+  if (v instanceof Model) {
+    return (
+      Object.keys(v.data).length === 0 &&
+      (v.meta.extras === undefined || Object.keys(v.meta.extras).length === 0)
+    );
+  }
+  if (v === null || v === undefined || isRaw(v) || Array.isArray(v)) {
+    return false;
+  }
+  return typeof v === "object" && Object.keys(v).length === 0;
+}
+
+/** A null scalar that emits as a bare `key:` (empty source), matching ruamel. */
+function nullScalar(): Scalar {
+  const scalar = new Scalar(null);
+  scalar.source = "";
+  return scalar;
 }
 
 // ---- public observation surface: model → plain data ----
@@ -252,14 +307,15 @@ export function toData(model: Model, options?: ToDataOptions): unknown {
 
 /** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */
 function modelToData(model: Model, comments: boolean): Record<string, unknown> {
-  const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
-  const entries: [string, unknown][] = orderedKeys.map((key) => [key, model.data[key]]);
-  if (model.meta.extras) {
-    entries.push(...Object.entries(model.meta.extras));
-  }
+  const entries = orderedEntries(model);
+  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
 
   const result: Record<string, unknown> = {};
   for (const [key, value] of entries) {
+    if (presentNull.has(key) && isEmptyMapValue(value)) {
+      result[key] = null;
+      continue;
+    }
     if (isCommented(value)) {
       const inner = valueToData(value.value, comments);
       result[key] =

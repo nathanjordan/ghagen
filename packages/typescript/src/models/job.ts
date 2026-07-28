@@ -3,13 +3,14 @@ import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
 } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta, Model } from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
 import type {
   JobModel,
   StrategyModel,
   MatrixModel,
   ConcurrencyModel,
   DefaultsModel,
+  DefaultsRunModel,
   EnvironmentModel,
   StepModel,
   PermissionsModel,
@@ -65,19 +66,22 @@ export interface MatrixInput {
 /**
  * Serialization spec for {@link MatrixModel}.
  *
- * `fieldMap` names only the static keys; dynamic axis keys (e.g.
- * `"node-version"`) are user-defined and pass straight through, so the factory
- * stores the raw data bag rather than routing through {@link buildModel}.
+ * `fieldMap` names only the static keys; `dynamicKeys` declares that any other
+ * input key (a user-defined axis like `"node-version"`) passes straight through
+ * to `data`, so the factory routes through {@link buildModel} like every other.
+ * The explicit `order` places `include`/`exclude` first; dynamic axes follow in
+ * insertion order.
  */
 export const MATRIX_SPEC: ModelSpec = {
   kind: "matrix",
   fieldMap: { include: "include", exclude: "exclude" },
-  order: ["include", "exclude"],
+  order: { kind: "explicit", keys: ["include", "exclude"] },
+  dynamicKeys: true,
 };
 
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
-  return new Model(MATRIX_SPEC, data as Record<string, unknown>, meta) as MatrixModel;
+  return buildModel<MatrixModel>(MATRIX_SPEC, data as Record<string, unknown>, meta);
 }
 
 /**
@@ -114,7 +118,7 @@ export interface StrategyInput {
 export const STRATEGY_SPEC: ModelSpec = {
   kind: "strategy",
   fieldMap: { matrix_: "matrix", failFast: "fail-fast", maxParallel: "max-parallel" },
-  order: ["matrix", "fail-fast", "max-parallel"],
+  order: { kind: "explicit", keys: ["matrix", "fail-fast", "max-parallel"] },
   wrap: { matrix_: { factory: matrix, mode: "model" } },
 };
 
@@ -143,7 +147,7 @@ export const CONCURRENCY_SPEC: ModelSpec = {
     group: "group",
     cancelInProgress: "cancel-in-progress",
   } satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>,
-  order: ["group", "cancel-in-progress"],
+  order: { kind: "explicit", keys: ["group", "cancel-in-progress"] },
 };
 
 /**
@@ -200,32 +204,38 @@ export interface DefaultsInput {
  * ```
  */
 /**
+ * Serialization spec for the nested `run` map of {@link DefaultsModel},
+ * mirroring Python's `DefaultsRun`. Modelling `run` as its own spec (rather than
+ * a hand-built plain object) routes shell/working-directory through
+ * {@link buildModel}, so a `Commented` wrapper on `run.shell` survives to YAML.
+ */
+export const DEFAULTS_RUN_SPEC: ModelSpec = {
+  kind: "defaultsRun",
+  fieldMap: { shell: "shell", workingDirectory: "working-directory" },
+  order: { kind: "explicit", keys: ["shell", "working-directory"] },
+};
+
+/** Promote an inline `run` shorthand into an ordered {@link DefaultsRunModel}. */
+function defaultsRun(input: DefaultsRunInput): DefaultsRunModel {
+  return buildModel<DefaultsRunModel>(DEFAULTS_RUN_SPEC, input as Record<string, unknown>, {});
+}
+
+/**
  * Serialization spec for {@link DefaultsModel}.
  *
- * The nested `run` object (shell + working-directory) is a plain map, not a
- * Model, so the factory builds it by hand rather than via {@link buildModel}.
+ * The nested `run` shorthand is promoted to a {@link DefaultsRunModel} via the
+ * `wrap` rule, so it flows through the normal emitter path — no hand-build.
  */
 export const DEFAULTS_SPEC: ModelSpec = {
   kind: "defaults",
   fieldMap: { run: "run" },
-  order: ["run"],
+  order: { kind: "explicit", keys: ["run"] },
+  wrap: { run: { factory: defaultsRun, mode: "objectModel" } },
 };
 
 export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
-  const [rawData, meta] = extractMeta(input);
-  const data = rawData as DefaultsInput;
-  const yamlData: Record<string, unknown> = {};
-  if (data.run) {
-    const runData: Record<string, unknown> = {};
-    if (data.run.shell !== undefined) {
-      runData["shell"] = data.run.shell;
-    }
-    if (data.run.workingDirectory !== undefined) {
-      runData["working-directory"] = data.run.workingDirectory;
-    }
-    yamlData["run"] = runData;
-  }
-  return new Model(DEFAULTS_SPEC, yamlData, meta) as DefaultsModel;
+  const [data, meta] = extractMeta(input);
+  return buildModel<DefaultsModel>(DEFAULTS_SPEC, data as Record<string, unknown>, meta);
 }
 
 // ---- Environment ----
@@ -247,7 +257,7 @@ export const ENVIRONMENT_SPEC: ModelSpec = {
     name: "name",
     url: "url",
   } satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>,
-  order: ["name", "url"],
+  order: { kind: "explicit", keys: ["name", "url"] },
 };
 
 /**
@@ -354,28 +364,31 @@ export const JOB_SPEC: ModelSpec = {
     with_: "with",
     secrets: "secrets",
   },
-  order: [
-    "name",
-    "runs-on",
-    "needs",
-    "if",
-    "permissions",
-    "environment",
-    "strategy",
-    "env",
-    "defaults",
-    "steps",
-    "outputs",
-    "timeout-minutes",
-    "continue-on-error",
-    "concurrency",
-    "services",
-    "container",
-    "snapshot",
-    "uses",
-    "with",
-    "secrets",
-  ],
+  order: {
+    kind: "explicit",
+    keys: [
+      "name",
+      "runs-on",
+      "needs",
+      "if",
+      "permissions",
+      "environment",
+      "strategy",
+      "env",
+      "defaults",
+      "steps",
+      "outputs",
+      "timeout-minutes",
+      "continue-on-error",
+      "concurrency",
+      "services",
+      "container",
+      "snapshot",
+      "uses",
+      "with",
+      "secrets",
+    ],
+  },
   wrap: {
     permissions: { factory: permissions, mode: "objectModel" },
     environment: { factory: environment, mode: "objectModel" },

@@ -19,7 +19,11 @@ function simpleModel(
   meta: Record<string, unknown> = {},
   order: readonly string[] = [],
 ) {
-  const spec = { kind: "step", fieldMap: {}, order } as unknown as ModelSpec;
+  const spec = {
+    kind: "step",
+    fieldMap: {},
+    order: { kind: "explicit", keys: order },
+  } as unknown as ModelSpec;
   return new Model(spec, data, meta as ModelMeta);
 }
 
