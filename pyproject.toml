@@ -62,3 +62,8 @@ include = ["packages/python/src"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/python/tests"]
+# The dev-only schema orchestrator lives at scripts/ghagen_schema/ (repo root,
+# not the shipped ghagen package -- see ADR-0003). pytest natively prepends
+# these to sys.path so the schema tests can `import ghagen_schema` as a package,
+# replacing the old sys.path hack in test_schema/conftest.py.
+pythonpath = ["scripts"]
