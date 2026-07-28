@@ -20,7 +20,7 @@ from ghagen.models._base import Document
 def emit(
     document: Document,
     *,
-    auto_dedent: bool = False,
+    auto_dedent: bool,
     header: HeaderInput = None,
 ) -> str:
     """Serialize *document* to a complete YAML string.
@@ -29,8 +29,10 @@ def emit(
         document: The :class:`~ghagen.models._base.Document` (Workflow or
             Action) to serialize.
         auto_dedent: When true, each Step's ``run`` script is dedented at
-            node-build time (ADR-0002). Off by default; the ``Document.to_yaml``
-            facade defaults it on.
+            node-build time (ADR-0002). Required (no default): this internal
+            entry is only ever called with a value threaded from ``App`` or the
+            ``Document.to_yaml`` facade, so a default here would be dead surface
+            that could drift from the TS port.
         header: Header comment. ``None`` emits no header; see
             :func:`~ghagen.emitter.header.format_header` for the other shapes.
 
@@ -51,7 +53,7 @@ def emit_file(
     document: Document,
     path: str | Path,
     *,
-    auto_dedent: bool = False,
+    auto_dedent: bool,
     header: HeaderInput = None,
 ) -> None:
     """Write *document* as YAML to *path*, creating parent directories."""

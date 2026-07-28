@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CliError, findConfig } from "./_common.js";
+import { findConfig } from "./_common.js";
+import { CliError } from "./_errors.js";
 
 let tmp: string;
 beforeEach(() => {

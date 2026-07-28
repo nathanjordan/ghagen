@@ -8,7 +8,7 @@
 
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { loadOptions } from "./config.js";
+import { DEFAULT_LOCKFILE_PATH, type GhagenOptions, loadOptions } from "./config.js";
 import { cloneModel } from "./models/_base.js";
 import type { ActionModel, Document, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
@@ -19,8 +19,6 @@ import { mkdir } from "node:fs/promises";
 
 /** Conventional directory for GitHub Actions workflows inside a repository. */
 export const DEFAULT_WORKFLOWS_DIR = ".github/workflows";
-
-const DEFAULT_LOCKFILE_REL = ".ghagen.lock.yml";
 
 interface RegisteredItem {
   readonly item: Document;
@@ -68,18 +66,25 @@ export class App {
        * when a lockfile is present; these are appended after it.
        */
       transforms?: readonly Transform[];
+      /**
+       * Pre-loaded project options. When omitted, `App` reads them from
+       * `.ghagen.yml` itself (standalone `new App()` works unchanged); pass a
+       * value to avoid a redundant read when the config was already parsed.
+       */
+      options?: GhagenOptions;
     } = {},
   ) {
     const rootInput = options.root ?? ".";
     this.rootAbsPath = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
     this.headerTxt = options.header;
     this.lockfilePath =
-      options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
+      options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_PATH);
     this._userTransforms = options.transforms ?? [];
 
     // Load project-level options (e.g. auto_dedent) from .ghagen.yml. Threaded into the emitter at
-    // synth/check time rather than applied via a module-level global (ADR-0002).
-    const opts = loadOptions(this.rootAbsPath);
+    // synth/check time rather than applied via a module-level global (ADR-0002). loadOptions is
+    // total — a malformed `entrypoint:` never breaks it.
+    const opts = options.options ?? loadOptions(this.rootAbsPath);
     this.autoDedent = opts.auto_dedent;
   }
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import difflib
 from pathlib import Path
 
-from ghagen.config import load_options
+from ghagen.config import DEFAULT_LOCKFILE_PATH, GhagenOptions, load_options
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
@@ -38,8 +38,9 @@ class App:
         self,
         root: str | Path = ".",
         header: HeaderInput = DEFAULT,
-        lockfile: str | Path | None = ".ghagen.lock.yml",
+        lockfile: str | Path | None = DEFAULT_LOCKFILE_PATH,
         transforms: list[Transform] | None = None,
+        options: GhagenOptions | None = None,
     ) -> None:
         """Initialize the App.
 
@@ -69,6 +70,10 @@ class App:
             transforms: Additional model transforms to apply during
                 synthesis.  The pin transform is auto-registered when
                 a lockfile is present; these are appended after it.
+            options: Pre-loaded project options. When omitted, ``App`` reads
+                them from ``.ghagen.yml`` itself (standalone ``App()`` works
+                unchanged); pass a value to avoid a redundant read when the
+                config was already parsed.
         """
         self.root = Path(root)
         self.header: HeaderInput = header
@@ -78,9 +83,10 @@ class App:
 
         # Load project-level options (e.g. auto_dedent) from .ghagen.yml.
         # These are threaded into the emitter at synth/check time rather than
-        # applied via a module-level global (ADR-0002).
-        options = load_options(self.root)
-        self._auto_dedent = options.auto_dedent
+        # applied via a module-level global (ADR-0002). load_options is total —
+        # a malformed `entrypoint:` never breaks it.
+        resolved_options = options if options is not None else load_options(self.root)
+        self._auto_dedent = resolved_options.auto_dedent
 
     def documents(self) -> list[_Item]:
         """Return the registered Documents (Workflows and Actions).
