@@ -122,6 +122,6 @@ def test_key_order_matches_emitted_yaml():
         },
     )
     data = to_data(wf)
-    yaml = emit(wf)
+    yaml = emit(wf, auto_dedent=False)
     yaml_top_keys = [m.group(1) for m in re.finditer(r"(?m)^([A-Za-z0-9_-]+):", yaml)]
     assert list(data) == yaml_top_keys
