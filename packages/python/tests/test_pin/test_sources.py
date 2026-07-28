@@ -4,8 +4,62 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+from ghagen.config import resolve_app
 from ghagen.pin.sources import locate_uses_refs, track_user_files
+
+
+class TestResolveApp:
+    """Direct tests for the shared module -> App policy (mirrors TS resolveApp)."""
+
+    def test_resolves_module_app(self):
+        from ghagen.app import App
+
+        app = App(lockfile=None)
+        resolved, error = resolve_app(SimpleNamespace(app=app), Path("cfg.py"))
+        assert error is None
+        assert resolved is app
+
+    def test_resolves_create_app_factory(self):
+        from ghagen.app import App
+
+        app = App(lockfile=None)
+        resolved, error = resolve_app(
+            SimpleNamespace(create_app=lambda: app), Path("cfg.py")
+        )
+        assert error is None
+        assert resolved is app
+
+    def test_prefers_create_app_over_app(self):
+        from ghagen.app import App
+
+        created = App(lockfile=None)
+        exported = App(lockfile=None)
+        resolved, _ = resolve_app(
+            SimpleNamespace(create_app=lambda: created, app=exported), Path("cfg.py")
+        )
+        assert resolved is created
+
+    def test_non_app_app_is_error(self):
+        resolved, error = resolve_app(SimpleNamespace(app=object()), Path("cfg.py"))
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
+
+    def test_create_app_returning_non_app_is_error(self):
+        resolved, error = resolve_app(
+            SimpleNamespace(create_app=lambda: object()), Path("cfg.py")
+        )
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
+
+    def test_neither_app_nor_create_app_is_error(self):
+        resolved, error = resolve_app(SimpleNamespace(unrelated=True), Path("cfg.py"))
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
 
 
 class TestTrackUserFiles:
