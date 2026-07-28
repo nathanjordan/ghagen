@@ -4,8 +4,10 @@ This is the test-based replacement for the deleted diff-only generated models
 (see ADR-0003). It walks **both** canonical Snapshots -- the workflow schema
 (``.github/workflows/*.yml``) and the action schema (``action.yml``) -- and for
 each scope asserts that ghagen's hand-written Pydantic models expose every
-upstream property, either as a field name or via a serialization alias (e.g.
-``if_`` -> ``if``, ``run_name`` -> ``run-name``, ``pre_if`` -> ``pre-if``).
+upstream property. The emitted YAML key for each field is sourced from the
+model's :class:`~ghagen.models.spec.ModelSpec` -- the single authority for the
+field -> YAML-key mapping (e.g. ``if_`` -> ``if``, ``run_name`` -> ``run-name``,
+``pre_if`` -> ``pre-if``).
 
 Properties ghagen intentionally does not model live in the shared allow-list at
 ``schema/conformance-gaps.yml``, read here *and* by the TypeScript sweep
@@ -14,7 +16,7 @@ same allow-list means both modelling the same property set -- cross-port surface
 agreement, structurally. Anything upstream but missing from the models (and not
 allow-listed) fails the sweep, surfacing schema drift as a conformance gap.
 
-It needs no code generation -- it reflects over ``model_fields`` directly.
+It needs no code generation -- it reads each model's ``ModelSpec`` directly.
 """
 
 from __future__ import annotations
@@ -24,9 +26,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 from ruamel.yaml import YAML
 
+from ghagen.models._base import GhagenModel
 from ghagen.models.action import (
     Action,
     ActionInput,
@@ -59,7 +61,7 @@ _ROOT: SchemaPath = ()
 class Scope:
     """One conformance scope: schema location(s) mapped to a covering model."""
 
-    def __init__(self, model: type[BaseModel], *paths: SchemaPath) -> None:
+    def __init__(self, model: type[GhagenModel], *paths: SchemaPath) -> None:
         self.model = model
         # Default to the schema root when no explicit path is given.
         self.paths: tuple[SchemaPath, ...] = paths or (_ROOT,)
@@ -121,12 +123,9 @@ def _schema_properties(schema: dict[str, Any], scope: Scope) -> set[str]:
     return props
 
 
-def _model_property_names(model: type[BaseModel]) -> set[str]:
-    """Serialization names a model exposes (alias when set, else field name)."""
-    names: set[str] = set()
-    for field_name, info in model.model_fields.items():
-        names.add(info.serialization_alias or info.alias or field_name)
-    return names
+def _model_property_names(model: type[GhagenModel]) -> set[str]:
+    """Emitted YAML key names for a model — sourced from its ModelSpec."""
+    return set(model.SPEC.yaml_keys.values())
 
 
 def _iter_scopes() -> list[tuple[str, str]]:
