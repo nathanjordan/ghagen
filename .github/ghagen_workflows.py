@@ -211,18 +211,18 @@ def _schema_drift_workflow() -> Workflow:
                         run="uv run python -m ghagen_schema generate",
                         env={"PYTHONPATH": "scripts"},
                     ),
-                    # Bot-authored (GITHUB_TOKEN) pushes do not trigger the PR's own
-                    # CI, so run the offline staleness guard here and surface the
-                    # result in the PR body -- the guarantee stays visible without a
-                    # PAT (see proposal risk "Bot PRs don't trigger CI", option b).
-                    Step(
-                        name="Verify regenerated types",
-                        run="uv run python -m ghagen_schema check",
-                        env={"PYTHONPATH": "scripts"},
-                    ),
+                    # NOTE: no `ghagen_schema check` step here. `check` diffs the
+                    # regenerated types against HEAD, so on real drift (the case
+                    # this job exists to handle) it exits 1, turns the job red, and
+                    # the un-`if:`'d PR/issue step below never runs -- the exact
+                    # failure this job must recover from. The offline staleness
+                    # guard runs authoritatively in the CI `lint-meta` job on the
+                    # resulting PR/commit; duplicating it here can only break the
+                    # recovery path.
                     Step(
                         name="Open PR on drift (else issue fallback)",
                         run="""
+                            set -euo pipefail
                             if git diff --quiet; then
                               echo "No schema drift."
                               exit 0
@@ -239,9 +239,9 @@ def _schema_drift_workflow() -> Workflow:
                             git checkout -b "$BRANCH"
                             git add schema/ packages/typescript/src/schema/
                             git commit -m "chore(schema): sync upstream drift + regenerate types"
-                            if ! git push -u origin "$BRANCH" || ! gh pr create \\
+                            if ! git push --force-with-lease -u origin "$BRANCH" || ! gh pr create \\
                                  --title "Schema drift: refreshed Snapshot + types" \\
-                                 --body "Automated upstream schema refresh (Snapshot + regenerated types). The offline staleness check passed in this run; review the Snapshot diff and regenerated types before merging." \\
+                                 --body "Automated upstream schema refresh (Snapshot + regenerated types). CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \\
                                  --label schema-drift; then
                               echo "::warning::PR creation failed; opening a fallback issue."
                               gh issue create \\
