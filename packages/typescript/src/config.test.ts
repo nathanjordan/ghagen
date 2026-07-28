@@ -107,6 +107,28 @@ describe("loadProjectConfig()", () => {
     expect(config.configPath).toBe(flag);
     expect(config.errors).toEqual([]);
   });
+
+  it("--config bypasses a malformed .ghagen.yml (regression vs main)", () => {
+    // A bad `entrypoint:` type used to accumulate a `bad-entrypoint-type`
+    // error that the flag path still returned, making resolveConfig exit 1 on
+    // the very config the user overrode. The flag now short-circuits before any
+    // `.ghagen.yml` read, so the override runs clean.
+    writeFileSync(join(tmp, ".ghagen.yml"), "entrypoint: 123\n");
+    const flag = join(tmp, "override.ts");
+    writeFileSync(flag, "// stub");
+    const config = loadProjectConfig(tmp, flag);
+    expect(config.configPath).toBe(flag);
+    expect(config.errors).toEqual([]);
+  });
+
+  it("--config bypasses unparseable .ghagen.yml", () => {
+    writeFileSync(join(tmp, ".ghagen.yml"), ":\n  - :\n  bad: [");
+    const flag = join(tmp, "override.ts");
+    writeFileSync(flag, "// stub");
+    const config = loadProjectConfig(tmp, flag);
+    expect(config.configPath).toBe(flag);
+    expect(config.errors).toEqual([]);
+  });
 });
 
 describe("loadYamlConfig()", () => {

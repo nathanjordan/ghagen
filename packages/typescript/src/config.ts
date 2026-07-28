@@ -227,6 +227,40 @@ function readOptions(
 export function loadProjectConfig(start?: string, cliConfigFlag?: string): ProjectConfig {
   const cwd = start ?? process.cwd();
   const root = findAppRoot(cwd);
+
+  // `--config` short-circuits the search entirely, BEFORE any `.ghagen.yml`
+  // read. The explicit flag is the user's override, so a malformed marker file
+  // (bad `entrypoint:`, unparseable YAML) must never block it — parsing it here
+  // and returning its errors would make `resolveConfig`/`_find_config` exit 1
+  // on the very config the user just overrode (regression vs. main, which
+  // short-circuited before any read). Options load best-effort elsewhere via
+  // `loadOptions`, which already tolerates a bad `entrypoint:`/YAML on its own.
+  if (cliConfigFlag) {
+    const flagPath = isAbsolute(cliConfigFlag) ? cliConfigFlag : resolve(cwd, cliConfigFlag);
+    if (!existsSync(flagPath) || !statSync(flagPath).isFile()) {
+      return {
+        root,
+        configPath: null,
+        options: { auto_dedent: true },
+        entrypoint: null,
+        errors: [
+          {
+            kind: "entrypoint-missing",
+            path: flagPath,
+            message: `config file not found: ${flagPath}`,
+          },
+        ],
+      };
+    }
+    return {
+      root,
+      configPath: flagPath,
+      options: { auto_dedent: true },
+      entrypoint: null,
+      errors: [],
+    };
+  }
+
   const errors: ConfigError[] = [];
   let options: GhagenOptions = { auto_dedent: true };
   let entrypoint: string | null = null;
@@ -260,20 +294,6 @@ export function loadProjectConfig(start?: string, cliConfigFlag?: string): Proje
         }
       }
     }
-  }
-
-  // `--config` short-circuits the search entirely.
-  if (cliConfigFlag) {
-    const flagPath = isAbsolute(cliConfigFlag) ? cliConfigFlag : resolve(cwd, cliConfigFlag);
-    if (!existsSync(flagPath) || !statSync(flagPath).isFile()) {
-      errors.push({
-        kind: "entrypoint-missing",
-        path: flagPath,
-        message: `config file not found: ${flagPath}`,
-      });
-      return { root, configPath: null, options, entrypoint, errors };
-    }
-    return { root, configPath: flagPath, options, entrypoint, errors };
   }
 
   // Resolve the entrypoint key when present and valid.

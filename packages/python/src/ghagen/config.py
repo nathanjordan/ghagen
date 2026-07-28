@@ -71,21 +71,6 @@ def find_app_root(start: Path | None = None) -> Path | None:
     return None
 
 
-def load_yaml_config(path: Path) -> dict[str, Any]:
-    """Read and parse a YAML file, raising ``ValueError`` on parse errors."""
-    yaml = YAML()
-    try:
-        with path.open() as f:
-            data = yaml.load(f)
-    except YAMLError as exc:
-        raise ValueError(f"{path}: failed to parse YAML: {exc}") from exc
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise ValueError(f"{path}: expected a YAML mapping at top level")
-    return dict(data)
-
-
 @dataclass(frozen=True)
 class GhagenOptions:
     """Options controlling ghagen behaviour.
@@ -184,6 +169,32 @@ def load_project_config(
     """
     cwd = start or Path.cwd()
     root = find_app_root(cwd)
+
+    # ``--config`` short-circuits the search entirely, BEFORE any ``.ghagen.yml``
+    # read. The explicit flag is the user's override, so a malformed marker file
+    # (bad ``entrypoint:``, unparseable YAML) must never block it — parsing it
+    # here and returning its errors would make ``_find_config`` exit 1 on the
+    # very config the user just overrode (regression vs. main, which
+    # short-circuited before any read). Options load best-effort elsewhere via
+    # ``load_options``, which already tolerates a bad ``entrypoint:``/YAML.
+    if cli_config_flag:
+        flag_path = Path(cli_config_flag)
+        if not flag_path.is_file():
+            return ProjectConfig(
+                root,
+                None,
+                GhagenOptions(),
+                None,
+                (
+                    ConfigError(
+                        "entrypoint-missing",
+                        flag_path,
+                        f"config file not found: {flag_path}",
+                    ),
+                ),
+            )
+        return ProjectConfig(root, flag_path, GhagenOptions(), None, ())
+
     errors: list[ConfigError] = []
     options = GhagenOptions()
     entrypoint: str | None = None
@@ -214,20 +225,6 @@ def load_project_config(
                 else:
                     entrypoint = raw_entry
                     entrypoint_valid = True
-
-    # `--config` short-circuits the search entirely.
-    if cli_config_flag:
-        flag_path = Path(cli_config_flag)
-        if not flag_path.is_file():
-            errors.append(
-                ConfigError(
-                    "entrypoint-missing",
-                    flag_path,
-                    f"config file not found: {flag_path}",
-                )
-            )
-            return ProjectConfig(root, None, options, entrypoint, tuple(errors))
-        return ProjectConfig(root, flag_path, options, entrypoint, tuple(errors))
 
     # Resolve the entrypoint key when present and valid.
     if root is not None and entrypoint_valid and entrypoint is not None:

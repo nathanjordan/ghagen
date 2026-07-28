@@ -110,3 +110,26 @@ class TestLoadProjectConfig:
         config = load_project_config(tmp_path, cli_config_flag=str(flag))
         assert config.config_path == flag
         assert config.errors == ()
+
+    def test_cli_flag_bypasses_malformed_ghagen_yml(self, tmp_path: Path):
+        """A bad ``entrypoint:`` type must not block an explicit ``--config``.
+
+        Regression vs. main: the flag short-circuits before any ``.ghagen.yml``
+        read, so accumulated marker-file errors never reach the flag path and
+        the override runs.
+        """
+        (tmp_path / ".ghagen.yml").write_text("entrypoint: 123\n")
+        flag = tmp_path / "override.py"
+        flag.write_text("# stub")
+        config = load_project_config(tmp_path, cli_config_flag=str(flag))
+        assert config.config_path == flag
+        assert config.errors == ()
+
+    def test_cli_flag_bypasses_unparseable_ghagen_yml(self, tmp_path: Path):
+        """Unparseable YAML in ``.ghagen.yml`` must not block ``--config``."""
+        (tmp_path / ".ghagen.yml").write_text(":\n  - :\n  bad: [")
+        flag = tmp_path / "override.py"
+        flag.write_text("# stub")
+        config = load_project_config(tmp_path, cli_config_flag=str(flag))
+        assert config.config_path == flag
+        assert config.errors == ()
