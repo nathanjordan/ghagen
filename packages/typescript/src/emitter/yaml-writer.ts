@@ -4,6 +4,7 @@ import {
   isCommented,
   isRaw,
   Model,
+  unwrapCommented,
   type Document as GhagenDocument,
 } from "../models/_base.js";
 import { attachFieldComment, attachModelComment } from "./comments.js";
@@ -86,7 +87,7 @@ function modelToYamlMap(model: Model): YAMLMap {
       continue;
     }
     if (isCommented(value)) {
-      const pair = new Pair(new Scalar(key), toYamlValue(value.value));
+      const pair = new Pair(new Scalar(key), toYamlValue(unwrapCommented(value)));
       map.items.push(pair);
       attachFieldComment(pair, value.comment, value.eolComment);
     } else {
@@ -109,7 +110,7 @@ function toYamlValue(value: unknown): unknown {
 
   // Commented values — unwrap and recurse
   if (isCommented(value)) {
-    return toYamlValue(value.value);
+    return toYamlValue(unwrapCommented(value));
   }
 
   // Raw values — unwrap and emit as plain scalar
@@ -230,7 +231,7 @@ function orderExplicit(keys: string[], keyOrder: readonly string[]): string[] {
  * not empty maps. Powers the `presentNullWhenEmpty` rule.
  */
 function isEmptyMapValue(value: unknown): boolean {
-  const v = isCommented(value) ? value.value : value;
+  const v = unwrapCommented(value);
   if (v instanceof Model) {
     return (
       Object.keys(v.data).length === 0 &&

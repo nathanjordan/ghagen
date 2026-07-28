@@ -183,9 +183,11 @@ def _mock_resolve_ref(owner: str, repo: str, ref: str, *, token=None) -> str:
     return "0" * 40
 
 
-def _mock_track_user_files(config_path, app_loader):
+def _mock_track_user_files(config_path):
     """Load the app and return ``(app, files)`` with the config file tracked."""
-    loaded_app = app_loader(config_path)
+    from ghagen.cli._common import _load_app
+
+    loaded_app = _load_app(config_path)
     # Return the config file based on the root -- in tests we write
     # ghagen_config.py in tmp_path which is also the cwd.
     root = loaded_app.root

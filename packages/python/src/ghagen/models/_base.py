@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from ruamel.yaml.comments import CommentedMap
 
 from ghagen._commented import Commented
+from ghagen._package_paths import is_internal_frame
 from ghagen._raw import Raw
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.spec import ModelSpec
@@ -22,26 +23,6 @@ _T = TypeVar("_T")
 # is >=3.11, so this is a TypeVar-based generic alias rather than a PEP 695
 # ``type`` statement (3.12+).
 OrRaw = _T | CommentedMap
-
-# Root of the installed ``ghagen`` package (…/ghagen). Any frame inside it is
-# ghagen-internal — regardless of the submodule (models/, emitter/, helpers/,
-# pin/, …). Deriving the prefix from the package location instead of a
-# hand-listed set of subdir substrings means a model constructed via a new
-# subpackage still attributes the correct user frame (round-2 fix: the old
-# ``/ghagen/models/`` + ``/ghagen/emitter/`` list mis-attributed helpers/pin
-# construction sites).
-_GHAGEN_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _is_internal_frame(filename: str) -> bool:
-    """Return True if ``filename`` is inside pydantic or the ghagen package."""
-    if "pydantic" in Path(filename).parts:
-        return True
-    try:
-        resolved = Path(filename).resolve()
-    except (OSError, ValueError):  # pragma: no cover — defensive
-        return False
-    return resolved == _GHAGEN_ROOT or _GHAGEN_ROOT in resolved.parents
 
 
 def _find_user_frame() -> tuple[str, int] | None:
@@ -56,7 +37,7 @@ def _find_user_frame() -> tuple[str, int] | None:
         return None
 
     while frame is not None:
-        if not _is_internal_frame(frame.f_code.co_filename):
+        if not is_internal_frame(frame.f_code.co_filename):
             return (frame.f_code.co_filename, frame.f_lineno)
         frame = frame.f_back
 

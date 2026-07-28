@@ -17,7 +17,7 @@ from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from ghagen._commented import Commented, is_commented
+from ghagen._commented import Commented, is_commented, unwrap_commented
 from ghagen._dedent import dedent_script
 from ghagen._raw import Raw, raw_scalar
 from ghagen.emitter.comments import attach, attach_model_comment
@@ -121,7 +121,7 @@ def _to_node(value: Any, *, auto_dedent: bool) -> Any:
     ``toYamlValue``.
     """
     if isinstance(value, Commented):
-        return _to_node(value.value, auto_dedent=auto_dedent)
+        return _to_node(unwrap_commented(value), auto_dedent=auto_dedent)
     if isinstance(value, Raw):
         # Route through unwrap_raw to keep PlainScalarString wrapping of
         # Raw[str] (bypasses the block-scalar auto-cast).
@@ -192,7 +192,7 @@ def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> Commented
     # value resolves to an empty map emits as a bare ``key:`` (null).
     for key, value in order_entries(raw, model.extras, spec):
         if is_commented(value):
-            node = _to_node(value.value, auto_dedent=auto_dedent)
+            node = _to_node(unwrap_commented(value), auto_dedent=auto_dedent)
             if key in present_null and is_empty_map(node):
                 node = None
             cm[key] = node
