@@ -9,108 +9,84 @@ from ghagen.pin.sources import locate_uses_refs, track_user_files
 
 
 class TestTrackUserFiles:
+    """Integration tests for :func:`track_user_files`.
+
+    ``track_user_files`` now imports the config itself and resolves its ``App``
+    through :func:`ghagen.config.resolve_app` — no injected loader. The
+    internal-vs-user path classification it applies is unit-tested directly in
+    ``tests/test_package_paths.py``; these tests cover the end-to-end wiring.
+    """
+
+    def test_returns_app_and_tracks_config(self, tmp_path: Path):
+        """The resolved App is returned and the config file is tracked."""
+        from ghagen.app import App
+
+        config = tmp_path / "user_wf.py"
+        config.write_text("from ghagen.app import App\napp = App(lockfile=None)\n")
+
+        app, user_files = track_user_files(config)
+
+        assert isinstance(app, App)
+        assert config.resolve() in user_files
+
+    def test_create_app_factory_is_resolved(self, tmp_path: Path):
+        """A ``create_app()`` factory is resolved just like a module ``app``."""
+        from ghagen.app import App
+
+        config = tmp_path / "factory_wf.py"
+        config.write_text(
+            "from ghagen.app import App\n"
+            "def create_app():\n"
+            "    return App(lockfile=None)\n"
+        )
+
+        app, user_files = track_user_files(config)
+
+        assert isinstance(app, App)
+        assert config.resolve() in user_files
+
     def test_excludes_ghagen_internals(self, tmp_path: Path):
         """Modules from the ghagen package itself should not appear."""
         config = tmp_path / "my_config.py"
-        config.write_text(
-            "from ghagen.app import App\ndef load():\n    return App(lockfile=None)\n"
-        )
+        config.write_text("from ghagen.app import App\napp = App(lockfile=None)\n")
 
-        sys.path.insert(0, str(tmp_path))
-        try:
-            # Ensure our temp module is not already loaded
-            mod_name = "my_config"
-            sys.modules.pop(mod_name, None)
+        _app, user_files = track_user_files(config)
 
-            def app_loader(_config_path):
-                import importlib
+        import ghagen
 
-                mod = importlib.import_module(mod_name)
-                return mod.load()
-
-            _app, user_files = track_user_files(config, app_loader)
-
-            # The config file should be in the set
-            assert config.resolve() in user_files
-
-            # No ghagen internal files should be present
-            import ghagen
-
-            ghagen_root = Path(ghagen.__file__).resolve().parent
-            for f in user_files:
-                assert not str(f).startswith(str(ghagen_root)), (
-                    f"ghagen internal file leaked: {f}"
-                )
-        finally:
-            sys.path.remove(str(tmp_path))
-            sys.modules.pop(mod_name, None)
-
-    def test_includes_user_config(self, tmp_path: Path):
-        """A user module that creates an App should be included."""
-        config = tmp_path / "user_wf.py"
-        config.write_text(
-            "from ghagen.app import App\ndef load():\n    return App(lockfile=None)\n"
-        )
-
-        sys.path.insert(0, str(tmp_path))
-        try:
-            mod_name = "user_wf"
-            sys.modules.pop(mod_name, None)
-
-            def app_loader(_config_path):
-                import importlib
-
-                mod = importlib.import_module(mod_name)
-                return mod.load()
-
-            _app, user_files = track_user_files(config, app_loader)
-            assert config.resolve() in user_files
-        finally:
-            sys.path.remove(str(tmp_path))
-            sys.modules.pop(mod_name, None)
+        ghagen_root = Path(ghagen.__file__).resolve().parent
+        for f in user_files:
+            assert not str(f).startswith(str(ghagen_root)), (
+                f"ghagen internal file leaked: {f}"
+            )
 
     def test_excludes_site_packages(self, tmp_path: Path):
         """Modules under a site-packages directory should be excluded."""
-        # Simulate a site-packages path
+        # Simulate a site-packages path the config imports from.
         site_pkg = tmp_path / "lib" / "site-packages" / "vendored.py"
         site_pkg.parent.mkdir(parents=True)
         site_pkg.write_text("X = 1\n")
 
         config = tmp_path / "user_cfg.py"
         config.write_text(
-            "import sys, os\n"
+            "import sys\n"
             f"sys.path.insert(0, {str(site_pkg.parent)!r})\n"
             "import vendored\n"
             "from ghagen.app import App\n"
-            "def load():\n"
-            "    return App(lockfile=None)\n"
+            "app = App(lockfile=None)\n"
         )
 
-        sys.path.insert(0, str(tmp_path))
-        sys.path.insert(0, str(site_pkg.parent))
         try:
-            for mod_name in ("user_cfg", "vendored"):
-                sys.modules.pop(mod_name, None)
-
-            def app_loader(_config_path):
-                import importlib
-
-                mod = importlib.import_module("user_cfg")
-                return mod.load()
-
-            _app, user_files = track_user_files(config, app_loader)
+            _app, user_files = track_user_files(config)
 
             # The user config IS included
             assert config.resolve() in user_files
-
             # The site-packages module is NOT included
             assert site_pkg.resolve() not in user_files
         finally:
-            sys.path.remove(str(tmp_path))
+            sys.modules.pop("vendored", None)
             if str(site_pkg.parent) in sys.path:
                 sys.path.remove(str(site_pkg.parent))
-            sys.modules.pop("user_cfg", None)
-            sys.modules.pop("vendored", None)
 
 
 class TestLocateUsesRefs:
