@@ -63,11 +63,11 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
  * comment attachment, extras merging, and postProcess support. The emitter's
  * successor to the old `Model.toYamlMap` method.
  *
- * Module-private after test migration: the supported way to observe a model's
- * emitted structure is {@link toData}. `modelToYamlMap` builds `yaml` backend
- * nodes for file emission and is an internal of that path.
+ * Module-private: the supported way to observe a model's emitted structure is
+ * {@link toData}. `modelToYamlMap` builds `yaml` backend nodes for file
+ * emission and is an internal of that path.
  */
-export function modelToYamlMap(model: Model): YAMLMap {
+function modelToYamlMap(model: Model): YAMLMap {
   const map = new YAMLMap();
   const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
 

@@ -1,65 +1,69 @@
 import { describe, it, expect } from "vitest";
-import { permissions, PERMISSIONS_SPEC } from "./permissions.js";
+import { permissions } from "./permissions.js";
+import { toData } from "../emitter/yaml-writer.js";
 
 describe("permissions", () => {
   it("creates permissions with contents and pullRequests", () => {
-    const p = permissions({ contents: "read", pullRequests: "write" });
-    expect(p.data).toEqual({ contents: "read", "pull-requests": "write" });
+    expect(toData(permissions({ contents: "read", pullRequests: "write" }))).toEqual({
+      contents: "read",
+      "pull-requests": "write",
+    });
   });
 
   it("handles all 13 scopes", () => {
-    const p = permissions({
-      actions: "read",
-      checks: "write",
-      contents: "read",
-      deployments: "write",
-      discussions: "read",
-      idToken: "write",
-      issues: "read",
-      packages: "write",
-      pages: "read",
-      pullRequests: "write",
-      repositoryProjects: "read",
-      securityEvents: "write",
-      statuses: "read",
-    });
-    expect(Object.keys(p.data)).toHaveLength(13);
-    expect(p.data.actions).toBe("read");
-    expect(p.data.statuses).toBe("read");
+    const data = toData(
+      permissions({
+        actions: "read",
+        checks: "write",
+        contents: "read",
+        deployments: "write",
+        discussions: "read",
+        idToken: "write",
+        issues: "read",
+        packages: "write",
+        pages: "read",
+        pullRequests: "write",
+        repositoryProjects: "read",
+        securityEvents: "write",
+        statuses: "read",
+      }),
+    ) as Record<string, unknown>;
+    expect(Object.keys(data)).toHaveLength(13);
+    expect(data.actions).toBe("read");
+    expect(data.statuses).toBe("read");
   });
 
   it("maps idToken to id-token", () => {
-    const p = permissions({ idToken: "write" });
-    expect(p.data["id-token"]).toBe("write");
-    expect(p.data).not.toHaveProperty("idToken");
+    const data = toData(permissions({ idToken: "write" })) as Record<string, unknown>;
+    expect(data["id-token"]).toBe("write");
+    expect(data).not.toHaveProperty("idToken");
   });
 
   it("maps pullRequests to pull-requests", () => {
-    const p = permissions({ pullRequests: "read" });
-    expect(p.data["pull-requests"]).toBe("read");
-    expect(p.data).not.toHaveProperty("pullRequests");
+    const data = toData(permissions({ pullRequests: "read" })) as Record<string, unknown>;
+    expect(data["pull-requests"]).toBe("read");
+    expect(data).not.toHaveProperty("pullRequests");
   });
 
   it("maps repositoryProjects to repository-projects", () => {
-    const p = permissions({ repositoryProjects: "write" });
-    expect(p.data["repository-projects"]).toBe("write");
-    expect(p.data).not.toHaveProperty("repositoryProjects");
+    const data = toData(permissions({ repositoryProjects: "write" })) as Record<string, unknown>;
+    expect(data["repository-projects"]).toBe("write");
+    expect(data).not.toHaveProperty("repositoryProjects");
   });
 
   it("maps securityEvents to security-events", () => {
-    const p = permissions({ securityEvents: "read" });
-    expect(p.data["security-events"]).toBe("read");
-    expect(p.data).not.toHaveProperty("securityEvents");
+    const data = toData(permissions({ securityEvents: "read" })) as Record<string, unknown>;
+    expect(data["security-events"]).toBe("read");
+    expect(data).not.toHaveProperty("securityEvents");
   });
 
   it("omits undefined scopes", () => {
-    const p = permissions({ contents: "read" });
-    expect(Object.keys(p.data)).toEqual(["contents"]);
+    expect(
+      Object.keys(toData(permissions({ contents: "read" })) as Record<string, unknown>),
+    ).toEqual(["contents"]);
   });
 
-  it("has correct kind and spec", () => {
-    const p = permissions({ contents: "read" });
-    expect(p.kind).toBe("permissions");
-    expect(p.spec).toBe(PERMISSIONS_SPEC);
+  it("has correct kind", () => {
+    expect(permissions({ contents: "read" }).kind).toBe("permissions");
   });
 });

@@ -1,76 +1,76 @@
 import { describe, it, expect } from "vitest";
-import { step, STEP_SPEC } from "./step.js";
+import { step } from "./step.js";
 import { job } from "./job.js";
 import { workflow } from "./workflow.js";
 import { isModel, raw } from "./_base.js";
-import { toYaml } from "../emitter/yaml-writer.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
 
 describe("step", () => {
   it("creates a basic run step", () => {
-    const s = step({ name: "Test", run: "pytest" });
-    expect(s.data).toEqual({ name: "Test", run: "pytest" });
+    expect(toData(step({ name: "Test", run: "pytest" }))).toEqual({ name: "Test", run: "pytest" });
   });
 
   it("creates a basic uses step", () => {
-    const s = step({ uses: "actions/checkout@v4" });
-    expect(s.data.uses).toBe("actions/checkout@v4");
+    expect(toData(step({ uses: "actions/checkout@v4" }))).toEqual({ uses: "actions/checkout@v4" });
   });
 
   it("maps with_ to with", () => {
-    const s = step({ uses: "actions/setup-node@v4", with_: { "node-version": "20" } });
-    expect(s.data["with"]).toEqual({ "node-version": "20" });
-    expect(s.data).not.toHaveProperty("with_");
+    const data = toData(step({ uses: "actions/setup-node@v4", with_: { "node-version": "20" } }));
+    expect(data).toEqual({ uses: "actions/setup-node@v4", with: { "node-version": "20" } });
   });
 
   it("maps if_ to if", () => {
-    const s = step({ run: "echo hi", if_: "github.ref == 'refs/heads/main'" });
-    expect(s.data["if"]).toBe("github.ref == 'refs/heads/main'");
-    expect(s.data).not.toHaveProperty("if_");
+    const data = toData(step({ run: "echo hi", if_: "github.ref == 'refs/heads/main'" })) as Record<
+      string,
+      unknown
+    >;
+    expect(data["if"]).toBe("github.ref == 'refs/heads/main'");
+    expect(data).not.toHaveProperty("if_");
   });
 
   it("passes shell through", () => {
-    const s = step({ run: "echo hi", shell: "bash" });
-    expect(s.data.shell).toBe("bash");
+    const data = toData(step({ run: "echo hi", shell: "bash" })) as Record<string, unknown>;
+    expect(data.shell).toBe("bash");
   });
 
-  it("stores shell as Raw when using raw()", () => {
-    const s = step({ run: "echo hi", shell: raw("custom-shell") });
-    expect(s.data.shell).toEqual(raw("custom-shell"));
+  it("unwraps raw() shell to its inner value", () => {
+    const data = toData(step({ run: "echo hi", shell: raw("custom-shell") }));
+    expect(data).toEqual({ run: "echo hi", shell: "custom-shell" });
   });
 
   it("maps workingDirectory to working-directory", () => {
-    const s = step({ run: "ls", workingDirectory: "/tmp" });
-    expect(s.data["working-directory"]).toBe("/tmp");
-    expect(s.data).not.toHaveProperty("workingDirectory");
+    const data = toData(step({ run: "ls", workingDirectory: "/tmp" })) as Record<string, unknown>;
+    expect(data["working-directory"]).toBe("/tmp");
+    expect(data).not.toHaveProperty("workingDirectory");
   });
 
   it("maps continueOnError to continue-on-error", () => {
-    const s = step({ run: "ls", continueOnError: true });
-    expect(s.data["continue-on-error"]).toBe(true);
-    expect(s.data).not.toHaveProperty("continueOnError");
+    const data = toData(step({ run: "ls", continueOnError: true })) as Record<string, unknown>;
+    expect(data["continue-on-error"]).toBe(true);
+    expect(data).not.toHaveProperty("continueOnError");
   });
 
   it("maps timeoutMinutes to timeout-minutes", () => {
-    const s = step({ run: "ls", timeoutMinutes: 10 });
-    expect(s.data["timeout-minutes"]).toBe(10);
-    expect(s.data).not.toHaveProperty("timeoutMinutes");
+    const data = toData(step({ run: "ls", timeoutMinutes: 10 })) as Record<string, unknown>;
+    expect(data["timeout-minutes"]).toBe(10);
+    expect(data).not.toHaveProperty("timeoutMinutes");
   });
 
-  it("omits undefined optional fields from data", () => {
-    const s = step({ run: "echo hi" });
-    expect(Object.keys(s.data)).toEqual(["run"]);
+  it("omits undefined optional fields", () => {
+    expect(Object.keys(toData(step({ run: "echo hi" })) as Record<string, unknown>)).toEqual([
+      "run",
+    ]);
   });
 
-  it("extracts meta into meta", () => {
+  it("extracts meta into meta and does not emit it as a field", () => {
     const s = step({ run: "echo hi", comment: "Run tests" });
     expect(s.meta).toEqual({ comment: "Run tests" });
-    expect(s.data).not.toHaveProperty("comment");
+    expect(toData(s)).toEqual({ run: "echo hi" });
   });
 
-  it("has correct kind, spec, and passes isModel", () => {
+  it("has correct kind and passes isModel", () => {
     const s = step({ run: "echo hi" });
     expect(s.kind).toBe("step");
-    expect(s.spec).toBe(STEP_SPEC);
     expect(isModel(s)).toBe(true);
   });
 });

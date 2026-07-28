@@ -8,49 +8,54 @@ import {
   on,
 } from "./trigger.js";
 import { isModel } from "./_base.js";
+import { toData } from "../emitter/yaml-writer.js";
 
 describe("pushTrigger", () => {
   it("creates a push trigger with branches", () => {
     const t = pushTrigger({ branches: ["main"] });
-    expect(t.data.branches).toEqual(["main"]);
+    expect(toData(t)).toEqual({ branches: ["main"] });
     expect(t.kind).toBe("pushTrigger");
   });
 
   it("maps camelCase fields to kebab-case", () => {
-    const t = pushTrigger({
-      branchesIgnore: ["dev"],
-      tagsIgnore: ["v0.*"],
-      pathsIgnore: ["docs/**"],
-    });
-    expect(t.data["branches-ignore"]).toEqual(["dev"]);
-    expect(t.data["tags-ignore"]).toEqual(["v0.*"]);
-    expect(t.data["paths-ignore"]).toEqual(["docs/**"]);
+    const data = toData(
+      pushTrigger({
+        branchesIgnore: ["dev"],
+        tagsIgnore: ["v0.*"],
+        pathsIgnore: ["docs/**"],
+      }),
+    ) as Record<string, unknown>;
+    expect(data["branches-ignore"]).toEqual(["dev"]);
+    expect(data["tags-ignore"]).toEqual(["v0.*"]);
+    expect(data["paths-ignore"]).toEqual(["docs/**"]);
   });
 });
 
 describe("prTrigger", () => {
   it("creates a PR trigger with types", () => {
     const t = prTrigger({ types: ["opened", "synchronize"] });
-    expect(t.data.types).toEqual(["opened", "synchronize"]);
+    expect(toData(t)).toEqual({ types: ["opened", "synchronize"] });
     expect(t.kind).toBe("prTrigger");
   });
 
   it("maps camelCase fields to kebab-case", () => {
-    const t = prTrigger({
-      branchesIgnore: ["release/*"],
-      tagsIgnore: ["rc-*"],
-      pathsIgnore: ["*.md"],
-    });
-    expect(t.data["branches-ignore"]).toEqual(["release/*"]);
-    expect(t.data["tags-ignore"]).toEqual(["rc-*"]);
-    expect(t.data["paths-ignore"]).toEqual(["*.md"]);
+    const data = toData(
+      prTrigger({
+        branchesIgnore: ["release/*"],
+        tagsIgnore: ["rc-*"],
+        pathsIgnore: ["*.md"],
+      }),
+    ) as Record<string, unknown>;
+    expect(data["branches-ignore"]).toEqual(["release/*"]);
+    expect(data["tags-ignore"]).toEqual(["rc-*"]);
+    expect(data["paths-ignore"]).toEqual(["*.md"]);
   });
 });
 
 describe("scheduleTrigger", () => {
   it("creates a schedule trigger with cron", () => {
     const t = scheduleTrigger({ cron: "0 0 * * *" });
-    expect(t.data.cron).toBe("0 0 * * *");
+    expect(toData(t)).toEqual({ cron: "0 0 * * *" });
     expect(t.kind).toBe("scheduleTrigger");
   });
 });
@@ -62,7 +67,7 @@ describe("workflowDispatch", () => {
         env: { description: "Environment", type: "choice", options: ["prod", "staging"] },
       },
     });
-    expect(t.data.inputs).toBeDefined();
+    expect((toData(t) as Record<string, unknown>).inputs).toBeDefined();
     expect(t.kind).toBe("workflowDispatch");
   });
 });
@@ -74,9 +79,10 @@ describe("workflowCall", () => {
       outputs: { result: { description: "Result", value: "${{ jobs.build.outputs.result }}" } },
       secrets: { token: { description: "API token", required: true } },
     });
-    expect(t.data.inputs).toBeDefined();
-    expect(t.data.outputs).toBeDefined();
-    expect(t.data.secrets).toBeDefined();
+    const data = toData(t) as Record<string, unknown>;
+    expect(data.inputs).toBeDefined();
+    expect(data.outputs).toBeDefined();
+    expect(data.secrets).toBeDefined();
     expect(t.kind).toBe("workflowCall");
   });
 });
@@ -117,21 +123,21 @@ describe("on", () => {
   });
 
   it("maps pullRequest key to pull_request in data", () => {
-    const o = on({ pullRequest: { branches: ["main"] } });
-    expect(o.data).toHaveProperty("pull_request");
-    expect(o.data).not.toHaveProperty("pullRequest");
+    const data = toData(on({ pullRequest: { branches: ["main"] } })) as Record<string, unknown>;
+    expect(data).toHaveProperty("pull_request");
+    expect(data).not.toHaveProperty("pullRequest");
   });
 
   it("maps delete_ to delete", () => {
-    const o = on({ delete_: null });
-    expect(o.data).toHaveProperty("delete");
-    expect(o.data).not.toHaveProperty("delete_");
+    const data = toData(on({ delete_: null })) as Record<string, unknown>;
+    expect(data).toHaveProperty("delete");
+    expect(data).not.toHaveProperty("delete_");
   });
 
   it("maps issueComment to issue_comment", () => {
-    const o = on({ issueComment: { types: ["created"] } });
-    expect(o.data).toHaveProperty("issue_comment");
-    expect(o.data).not.toHaveProperty("issueComment");
+    const data = toData(on({ issueComment: { types: ["created"] } })) as Record<string, unknown>;
+    expect(data).toHaveProperty("issue_comment");
+    expect(data).not.toHaveProperty("issueComment");
   });
 
   it("has correct kind", () => {
