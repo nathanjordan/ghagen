@@ -6,8 +6,9 @@ on:
   - cron: 0 9 * * 1
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 jobs:
   check-drift:
     runs-on: ubuntu-latest
@@ -16,17 +17,53 @@ jobs:
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+      with:
+        node-version: '24'
     - name: Sync
       run: uv sync
-    - name: Fetch upstream schema into the canonical snapshot
-      run: uv run python packages/python/scripts/schema_sync.py sync
-    - name: Check for drift
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
+    - name: Refresh Snapshot
+      run: uv run python -m ghagen_schema sync
+      env:
+        PYTHONPATH: scripts
+    - name: Regenerate types
+      run: uv run python -m ghagen_schema generate
+      env:
+        PYTHONPATH: scripts
+    - name: Verify regenerated types
+      run: uv run python -m ghagen_schema check
+      env:
+        PYTHONPATH: scripts
+    - name: Open PR on drift (else issue fallback)
       run: |-
-        if ! git diff --exit-code schema/; then
-          echo "::warning::Schema drift detected"
+        if git diff --quiet; then
+          echo "No schema drift."
+          exit 0
+        fi
+        BRANCH="schema-drift/$(date +%Y%m%d)"
+        if gh pr list --head "$BRANCH" --json number \
+             --jq '.[0].number' | grep -q .; then
+          echo "Drift PR already open for $BRANCH."
+          exit 0
+        fi
+        git config user.name  "github-actions[bot]"
+        git config user.email \
+          "41898282+github-actions[bot]@users.noreply.github.com"
+        git checkout -b "$BRANCH"
+        git add schema/ packages/typescript/src/schema/
+        git commit -m "chore(schema): sync upstream drift + regenerate types"
+        if ! git push -u origin "$BRANCH" || ! gh pr create \
+             --title "Schema drift: refreshed Snapshot + types" \
+             --body "Automated upstream schema refresh (Snapshot + regenerated types). The offline staleness check passed in this run; review the Snapshot diff and regenerated types before merging." \
+             --label schema-drift; then
+          echo "::warning::PR creation failed; opening a fallback issue."
           gh issue create \
             --title "GitHub Actions schema drift detected" \
-            --body "$(git diff schema/)" \
+            --body "Automated schema refresh could not open a PR. Reproduce locally with \`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\`." \
             --label schema-drift
         fi
       env:

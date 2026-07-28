@@ -55,14 +55,25 @@ jobs:
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+      with:
+        node-version: '24'
     - name: Sync
       run: uv sync
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
     - name: actionlint
       uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca  # v1.7.12
     - name: ghagen deps check-synced
       run: uv run ghagen deps check-synced
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Schema types up to date
+      run: uv run python -m ghagen_schema check
+      env:
+        PYTHONPATH: scripts
     timeout-minutes: 10
   typecheck-py:
     name: Type check (Python)
