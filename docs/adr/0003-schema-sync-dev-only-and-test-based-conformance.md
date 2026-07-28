@@ -40,3 +40,14 @@ The two languages enforce **different** things, by nature — do not "fix" this 
 Do not re-suggest wiring the generated Python models back in for conformance — it was deliberately
 removed. A coarser test-based conformance check (walk schema properties, assert models cover them,
 with an explicit allow-list for gaps) is a tracked stretch item and needs no code generation.
+
+## Amendment (2026-07-28): the ghagen_schema orchestrator
+
+- The dev-only pipeline is now driven through one orchestrator, `scripts/ghagen_schema`, with
+  three verbs: `sync` (network refresh of the Snapshot), `generate` (offline TS codegen), and
+  `check` (offline regenerate-and-diff staleness guard, run in CI's lint-meta job).
+- `check` closes the gap where stale committed `*.generated.ts` passed silently unless `tsc`
+  happened to collide; TS author-conformance is now actively enforced.
+- Drift handling is detect → PR (with an issue fallback), not detect → issue-with-diff.
+- The two ports still enforce different things (TS compile-time, Python runtime-test). The shared
+  conformance scope table drives coverage parity only; generated Python models stay removed.
