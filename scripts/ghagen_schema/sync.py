@@ -11,14 +11,19 @@ import json
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from .manifest import ManifestEntry, load_manifest
 from .paths import SCHEMA_DIR
 
 
 def fetch_schema(entry: ManifestEntry) -> dict[str, Any]:
-    """Download the schema for *entry* from SchemaStore."""
+    """Download the schema for *entry* from SchemaStore.
+
+    ``httpx`` is imported lazily here — the network lib is only needed by the
+    ``sync`` verb, so ``check``/``generate`` (and importing this module) work
+    without it installed.
+    """
+    import httpx
+
     resp = httpx.get(entry.url, follow_redirects=True)
     resp.raise_for_status()
     return resp.json()  # type: ignore[no-any-return]
