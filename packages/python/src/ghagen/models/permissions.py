@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from pydantic import Field
-
 from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel
 from ghagen.models.common import PermissionLevel
@@ -59,19 +57,11 @@ class Permissions(GhagenModel):
     contents: PermissionLevel | Raw[str] | None = None
     deployments: PermissionLevel | Raw[str] | None = None
     discussions: PermissionLevel | Raw[str] | None = None
-    id_token: PermissionLevel | Raw[str] | None = Field(
-        None, serialization_alias="id-token"
-    )
+    id_token: PermissionLevel | Raw[str] | None = None
     issues: PermissionLevel | Raw[str] | None = None
     packages: PermissionLevel | Raw[str] | None = None
     pages: PermissionLevel | Raw[str] | None = None
-    pull_requests: PermissionLevel | Raw[str] | None = Field(
-        None, serialization_alias="pull-requests"
-    )
-    repository_projects: PermissionLevel | Raw[str] | None = Field(
-        None, serialization_alias="repository-projects"
-    )
-    security_events: PermissionLevel | Raw[str] | None = Field(
-        None, serialization_alias="security-events"
-    )
+    pull_requests: PermissionLevel | Raw[str] | None = None
+    repository_projects: PermissionLevel | Raw[str] | None = None
+    security_events: PermissionLevel | Raw[str] | None = None
     statuses: PermissionLevel | Raw[str] | None = None

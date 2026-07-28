@@ -37,8 +37,8 @@ def test_empty_workflow_dispatch_emits_null_key():
     assert "workflow_dispatch: {}" not in result
 
 
-def test_serialization_alias_key_used():
-    """serialization_alias fields emit under the aliased key."""
+def test_spec_yaml_key_used():
+    """Fields emit under the YAML key declared in the model's ModelSpec."""
     cm = _model_to_map(Step(if_="success()", working_directory="src"))
     assert "if" in cm
     assert "working-directory" in cm
