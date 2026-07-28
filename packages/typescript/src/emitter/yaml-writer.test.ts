@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { YAMLMap, Scalar, Pair } from "yaml";
-import { toYaml, toYamlFile, modelToYamlMap } from "./yaml-writer.js";
+import { toYaml, toYamlFile, toData } from "./yaml-writer.js";
 import type { HeaderVariables } from "./header.js";
 import { Model, raw, withComment, withEolComment } from "../models/_base.js";
 import type { ModelMeta, ModelSpec } from "../models/_base.js";
@@ -79,17 +79,16 @@ describe("toYaml()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// modelToYamlMap() key ordering (low-level probe into the emitter recursion)
+// key ordering (observed via the public toData surface)
 // ---------------------------------------------------------------------------
-describe("modelToYamlMap() key ordering", () => {
+describe("key ordering", () => {
   it("orders keys according to keyOrder, then remaining in insertion order", () => {
     const m = new Model(
       JOB_SPEC,
       { steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} },
       {},
     );
-    const map = modelToYamlMap(m);
-    const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
+    const keys = Object.keys(toData(m) as Record<string, unknown>);
     // JOB_KEY_ORDER puts name, runs-on, ... env, ... steps
     expect(keys.indexOf("name")).toBeLessThan(keys.indexOf("runs-on"));
     expect(keys.indexOf("runs-on")).toBeLessThan(keys.indexOf("steps"));
@@ -97,8 +96,7 @@ describe("modelToYamlMap() key ordering", () => {
 
   it("merges extras after schema fields", () => {
     const m = simpleModel({ name: "ci" }, { extras: { "x-custom": true } }, ["name"]);
-    const map = modelToYamlMap(m);
-    const keys = map.items.map((p: Pair) => (p.key instanceof Scalar ? p.key.value : p.key));
+    const keys = Object.keys(toData(m) as Record<string, unknown>);
     expect(keys).toEqual(["name", "x-custom"]);
   });
 });

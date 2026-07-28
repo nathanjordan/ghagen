@@ -62,8 +62,12 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
  * Render a {@link Model} to a `YAMLMap` with canonical key ordering, per-field
  * comment attachment, extras merging, and postProcess support. The emitter's
  * successor to the old `Model.toYamlMap` method.
+ *
+ * Module-private: the supported way to observe a model's emitted structure is
+ * {@link toData}. `modelToYamlMap` builds `yaml` backend nodes for file
+ * emission and is an internal of that path.
  */
-export function modelToYamlMap(model: Model): YAMLMap {
+function modelToYamlMap(model: Model): YAMLMap {
   const map = new YAMLMap();
   const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
 
@@ -189,6 +193,133 @@ function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
   }
 
   return [...ordered, ...remaining];
+}
+
+// ---- public observation surface: model → plain data ----
+//
+// `toData` is THE supported way to observe a single model's emitted structure
+// (keys, values, order, aliasing, extras, dynamic keys, and optionally comment
+// placement) without reaching into `yaml` nodes, the `data` bag, or spec
+// identity. It reads the same `spec.order` as `modelToYamlMap`, so the two
+// renderings cannot disagree on structure.
+
+/**
+ * The backend-neutral representation of a value plus its attached comment.
+ *
+ * Produced by {@link toData} with `comments: true`, and only for nodes that
+ * actually carry a comment — the observation-surface peer of the internal
+ * `Commented` wrapper.
+ */
+export interface CommentNode {
+  readonly value: unknown;
+  readonly comment?: string;
+  readonly eolComment?: string;
+}
+
+/** Options for {@link toData}. */
+export interface ToDataOptions {
+  /** Dedent each step's `run` script, as {@link toYaml} does. Defaults to false. */
+  autoDedent?: boolean;
+  /**
+   * Surface commented nodes as {@link CommentNode} so comment placement is
+   * observable as data. Defaults to false (comments unwrapped to their values).
+   */
+  comments?: boolean;
+}
+
+/**
+ * Emit any {@link Model} to a plain POJO / array / scalar tree — the supported
+ * observation surface. Keys are YAML keys in canonical order (from the spec),
+ * extras merged after ordered keys, `Raw` unwrapped to its inner value.
+ *
+ * - `comments: false` (default): `Commented` wrappers are unwrapped to their
+ *   values; the returned tree contains no framework wrapper types, so it is
+ *   safe for `toEqual`.
+ * - `comments: true`: a node that carries a comment is returned as a
+ *   {@link CommentNode}.
+ *
+ * Any model may be passed (step, job, on, …). Unlike {@link toYaml}, this does
+ * not run the `yaml`-backend passes (block-literal promotion, comment spacing)
+ * or `postProcess`; assert those via the YAML string.
+ */
+export function toData(model: Model, options?: ToDataOptions): unknown {
+  const target =
+    (options?.autoDedent ?? false) && (model.kind === "workflow" || model.kind === "action")
+      ? dedentSteps(model as GhagenDocument)
+      : model;
+  return modelToData(target, options?.comments ?? false);
+}
+
+/** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */
+function modelToData(model: Model, comments: boolean): Record<string, unknown> {
+  const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
+  const entries: [string, unknown][] = orderedKeys.map((key) => [key, model.data[key]]);
+  if (model.meta.extras) {
+    entries.push(...Object.entries(model.meta.extras));
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of entries) {
+    if (isCommented(value)) {
+      const inner = valueToData(value.value, comments);
+      result[key] =
+        comments && (value.comment !== undefined || value.eolComment !== undefined)
+          ? commentNode(inner, value.comment, value.eolComment)
+          : inner;
+    } else {
+      result[key] = valueToData(value, comments);
+    }
+  }
+  return result;
+}
+
+/** Convert any Model value to plain data — the peer of `toYamlValue`. */
+function valueToData(value: unknown, comments: boolean): unknown {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  // A Commented not at a mapping-field position: unwrap, drop the comment
+  // (matches toYamlValue).
+  if (isCommented(value)) {
+    return valueToData(value.value, comments);
+  }
+  if (isRaw(value)) {
+    return valueToData(value.value, comments);
+  }
+  if (value instanceof Model) {
+    const data = modelToData(value, comments);
+    // A model's OWN comment is surfaced here (map value or seq item alike);
+    // container placement differs in YAML but not in observed data.
+    return comments && (value.meta.comment !== undefined || value.meta.eolComment !== undefined)
+      ? commentNode(data, value.meta.comment, value.meta.eolComment)
+      : data;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => valueToData(item, comments));
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) {
+        continue;
+      }
+      out[k] = valueToData(v, comments);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Build a {@link CommentNode}, omitting undefined comment fields for clean equality. */
+function commentNode(value: unknown, comment?: string, eolComment?: string): CommentNode {
+  const node: { value: unknown; comment?: string; eolComment?: string } = { value };
+  if (comment !== undefined) {
+    node.comment = comment;
+  }
+  if (eolComment !== undefined) {
+    node.eolComment = eolComment;
+  }
+  return node;
 }
 
 /** Format a YAML comment by prefixing each line with `#`. */

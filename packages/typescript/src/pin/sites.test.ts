@@ -4,9 +4,9 @@ import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
 import { action, compositeRuns, dockerRuns, nodeRuns } from "../models/action.js";
-import { isCommented, withComment } from "../models/_base.js";
-import type { Commented, Document, Model } from "../models/_base.js";
-import { toYaml } from "../emitter/yaml-writer.js";
+import { withComment } from "../models/_base.js";
+import type { Document } from "../models/_base.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
 
 const SHA = "a".repeat(40);
 
@@ -146,12 +146,10 @@ describe("UsesSite.replace()", () => {
     const site = [...iterUsesSites(wf)][0]!;
     site.replace(site.ref.withSha(SHA));
 
-    const jobs = wf.data["jobs"] as Record<string, Model>;
-    const steps = jobs["build"]!.data["steps"] as Model[];
-    const uses = steps[0]!.data["uses"];
-    expect(isCommented(uses)).toBe(true);
-    expect((uses as Commented<string>).value).toBe(`actions/checkout@${SHA}`);
-    expect((uses as Commented<string>).eolComment).toBe("v4");
+    const data = toData(wf, { comments: true }) as Record<string, unknown>;
+    const jobs = data.jobs as Record<string, Record<string, unknown>>;
+    const steps = jobs.build!.steps as Array<Record<string, unknown>>;
+    expect(steps[0]!.uses).toEqual({ value: `actions/checkout@${SHA}`, eolComment: "v4" });
   });
 
   it("preserves an existing block comment through replace", () => {
@@ -166,12 +164,14 @@ describe("UsesSite.replace()", () => {
     const site = [...iterUsesSites(wf)][0]!;
     site.replace(site.ref.withSha(SHA));
 
-    const jobs = wf.data["jobs"] as Record<string, Model>;
-    const steps = jobs["build"]!.data["steps"] as Model[];
-    const uses = steps[0]!.data["uses"] as Commented<string>;
-    expect((uses as unknown as { value: string }).value).toBe(`actions/checkout@${SHA}`);
-    expect(uses.comment).toBe("keep me");
-    expect(uses.eolComment).toBe("v4");
+    const data = toData(wf, { comments: true }) as Record<string, unknown>;
+    const jobs = data.jobs as Record<string, Record<string, unknown>>;
+    const steps = jobs.build!.steps as Array<Record<string, unknown>>;
+    expect(steps[0]!.uses).toEqual({
+      value: `actions/checkout@${SHA}`,
+      comment: "keep me",
+      eolComment: "v4",
+    });
   });
 
   it("round-trips comments into the emitted YAML", () => {

@@ -16,7 +16,6 @@ from ruamel.yaml.scalarstring import LiteralScalarString, PlainScalarString
 from ghagen._commented import with_comment
 from ghagen._raw import Raw
 from ghagen.emitter.nodes import (
-    _model_to_map,
     _to_node,
     to_ordered_commented_map,
     unwrap_raw,
@@ -195,11 +194,3 @@ def test_to_node_list_with_model_item_comments():
     result = dump_yaml(cm)
     assert "# checkout" in result
     assert "- run: echo hi  # say hi" in result
-
-
-def test_to_node_ghagen_model_matches_model_to_map():
-    """A GhagenModel node has the same keys/values as _model_to_map for it."""
-    step = Step(name="build", run="make")
-    node = _node(step)
-    assert isinstance(node, CommentedMap)
-    assert node == _model_to_map(step)
