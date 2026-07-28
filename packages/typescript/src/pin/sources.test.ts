@@ -16,18 +16,18 @@
  *                        `module.register` ESM load hook (ADR-0004 union)
  * plus a `node_modules/ghagen-internal` package that must be excluded.
  *
- * The `appLoader` argument only supplies the returned `App`; it exists to
- * sidestep the cross-realm `instanceof App` artifact under Vitest (jiti
- * loads `App` in its own module graph — see cli/main.test.ts). File
- * tracking still runs through the real, unmocked jiti.cache diff plus the
- * real, unmocked `module.register` hook.
+ * The canary exercises `trackFiles`, the ADR-0004 tracking primitive, rather
+ * than `trackUserFiles`: it asserts only the tracked `files` set and does not
+ * need a resolved `App`, so it sidesteps the cross-realm `instanceof App`
+ * artifact under Vitest (jiti loads `App` in its own module graph — see
+ * cli/main.test.ts). File tracking runs through the real, unmocked jiti.cache
+ * diff plus the real, unmocked `module.register` hook.
  */
 
 import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { App } from "../app.js";
-import { trackUserFiles } from "./sources.js";
+import { trackFiles } from "./sources.js";
 
 // Resolve the fixture from this file's location (src/pin/), never from cwd.
 const HERE = fileURLToPath(new URL(".", import.meta.url));
@@ -37,7 +37,7 @@ const fixtureFile = (name: string) => resolve(FIXTURE_DIR, name);
 
 describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
   it("tracks the config plus its transpiled, native-required, and native-ESM helpers", async () => {
-    const { files } = await trackUserFiles(configPath, async () => new App());
+    const { files } = await trackFiles(configPath);
 
     expect(files.has(configPath)).toBe(true);
     expect(files.has(fixtureFile("ts-helper.ts"))).toBe(true);
@@ -70,7 +70,7 @@ describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
     // `module.register` load hook observes exactly those ESM loads, so the
     // union tracks it. Asserting its presence makes the canary fire if a
     // future jiti or Node release breaks the hook in either direction.
-    const { files } = await trackUserFiles(configPath, async () => new App());
+    const { files } = await trackFiles(configPath);
     expect(files.has(fixtureFile("esm-helper.mjs"))).toBe(true);
   });
 });
