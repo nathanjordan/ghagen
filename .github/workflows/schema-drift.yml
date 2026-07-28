@@ -34,12 +34,9 @@ jobs:
       run: uv run python -m ghagen_schema generate
       env:
         PYTHONPATH: scripts
-    - name: Verify regenerated types
-      run: uv run python -m ghagen_schema check
-      env:
-        PYTHONPATH: scripts
     - name: Open PR on drift (else issue fallback)
       run: |-
+        set -euo pipefail
         if git diff --quiet; then
           echo "No schema drift."
           exit 0
@@ -56,9 +53,9 @@ jobs:
         git checkout -b "$BRANCH"
         git add schema/ packages/typescript/src/schema/
         git commit -m "chore(schema): sync upstream drift + regenerate types"
-        if ! git push -u origin "$BRANCH" || ! gh pr create \
+        if ! git push --force-with-lease -u origin "$BRANCH" || ! gh pr create \
              --title "Schema drift: refreshed Snapshot + types" \
-             --body "Automated upstream schema refresh (Snapshot + regenerated types). The offline staleness check passed in this run; review the Snapshot diff and regenerated types before merging." \
+             --body "Automated upstream schema refresh (Snapshot + regenerated types). CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \
              --label schema-drift; then
           echo "::warning::PR creation failed; opening a fallback issue."
           gh issue create \

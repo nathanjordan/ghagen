@@ -4,3 +4,4 @@
  * @packageDocumentation
  */
 export { App } from "./app.js";
+export { render, applyTransforms, type Rendered } from "./synth.js";

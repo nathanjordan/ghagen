@@ -7,12 +7,25 @@ Raw unwrapping, comments, error mode) directly, per proposal 02.
 
 from __future__ import annotations
 
-import re
+import io
 
 import pytest
+from ruamel.yaml import YAML
 
-from ghagen import Job, Raw, Step, Workflow, with_comment, with_eol_comment
-from ghagen.emitter import CommentNode, emit, to_data
+from ghagen import (
+    Job,
+    Matrix,
+    On,
+    PushTrigger,
+    Raw,
+    Step,
+    Strategy,
+    Workflow,
+    with_comment,
+    with_eol_comment,
+)
+from ghagen.emitter import CommentNode, to_data
+from ghagen.models.job import Defaults, DefaultsRun
 
 
 def test_returns_plain_dict():
@@ -107,21 +120,42 @@ def test_non_model_raises_type_error():
         to_data("just a string")  # type: ignore[arg-type]
 
 
-def test_key_order_matches_emitted_yaml():
-    # Cross-check: to_data's key order equals the emitted YAML's key order for a
-    # representative Document (proposal 02 mitigation for the observation surface
-    # and file emitter agreeing on structure).
+def test_bare_step_run_dedented_with_auto_dedent():
+    # Parity with the ruamel recursion: a bare Step's run dedents wherever it is
+    # encountered, not only inside a Document.
+    data = to_data(Step(run="  echo one\n  echo two"), auto_dedent=True)
+    assert data["run"] == "echo one\necho two"
+
+
+def test_deep_structure_matches_emitted_yaml():
+    # Deep structural cross-check (proposal 02): the parsed emitted YAML tree
+    # must equal to_data's output for a RICH document, so the two duplicated
+    # recursions cannot diverge on exclude/unwrap/present-null/dedent — not just
+    # top-level ordering. Comments are dropped by the YAML parse, so to_data runs
+    # with comments off; auto_dedent matches the ``to_yaml`` default-on.
     wf = Workflow(
         name="CI",
-        on={"push": {}},
+        on=On(
+            push=PushTrigger(branches=["main"]),
+            workflow_dispatch={},  # present-null empty map
+            extras={"merge_group": {}},  # extra on the alphabetical On spec
+        ),
         jobs={
             "build": Job(
                 runs_on="ubuntu-latest",
-                steps=[Step(name="Checkout", uses="actions/checkout@v4")],
+                defaults=Defaults(
+                    run=DefaultsRun(shell=with_comment("bash", "login shell"))
+                ),
+                strategy=Strategy(
+                    matrix=Matrix(extras={"python-version": ["3.11", "3.12"]})
+                ),
+                steps=[
+                    Step(uses=with_eol_comment("actions/checkout@v4", "pinned")),
+                    Step(name="run", shell=Raw("bash"), run="  echo hi\n  echo bye"),
+                ],
             )
         },
     )
-    data = to_data(wf)
-    yaml = emit(wf, auto_dedent=False)
-    yaml_top_keys = [m.group(1) for m in re.finditer(r"(?m)^([A-Za-z0-9_-]+):", yaml)]
-    assert list(data) == yaml_top_keys
+    yaml = YAML(typ="safe")
+    parsed = yaml.load(io.StringIO(wf.to_yaml(header=None)))
+    assert to_data(wf, auto_dedent=True) == parsed

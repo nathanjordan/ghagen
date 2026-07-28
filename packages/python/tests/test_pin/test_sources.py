@@ -4,8 +4,62 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+from ghagen.config import resolve_app
 from ghagen.pin.sources import locate_uses_refs, track_user_files
+
+
+class TestResolveApp:
+    """Direct tests for the shared module -> App policy (mirrors TS resolveApp)."""
+
+    def test_resolves_module_app(self):
+        from ghagen.app import App
+
+        app = App(lockfile=None)
+        resolved, error = resolve_app(SimpleNamespace(app=app), Path("cfg.py"))
+        assert error is None
+        assert resolved is app
+
+    def test_resolves_create_app_factory(self):
+        from ghagen.app import App
+
+        app = App(lockfile=None)
+        resolved, error = resolve_app(
+            SimpleNamespace(create_app=lambda: app), Path("cfg.py")
+        )
+        assert error is None
+        assert resolved is app
+
+    def test_prefers_create_app_over_app(self):
+        from ghagen.app import App
+
+        created = App(lockfile=None)
+        exported = App(lockfile=None)
+        resolved, _ = resolve_app(
+            SimpleNamespace(create_app=lambda: created, app=exported), Path("cfg.py")
+        )
+        assert resolved is created
+
+    def test_non_app_app_is_error(self):
+        resolved, error = resolve_app(SimpleNamespace(app=object()), Path("cfg.py"))
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
+
+    def test_create_app_returning_non_app_is_error(self):
+        resolved, error = resolve_app(
+            SimpleNamespace(create_app=lambda: object()), Path("cfg.py")
+        )
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
+
+    def test_neither_app_nor_create_app_is_error(self):
+        resolved, error = resolve_app(SimpleNamespace(unrelated=True), Path("cfg.py"))
+        assert resolved is None
+        assert error is not None
+        assert error.kind == "app-resolution"
 
 
 class TestTrackUserFiles:
@@ -44,6 +98,32 @@ class TestTrackUserFiles:
 
         assert isinstance(app, App)
         assert config.resolve() in user_files
+
+    def test_lazy_create_app_import_is_tracked(self, tmp_path: Path):
+        """A helper imported lazily inside ``create_app()`` is tracked.
+
+        Regression guard (ADR-0004): the module is only added to ``sys.modules``
+        when the factory runs, so App resolution must happen inside the
+        ``sys.modules`` snapshot window — otherwise the helper's ``uses:`` refs
+        would be silently left un-rewritten.
+        """
+        helper = tmp_path / "lazy_helper.py"
+        helper.write_text('CHECKOUT = "actions/checkout@v4"\n')
+
+        config = tmp_path / "lazy_cfg.py"
+        config.write_text(
+            "from ghagen.app import App\n"
+            "def create_app():\n"
+            "    import lazy_helper  # imported only when the factory runs\n"
+            "    _ = lazy_helper.CHECKOUT\n"
+            "    return App(lockfile=None)\n"
+        )
+
+        try:
+            _app, user_files = track_user_files(config)
+            assert helper.resolve() in user_files
+        finally:
+            sys.modules.pop("lazy_helper", None)
 
     def test_excludes_ghagen_internals(self, tmp_path: Path):
         """Modules from the ghagen package itself should not appear."""

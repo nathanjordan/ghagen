@@ -3,5 +3,6 @@
  * YAML serialization and raw value escape hatch.
  * @packageDocumentation
  */
-export { toYaml, toYamlFile } from "./emitter/yaml-writer.js";
+export { toYaml, toYamlFile, toData } from "./emitter/yaml-writer.js";
+export type { ToDataOptions, CommentNode } from "./emitter/yaml-writer.js";
 export { raw } from "./models/_base.js";

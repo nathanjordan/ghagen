@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from ghagen_schema import sync
 from ghagen_schema.manifest import ManifestEntry, load_manifest
 from ghagen_schema.sync import fetch_schema, save_all_schemas, save_schema
 
@@ -42,8 +41,7 @@ def _mock_error_response() -> MagicMock:
 
 def test_fetch_schema_returns_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     result = fetch_schema(_WORKFLOW)
@@ -53,8 +51,7 @@ def test_fetch_schema_returns_dict(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_fetch_schema_raises_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_error_response(),
     )
     with pytest.raises(Exception, match="HTTP 500"):
@@ -65,8 +62,7 @@ def test_save_schema_writes_valid_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     dest = save_schema(_WORKFLOW, tmp_path)
@@ -81,8 +77,7 @@ def test_save_schema_creates_parent_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     nested = tmp_path / "nested" / "dir"
@@ -96,8 +91,7 @@ def test_save_schema_deterministic_output(
 ) -> None:
     schema = {"z_key": 1, "a_key": 2, "m_key": 3}
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(schema),
     )
 
@@ -114,8 +108,7 @@ def test_save_schema_trailing_newline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
     dest = save_schema(_WORKFLOW, tmp_path)
@@ -144,7 +137,7 @@ def test_fetch_action_schema_uses_action_url(
         captured_urls.append(url)
         return _mock_response(SAMPLE_SCHEMA)
 
-    monkeypatch.setattr(sync.httpx, "get", capture)
+    monkeypatch.setattr("httpx.get", capture)
     fetch_schema(_ACTION)
     assert len(captured_urls) == 1
     assert captured_urls[0] == _ACTION.url
@@ -155,8 +148,7 @@ def test_save_all_schemas_writes_both(
 ) -> None:
     """``save_all_schemas`` writes one file per registered schema."""
     monkeypatch.setattr(
-        sync.httpx,
-        "get",
+        "httpx.get",
         lambda *a, **kw: _mock_response(SAMPLE_SCHEMA),
     )
 
