@@ -1,0 +1,44 @@
+# Shared conformance-sweep scope table for the hand-written ghagen models.
+#
+# Lifts the scope table -- <snapshot> -> <scope name> -> schema path(s) -- out
+# of both ports' conformance sweeps into one place. Each sweep reads the scope
+# set and the schema paths from here and binds its own port's model/spec onto
+# each scope (a Python type or a TS ModelSpec cannot be serialized, so that
+# binding stays per-port). Both sweeps also assert their scope-key set equals
+# the key set below, so a scope added to one port and not the other -- or a
+# schema path typed differently -- fails a test instead of drifting silently.
+#
+# A path is a list of keys to walk into the loaded schema before reading
+# `properties` (an empty list means the schema root). A scope may name several
+# paths whose unioned property set the mapped model must cover.
+#
+# Read by:
+#   - Python (packages/python/tests/test_schema/test_conformance.py)
+#   - TypeScript (packages/typescript/src/models/conformance.test.ts)
+
+workflow_schema.json:
+  workflow:
+    - []
+  # ghagen's single Job model covers both the regular-job and the
+  # reusable-workflow-call-job shapes.
+  job:
+    - [definitions, normalJob]
+    - [definitions, reusableWorkflowCallJob]
+  step:
+    - [definitions, step]
+
+action_schema.json:
+  action:
+    - []
+  compositeRuns:
+    - [definitions, runs-composite]
+  dockerRuns:
+    - [definitions, runs-docker]
+  nodeRuns:
+    - [definitions, runs-javascript]
+  actionInput:
+    - [properties, inputs]
+  actionOutput:
+    - [definitions, outputs-composite]
+  branding:
+    - [properties, branding]

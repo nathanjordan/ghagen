@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
 from typer.testing import CliRunner
 
 from ghagen.cli.deps import (
@@ -19,18 +20,7 @@ from ghagen.pin.engine import LockfileStaleEntry, VersionBump
 
 runner = CliRunner()
 
-
-def _repo_root() -> Path:
-    """Walk up to find the repo root (directory containing the shared fixtures)."""
-    d = Path(__file__).resolve().parent
-    while d != d.parent:
-        if (d / "fixtures" / "expected").is_dir():
-            return d
-        d = d.parent
-    raise RuntimeError("Cannot find repo root (directory containing fixtures/expected)")
-
-
-FIXTURES_DIR = _repo_root() / "fixtures" / "expected"
+FIXTURES_DIR = _FIXTURES_ROOT / "expected"
 
 
 _CONFIG = """\

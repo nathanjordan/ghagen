@@ -12,12 +12,10 @@ import { compileFromFile } from "json-schema-to-typescript";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { REPO_ROOT, SCHEMA_DIR } from "../src/paths.js";
 
-const ROOT = resolve(import.meta.dirname, "..");
-const REPO_ROOT = resolve(ROOT, "../..");
-// Canonical schema snapshot (single source of truth) lives at the repo root.
-const SCHEMA_DIR = resolve(REPO_ROOT, "schema");
-const OUTPUT_DIR = resolve(ROOT, "src/schema");
+const TS_PACKAGE_DIR = resolve(REPO_ROOT, "packages/typescript");
+const OUTPUT_DIR = resolve(TS_PACKAGE_DIR, "src/schema");
 
 const BANNER = `/* eslint-disable */
 // @ts-nocheck — generated types may contain circular references from the JSON schema
@@ -42,10 +40,30 @@ interface SchemaManifestEntry {
   filename: string;
 }
 
+const SCHEMA_SUFFIX = "_schema.json";
+const GENERATED_SUFFIX = "-types.generated.ts";
+
+/**
+ * Derive the generated-types filename from a Snapshot filename, mirroring the
+ * validated rule that `scripts/ghagen_schema/manifest.py` owns. Unlike the old
+ * silent `String.replace` regex, this throws loudly if the manifest filename
+ * does not follow the `<name>_schema.json` convention, so a bad entry cannot
+ * make the codegen overwrite its own source.
+ */
+function deriveGeneratedFilename(snapshotFilename: string): string {
+  if (!snapshotFilename.endsWith(SCHEMA_SUFFIX)) {
+    throw new Error(
+      `manifest filename "${snapshotFilename}" must end in "${SCHEMA_SUFFIX}" ` +
+        "so the generated-types name can be derived; fix schema/manifest.json.",
+    );
+  }
+  const stem = snapshotFilename.slice(0, -SCHEMA_SUFFIX.length);
+  return stem + GENERATED_SUFFIX;
+}
+
 // Shared schema registry (name -> upstream URL -> snapshot filename), also read
-// by packages/python/scripts/schema_sync.py. Adding a schema is a single edit
-// there. The generated-types filename is derived from the snapshot filename:
-// `<name>_schema.json` -> `<name>-types.generated.ts`.
+// by the Python orchestrator (scripts/ghagen_schema/). Adding a schema is a
+// single edit there.
 const MANIFEST_PATH = resolve(SCHEMA_DIR, "manifest.json");
 const manifest: Record<string, SchemaManifestEntry> = JSON.parse(
   readFileSync(MANIFEST_PATH, "utf8"),
@@ -53,7 +71,7 @@ const manifest: Record<string, SchemaManifestEntry> = JSON.parse(
 
 const TARGETS: SchemaTarget[] = Object.values(manifest).map((entry) => ({
   schemaFile: entry.filename,
-  outputFile: entry.filename.replace(/_schema\.json$/, "-types.generated.ts"),
+  outputFile: deriveGeneratedFilename(entry.filename),
 }));
 
 async function main() {
@@ -83,7 +101,7 @@ async function main() {
   // json-schema-to-typescript formats with its bundled prettier, which
   // disagrees with the repo's oxfmt style — reformat so regeneration is
   // stable under `fmt.sh` and CI's format check.
-  execFileSync("npx", ["oxfmt", ...outputPaths], { cwd: ROOT, stdio: "inherit" });
+  execFileSync("npx", ["oxfmt", ...outputPaths], { cwd: TS_PACKAGE_DIR, stdio: "inherit" });
 
   console.log("Done.");
 }

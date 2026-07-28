@@ -3,28 +3,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import jsonschema
 import pytest
+from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
 
-
-def _repo_root() -> Path:
-    """Walk up to find the repo root (directory containing the schema/ snapshot)."""
-    d = Path(__file__).resolve().parent
-    while d != d.parent:
-        if (d / "schema").is_dir():
-            return d
-        d = d.parent
-    raise RuntimeError("Cannot find repo root (directory containing schema/)")
-
-
-REPO_ROOT = _repo_root()
-FIXTURES_DIR = REPO_ROOT / "fixtures"
-# Canonical schema snapshot (single source of truth) lives at the repo root.
-SCHEMA_DIR = REPO_ROOT / "schema"
 WORKFLOW_SCHEMA_PATH = SCHEMA_DIR / "workflow_schema.json"
 ACTION_SCHEMA_PATH = SCHEMA_DIR / "action_schema.json"
 
