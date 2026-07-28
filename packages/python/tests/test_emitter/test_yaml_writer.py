@@ -23,7 +23,6 @@ from ghagen.emitter.nodes import (
 )
 from ghagen.emitter.yaml_writer import (
     _apply_block_scalar_style,
-    _yaml_key,
     dump_yaml,
 )
 from ghagen.models.step import Step
@@ -204,42 +203,3 @@ def test_to_node_ghagen_model_matches_model_to_map():
     node = _node(step)
     assert isinstance(node, CommentedMap)
     assert node == _model_to_map(step)
-
-
-# --- _yaml_key alias resolver tests (spec/alias agreement helper) ---
-
-
-def test_yaml_key_plain_field_name():
-    """A field with no alias resolves to its own name."""
-    assert _yaml_key("name", Step.model_fields["name"]) == "name"
-
-
-def test_yaml_key_serialization_alias():
-    """serialization_alias wins for output keys."""
-    assert _yaml_key("if_", Step.model_fields["if_"]) == "if"
-    assert (
-        _yaml_key("working_directory", Step.model_fields["working_directory"])
-        == "working-directory"
-    )
-
-
-def test_yaml_key_validation_alias_string(monkeypatch):
-    """A string validation_alias (no serialization_alias) is used."""
-    from pydantic.fields import FieldInfo
-
-    fi = FieldInfo()
-    monkeypatch.setattr(fi, "alias", None, raising=False)
-    monkeypatch.setattr(fi, "validation_alias", "valias", raising=False)
-    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
-    assert _yaml_key("field", fi) == "valias"
-
-
-def test_yaml_key_alias_fallback(monkeypatch):
-    """alias is used when no serialization_alias or string validation_alias."""
-    from pydantic.fields import FieldInfo
-
-    fi = FieldInfo()
-    monkeypatch.setattr(fi, "alias", "the_alias", raising=False)
-    monkeypatch.setattr(fi, "validation_alias", None, raising=False)
-    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
-    assert _yaml_key("field", fi) == "the_alias"

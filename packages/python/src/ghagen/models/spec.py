@@ -18,9 +18,10 @@ class ModelSpec:
     """Serialization spec for one model type.
 
     Attributes:
-        yaml_keys: Maps each content field name to its emitted YAML key. Values
-            agree with the field's Pydantic ``serialization_alias`` (a plain
-            field with no alias maps to itself), so emitted YAML is unchanged.
+        yaml_keys: Maps each content field name to its emitted YAML key. This is
+            the single authority for the field -> emitted-key fact; models carry
+            no Pydantic ``serialization_alias`` (a field whose key equals its
+            name maps to itself).
         order: Emitted YAML key names in canonical emission order. Keys absent
             from ``order`` are appended alphabetically. An empty ``order`` emits
             every key alphabetically (used by :class:`~ghagen.models.trigger.On`,

@@ -116,7 +116,6 @@ class ActionInput(GhagenModel):
     default: str | None = None
     deprecation_message: str | None = Field(
         None,
-        serialization_alias="deprecationMessage",
         description="Warning message shown when a deprecated input is used.",
     )
 
@@ -177,11 +176,11 @@ class DockerRuns(GhagenModel):
     image: str
     env: dict[str, str] | None = None
     args: list[str] | None = None
-    pre_entrypoint: str | None = Field(None, serialization_alias="pre-entrypoint")
-    pre_if: str | None = Field(None, serialization_alias="pre-if")
+    pre_entrypoint: str | None = None
+    pre_if: str | None = None
     entrypoint: str | None = None
-    post_entrypoint: str | None = Field(None, serialization_alias="post-entrypoint")
-    post_if: str | None = Field(None, serialization_alias="post-if")
+    post_entrypoint: str | None = None
+    post_if: str | None = None
 
     def model_post_init(self, _context: Any) -> None:
         self.__pydantic_fields_set__.add("using")
@@ -201,8 +200,8 @@ class NodeRuns(GhagenModel):
     main: str
     pre: str | None = None
     post: str | None = None
-    pre_if: str | None = Field(None, serialization_alias="pre-if")
-    post_if: str | None = Field(None, serialization_alias="post-if")
+    pre_if: str | None = None
+    post_if: str | None = None
 
 
 class Action(Document):

@@ -127,8 +127,8 @@ class Strategy(GhagenModel):
     SPEC: ClassVar[ModelSpec] = STRATEGY_SPEC
 
     matrix: OrRaw[Matrix] | None = None
-    fail_fast: bool | None = Field(None, serialization_alias="fail-fast")
-    max_parallel: int | None = Field(None, serialization_alias="max-parallel")
+    fail_fast: bool | None = None
+    max_parallel: int | None = None
 
 
 class Environment(GhagenModel):
@@ -146,9 +146,7 @@ class Concurrency(GhagenModel):
     SPEC: ClassVar[ModelSpec] = CONCURRENCY_SPEC
 
     group: str
-    cancel_in_progress: bool | None = Field(
-        None, serialization_alias="cancel-in-progress"
-    )
+    cancel_in_progress: bool | None = None
 
 
 class Defaults(GhagenModel):
@@ -165,7 +163,7 @@ class DefaultsRun(GhagenModel):
     SPEC: ClassVar[ModelSpec] = DEFAULTS_RUN_SPEC
 
     shell: str | Raw[str] | None = None
-    working_directory: str | None = Field(None, serialization_alias="working-directory")
+    working_directory: str | None = None
 
 
 class JobOutput(GhagenModel):
@@ -189,13 +187,11 @@ class Job(GhagenModel):
     name: str | None = None
     runs_on: str | list[str] | Raw[str] | Raw[list[str]] | None = Field(
         None,
-        serialization_alias="runs-on",
         description="Runner label(s) for this job.",
     )
     needs: str | list[str] | None = None
     if_: str | None = Field(
         None,
-        serialization_alias="if",
         description="Conditional expression that must evaluate "
         "to true for this job to run.",
     )
@@ -208,12 +204,10 @@ class Job(GhagenModel):
     outputs: dict[str, OrRaw[str | JobOutput]] | None = None
     timeout_minutes: int | None = Field(
         None,
-        serialization_alias="timeout-minutes",
         description="Maximum minutes the job can run before being cancelled.",
     )
     continue_on_error: bool | str | None = Field(
         None,
-        serialization_alias="continue-on-error",
         description="Allow the workflow to continue when this job fails.",
     )
     concurrency: OrRaw[str | Concurrency] | None = None
@@ -228,5 +222,5 @@ class Job(GhagenModel):
 
     # Reusable workflow job fields
     uses: str | None = None
-    with_: OrRaw[dict[str, Any]] | None = Field(None, serialization_alias="with")
+    with_: OrRaw[dict[str, Any]] | None = None
     secrets: OrRaw[dict[str, str] | str] | None = None

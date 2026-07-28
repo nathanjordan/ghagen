@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import ClassVar
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
 
 from ghagen.models._base import GhagenModel
 from ghagen.models.spec import ModelSpec
@@ -32,7 +32,7 @@ class ImageSnapshot(GhagenModel):
 
     SPEC: ClassVar[ModelSpec] = IMAGE_SNAPSHOT_SPEC
 
-    image_name: str = Field(serialization_alias="image-name")
+    image_name: str
     version: str | None = None
 
     @field_validator("version")

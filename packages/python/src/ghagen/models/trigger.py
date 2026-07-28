@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel, OrRaw
@@ -123,13 +123,11 @@ class PushTrigger(GhagenModel):
     SPEC: ClassVar[ModelSpec] = PUSH_TRIGGER_SPEC
 
     branches: list[str] | None = None
-    branches_ignore: list[str] | None = Field(
-        None, serialization_alias="branches-ignore"
-    )
+    branches_ignore: list[str] | None = None
     tags: list[str] | None = None
-    tags_ignore: list[str] | None = Field(None, serialization_alias="tags-ignore")
+    tags_ignore: list[str] | None = None
     paths: list[str] | None = None
-    paths_ignore: list[str] | None = Field(None, serialization_alias="paths-ignore")
+    paths_ignore: list[str] | None = None
 
 
 class PRTrigger(GhagenModel):
@@ -138,11 +136,9 @@ class PRTrigger(GhagenModel):
     SPEC: ClassVar[ModelSpec] = PR_TRIGGER_SPEC
 
     branches: list[str] | None = None
-    branches_ignore: list[str] | None = Field(
-        None, serialization_alias="branches-ignore"
-    )
+    branches_ignore: list[str] | None = None
     paths: list[str] | None = None
-    paths_ignore: list[str] | None = Field(None, serialization_alias="paths-ignore")
+    paths_ignore: list[str] | None = None
     types: list[str] | None = None
 
 
@@ -223,12 +219,8 @@ class On(GhagenModel):
     SPEC: ClassVar[ModelSpec] = ON_SPEC
 
     push: OrRaw[PushTrigger] | None = None
-    pull_request: OrRaw[PRTrigger] | None = Field(
-        None, serialization_alias="pull_request"
-    )
-    pull_request_target: OrRaw[PRTrigger] | None = Field(
-        None, serialization_alias="pull_request_target"
-    )
+    pull_request: OrRaw[PRTrigger] | None = None
+    pull_request_target: OrRaw[PRTrigger] | None = None
     workflow_dispatch: OrRaw[WorkflowDispatchTrigger | bool] | None = None
     workflow_call: OrRaw[WorkflowCallTrigger] | None = None
     workflow_run: OrRaw[dict[str, Any]] | None = None

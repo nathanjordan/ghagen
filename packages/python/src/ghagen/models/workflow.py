@@ -62,7 +62,6 @@ class Workflow(Document):
     name: str | None = None
     run_name: str | None = Field(
         None,
-        serialization_alias="run-name",
         description="Custom name for workflow runs, supports expressions.",
     )
     on: OrRaw[On | dict[str, Any]] | None = None

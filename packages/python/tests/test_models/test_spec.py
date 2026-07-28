@@ -14,7 +14,6 @@ import ghagen.models.job  # noqa: F401
 import ghagen.models.trigger  # noqa: F401
 import ghagen.models.workflow  # noqa: F401
 from ghagen.emitter.nodes import _META_FIELDS
-from ghagen.emitter.yaml_writer import _yaml_key
 from ghagen.models._base import Document, GhagenModel
 from ghagen.models.trigger import On
 
@@ -47,21 +46,6 @@ def test_spec_covers_exactly_the_content_fields() -> None:
         assert set(model.SPEC.yaml_keys) == _content_fields(model), (
             f"{model.__name__}: spec.yaml_keys keys must be exactly the content fields"
         )
-
-
-def test_yaml_keys_agree_with_pydantic_aliases() -> None:
-    """The spec's emitted key for a field must match Pydantic's alias.
-
-    This is the guarantee that byte output is unchanged: serialization now
-    reads ``spec.yaml_keys`` instead of the alias resolver, so they must agree.
-    """
-    for model in _all_model_classes():
-        for name in _content_fields(model):
-            expected = _yaml_key(name, model.model_fields[name])
-            assert model.SPEC.yaml_keys[name] == expected, (
-                f"{model.__name__}.{name}: spec key "
-                f"{model.SPEC.yaml_keys[name]!r} != alias key {expected!r}"
-            )
 
 
 def test_order_has_no_duplicates() -> None:
