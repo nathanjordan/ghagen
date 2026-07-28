@@ -45,6 +45,32 @@ class TestTrackUserFiles:
         assert isinstance(app, App)
         assert config.resolve() in user_files
 
+    def test_lazy_create_app_import_is_tracked(self, tmp_path: Path):
+        """A helper imported lazily inside ``create_app()`` is tracked.
+
+        Regression guard (ADR-0004): the module is only added to ``sys.modules``
+        when the factory runs, so App resolution must happen inside the
+        ``sys.modules`` snapshot window — otherwise the helper's ``uses:`` refs
+        would be silently left un-rewritten.
+        """
+        helper = tmp_path / "lazy_helper.py"
+        helper.write_text('CHECKOUT = "actions/checkout@v4"\n')
+
+        config = tmp_path / "lazy_cfg.py"
+        config.write_text(
+            "from ghagen.app import App\n"
+            "def create_app():\n"
+            "    import lazy_helper  # imported only when the factory runs\n"
+            "    _ = lazy_helper.CHECKOUT\n"
+            "    return App(lockfile=None)\n"
+        )
+
+        try:
+            _app, user_files = track_user_files(config)
+            assert helper.resolve() in user_files
+        finally:
+            sys.modules.pop("lazy_helper", None)
+
     def test_excludes_ghagen_internals(self, tmp_path: Path):
         """Modules from the ghagen package itself should not appear."""
         config = tmp_path / "my_config.py"

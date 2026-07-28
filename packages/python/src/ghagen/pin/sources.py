@@ -55,9 +55,19 @@ def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
 
     module = importlib.util.module_from_spec(spec)
 
+    # Resolve the App INSIDE the snapshot window: a module imported lazily
+    # inside ``create_app()`` (rather than at config import time) is only added
+    # to ``sys.modules`` when ``resolve_app`` invokes the factory. Snapshotting
+    # ``after`` before that call would miss such helpers, silently leaving their
+    # ``uses:`` refs un-rewritten (ADR-0004's defended failure mode).
     before = set(sys.modules.keys())
     spec.loader.exec_module(module)
+    app, error = resolve_app(module, config_path)
     after = set(sys.modules.keys())
+
+    if error is not None:
+        raise RuntimeError(error.message)
+    assert app is not None
 
     new_modules = after - before
 
@@ -79,10 +89,6 @@ def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
     if is_user_file(resolved_config):
         user_files.add(resolved_config)
 
-    app, error = resolve_app(module, config_path)
-    if error is not None:
-        raise RuntimeError(error.message)
-    assert app is not None
     return app, user_files
 
 
