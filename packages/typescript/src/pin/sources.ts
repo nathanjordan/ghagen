@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { MessageChannel } from "node:worker_threads";
 import { createJiti } from "jiti";
 import type { App } from "../app.js";
-import { resolveAppFromModule } from "../_load.js";
+import { resolveApp } from "../config.js";
 import { isUserFile } from "../_package_paths.js";
 
 /**
@@ -106,7 +106,7 @@ function ensureEsmHook(): Promise<void> {
  *
  * Returns absolute file paths, filtering out `node_modules` and files inside
  * the ghagen package itself. The App is resolved via the shared
- * {@link resolveAppFromModule} policy; pass `appLoader` to override how the
+ * {@link resolveApp} policy; pass `appLoader` to override how the
  * App is obtained (the jiti import — and therefore file tracking — always
  * runs regardless, so a custom loader does not disable the cache diff).
  */
@@ -156,7 +156,16 @@ export async function trackUserFiles(
     files.add(configPath);
   }
 
-  const app = appLoader ? await appLoader(configPath) : await resolveAppFromModule(mod, configPath);
+  let app: App;
+  if (appLoader) {
+    app = await appLoader(configPath);
+  } else {
+    const resolution = await resolveApp(mod, configPath);
+    if (resolution.error) {
+      throw new Error(resolution.error.message);
+    }
+    app = resolution.app;
+  }
   return { app, files };
 }
 

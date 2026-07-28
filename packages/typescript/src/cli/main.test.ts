@@ -11,10 +11,10 @@
  * built from this file's own module graph) rather than dynamically
  * importing a written-to-disk fixture module: `jiti` loads modules
  * through its own transform/loader, which is a *different* module
- * instance of `App` than the one `resolveAppFromModule`'s `instanceof App`
+ * instance of `App` than the one `resolveApp`'s `instanceof App`
  * check compares against under Vitest's module graph, so a genuine
  * dynamic import would spuriously fail the `instanceof` check. This
- * still exercises the real, unmocked `findConfig`/`entrypointFromGhagenYml`
+ * still exercises the real, unmocked `findConfig`/`loadProjectConfig`
  * ancestor-walk logic end to end through `main()` -- only the module
  * loading step is stubbed.
  */

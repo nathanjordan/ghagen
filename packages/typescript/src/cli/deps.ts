@@ -17,7 +17,8 @@ import {
   type VersionBump,
   type LockfileStaleEntry,
 } from "../pin/index.js";
-import { CliError, findConfig, loadApp } from "./_common.js";
+import { findConfig, loadApp } from "./_common.js";
+import { CliError } from "./_errors.js";
 
 function resolveToken(flag?: string): string | undefined {
   return flag ?? process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"];
