@@ -22,12 +22,12 @@ from ghagen.pin.github import ResolveError
 from ghagen.pin.lockfile import PinEntry, read_lockfile, write_lockfile
 from ghagen.pin.sources import locate_uses_refs
 from ghagen.pin.update import apply_updates
-from ghagen.pin.uses import UsesRef
 from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
 
 if TYPE_CHECKING:
     from ghagen.app import App
     from ghagen.pin.github import GitHubClient
+    from ghagen.pin.uses import UsesRef
 
 Severity = Literal["major", "minor", "patch"]
 
@@ -92,26 +92,21 @@ def pin(
     refs = collect_uses_refs(app)
     lockfile = read_lockfile(lockfile_full)
 
-    to_resolve = refs if update else refs - set(lockfile.keys())
+    have = set(lockfile.keys())
+    to_resolve = refs if update else [r for r in refs if r.uses not in have]
 
     now = datetime.now(UTC)
-    for uses in sorted(to_resolve):
-        parsed = UsesRef.parse(uses)
-        if parsed is None:
-            report.warnings.append(
-                f"skipping {uses!r}: not a pinnable action reference"
-            )
-            continue
+    for ref in to_resolve:
         try:
-            sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
+            sha = client.resolve_ref(ref.owner, ref.repo, ref.ref)
         except ResolveError as exc:
-            report.errors.append(f"{uses}: {exc}")
+            report.errors.append(f"{ref.uses}: {exc}")
             continue
-        lockfile.set(uses, PinEntry(sha=sha, resolved_at=now))
-        report.resolved.append(ResolvedPin(uses=uses, sha=sha))
+        lockfile.set(ref.uses, PinEntry(sha=sha, resolved_at=now))
+        report.resolved.append(ResolvedPin(uses=ref.uses, sha=sha))
 
     if prune:
-        report.pruned = lockfile.prune(refs)
+        report.pruned = lockfile.prune({r.uses for r in refs})
 
     if report.resolved or report.pruned:
         write_lockfile(lockfile, lockfile_full)
@@ -151,7 +146,7 @@ def check_sync(app: App, *, prune: bool) -> SyncReport:
         raise ValueError("check_sync(): app has no lockfile (lockfile=None)")
     lockfile_full = app.root / lockfile_path
 
-    refs = collect_uses_refs(app)
+    refs = {r.uses for r in collect_uses_refs(app)}
     lockfile = read_lockfile(lockfile_full)
     keys = set(lockfile.keys())
 
@@ -215,25 +210,21 @@ def upgrade(
     if not refs:
         return report
 
-    ref_locations = locate_uses_refs(refs, user_files)
+    ref_locations = locate_uses_refs({r.uses for r in refs}, user_files)
 
     check_versions = mode in ("versions", "all")
     check_lockfile = mode in ("lockfile", "all")
 
     if check_versions:
-        # Group refs by owner/repo for efficient API calls.
-        repo_refs: dict[tuple[str, str], list[tuple[str, str]]] = {}
-        for uses in sorted(refs):
-            parsed = UsesRef.parse(uses)
-            if parsed is None:
-                continue
-            repo_refs.setdefault((parsed.owner, parsed.repo), []).append(
-                (uses, parsed.ref)
-            )
+        # Group refs by owner/repo for efficient API calls — parsing is free,
+        # so grouping is a cheap local step over the already-parsed refs.
+        repo_refs: dict[tuple[str, str], list[UsesRef]] = {}
+        for ref in refs:
+            repo_refs.setdefault((ref.owner, ref.repo), []).append(ref)
 
         # Per-repo tag cache stays engine-local.
         repo_tags_cache: dict[tuple[str, str], list[str]] = {}
-        for (owner, repo), uses_list in sorted(repo_refs.items()):
+        for (owner, repo), repo_ref_list in sorted(repo_refs.items()):
             if (owner, repo) not in repo_tags_cache:
                 try:
                     tags = client.list_tags(owner, repo)
@@ -246,12 +237,12 @@ def upgrade(
 
             tags = repo_tags_cache[(owner, repo)]
 
-            for uses, current_ref in uses_list:
-                latest_tag = find_latest_tag(current_ref, tags)
+            for ref in repo_ref_list:
+                latest_tag = find_latest_tag(ref.ref, tags)
                 if latest_tag is None:
                     continue  # up to date or non-semver
 
-                current_ver = parse_tag(current_ref)
+                current_ver = parse_tag(ref.ref)
                 latest_ver = parse_tag(latest_tag)
                 if current_ver is None or latest_ver is None:
                     continue
@@ -259,11 +250,11 @@ def upgrade(
                 severity = classify_bump(current_ver.version, latest_ver.version)
                 report.version_bumps.append(
                     VersionBump(
-                        uses=uses,
-                        current=current_ref,
+                        uses=ref.uses,
+                        current=ref.ref,
                         latest=latest_tag,
                         severity=severity,
-                        source_files=[str(p) for p in ref_locations.get(uses, [])],
+                        source_files=[str(p) for p in ref_locations.get(ref.uses, [])],
                     )
                 )
 
@@ -271,38 +262,33 @@ def upgrade(
         lockfile_full = app.root / app.lockfile_path
         lockfile = read_lockfile(lockfile_full)
 
-        for uses in sorted(refs):
-            entry = lockfile.get(uses)
+        for ref in refs:
+            entry = lockfile.get(ref.uses)
             if entry is None:
                 continue  # not pinned
 
-            parsed = UsesRef.parse(uses)
-            if parsed is None:
-                continue
-
             try:
-                current_sha = client.resolve_ref(parsed.owner, parsed.repo, parsed.ref)
+                current_sha = client.resolve_ref(ref.owner, ref.repo, ref.ref)
             except ResolveError as exc:
-                report.warnings.append(f"failed to resolve {uses}: {exc}")
+                report.warnings.append(f"failed to resolve {ref.uses}: {exc}")
                 continue
 
             if current_sha != entry.sha:
                 report.lockfile_stale.append(
                     LockfileStaleEntry(
-                        uses=uses,
+                        uses=ref.uses,
                         current_sha=entry.sha,
                         latest_sha=current_sha,
-                        source_files=[str(p) for p in ref_locations.get(uses, [])],
+                        source_files=[str(p) for p in ref_locations.get(ref.uses, [])],
                     )
                 )
 
     if apply and report.version_bumps:
+        refs_by_uses = {r.uses: r for r in refs}
         updates: dict[str, str] = {}
         for bump in report.version_bumps:
-            parsed = UsesRef.parse(bump.uses)
-            if parsed is None:
-                continue
-            updates[bump.uses] = parsed.with_sha(bump.latest)
+            ref = refs_by_uses[bump.uses]
+            updates[bump.uses] = ref.with_sha(bump.latest)
         report.changed_files = apply_updates(updates, ref_locations)
 
     return report

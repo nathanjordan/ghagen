@@ -71,6 +71,32 @@ class TestActionPart:
         assert parsed.action_part == "octo-org/repo/.github/workflows/ci.yml"
 
 
+class TestUses:
+    """``UsesRef.uses`` losslessly reconstructs the authored string.
+
+    This is the dedup key and the lockfile key, so the round-trip must be
+    byte-identical for every ref shape.
+    """
+
+    def test_roundtrip_plain_action(self):
+        s = "actions/checkout@v4"
+        parsed = UsesRef.parse(s)
+        assert parsed is not None
+        assert parsed.uses == s
+
+    def test_roundtrip_pathful_reusable_workflow(self):
+        s = "octo-org/repo/.github/workflows/ci.yml@v1"
+        parsed = UsesRef.parse(s)
+        assert parsed is not None
+        assert parsed.uses == s
+
+    def test_roundtrip_sha_pinned(self):
+        s = f"actions/checkout@{SHA}"
+        parsed = UsesRef.parse(s)
+        assert parsed is not None
+        assert parsed.uses == s
+
+
 class TestWithSha:
     def test_rebuild_without_path(self):
         parsed = UsesRef.parse("actions/checkout@v4")
