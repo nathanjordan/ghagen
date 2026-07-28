@@ -14,12 +14,12 @@ Python (`packages/python/src/ghagen/app.py`):
 
 - `synth` (156-171) and `check` (173-204) both open with the identical three
   lines: `transforms = self._build_transforms()`, loop `self._items`, `working =
-  self._apply_transforms(item, transforms)`. From there `synth` calls
+self._apply_transforms(item, transforms)`. From there `synth` calls
   `working.to_yaml_file(...)` (167-169) and `check` calls `working.to_yaml(...)`
   then compares (186-202).
 - `_apply_transforms` (146-154) is the clone-then-fold core: `working =
-  item.model_copy(deep=True)` then `for transform in transforms: working =
-  transform(working)`.
+item.model_copy(deep=True)` then `for transform in transforms: working =
+transform(working)`.
 - `_build_transforms` (130-144) hardcodes the transform order: it `append`s the
   `PinTransform` first (141), then `extend`s the user transforms (143). That
   ordering is load-bearing — a user Transform running after Pin sees `uses:`
@@ -68,10 +68,10 @@ TypeScript — same shape, plus the aspirational `async`:
 
 ```ts
 class App {
-  private async _buildTransforms(): Promise<Transform[]>   // pin first, then user
-  private _applyTransforms(item, transforms): Document      // clone + fold
-  async synth(): Promise<string[]>                          // loop → writeFileSync
-  async check(): Promise<Array<[string, string]>>           // loop → toYaml + diff
+  private async _buildTransforms(): Promise<Transform[]>; // pin first, then user
+  private _applyTransforms(item, transforms): Document; // clone + fold
+  async synth(): Promise<string[]>; // loop → writeFileSync
+  async check(): Promise<Array<[string, string]>>; // loop → toYaml + diff
 }
 ```
 
@@ -161,10 +161,7 @@ def render(
 
 ```ts
 // packages/typescript/src/synth.ts
-export function applyTransforms(
-  document: Document,
-  transforms: readonly Transform[],
-): Document {
+export function applyTransforms(document: Document, transforms: readonly Transform[]): Document {
   if (transforms.length === 0) return document;
   let working = cloneModel(document);
   for (const transform of transforms) working = transform(working);
@@ -195,12 +192,12 @@ vs `143`; TS `app.ts:184` vs `188`). Rationale:
 
 - User transforms should operate on the authored, human-readable `uses:` refs,
   not on 40-char SHAs. Under pin-first they see SHAs.
-- Pin should lock *whatever refs survive to the end of the pipeline*, including
+- Pin should lock _whatever refs survive to the end of the pipeline_, including
   refs a user transform injected. Under pin-first, a `uses:` added by a later
   user transform is emitted unpinned, because Pin already ran.
 
-This is a behaviour change and is called out under *Risks* and *ADR / CONTEXT
-impact*. `App` composes the order in one place:
+This is a behaviour change and is called out under _Risks_ and _ADR / CONTEXT
+impact_. `App` composes the order in one place:
 
 ```python
 # App._build_transforms(): user first, pin last
@@ -226,7 +223,7 @@ and `_buildTransforms`. Honest reasons:
   `App` reference is type-only), so a static import is safe.
 
 `App.synth` returns `string[]`, `App.check` returns `Array<[string, string]>`,
-both without `Promise`. Callers drop `await` (see *Test impact*).
+both without `Promise`. Callers drop `await` (see _Test impact_).
 
 ### App after the extraction
 
@@ -347,7 +344,7 @@ TS mirrors these against `render(...)` with `toYaml`-level string assertions.
   `expect(app.check()).toEqual([])`.
 - Python has no dedicated `app` unit test today; the pipeline behaviours it
   lacked coverage for (ordering, clone isolation, header/dedent threading) are
-  *added* at the `synth.py` seam rather than through the CLI/integration suite.
+  _added_ at the `synth.py` seam rather than through the CLI/integration suite.
 
 **Deleted:** the untested-and-now-impossible-to-reach `@internal`
 `_applyTransforms` on both ports (folded into `apply_transforms`). The pin path
@@ -361,18 +358,18 @@ test that passes a real `pinTransform` last.
   runs after and cannot find the new ref), where pin-first would have silently
   emitted the transform's output against an already-pinned SHA. This is the
   correct failure — "you introduced a ref, run `ghagen pin`" — and matches how
-  refs added in source already behave. *Alternative:* keep pin-first and only
+  refs added in source already behave. _Alternative:_ keep pin-first and only
   make the existing order explicit/tested. Rejected: it bakes in the surprising
   "user transforms see SHAs" semantics.
 - **De-asyncing TS is a public API break** (`synth`/`check` no longer return
   Promises). Pre-1.0 this is acceptable and removes a false affordance.
-  *Alternative:* keep `async` for future-proofing. Rejected as speculative
+  _Alternative:_ keep `async` for future-proofing. Rejected as speculative
   generality — there is no async transform, and `render` can be re-introduced as
   async in a single place if one ever arrives.
 - **`Rendered` carries the registered rel path, not an absolute path.** Keeping
   the pipeline root-agnostic is deliberate (it stays testable without a root); if
   a future consumer wants absolute paths it resolves `root / path` itself, as
-  `App` does. *Alternative:* have the pipeline resolve against root. Rejected:
+  `App` does. _Alternative:_ have the pipeline resolve against root. Rejected:
   drags filesystem/root knowledge into the pure seam.
 
 ## ADR / CONTEXT.md impact

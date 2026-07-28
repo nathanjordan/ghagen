@@ -54,7 +54,7 @@ def collect_uses_refs(app: App) -> set[str]:  # returns authored strings
 TypeScript:
 
 ```ts
-export function collectUsesRefs(app: App): Set<string>;  // returns authored strings
+export function collectUsesRefs(app: App): Set<string>; // returns authored strings
 ```
 
 Consumers then re-derive structure. In `pin`:
@@ -207,7 +207,7 @@ updates = {ref.uses: ref.with_sha(bump.latest) for ...}
 The TS engine changes identically (drop `UsesRef.parse` at 86/228/285/313 and
 their `=== null` guards; group by `${ref.owner}/${ref.repo}`; key the lockfile by
 `ref.uses`). `locate_uses_refs` / `locateUsesRefs` keep their string interface —
-`upgrade` passes `{r.uses for r in refs}` — because they grep file *contents* for
+`upgrade` passes `{r.uses for r in refs}` — because they grep file _contents_ for
 the authored string, which is what a `UsesRef` reconstructs.
 
 ### Lockfile interop is untouched
@@ -215,9 +215,9 @@ the authored string, which is what a `UsesRef` reconstructs.
 The lockfile still maps **authored `uses:` strings → SHAs**; nothing about its
 on-disk format changes. `Lockfile.get` / `set` / `keys` / `prune` stay
 string-keyed (`lockfile.py:61-89`), and the engine feeds them `ref.uses`. The
-YAML keys stay snake_case (`pins`, `sha`, `resolved_at`) and byte-identical
+YAML keys stay snake*case (`pins`, `sha`, `resolved_at`) and byte-identical
 across ports, so the mandatory Python↔TypeScript lockfile-format interop is
-unaffected — this proposal changes only the in-memory type that flows *between
+unaffected — this proposal changes only the in-memory type that flows \_between
 collect and the engine*, never the serialized boundary.
 
 ## What sits behind the seam
@@ -254,7 +254,7 @@ Pre-1.0, clean breaks; no compat shims.
 4. **TypeScript — mirror 2-3** in `collect.ts` and `engine.ts` (drop parses at
    86/228/285/313 and their `=== null` guards).
 5. **Rewrite `test_collect.py` / add `collect` assertions** to compare on
-   `UsesRef`s (or `{r.uses for r in refs}`); see *Test impact*.
+   `UsesRef`s (or `{r.uses for r in refs}`); see _Test impact_.
 6. **Barrel exports** — `collect_uses_refs` / `collectUsesRefs` stay exported
    (`pin/__init__.py:52`, `index.ts:184`, `pin/index.ts:28`); only their return
    type changes.
@@ -271,7 +271,7 @@ hold on both sides at once, even though the surface differs (`list[UsesRef]` vs
 `app.documents()`, filter `is_pinnable`, dedup by ref string — reappear at all
 three engine call sites (`engine.py:92,154,214`; `engine.ts:77,151,214`). That
 is an earned keep, not a pass-through. The prior review framed the TS collector
-as *failing* the deletion test because, as a **string** pass-through, it added
+as _failing_ the deletion test because, as a **string** pass-through, it added
 nothing beyond `iterUsesSites` — the parse it computed was thrown away and
 re-derived downstream. This proposal is the resolution: by returning the parsed,
 deduped refs, `collect` stops being a pass-through and earns its depth. So the
@@ -287,7 +287,7 @@ the un-deduped per-Document iterator.)
   313-316) are deleted as unreachable. No test covers them today, so nothing
   breaks — but the `pin` "skipping … not a pinnable action reference" warning
   path (`engine.py:101-103`, `engine.ts:88`) is removed, and if either port later
-  wants that warning it belongs at the *source* of unparseable strings
+  wants that warning it belongs at the _source_ of unparseable strings
   (`iter_uses_sites`), not the engine.
 
 **Rewritten — `test_collect.py`:** every assertion of the form `refs ==
@@ -327,7 +327,7 @@ mirroring the Python cases, closing that parity gap.
   lockfile keys drift. It is: `parse` derives `owner`/`repo`/`path`/`ref` by
   pure string splitting with no normalization, and `action_part + "@" + ref`
   re-joins them identically (verified for plain, pathful, and reusable-workflow
-  shapes). The round-trip test in *Test impact* guards it. *Alternative:* carry
+  shapes). The round-trip test in _Test impact_ guards it. _Alternative:_ carry
   the original string alongside the `UsesRef` in a small record `(uses, ref)`.
   Rejected as redundant given losslessness, but it is the fallback if a future
   `parse` ever normalizes.
@@ -356,7 +356,7 @@ mirroring the Python cases, closing that parity gap.
   store `UsesRef`s and breaking format interop.
 - **CONTEXT.md (both ports):** refine the **UsesRef** entry to note it carries
   its authored `uses` string (the lockfile key) via the `uses` accessor, and the
-  **UsesSite** / collect note to say collect returns *parsed, deduplicated*
+  **UsesSite** / collect note to say collect returns _parsed, deduplicated_
   UsesRefs rather than strings. The **Lockfile** entry already states "maps
   `uses:` strings" — reinforce that the string keying is the deliberate
   cross-language interop boundary.

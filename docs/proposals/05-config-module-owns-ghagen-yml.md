@@ -9,11 +9,11 @@ readers that disagree on how strict to be, and the discovery/parse/validation
 of the file is smeared across three modules per port instead of living behind
 one interface.
 
-Spec 0004 already unified the *root locator* — `findAppRoot` / `find_app_root`
+Spec 0004 already unified the _root locator_ — `findAppRoot` / `find_app_root`
 is now the sole ancestor walk, and the TypeScript `config.ts` / `_yaml-config.ts`
 / `_config-schema.ts` trio was merged into one `config.ts`. That work is landed
 and is the baseline this proposal builds on. What 0004 deliberately left in
-place is the *split parse of the file itself*, and that split is the subject
+place is the _split parse of the file itself_, and that split is the subject
 here.
 
 Concretely, one `ghagen synth` from a project root parses `.ghagen.yml` twice:
@@ -26,7 +26,7 @@ Concretely, one `ghagen synth` from a project root parses `.ghagen.yml` twice:
 - **Options parse.** The `App` constructor (TS `app.ts:82`, Python
   `app.py:82`) calls `loadOptions` / `load_options` (`config.ts:110`,
   `config.py:77`), which re-reads the same file and parses it with a
-  *different, narrower* schema — `optionsSchema.optional().parse(data.options)`
+  _different, narrower_ schema — `optionsSchema.optional().parse(data.options)`
   — reading only `options`.
 
 The two readers use different strictness on purpose, and that divergence is
@@ -91,8 +91,8 @@ Per port, the `.ghagen.yml` story is spread across:
   `typer.Exit` (Python).
 - TS `_load.ts` — `resolveAppFromModule`, `CliError`.
 
-The interface a caller must know today is genuinely large: *which* reader
-validates *which* key at *which* strictness, that `loadOptions` must be called
+The interface a caller must know today is genuinely large: _which_ reader
+validates _which_ key at _which_ strictness, that `loadOptions` must be called
 against the app root (not cwd), that a bad `entrypoint:` is safe for
 `loadOptions` but fatal for `findConfig`, and that Python raises `typer.Exit`
 mid-discovery while TS throws `CliError` to be caught at `main`. That breadth is
@@ -100,7 +100,7 @@ the shallowness: the implementation leaks into every caller.
 
 `findConfig`'s search still forks into two near-identical loops
 (`cli/_common.ts:91-104`): the `root !== null` arm probes `CONFIG_SEARCH_PATHS`
-relative to the discovered root *and* checks the entrypoint key; the
+relative to the discovered root _and_ checks the entrypoint key; the
 `root === null` arm probes the same paths relative to cwd and skips the
 entrypoint check. Only the anchor differs.
 
@@ -128,7 +128,7 @@ ConfigError:
   message: human-readable text the CLI can print verbatim
 ```
 
-The module reads the file at most once per discovery and derives *both* the
+The module reads the file at most once per discovery and derives _both_ the
 entrypoint and the options from that single parse. Strictness stops being
 per-reader: the whole file is validated once, and a malformed `entrypoint:`
 becomes a `ConfigError` value that a caller may **choose** to ignore (the
@@ -148,8 +148,11 @@ export interface GhagenOptions {
 }
 
 export type ConfigErrorKind =
-  | "parse" | "not-a-mapping" | "bad-entrypoint-type"
-  | "entrypoint-missing" | "bad-option-type";
+  | "parse"
+  | "not-a-mapping"
+  | "bad-entrypoint-type"
+  | "entrypoint-missing"
+  | "bad-option-type";
 
 export interface ConfigError {
   readonly kind: ConfigErrorKind;
@@ -171,10 +174,7 @@ export interface ProjectConfig {
  * Never throws for user-input problems: they are returned in `errors`.
  * `cliConfigFlag` short-circuits discovery when the user passed --config.
  */
-export function loadProjectConfig(
-  start?: string,
-  cliConfigFlag?: string,
-): ProjectConfig;
+export function loadProjectConfig(start?: string, cliConfigFlag?: string): ProjectConfig;
 
 /**
  * Read only options for a given root — the header's {source_file} path,
@@ -193,7 +193,7 @@ The module→App resolution (`resolveAppFromModule`) moves **into** the config
 module as `resolveApp(mod, configPath): Result<App, ConfigError>` returning an
 error value rather than throwing `CliError`. `CliError` is no longer needed as
 a shared type at the package root; it becomes a purely CLI-owned concern (see
-"_load.ts" below).
+"\_load.ts" below).
 
 ### Python sketch
 
@@ -250,13 +250,13 @@ pin path.
 
 ### Error modes (explicit)
 
-| Situation | Old behaviour | New behaviour |
-|---|---|---|
-| Malformed YAML | TS: `CliError` from `entrypointFromGhagenYml`; Python: `typer.Exit`. `loadOptions` throws separately. | One `ConfigError{kind:"parse"}`. CLI renders + exits; header path ignores it and uses default options. |
-| `entrypoint:` wrong type | TS: `CliError`; also `loadOptions` throws (`ZodError`) unless it parsed options-only. Python: `typer.Exit`; `load_options` unaffected. | `ConfigError{kind:"bad-entrypoint-type"}`. Fatal to `findConfig`; invisible to `loadOptions`. |
-| `entrypoint:` resolves to a missing file | `CliError` / `typer.Exit` | `ConfigError{kind:"entrypoint-missing"}` |
-| `options.auto_dedent` wrong type | TS: `ZodError` in `loadOptions`; Python: `ValueError` in `load_options` | `ConfigError{kind:"bad-option-type"}`; surfaced by both `loadProjectConfig` and `loadOptions`. |
-| No `.ghagen.yml` anywhere | `root=null`, probe cwd | Unchanged: `root=null`, options defaulted, cwd-anchored search. |
+| Situation                                | Old behaviour                                                                                                                          | New behaviour                                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Malformed YAML                           | TS: `CliError` from `entrypointFromGhagenYml`; Python: `typer.Exit`. `loadOptions` throws separately.                                  | One `ConfigError{kind:"parse"}`. CLI renders + exits; header path ignores it and uses default options. |
+| `entrypoint:` wrong type                 | TS: `CliError`; also `loadOptions` throws (`ZodError`) unless it parsed options-only. Python: `typer.Exit`; `load_options` unaffected. | `ConfigError{kind:"bad-entrypoint-type"}`. Fatal to `findConfig`; invisible to `loadOptions`.          |
+| `entrypoint:` resolves to a missing file | `CliError` / `typer.Exit`                                                                                                              | `ConfigError{kind:"entrypoint-missing"}`                                                               |
+| `options.auto_dedent` wrong type         | TS: `ZodError` in `loadOptions`; Python: `ValueError` in `load_options`                                                                | `ConfigError{kind:"bad-option-type"}`; surfaced by both `loadProjectConfig` and `loadOptions`.         |
+| No `.ghagen.yml` anywhere                | `root=null`, probe cwd                                                                                                                 | Unchanged: `root=null`, options defaulted, cwd-anchored search.                                        |
 
 ## What sits behind the seam
 
@@ -265,7 +265,7 @@ behaviour hides behind it: the ancestor walk, the single YAML read, mapping
 validation, the entrypoint-key resolution and its fallback to
 `CONFIG_SEARCH_PATHS`, options defaulting, and (folded in from `_load.ts`) the
 module→App resolution policy. That is the deep-module shape the current layout
-lacks: today a maintainer must know all of that *and* which of three modules
+lacks: today a maintainer must know all of that _and_ which of three modules
 each piece lives in. The **deletion test** is instructive — remove
 `loadProjectConfig` and every CLI command, the `App` constructor, and the pin
 tracker lose their notion of "where and what is the project config," which is
@@ -288,7 +288,7 @@ and `pin/` depending on `config` is a clean one-way edge. Python's orphan
 
 **`auto_dedent` default → single home in `GhagenOptions`, threaded
 explicitly.** ADR-0002 requires options that affect output to be applied at
-serialization time and *threaded explicitly* — "No module-level mutable global
+serialization time and _threaded explicitly_ — "No module-level mutable global
 carries configuration." The default value is not a global, but it is currently
 a literal restated four times with a port mismatch. Resolution, within
 ADR-0002's letter:
@@ -317,7 +317,7 @@ Yes. `_load.ts` exists only to give `cli/` and `pin/` a neutral place to share
 (the renamed, error-value-returning resolver) lives in the config module,
 `pin/sources.ts` imports it from `config.js` and `cli/` imports it from
 `config.js` — the neutral module is no longer neutral-ground-for-a-cycle, it
-just *is* config. `_load.ts` is deleted. `CliError` relocates to a small
+just _is_ config. `_load.ts` is deleted. `CliError` relocates to a small
 CLI-owned module (e.g. `cli/_errors.ts`) since it is a CLI-exit concern and the
 resolver no longer throws it; the `cli/_common.ts:13` re-export "so existing
 import sites keep working" is deleted outright (pre-1.0; update the three
@@ -380,12 +380,12 @@ structure.
   type error / `TypeError`), closing the parity gap with a test rather than a
   comment.
 - No golden-file (`fixtures/expected/`) output changes: `auto_dedent`'s
-  *effective* default at the public facade stays `True` in both ports.
+  _effective_ default at the public facade stays `True` in both ports.
 
 ## Risks & alternatives
 
 - **Risk: `App` double-loading in library use.** If a library caller builds
-  `App` and *also* calls `loadProjectConfig`, the file is read twice. Mitigated
+  `App` and _also_ calls `loadProjectConfig`, the file is read twice. Mitigated
   by letting `App` accept a pre-loaded `ProjectConfig`; the CLI always passes
   one. Standalone `new App()` reads once, as today.
 - **Risk: errors-as-values is more code than `throw`.** True, but it is the
@@ -412,8 +412,8 @@ structure.
   `auto_dedent` default lives on `GhagenOptions`, the public facades default to
   it, and the internal emitter takes it as a required threaded parameter (no
   internal default). No mutable global is introduced.
-- **Spec 0004** is superseded in part: it unified root *discovery* and the TS
-  file layout; this proposal unifies the *file parse* it left split. Add a
+- **Spec 0004** is superseded in part: it unified root _discovery_ and the TS
+  file layout; this proposal unifies the _file parse_ it left split. Add a
   forward-reference from 0004 to 05.
 - **New ADR recommended:** "Config discovery returns typed results, not
   framework exceptions" — parallel to the pin engine's typed-report decision,

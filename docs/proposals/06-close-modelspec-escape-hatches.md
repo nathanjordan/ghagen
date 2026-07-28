@@ -19,10 +19,11 @@ export function on(input: WithMeta<OnInput>): OnModel {
   const [data, meta] = extractMeta(input);
   const yamlData = buildYamlData(ON_SPEC, data as Record<string, unknown>);
   const sortedData: Record<string, unknown> = {};
-  for (const key of Object.keys(yamlData).sort()) {   // ← ordering escapes the Emitter
+  for (const key of Object.keys(yamlData).sort()) {
+    // ← ordering escapes the Emitter
     sortedData[key] = yamlData[key];
   }
-  return new Model(ON_SPEC, sortedData, meta) as OnModel;   // ← bypasses buildModel
+  return new Model(ON_SPEC, sortedData, meta) as OnModel; // ← bypasses buildModel
 }
 ```
 
@@ -30,7 +31,7 @@ The Emitter's `getOrderedKeys` (`yaml-writer.ts:172-192`) already appends non-or
 **insertion order**, so an empty `order` there means "insertion order," not "alphabetical." The two
 ports even disagree on this: Python's `to_ordered_commented_map`
 (`packages/python/src/ghagen/emitter/nodes.py:63-72`) appends leftover keys via `sorted(...)` —
-**alphabetical**. So Python emits `on:` alphabetically *at the Emitter*, while TS only matches
+**alphabetical**. So Python emits `on:` alphabetically _at the Emitter_, while TS only matches
 because the factory pre-sorts. "Empty order = alphabetical" is a real emission rule that is currently
 implemented in one port's Emitter and the other port's factory.
 
@@ -54,13 +55,14 @@ their placement is a hard-coded "after everything," never expressible in the spe
   ```ts
   const runData: Record<string, unknown> = {};
   if (data.run.shell !== undefined) runData["shell"] = data.run.shell;
-  if (data.run.workingDirectory !== undefined) runData["working-directory"] = data.run.workingDirectory;
+  if (data.run.workingDirectory !== undefined)
+    runData["working-directory"] = data.run.workingDirectory;
   yamlData["run"] = runData;
   ```
 
   This is a **latent comment-drop bug.** `DefaultsRunInput.shell` is typed `string`, but
   `withComment("bash", "note")` returns type `T` (`_base.ts:37`), so a caller can legally pass a
-  `Commented` wrapper. The hand-build stores it into a *plain* nested object; the Emitter's
+  `Commented` wrapper. The hand-build stores it into a _plain_ nested object; the Emitter's
   plain-object branch (`yaml-writer.ts:144-155`) unwraps `Commented` via `toYamlValue` but never
   calls `attachFieldComment`, so **the comment is silently lost.** The spec-aware peel/re-apply in
   `buildYamlData` (`_base.ts:323-342`) exists precisely to preserve this — but only for a spec's
@@ -86,11 +88,11 @@ def _normalize_workflow_dispatch(self) -> On:
 ```
 
 The domain rule "an empty `workflow_dispatch` emits as a bare `workflow_dispatch:` (present null),
-not `workflow_dispatch: {}`" is an **emission** decision, but it is encoded in the *model* layer by
+not `workflow_dispatch: {}`" is an **emission** decision, but it is encoded in the _model_ layer by
 mutating a validated instance with `object.__setattr__` and abusing `Raw` (the user-facing escape
 hatch) as an internal present-null signal. Emitter knowledge has leaked into the model.
 
-Net: the spec describes *most* of emission, and the gaps are filled by ad-hoc factory code and a
+Net: the spec describes _most_ of emission, and the gaps are filled by ad-hoc factory code and a
 model-layer mutation. A reader cannot trust the spec as the whole story.
 
 ## Current interface
@@ -117,15 +119,15 @@ Replace the overloaded "empty `order`" signal with a named mode:
 ```ts
 // spec.ts
 export type OrderMode =
-  | { readonly kind: "explicit"; readonly keys: readonly string[] }  // ordered, then extras
-  | { readonly kind: "alphabetical" };                               // all keys sorted at emit
+  | { readonly kind: "explicit"; readonly keys: readonly string[] } // ordered, then extras
+  | { readonly kind: "alphabetical" }; // all keys sorted at emit
 
 export interface ModelSpec {
   readonly kind: ModelKind;
   readonly fieldMap: Readonly<Record<string, string>>;
   readonly order: OrderMode;
   readonly wrap?: Readonly<Record<string, WrapRule>>;
-  readonly dynamicKeys?: boolean;                 // see (c)
+  readonly dynamicKeys?: boolean; // see (c)
   readonly extrasPlacement?: "afterOrdered" | "withinOrder"; // see (b), default "afterOrdered"
 }
 ```
@@ -141,7 +143,7 @@ export function on(input: WithMeta<OnInput>): OnModel {
 }
 ```
 
-`getOrderedKeys` reads the mode: `alphabetical` sorts *all* keys (including extras) at emit;
+`getOrderedKeys` reads the mode: `alphabetical` sorts _all_ keys (including extras) at emit;
 `explicit` keeps today's "ordered first, remainder appended." The sort now lives in the Emitter, in
 one place, identically for both ports. Python's `ModelSpec.order` gains the same two-mode shape
 (`OrderMode` as a small frozen dataclass union, or `order: tuple[...] | None` where `None` =
@@ -167,7 +169,7 @@ keys), instead of dropping it:
 if (spec.dynamicKeys) {
   const mapped = new Set(Object.keys(spec.fieldMap));
   for (const [k, v] of Object.entries(data)) {
-    if (!mapped.has(k) && v !== undefined) yamlData[k] = v;   // dynamic axis passes through
+    if (!mapped.has(k) && v !== undefined) yamlData[k] = v; // dynamic axis passes through
   }
 }
 ```
@@ -177,12 +179,12 @@ if (spec.dynamicKeys) {
 export const MATRIX_SPEC: ModelSpec = {
   kind: "matrix",
   fieldMap: { include: "include", exclude: "exclude" },
-  order: { kind: "explicit", keys: ["include", "exclude"] },  // dynamic axes follow, then emit order
+  order: { kind: "explicit", keys: ["include", "exclude"] }, // dynamic axes follow, then emit order
   dynamicKeys: true,
 };
 export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
   const [data, meta] = extractMeta(input);
-  return buildModel<MatrixModel>(MATRIX_SPEC, data as Record<string, unknown>, meta);  // no bypass
+  return buildModel<MatrixModel>(MATRIX_SPEC, data as Record<string, unknown>, meta); // no bypass
 }
 ```
 
@@ -211,11 +213,11 @@ export const DEFAULTS_SPEC: ModelSpec = {
   kind: "defaults",
   fieldMap: { run: "run" },
   order: { kind: "explicit", keys: ["run"] },
-  wrap: { run: { factory: defaultsRun, mode: "objectModel" } },  // promote inline run → model
+  wrap: { run: { factory: defaultsRun, mode: "objectModel" } }, // promote inline run → model
 };
 export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
   const [data, meta] = extractMeta(input);
-  return buildModel<DefaultsModel>(DEFAULTS_SPEC, data as Record<string, unknown>, meta);  // no hand-build
+  return buildModel<DefaultsModel>(DEFAULTS_SPEC, data as Record<string, unknown>, meta); // no hand-build
 }
 ```
 
@@ -262,7 +264,7 @@ models are unchanged. Emitted bytes for existing documents stay identical except
 
 `ModelSpec` absorbs the last emission decisions that were leaking into factories and the model layer:
 ordering mode, extras placement, dynamic-key passthrough, and present-null-when-empty. `buildModel`
-becomes the *only* input→Model path — no factory hand-rolls `data`. The Emitter's `getOrderedKeys`
+becomes the _only_ input→Model path — no factory hand-rolls `data`. The Emitter's `getOrderedKeys`
 grows one branch (alphabetical vs explicit) and owns sorting for both ports, ending the
 `sorted()`-vs-insertion-order divergence. The spec once again describes the whole of a model's
 emission, which is the property the whole ModelSpec design is supposed to guarantee.
@@ -273,7 +275,7 @@ Pre-1.0; clean breaks.
 
 1. Add `OrderMode` + the optional spec fields (TS `spec.ts`, Python `spec.py`). Update every spec
    literal to the new `order` shape (mechanical: `order: [...]` → `order: { kind: "explicit", keys:
-   [...] }`; `order: []` → `order: { kind: "alphabetical" }`; Python `order=(...)` unchanged,
+[...] }`; `order: []` → `order: { kind: "alphabetical" }`; Python `order=(...)` unchanged,
    `On` → `order=None`).
 2. Teach `getOrderedKeys` / `to_ordered_commented_map` the two modes and `extrasPlacement`; add the
    `present_null_when_empty` check at map emission.
@@ -290,7 +292,7 @@ Pre-1.0; clean breaks.
 - **New:** a defaults comment-preservation test in both ports —
   `defaults({ run: { shell: withComment("bash", "login shell") } })` must emit the `# login shell`
   comment. This is the regression guard for the fixed bug; it fails on `main` (TS) today.
-- **New:** an `on()`/`On` test asserting alphabetical emission *including* a dynamic extra event
+- **New:** an `on()`/`On` test asserting alphabetical emission _including_ a dynamic extra event
   (e.g. `merge_group`) interleaves alphabetically — observed via `toData` / `to_data`
   (see [02](./02-emitter-test-seam.md)), not by probing `model.data`.
 - **New:** a matrix test asserting dynamic axes emit through `buildModel` (axis keys present, after
@@ -304,7 +306,7 @@ Pre-1.0; clean breaks.
 ## Risks & alternatives
 
 - **Alternative for `on()`: keep the factory sort.** Rejected — it duplicates an ordering rule the
-  Emitter already owns for `explicit` specs, and it is *why* the two ports silently disagree about
+  Emitter already owns for `explicit` specs, and it is _why_ the two ports silently disagree about
   empty-`order` semantics. Declaring the mode fixes both.
 - **Alternative for `matrix()`: keep the `new Model(...)` bypass.** Rejected — "some factories go
   through `buildModel`, some don't" is exactly the inconsistency this proposal closes; `dynamicKeys`
@@ -314,8 +316,8 @@ Pre-1.0; clean breaks.
   hatch as an internal signal. A spec flag keeps the decision in the Emitter, where ADR-0001 puts all
   emission logic, and is symmetric across ports.
 - **Risk: `extrasPlacement`/`dynamicKeys` add spec surface few models use.** Accepted — each is
-  optional with a behaviour-preserving default, and each replaces a *harder-to-see* bespoke code path
-  with a *visible* declaration. Net interface complexity drops because three factory special-cases
+  optional with a behaviour-preserving default, and each replaces a _harder-to-see_ bespoke code path
+  with a _visible_ declaration. Net interface complexity drops because three factory special-cases
   and one model-layer validator disappear.
 - **Deletion test:** remove `dynamicKeys` and `matrix()` must re-grow its `new Model` bypass in one
   caller — a real, earned keep, not a pass-through. Same for `present_null_when_empty` (the `On`
@@ -323,8 +325,8 @@ Pre-1.0; clean breaks.
 
 ## ADR / CONTEXT.md impact
 
-- **No ADR-0001 contradiction; it is reinforced.** Every change moves an emission decision *out* of
-  factories/models and *into* the spec the Emitter reads. Recursion and emission logic stay in the
+- **No ADR-0001 contradiction; it is reinforced.** Every change moves an emission decision _out_ of
+  factories/models and _into_ the spec the Emitter reads. Recursion and emission logic stay in the
   Emitter; models stay data + spec.
 - **ADR-0002 (no construction-time config globals):** unaffected — these are per-spec static
   declarations, not runtime config.

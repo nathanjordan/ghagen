@@ -8,7 +8,7 @@ Model behaviour is tested by reaching **through** the Emitter's public surface i
 internals. The Emitter has exactly one supported entry point per port — `emit`/`emit_file` (Python,
 `packages/python/src/ghagen/emitter/__init__.py:22`) and `toYaml`/`toYamlFile` (TS,
 `packages/typescript/src/emitter/yaml-writer.ts:229,282`) — but neither exposes a way to observe a
-*single model's* emitted structure. Tests want that, so they grab whatever is closest.
+_single model's_ emitted structure. Tests want that, so they grab whatever is closest.
 
 **Python — private `_model_to_map`.** Model tests import the emitter's leading-underscore recursion
 core directly:
@@ -63,7 +63,7 @@ None of this is documented as supported. All of it is internal.
 
 ## Proposed interface
 
-Add **one** supported public function per port: *emit any model to plain data*. It becomes THE test
+Add **one** supported public function per port: _emit any model to plain data_. It becomes THE test
 surface for model behaviour — key names, values, ordering, aliasing, extras merge, dynamic keys, and
 (optionally) comment placement — without exposing ruamel/`yaml` nodes, the `data` bag, or spec
 identity.
@@ -137,7 +137,7 @@ export interface CommentNode {
 
 export interface ToDataOptions {
   autoDedent?: boolean; // default false
-  comments?: boolean;   // default false
+  comments?: boolean; // default false
 }
 
 /**
@@ -161,7 +161,7 @@ expect(uses).toEqual({ value: "actions/checkout@<sha>", eolComment: "v4" });
 
 - Key order is exactly what `emit`/`toYaml` produce for that node — same `ModelSpec.order`
   consultation, same extras-after-ordered-keys rule. `to_data` and `emit` are two renderings of one
-  walk (see *What sits behind the seam*), so they cannot disagree on structure.
+  walk (see _What sits behind the seam_), so they cannot disagree on structure.
 - `comments=False` yields a value tree containing no framework wrapper types (`Commented`, `Raw`,
   `CommentNode`, `Model`, ruamel/`yaml` nodes) — pure data, safe for `==`/`toEqual`.
 - Passing a non-model raises `TypeError` (Python) / is a compile error (`model: Model`, TS).
@@ -172,7 +172,7 @@ Recommended: introduce a **plain emission tree** as the Emitter's single interna
 make the ruamel/`yaml` backend a thin consumer of it.
 
 - One recursion (Python `nodes.py`, TS `yaml-writer.ts`) walks a model → plain tree of
-  `dict`/`list`/scalar, with commented nodes carried as `CommentNode`. This *is* the "single internal
+  `dict`/`list`/scalar, with commented nodes carried as `CommentNode`. This _is_ the "single internal
   node dispatcher" ADR-0001 called for; it just now produces a backend-neutral value instead of a
   ruamel node.
 - `to_data` returns that tree (stripping `CommentNode`s to their `.value` when `comments=False`).
@@ -270,27 +270,27 @@ expect(keys.indexOf("snapshot")).toBe(keys.indexOf("container") + 1);
 - `job.test.ts:141-145`, `action.test.ts`, `image-snapshot.test.ts:12` spec-identity assertions
   (`expect(j.spec).toBe(JOB_SPEC)`) — an internal-tagging detail. The behaviour that matters (kind,
   ordering) is covered by `toData` + `kind`. Delete the `=== SPEC` assertions; keep `expect(j.kind)
-  .toBe("job")`.
+.toBe("job")`.
 - `pin/sites.test.ts:149-172` brand-cast `data` reads — replaced by `toData` assertions or kept as
   UsesSite iterator tests where they belong (not emitter-shape tests).
 
 **Is asserting on the YAML string sufficient instead?** For **structure** (key names, values,
 ordering, presence/absence, aliasing, extras, dynamic keys) a structured surface is strictly better:
 `==`/`toEqual` on a dict gives exhaustive, whitespace-insensitive, single-assertion coverage, where
-string matching is brittle (indentation, quoting, flow vs block) and can't easily assert *absence*.
+string matching is brittle (indentation, quoting, flow vs block) and can't easily assert _absence_.
 For **comment placement and block-scalar/column formatting**, the YAML string is the real contract
 and `toData` deliberately does not model it — those tests stay on the string (Python
 `test_emitter/test_comments.py`, TS `emitter/comments.test.ts`, and the integration snapshots).
-`comments=True` exists only so tests that today read wrapper internals (pin) can assert *that a
-comment is attached to a value*, as data, without a full-string match.
+`comments=True` exists only so tests that today read wrapper internals (pin) can assert _that a
+comment is attached to a value_, as data, without a full-string match.
 
 ## Risks & alternatives
 
-- **Does this contradict ADR-0001?** No. ADR-0001 (amended) puts all *recursion* inside the Emitter
+- **Does this contradict ADR-0001?** No. ADR-0001 (amended) puts all _recursion_ inside the Emitter
   behind a small public surface; it does not say the Emitter may expose only file serialization.
   `to_data` is the Emitter's **own** public surface — the recursion still lives entirely in the
   Emitter, models still carry only data + spec, and models still never call back into the Emitter.
-  This *strengthens* the ADR: with a supported observation surface, tests stop pinning the private
+  This _strengthens_ the ADR: with a supported observation surface, tests stop pinning the private
   recursion, so the recursion is finally free to change (the ADR's stated goal). File serialization
   stays gated on Document; `to_data` is node observation, not file emission.
 - **Alternative: keep `_model_to_map` but make it public.** Rejected — it returns a ruamel
@@ -312,10 +312,10 @@ comment is attached to a value*, as data, without a full-string match.
 ## ADR / CONTEXT.md impact
 
 - **Amend ADR-0001** with a short note: the Emitter's public surface is `emit` / `emit_file` /
-  `to_data` (Python) and `toYaml` / `toYamlFile` / `toData` (TS). `to_data`/`toData` emit *any*
+  `to_data` (Python) and `toYaml` / `toYamlFile` / `toData` (TS). `to_data`/`toData` emit _any_
   model to plain data for observation and are not gated on Document; only file emission is.
 - **CONTEXT.md (both), "Emitter" entry:** add that the Emitter exposes a plain-data observation
   surface (`to_data`/`toData`) as the supported way to inspect a model's emitted structure.
 - **New glossary term (both CONTEXT.md):** **CommentNode** — the Emitter's public, backend-neutral
   representation of a value plus its attached block/EOL comment, produced by `to_data(...,
-  comments=True)`.
+comments=True)`.
