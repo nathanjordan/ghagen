@@ -22,10 +22,10 @@ It needs no code generation -- it reads each model's ``ModelSpec`` directly.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
+from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
 
 from ghagen.models._base import GhagenModel
@@ -42,53 +42,75 @@ from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.workflow import Workflow
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-SCHEMA_DIR = REPO_ROOT / "schema"
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
+SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"
 
 # A JSON path into a loaded schema: the keys to walk before reading properties.
 SchemaPath = tuple[str, ...]
 
 # ---------------------------------------------------------------------------
-# Sweep table. Each scope names, per Snapshot, the schema location(s) whose
-# property set the mapped Pydantic model must cover. Paths and scope names are
-# mirrored exactly by the TypeScript sweep so both read one shared allow-list.
+# Sweep table. The scope set and each scope's schema path(s) are shared data at
+# schema/conformance-scopes.yml (read identically by the TypeScript sweep); this
+# port binds each shared scope to its covering Pydantic model below. A parity
+# guard asserts the two key sets match, so a scope added to one port and not the
+# other fails a test instead of drifting silently.
 # ---------------------------------------------------------------------------
-
-_ROOT: SchemaPath = ()
 
 
 class Scope:
     """One conformance scope: schema location(s) mapped to a covering model."""
 
-    def __init__(self, model: type[GhagenModel], *paths: SchemaPath) -> None:
+    def __init__(self, model: type[GhagenModel], paths: tuple[SchemaPath, ...]) -> None:
         self.model = model
-        # Default to the schema root when no explicit path is given.
-        self.paths: tuple[SchemaPath, ...] = paths or (_ROOT,)
+        self.paths = paths
 
 
-# snapshot filename -> {scope name -> Scope}
-SWEEP: dict[str, dict[str, Scope]] = {
+# snapshot filename -> {scope name -> covering model}. The schema path(s) for
+# each scope live in the shared conformance-scopes.yml; only the model binding
+# stays here (a Python type cannot be serialized into the shared file).
+_MODELS: dict[str, dict[str, type[GhagenModel]]] = {
     "workflow_schema.json": {
-        "workflow": Scope(Workflow, _ROOT),
+        "workflow": Workflow,
         # ghagen's single Job model covers both the regular-job and the
         # reusable-workflow-call-job shapes.
-        "job": Scope(
-            Job,
-            ("definitions", "normalJob"),
-            ("definitions", "reusableWorkflowCallJob"),
-        ),
-        "step": Scope(Step, ("definitions", "step")),
+        "job": Job,
+        "step": Step,
     },
     "action_schema.json": {
-        "action": Scope(Action, _ROOT),
-        "compositeRuns": Scope(CompositeRuns, ("definitions", "runs-composite")),
-        "dockerRuns": Scope(DockerRuns, ("definitions", "runs-docker")),
-        "nodeRuns": Scope(NodeRuns, ("definitions", "runs-javascript")),
-        "actionInput": Scope(ActionInput, ("properties", "inputs")),
-        "actionOutput": Scope(ActionOutput, ("definitions", "outputs-composite")),
-        "branding": Scope(Branding, ("properties", "branding")),
+        "action": Action,
+        "compositeRuns": CompositeRuns,
+        "dockerRuns": DockerRuns,
+        "nodeRuns": NodeRuns,
+        "actionInput": ActionInput,
+        "actionOutput": ActionOutput,
+        "branding": Branding,
     },
+}
+
+
+def _load_scopes() -> dict[str, dict[str, tuple[SchemaPath, ...]]]:
+    """Load the shared scope table: snapshot -> scope name -> schema path(s)."""
+    raw = YAML(typ="safe").load(SCOPES_PATH.read_text())
+    return {
+        snapshot: {
+            name: tuple(tuple(path) for path in paths) for name, paths in scopes.items()
+        }
+        for snapshot, scopes in raw.items()
+    }
+
+
+_SCOPE_PATHS = _load_scopes()
+
+# snapshot filename -> {scope name -> Scope}, binding each shared scope's
+# path(s) to this port's covering model. Built over the intersection so a
+# divergence never crashes import; the parity guard below is the failure surface.
+SWEEP: dict[str, dict[str, Scope]] = {
+    snapshot: {
+        name: Scope(_MODELS[snapshot][name], paths)
+        for name, paths in scopes.items()
+        if name in _MODELS.get(snapshot, {})
+    }
+    for snapshot, scopes in _SCOPE_PATHS.items()
 }
 
 
@@ -159,3 +181,23 @@ def test_scope_properties_covered(snapshot: str, scope_name: str) -> None:
         f"{snapshot}:{scope_name} allow-list has stale entries no longer in the "
         f"schema: {sorted(stale)}. Remove them from {GAPS_PATH.name}."
     )
+
+
+def test_scope_set_matches_shared_table() -> None:
+    """This port's scope bindings must match the shared scope table exactly.
+
+    The mirror of this guard in the TypeScript sweep asserts the same equality,
+    so a scope added to one port and not the other -- or a snapshot/scope typo --
+    fails a test instead of degrading conformance coverage silently.
+    """
+    shared = _load_scopes()
+    assert set(_MODELS) == set(shared), (
+        f"conformance snapshots diverge from {SCOPES_PATH.name}: "
+        f"port has {sorted(_MODELS)}, shared table has {sorted(shared)}."
+    )
+    for snapshot in shared:
+        assert set(_MODELS[snapshot]) == set(shared[snapshot]), (
+            f"{snapshot} conformance scopes diverge from {SCOPES_PATH.name}: "
+            f"port has {sorted(_MODELS[snapshot])}, shared table has "
+            f"{sorted(shared[snapshot])}."
+        )

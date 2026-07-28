@@ -71,7 +71,9 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
                     Step(name="Sync", run="uv sync"),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.12",
@@ -80,6 +82,16 @@ def _ci_workflow() -> Workflow:
                         name="ghagen deps check-synced",
                         run="uv run ghagen deps check-synced",
                         env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
+                    ),
+                    # Staleness guard: regenerate the TS reference types from the
+                    # committed Snapshot and fail if they differ from what is
+                    # committed. Offline and deterministic (no token, no network),
+                    # so it is safe on every PR. This is the single line that
+                    # actively enforces ADR-0003's author-conformance guarantee.
+                    Step(
+                        name="Schema types up to date",
+                        run="uv run python -m ghagen_schema check",
+                        env={"PYTHONPATH": "scripts"},
                     ),
                 ],
             ),
@@ -164,7 +176,8 @@ def _ci_workflow() -> Workflow:
 
 
 def _schema_drift_workflow() -> Workflow:
-    """Weekly schema drift detection."""
+    """Weekly schema drift detection: refresh the Snapshot + regenerate types,
+    then open a PR carrying the complete fix (issue fallback if PR fails)."""
     return Workflow(
         name="Schema Drift Check",
         on=On(
@@ -172,8 +185,9 @@ def _schema_drift_workflow() -> Workflow:
             workflow_dispatch=WorkflowDispatchTrigger(),
         ),
         permissions=Permissions(
-            contents=PermissionLevel.READ,
-            issues=PermissionLevel.WRITE,
+            contents=PermissionLevel.WRITE,  # was READ: the PR branch is pushed
+            pull_requests=PermissionLevel.WRITE,  # new: open the drift PR
+            issues=PermissionLevel.WRITE,  # kept for the issue fallback
         ),
         jobs={
             "check-drift": Job(
@@ -182,19 +196,57 @@ def _schema_drift_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
                     Step(name="Sync", run="uv sync"),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    # Refresh the Snapshot AND regenerate the types from it, so the
+                    # PR is a complete, mergeable fix rather than a diff to reproduce.
                     Step(
-                        name="Fetch upstream schema into the canonical snapshot",
-                        run="uv run python packages/python/scripts/schema_sync.py sync",
+                        name="Refresh Snapshot",
+                        run="uv run python -m ghagen_schema sync",
+                        env={"PYTHONPATH": "scripts"},
                     ),
                     Step(
-                        name="Check for drift",
+                        name="Regenerate types",
+                        run="uv run python -m ghagen_schema generate",
+                        env={"PYTHONPATH": "scripts"},
+                    ),
+                    # Bot-authored (GITHUB_TOKEN) pushes do not trigger the PR's own
+                    # CI, so run the offline staleness guard here and surface the
+                    # result in the PR body -- the guarantee stays visible without a
+                    # PAT (see proposal risk "Bot PRs don't trigger CI", option b).
+                    Step(
+                        name="Verify regenerated types",
+                        run="uv run python -m ghagen_schema check",
+                        env={"PYTHONPATH": "scripts"},
+                    ),
+                    Step(
+                        name="Open PR on drift (else issue fallback)",
                         run="""
-                            if ! git diff --exit-code schema/; then
-                              echo "::warning::Schema drift detected"
+                            if git diff --quiet; then
+                              echo "No schema drift."
+                              exit 0
+                            fi
+                            BRANCH="schema-drift/$(date +%Y%m%d)"
+                            if gh pr list --head "$BRANCH" --json number \\
+                                 --jq '.[0].number' | grep -q .; then
+                              echo "Drift PR already open for $BRANCH."
+                              exit 0
+                            fi
+                            git config user.name  "github-actions[bot]"
+                            git config user.email \\
+                              "41898282+github-actions[bot]@users.noreply.github.com"
+                            git checkout -b "$BRANCH"
+                            git add schema/ packages/typescript/src/schema/
+                            git commit -m "chore(schema): sync upstream drift + regenerate types"
+                            if ! git push -u origin "$BRANCH" || ! gh pr create \\
+                                 --title "Schema drift: refreshed Snapshot + types" \\
+                                 --body "Automated upstream schema refresh (Snapshot + regenerated types). The offline staleness check passed in this run; review the Snapshot diff and regenerated types before merging." \\
+                                 --label schema-drift; then
+                              echo "::warning::PR creation failed; opening a fallback issue."
                               gh issue create \\
                                 --title "GitHub Actions schema drift detected" \\
-                                --body "$(git diff schema/)" \\
+                                --body "Automated schema refresh could not open a PR. Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
                                 --label schema-drift
                             fi
                         """,

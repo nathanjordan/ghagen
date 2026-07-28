@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { SCHEMA_DIR } from "../paths.js";
 import type { ModelSpec } from "./_base.js";
 import {
   ACTION_INPUT_SPEC,
@@ -34,13 +35,11 @@ import { JOB_SPEC } from "./job.js";
 import { STEP_SPEC } from "./step.js";
 import { WORKFLOW_SPEC } from "./workflow.js";
 
-const SCHEMA_DIR = resolve(import.meta.dirname, "../../../../schema");
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
+const SCOPES_PATH = resolve(SCHEMA_DIR, "conformance-scopes.yml");
 
 /** A JSON path into a loaded schema: the keys to walk before reading props. */
 type SchemaPath = readonly string[];
-
-const ROOT: SchemaPath = [];
 
 interface Scope {
   readonly spec: ModelSpec;
@@ -48,29 +47,50 @@ interface Scope {
   readonly paths: readonly SchemaPath[];
 }
 
-function scope(spec: ModelSpec, ...paths: SchemaPath[]): Scope {
-  return { spec, paths: paths.length > 0 ? paths : [ROOT] };
-}
-
-// snapshot filename -> { scope name -> Scope }. Mirrors the Python SWEEP table.
-const SWEEP: Record<string, Record<string, Scope>> = {
+// snapshot filename -> { scope name -> covering spec }. The schema path(s) for
+// each scope live in the shared schema/conformance-scopes.yml (read identically
+// by the Python sweep); only the spec binding stays here (a ModelSpec cannot be
+// serialized into the shared file). A parity guard asserts the two key sets
+// match, so a scope added to one port and not the other fails a test.
+const SPECS: Record<string, Record<string, ModelSpec>> = {
   "workflow_schema.json": {
-    workflow: scope(WORKFLOW_SPEC, ROOT),
+    workflow: WORKFLOW_SPEC,
     // ghagen's single job model covers both the regular-job and the
     // reusable-workflow-call-job shapes.
-    job: scope(JOB_SPEC, ["definitions", "normalJob"], ["definitions", "reusableWorkflowCallJob"]),
-    step: scope(STEP_SPEC, ["definitions", "step"]),
+    job: JOB_SPEC,
+    step: STEP_SPEC,
   },
   "action_schema.json": {
-    action: scope(ACTION_SPEC, ROOT),
-    compositeRuns: scope(COMPOSITE_RUNS_SPEC, ["definitions", "runs-composite"]),
-    dockerRuns: scope(DOCKER_RUNS_SPEC, ["definitions", "runs-docker"]),
-    nodeRuns: scope(NODE_RUNS_SPEC, ["definitions", "runs-javascript"]),
-    actionInput: scope(ACTION_INPUT_SPEC, ["properties", "inputs"]),
-    actionOutput: scope(ACTION_OUTPUT_SPEC, ["definitions", "outputs-composite"]),
-    branding: scope(BRANDING_SPEC, ["properties", "branding"]),
+    action: ACTION_SPEC,
+    compositeRuns: COMPOSITE_RUNS_SPEC,
+    dockerRuns: DOCKER_RUNS_SPEC,
+    nodeRuns: NODE_RUNS_SPEC,
+    actionInput: ACTION_INPUT_SPEC,
+    actionOutput: ACTION_OUTPUT_SPEC,
+    branding: BRANDING_SPEC,
   },
 };
+
+type ScopePaths = Record<string, Record<string, SchemaPath[]>>;
+
+function loadScopePaths(): ScopePaths {
+  return parse(readFileSync(SCOPES_PATH, "utf8")) as ScopePaths;
+}
+
+// Bind each shared scope's path(s) to this port's covering spec. Built over the
+// intersection so a divergence never throws at load; the parity guard is the
+// failure surface.
+const SCOPE_PATHS = loadScopePaths();
+const SWEEP: Record<string, Record<string, Scope>> = Object.fromEntries(
+  Object.entries(SCOPE_PATHS).map(([snapshot, scopes]) => [
+    snapshot,
+    Object.fromEntries(
+      Object.entries(scopes)
+        .filter(([name]) => SPECS[snapshot]?.[name] !== undefined)
+        .map(([name, paths]) => [name, { spec: SPECS[snapshot][name], paths } as Scope]),
+    ),
+  ]),
+);
 
 type Gaps = Record<string, Record<string, string[]>>;
 
@@ -153,4 +173,19 @@ describe("schema conformance sweep", () => {
       });
     }
   }
+
+  it("scope set matches the shared scope table", () => {
+    // Mirrors the Python guard (test_scope_set_matches_shared_table): this
+    // port's spec bindings must match the shared scope table exactly, so a
+    // scope added to one port and not the other -- or a snapshot/scope typo --
+    // fails here instead of degrading coverage silently.
+    const shared = loadScopePaths();
+    expect(Object.keys(SPECS).sort()).toEqual(Object.keys(shared).sort());
+    for (const snapshot of Object.keys(shared)) {
+      expect(
+        Object.keys(SPECS[snapshot]).sort(),
+        `${snapshot} scopes diverge from conformance-scopes.yml`,
+      ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
 });
