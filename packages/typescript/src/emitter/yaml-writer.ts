@@ -4,6 +4,7 @@ import {
   isCommented,
   isRaw,
   Model,
+  unwrapCommented,
   type Document as GhagenDocument,
 } from "../models/_base.js";
 import { attachFieldComment, attachModelComment } from "./comments.js";
@@ -62,22 +63,31 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
  * Render a {@link Model} to a `YAMLMap` with canonical key ordering, per-field
  * comment attachment, extras merging, and postProcess support. The emitter's
  * successor to the old `Model.toYamlMap` method.
+ *
+ * Module-private: the supported way to observe a model's emitted structure is
+ * {@link toData}. `modelToYamlMap` builds `yaml` backend nodes for file
+ * emission and is an internal of that path.
  */
-export function modelToYamlMap(model: Model): YAMLMap {
+function modelToYamlMap(model: Model): YAMLMap {
   const map = new YAMLMap();
-  const orderedKeys = getOrderedKeys(Object.keys(model.data), model.spec.order);
+  const entries = orderedEntries(model);
+  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
 
   // Emit each field, attaching any Commented-wrapper comment inline at the
   // point of emission (no collect-then-reattach two-pass). The comment module
   // owns the actual placement.
-  const entries: [string, unknown][] = orderedKeys.map((key) => [key, model.data[key]]);
-  if (model.meta.extras) {
-    entries.push(...Object.entries(model.meta.extras));
-  }
-
   for (const [key, value] of entries) {
+    // present-null-when-empty: an empty sub-map emits as a bare `key:` (null).
+    if (presentNull.has(key) && isEmptyMapValue(value)) {
+      const pair = new Pair(new Scalar(key), nullScalar());
+      map.items.push(pair);
+      if (isCommented(value)) {
+        attachFieldComment(pair, value.comment, value.eolComment);
+      }
+      continue;
+    }
     if (isCommented(value)) {
-      const pair = new Pair(new Scalar(key), toYamlValue(value.value));
+      const pair = new Pair(new Scalar(key), toYamlValue(unwrapCommented(value)));
       map.items.push(pair);
       attachFieldComment(pair, value.comment, value.eolComment);
     } else {
@@ -100,7 +110,7 @@ function toYamlValue(value: unknown): unknown {
 
   // Commented values — unwrap and recurse
   if (isCommented(value)) {
-    return toYamlValue(value.value);
+    return toYamlValue(unwrapCommented(value));
   }
 
   // Raw values — unwrap and emit as plain scalar
@@ -166,29 +176,214 @@ function toYamlValue(value: unknown): unknown {
 }
 
 /**
- * Sort keys by canonical order: ordered keys first (in specified order),
- * then remaining keys in their original insertion order.
+ * Resolve a model's emitted `[key, value]` entries in canonical order, folding
+ * in `meta.extras` per the spec's {@link OrderMode} and `extrasPlacement`.
+ *
+ * The single home for both Emitter passes ({@link modelToYamlMap} and
+ * {@link modelToData}), so the YAML nodes and the observed data cannot disagree
+ * on ordering. `alphabetical` sorts every key (extras included); `explicit`
+ * places the ordered keys first, then the rest — with extras appended
+ * (`afterOrdered`, the default) or folded into the ordering pool
+ * (`withinOrder`).
  */
-function getOrderedKeys(keys: string[], keyOrder: readonly string[]): string[] {
+function orderedEntries(model: Model): [string, unknown][] {
+  const data = model.data;
+  const extras = model.meta.extras ?? {};
+  const dataKeys = Object.keys(data);
+  const extrasKeys = Object.keys(extras);
+  const valueOf = (key: string): unknown => (key in data ? data[key] : extras[key]);
+
+  if (model.spec.order.kind === "alphabetical") {
+    const allKeys = [...new Set([...dataKeys, ...extrasKeys])].sort();
+    return allKeys.map((key) => [key, valueOf(key)]);
+  }
+
+  const orderKeys = model.spec.order.keys;
+  if ((model.spec.extrasPlacement ?? "afterOrdered") === "withinOrder") {
+    const pool = [...new Set([...dataKeys, ...extrasKeys])];
+    return orderExplicit(pool, orderKeys).map((key) => [key, valueOf(key)]);
+  }
+
+  const entries: [string, unknown][] = orderExplicit(dataKeys, orderKeys).map((key) => [
+    key,
+    data[key],
+  ]);
+  for (const key of extrasKeys) {
+    entries.push([key, extras[key]]);
+  }
+  return entries;
+}
+
+/**
+ * Order keys by an explicit key list: named keys first (in that order), then
+ * the remaining keys in their original insertion order.
+ */
+function orderExplicit(keys: string[], keyOrder: readonly string[]): string[] {
   const orderSet = new Set(keyOrder);
-  const ordered: string[] = [];
-  const remaining: string[] = [];
-
-  // Add keys that appear in the canonical order
-  for (const key of keyOrder) {
-    if (keys.includes(key)) {
-      ordered.push(key);
-    }
-  }
-
-  // Add remaining keys in insertion order
-  for (const key of keys) {
-    if (!orderSet.has(key)) {
-      remaining.push(key);
-    }
-  }
-
+  const ordered = keyOrder.filter((key) => keys.includes(key));
+  const remaining = keys.filter((key) => !orderSet.has(key));
   return [...ordered, ...remaining];
+}
+
+/**
+ * True when *value* resolves to an empty map — an empty sub-Model (no `data`,
+ * no extras) or a plain `{}`. Booleans, arrays, `Raw`, and non-empty maps are
+ * not empty maps. Powers the `presentNullWhenEmpty` rule.
+ */
+function isEmptyMapValue(value: unknown): boolean {
+  const v = unwrapCommented(value);
+  if (v instanceof Model) {
+    return (
+      Object.keys(v.data).length === 0 &&
+      (v.meta.extras === undefined || Object.keys(v.meta.extras).length === 0)
+    );
+  }
+  if (v === null || v === undefined || isRaw(v) || Array.isArray(v)) {
+    return false;
+  }
+  return typeof v === "object" && Object.keys(v).length === 0;
+}
+
+/** A null scalar that emits as a bare `key:` (empty source), matching ruamel. */
+function nullScalar(): Scalar {
+  const scalar = new Scalar(null);
+  scalar.source = "";
+  return scalar;
+}
+
+// ---- public observation surface: model → plain data ----
+//
+// `toData` is THE supported way to observe a single model's emitted structure
+// (keys, values, order, aliasing, extras, dynamic keys, and optionally comment
+// placement) without reaching into `yaml` nodes, the `data` bag, or spec
+// identity. It reads the same `spec.order` as `modelToYamlMap`, so the two
+// renderings cannot disagree on structure.
+
+/**
+ * The backend-neutral representation of a value plus its attached comment.
+ *
+ * Produced by {@link toData} with `comments: true`, and only for nodes that
+ * actually carry a comment — the observation-surface peer of the internal
+ * `Commented` wrapper.
+ */
+export interface CommentNode {
+  readonly value: unknown;
+  readonly comment?: string;
+  readonly eolComment?: string;
+}
+
+/** Options for {@link toData}. */
+export interface ToDataOptions {
+  /** Dedent each step's `run` script, as {@link toYaml} does. Defaults to false. */
+  autoDedent?: boolean;
+  /**
+   * Surface commented nodes as {@link CommentNode} so comment placement is
+   * observable as data. Defaults to false (comments unwrapped to their values).
+   */
+  comments?: boolean;
+}
+
+/**
+ * Emit any {@link Model} to a plain POJO / array / scalar tree — the supported
+ * observation surface. Keys are YAML keys in canonical order (from the spec),
+ * extras merged after ordered keys, `Raw` unwrapped to its inner value.
+ *
+ * - `comments: false` (default): `Commented` wrappers are unwrapped to their
+ *   values; the returned tree contains no framework wrapper types, so it is
+ *   safe for `toEqual`.
+ * - `comments: true`: a node that carries a comment is returned as a
+ *   {@link CommentNode}.
+ *
+ * Any model may be passed (step, job, on, …). Unlike {@link toYaml}, this does
+ * not run the `yaml`-backend passes (block-literal promotion, comment spacing)
+ * or `postProcess`; assert those via the YAML string.
+ */
+export function toData(model: Model, options?: ToDataOptions): unknown {
+  return modelToData(model, options?.comments ?? false, options?.autoDedent ?? false);
+}
+
+/** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */
+function modelToData(
+  model: Model,
+  comments: boolean,
+  autoDedent: boolean,
+): Record<string, unknown> {
+  const entries = orderedEntries(model);
+  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
+  const isStep = model.kind === "step";
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of entries) {
+    // autoDedent is applied wherever a Step's `run` is encountered in the
+    // recursion (matching Python), not gated on the document kind — so a bare
+    // Step or a Step nested in a job both dedent.
+    const field =
+      autoDedent && isStep && key === "run" && typeof value === "string"
+        ? dedentScript(value)
+        : value;
+    const emptyPresentNull = presentNull.has(key) && isEmptyMapValue(field);
+    if (isCommented(field)) {
+      const inner = emptyPresentNull ? null : valueToData(field.value, comments, autoDedent);
+      // A commented present-null map keeps its comment on the bare `key:`
+      // (mirrors Python's CommentNode(None, comment=...)).
+      result[key] =
+        comments && (field.comment !== undefined || field.eolComment !== undefined)
+          ? commentNode(inner, field.comment, field.eolComment)
+          : inner;
+    } else {
+      result[key] = emptyPresentNull ? null : valueToData(field, comments, autoDedent);
+    }
+  }
+  return result;
+}
+
+/** Convert any Model value to plain data — the peer of `toYamlValue`. */
+function valueToData(value: unknown, comments: boolean, autoDedent: boolean): unknown {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  // A Commented not at a mapping-field position: unwrap, drop the comment
+  // (matches toYamlValue).
+  if (isCommented(value)) {
+    return valueToData(value.value, comments, autoDedent);
+  }
+  if (isRaw(value)) {
+    return valueToData(value.value, comments, autoDedent);
+  }
+  if (value instanceof Model) {
+    const data = modelToData(value, comments, autoDedent);
+    // A model's OWN comment is surfaced here (map value or seq item alike);
+    // container placement differs in YAML but not in observed data.
+    return comments && (value.meta.comment !== undefined || value.meta.eolComment !== undefined)
+      ? commentNode(data, value.meta.comment, value.meta.eolComment)
+      : data;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => valueToData(item, comments, autoDedent));
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) {
+        continue;
+      }
+      out[k] = valueToData(v, comments, autoDedent);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Build a {@link CommentNode}, omitting undefined comment fields for clean equality. */
+function commentNode(value: unknown, comment?: string, eolComment?: string): CommentNode {
+  const node: { value: unknown; comment?: string; eolComment?: string } = { value };
+  if (comment !== undefined) {
+    node.comment = comment;
+  }
+  if (eolComment !== undefined) {
+    node.eolComment = eolComment;
+  }
+  return node;
 }
 
 /** Format a YAML comment by prefixing each line with `#`. */

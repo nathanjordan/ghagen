@@ -68,3 +68,11 @@ observes the `.mjs` load both standalone and under Vitest's worker pool, so the 
 fallback was not needed. The canary test now asserts the `.mjs` is _present_ in the tracked set, so
 a future jiti or Node release that breaks either half — in either direction — turns the change into
 a red test rather than a silent one.
+
+## Note (2026-07-28)
+
+The `appLoader` / `app_loader` injection parameters around this mechanism were removed as
+hypothetical-seam indirection (proposal 07); the jiti-cache-diff + ESM-hook mechanism and its
+canary are unchanged. Python's tracking window includes App resolution (`create_app()` runs
+between the `sys.modules` snapshots) so modules imported lazily inside `create_app()` stay
+tracked.

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from ghagen._commented import is_commented
+from ghagen.emitter import CommentNode, to_data
 from ghagen.models.action import Action, CompositeRuns, DockerRuns
 from ghagen.models.job import Job
 from ghagen.models.step import Step
@@ -46,9 +46,9 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf)
         step = result.jobs["build"].steps[0]
-        assert is_commented(step.uses)
-        assert step.uses.value == f"actions/checkout@{SHA_CHECKOUT}"
-        assert step.uses.eol_comment == "v4"
+        assert to_data(step, comments=True)["uses"] == CommentNode(
+            f"actions/checkout@{SHA_CHECKOUT}", eol_comment="v4"
+        )
 
     def test_pins_multiple_steps(self):
         lf = _lockfile(
@@ -72,10 +72,12 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf)
         steps = result.jobs["build"].steps
-        assert is_commented(steps[0].uses)
-        assert steps[0].uses.value == f"actions/checkout@{SHA_CHECKOUT}"
-        assert is_commented(steps[1].uses)
-        assert steps[1].uses.value == f"actions/setup-python@{SHA_SETUP_PY}"
+        assert to_data(steps[0], comments=True)["uses"] == CommentNode(
+            f"actions/checkout@{SHA_CHECKOUT}", eol_comment="v4"
+        )
+        assert to_data(steps[1], comments=True)["uses"] == CommentNode(
+            f"actions/setup-python@{SHA_SETUP_PY}", eol_comment="v5"
+        )
 
     def test_pins_job_uses(self):
         lf = _lockfile(**{"octo-org/repo/.github/workflows/ci.yml@v1": SHA_REUSABLE})
@@ -90,11 +92,9 @@ class TestPinTransform:
         transform = PinTransform(lf)
         result = transform(wf)
         job = result.jobs["call"]
-        assert is_commented(job.uses)
-        assert (
-            job.uses.value == f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}"
+        assert to_data(job, comments=True)["uses"] == CommentNode(
+            f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}", eol_comment="v1"
         )
-        assert job.uses.eol_comment == "v1"
 
     def test_skips_local_actions(self):
         lf = _lockfile()
@@ -198,9 +198,9 @@ class TestPinTransformAction:
         assert isinstance(result.runs, CompositeRuns)
         step = result.runs.steps[0]
         assert isinstance(step, Step)
-        assert is_commented(step.uses)
-        assert step.uses.value == f"actions/setup-python@{SHA_SETUP_PY}"
-        assert step.uses.eol_comment == "v5"
+        assert to_data(step, comments=True)["uses"] == CommentNode(
+            f"actions/setup-python@{SHA_SETUP_PY}", eol_comment="v5"
+        )
         # Run step is untouched.
         run_step = result.runs.steps[1]
         assert isinstance(run_step, Step)

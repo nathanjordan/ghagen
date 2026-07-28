@@ -6,83 +6,70 @@ the update command can propose edits only in user-controlled sources.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
-import sysconfig
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from ghagen._package_paths import is_user_file
+from ghagen.config import resolve_app
 
+if TYPE_CHECKING:
     from ghagen.app import App
 
 
-def _ghagen_package_root() -> Path:
-    """Return the directory containing the ``ghagen`` package."""
-    import ghagen
-
-    return Path(ghagen.__file__).resolve().parent
-
-
-def _is_user_file(path: Path, *, ghagen_root: Path) -> bool:
-    """Return ``True`` if *path* is a user-authored file (not stdlib/site/ghagen)."""
-    parts = path.parts
-
-    # Exclude site-packages
-    if "site-packages" in parts:
-        return False
-
-    # Exclude ghagen package files
-    try:
-        path.relative_to(ghagen_root)
-        return False
-    except ValueError:
-        pass
-
-    # Exclude stdlib files
-    stdlib_paths = sysconfig.get_paths()
-    for key in ("stdlib", "platstdlib", "purelib", "platlib"):
-        stdlib_dir = stdlib_paths.get(key)
-        if stdlib_dir:
-            try:
-                path.relative_to(stdlib_dir)
-                return False
-            except ValueError:
-                pass
-
-    return True
-
-
-def track_user_files(
-    config_path: Path,
-    app_loader: Callable[[Path], App],
-) -> tuple[App, set[Path]]:
+def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
     """Load the app and discover the user files loaded as a side effect.
 
-    Snapshots ``sys.modules`` before and after loading, then filters the newly
+    Imports *config_path* directly and resolves its :class:`~ghagen.app.App`
+    through the shared :func:`ghagen.config.resolve_app` policy — no injected
+    loader. Snapshots ``sys.modules`` around the import, then filters the newly
     imported modules to only user-authored files (excluding stdlib,
-    site-packages, and the ghagen package itself).  Returns both the loaded
+    site-packages, and the ghagen package itself) via
+    :func:`ghagen._package_paths.is_user_file`. Returns both the loaded
     :class:`~ghagen.app.App` and the tracked files so callers need no
     mutable-closure hack to smuggle the app out.
 
-    ``_load_app`` uses :func:`exec_module`, which does not register the config
-    module in ``sys.modules``; *config_path* is therefore added explicitly.
+    :func:`importlib.util.exec_module` does not register the config module in
+    ``sys.modules``; *config_path* is therefore added explicitly.
 
     Args:
         config_path: Path to the user's ghagen config file.
-        app_loader: A callable taking *config_path* that imports the user's
-            configuration and returns the :class:`~ghagen.app.App`.
 
     Returns:
         ``(app, files)`` where *files* is a set of absolute
         :class:`~pathlib.Path` objects for user source files.
+
+    Raises:
+        RuntimeError: If *config_path* cannot be loaded or does not expose a
+            usable :class:`~ghagen.app.App`.
     """
+    spec = importlib.util.spec_from_file_location("ghagen_config", config_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {config_path}")
+
+    # Add parent dir to sys.path so the config's relative imports resolve.
+    parent = str(config_path.parent.resolve())
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+
+    module = importlib.util.module_from_spec(spec)
+
+    # Resolve the App INSIDE the snapshot window: a module imported lazily
+    # inside ``create_app()`` (rather than at config import time) is only added
+    # to ``sys.modules`` when ``resolve_app`` invokes the factory. Snapshotting
+    # ``after`` before that call would miss such helpers, silently leaving their
+    # ``uses:`` refs un-rewritten (ADR-0004's defended failure mode).
     before = set(sys.modules.keys())
-    app = app_loader(config_path)
+    spec.loader.exec_module(module)
+    app, error = resolve_app(module, config_path)
     after = set(sys.modules.keys())
 
+    if error is not None:
+        raise RuntimeError(error.message)
+    assert app is not None
+
     new_modules = after - before
-    ghagen_root = _ghagen_package_root()
 
     user_files: set[Path] = set()
     for mod_name in new_modules:
@@ -93,13 +80,13 @@ def track_user_files(
         if mod_file is None:
             continue
         path = Path(mod_file).resolve()
-        if _is_user_file(path, ghagen_root=ghagen_root):
+        if is_user_file(path):
             user_files.add(path)
 
     # exec_module does not register the config module in sys.modules, so the
     # snapshot above never sees it — add it explicitly.
     resolved_config = config_path.resolve()
-    if _is_user_file(resolved_config, ghagen_root=ghagen_root):
+    if is_user_file(resolved_config):
         user_files.add(resolved_config)
 
     return app, user_files

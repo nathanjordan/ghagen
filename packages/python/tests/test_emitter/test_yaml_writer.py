@@ -2,7 +2,7 @@
 
 ``dump_yaml`` and the block-scalar / comment-column passes are the emitter's
 whole-tree rendering stage and are exercised directly. The value → node
-dispatch (`_to_node`, `unwrap_raw`, `to_ordered_commented_map`) lives in
+dispatch (`_to_node`, `unwrap_raw`, `order_entries`) lives in
 :mod:`ghagen.emitter.nodes`; those are low-level probes into the emitter's
 recursion core, kept because the behaviors (Raw see-through, key ordering,
 seq-item comment placement) are cheaper to pin at the node level than to
@@ -16,16 +16,15 @@ from ruamel.yaml.scalarstring import LiteralScalarString, PlainScalarString
 from ghagen._commented import with_comment
 from ghagen._raw import Raw
 from ghagen.emitter.nodes import (
-    _model_to_map,
     _to_node,
-    to_ordered_commented_map,
+    order_entries,
     unwrap_raw,
 )
 from ghagen.emitter.yaml_writer import (
     _apply_block_scalar_style,
-    _yaml_key,
     dump_yaml,
 )
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 
 
@@ -59,19 +58,27 @@ def test_unwrap_raw_passthrough():
     assert unwrap_raw(None) is None
 
 
-# --- to_ordered_commented_map: canonical key ordering ---
+# --- order_entries: canonical key ordering ---
 
 
-def test_to_ordered_commented_map():
-    data = {"c": 3, "a": 1, "b": 2}
-    cm = to_ordered_commented_map(data, ["a", "b", "c"])
-    assert list(cm.keys()) == ["a", "b", "c"]
+def test_order_entries_explicit():
+    spec = ModelSpec(yaml_keys={}, order=("a", "b", "c"))
+    entries = order_entries({"c": 3, "a": 1, "b": 2}, {}, spec)
+    assert [k for k, _ in entries] == ["a", "b", "c"]
 
 
-def test_to_ordered_commented_map_unknown_keys():
-    data = {"z": 26, "a": 1, "m": 13}
-    cm = to_ordered_commented_map(data, ["a"])
-    assert list(cm.keys()) == ["a", "m", "z"]
+def test_order_entries_explicit_remaining_insertion_order():
+    # Keys absent from the explicit order follow in insertion order, then extras.
+    spec = ModelSpec(yaml_keys={}, order=("a",))
+    entries = order_entries({"z": 26, "a": 1, "m": 13}, {"x-extra": 0}, spec)
+    assert [k for k, _ in entries] == ["a", "z", "m", "x-extra"]
+
+
+def test_order_entries_alphabetical_interleaves_extras():
+    # order=None sorts every key, extras included.
+    spec = ModelSpec(yaml_keys={}, order=None)
+    entries = order_entries({"push": 1, "workflow_run": 2}, {"merge_group": 3}, spec)
+    assert [k for k, _ in entries] == ["merge_group", "push", "workflow_run"]
 
 
 def test_dump_yaml_basic():
@@ -196,50 +203,3 @@ def test_to_node_list_with_model_item_comments():
     result = dump_yaml(cm)
     assert "# checkout" in result
     assert "- run: echo hi  # say hi" in result
-
-
-def test_to_node_ghagen_model_matches_model_to_map():
-    """A GhagenModel node has the same keys/values as _model_to_map for it."""
-    step = Step(name="build", run="make")
-    node = _node(step)
-    assert isinstance(node, CommentedMap)
-    assert node == _model_to_map(step)
-
-
-# --- _yaml_key alias resolver tests (spec/alias agreement helper) ---
-
-
-def test_yaml_key_plain_field_name():
-    """A field with no alias resolves to its own name."""
-    assert _yaml_key("name", Step.model_fields["name"]) == "name"
-
-
-def test_yaml_key_serialization_alias():
-    """serialization_alias wins for output keys."""
-    assert _yaml_key("if_", Step.model_fields["if_"]) == "if"
-    assert (
-        _yaml_key("working_directory", Step.model_fields["working_directory"])
-        == "working-directory"
-    )
-
-
-def test_yaml_key_validation_alias_string(monkeypatch):
-    """A string validation_alias (no serialization_alias) is used."""
-    from pydantic.fields import FieldInfo
-
-    fi = FieldInfo()
-    monkeypatch.setattr(fi, "alias", None, raising=False)
-    monkeypatch.setattr(fi, "validation_alias", "valias", raising=False)
-    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
-    assert _yaml_key("field", fi) == "valias"
-
-
-def test_yaml_key_alias_fallback(monkeypatch):
-    """alias is used when no serialization_alias or string validation_alias."""
-    from pydantic.fields import FieldInfo
-
-    fi = FieldInfo()
-    monkeypatch.setattr(fi, "alias", "the_alias", raising=False)
-    monkeypatch.setattr(fi, "validation_alias", None, raising=False)
-    monkeypatch.setattr(fi, "serialization_alias", None, raising=False)
-    assert _yaml_key("field", fi) == "the_alias"

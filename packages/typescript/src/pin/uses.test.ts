@@ -71,6 +71,24 @@ describe("UsesRef pinnability", () => {
   });
 });
 
+describe("UsesRef.uses (lossless round-trip)", () => {
+  // The dedup key and lockfile key: parse(s).uses must equal s byte-for-byte.
+  it("round-trips a plain action ref", () => {
+    const s = "actions/checkout@v4";
+    expect(UsesRef.parse(s)?.uses).toBe(s);
+  });
+
+  it("round-trips a pathful reusable-workflow ref", () => {
+    const s = "octo-org/repo/.github/workflows/ci.yml@v1";
+    expect(UsesRef.parse(s)?.uses).toBe(s);
+  });
+
+  it("round-trips a SHA-pinned ref", () => {
+    const s = `actions/checkout@${SHA}`;
+    expect(UsesRef.parse(s)?.uses).toBe(s);
+  });
+});
+
 describe("UsesRef.actionPart / withSha()", () => {
   it("actionPart omits the ref (no path)", () => {
     expect(UsesRef.parse("actions/checkout@v4")?.actionPart).toBe("actions/checkout");

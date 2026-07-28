@@ -6,21 +6,19 @@
  * need to write to a non-conventional path.
  */
 
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { loadOptions } from "./config.js";
-import { cloneModel } from "./models/_base.js";
+import { DEFAULT_LOCKFILE_PATH, type GhagenOptions, loadOptions } from "./config.js";
 import type { ActionModel, Document, WorkflowModel } from "./models/_base.js";
 import { createTwoFilesPatch } from "diff";
 import type { HeaderVariables } from "./emitter/header.js";
-import { toYaml } from "./emitter/yaml-writer.js";
+import { readLockfile } from "./pin/lockfile.js";
+import { pinTransform } from "./pin/transform.js";
+import { render } from "./synth.js";
 import type { Transform } from "./transforms.js";
-import { mkdir } from "node:fs/promises";
 
 /** Conventional directory for GitHub Actions workflows inside a repository. */
 export const DEFAULT_WORKFLOWS_DIR = ".github/workflows";
-
-const DEFAULT_LOCKFILE_REL = ".ghagen.lock.yml";
 
 interface RegisteredItem {
   readonly item: Document;
@@ -68,18 +66,25 @@ export class App {
        * when a lockfile is present; these are appended after it.
        */
       transforms?: readonly Transform[];
+      /**
+       * Pre-loaded project options. When omitted, `App` reads them from
+       * `.ghagen.yml` itself (standalone `new App()` works unchanged); pass a
+       * value to avoid a redundant read when the config was already parsed.
+       */
+      options?: GhagenOptions;
     } = {},
   ) {
     const rootInput = options.root ?? ".";
     this.rootAbsPath = isAbsolute(rootInput) ? rootInput : resolve(rootInput);
     this.headerTxt = options.header;
     this.lockfilePath =
-      options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_REL);
+      options.lockfile === null ? null : (options.lockfile ?? DEFAULT_LOCKFILE_PATH);
     this._userTransforms = options.transforms ?? [];
 
     // Load project-level options (e.g. auto_dedent) from .ghagen.yml. Threaded into the emitter at
-    // synth/check time rather than applied via a module-level global (ADR-0002).
-    const opts = loadOptions(this.rootAbsPath);
+    // synth/check time rather than applied via a module-level global (ADR-0002). loadOptions is
+    // total — a malformed `entrypoint:` never breaks it.
+    const opts = options.options ?? loadOptions(this.rootAbsPath);
     this.autoDedent = opts.auto_dedent;
   }
 
@@ -116,17 +121,18 @@ export class App {
   /**
    * Synthesize all registered items to YAML files.
    *
-   * Returns the absolute paths of every file written. Asynchronous so we have room to add async
-   * transforms in the future without breaking the API.
+   * Returns the absolute paths of every file written. Synchronous: `render` and every transform
+   * are synchronous, and file writes use the sync `node:fs` API.
    */
-  async synth(): Promise<string[]> {
-    const transforms = await this._buildTransforms();
+  synth(): string[] {
     const written: string[] = [];
-    for (const { item, relPath } of this._items) {
-      const full = resolve(this.rootAbsPath, relPath);
-      const working = this._applyTransforms(item, transforms);
-      await mkdir(dirname(full), { recursive: true });
-      writeFileSync(full, toYaml(working, { header: this.headerTxt, autoDedent: this.autoDedent }));
+    for (const r of render(this._renderItems(), this._buildTransforms(), {
+      header: this.headerTxt,
+      autoDedent: this.autoDedent,
+    })) {
+      const full = resolve(this.rootAbsPath, r.path);
+      mkdirSync(dirname(full), { recursive: true });
+      writeFileSync(full, r.text);
       written.push(full);
     }
     return written;
@@ -138,17 +144,14 @@ export class App {
    * Returns one `[path, diff]` tuple for each file that's stale or missing. An empty list means
    * everything is in sync.
    */
-  async check(): Promise<Array<[string, string]>> {
-    const transforms = await this._buildTransforms();
+  check(): Array<[string, string]> {
     const stale: Array<[string, string]> = [];
 
-    for (const { item, relPath } of this._items) {
-      const full = resolve(this.rootAbsPath, relPath);
-      const working = this._applyTransforms(item, transforms);
-      const expected = toYaml(working, {
-        header: this.headerTxt,
-        autoDedent: this.autoDedent,
-      });
+    for (const r of render(this._renderItems(), this._buildTransforms(), {
+      header: this.headerTxt,
+      autoDedent: this.autoDedent,
+    })) {
+      const full = resolve(this.rootAbsPath, r.path);
 
       if (!existsSync(full) || !statSync(full).isFile()) {
         stale.push([full, `File does not exist: ${full}`]);
@@ -156,12 +159,12 @@ export class App {
       }
 
       const actual = readFileSync(full, "utf8");
-      if (actual !== expected) {
+      if (actual !== r.text) {
         const diff = createTwoFilesPatch(
           `${full} (on disk)`,
           `${full} (generated)`,
           actual,
-          expected,
+          r.text,
         );
         stale.push([full, diff]);
       }
@@ -170,35 +173,30 @@ export class App {
     return stale;
   }
 
-  /** @internal */
-  private async _buildTransforms(): Promise<Transform[]> {
-    const transforms: Transform[] = [];
+  /** @internal — the registered items as `[document, relPath]` pairs for `render`. */
+  private _renderItems(): Array<readonly [Document, string]> {
+    return this._items.map(({ item, relPath }) => [item, relPath] as const);
+  }
+
+  /**
+   * @internal
+   *
+   * Build the full transform list, auto-registering pin *last* if a lockfile is present. User
+   * transforms run first so they see the authored `uses:` refs; the pin transform runs last so it
+   * locks whatever refs survive to the end of the pipeline, including refs a user transform
+   * injected.
+   */
+  private _buildTransforms(): Transform[] {
+    const transforms: Transform[] = [...this._userTransforms];
 
     if (this.lockfilePath !== null) {
       const fullLockfile = resolve(this.rootAbsPath, this.lockfilePath);
       if (existsSync(fullLockfile) && statSync(fullLockfile).isFile()) {
-        // Dynamic import keeps the pin module out of the cold-path when no lockfile is present.
-        const { readLockfile } = await import("./pin/lockfile.js");
-        const { pinTransform } = await import("./pin/transform.js");
         const lockfile = readLockfile(fullLockfile);
         transforms.push(pinTransform(lockfile));
       }
     }
 
-    transforms.push(...this._userTransforms);
     return transforms;
-  }
-
-  /** @internal */
-  private _applyTransforms(item: Document, transforms: readonly Transform[]): Document {
-    if (transforms.length === 0) {
-      return item;
-    }
-
-    let working = cloneModel(item);
-    for (const transform of transforms) {
-      working = transform(working);
-    }
-    return working;
   }
 }

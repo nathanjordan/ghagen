@@ -10,7 +10,6 @@ from __future__ import annotations
 from io import StringIO
 from typing import Any
 
-from pydantic.fields import FieldInfo
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import (
@@ -25,15 +24,6 @@ from ruamel.yaml.scalarstring import (
 # means a change to the dump geometry has a single home to update.
 _MAP_VALUE_INDENT = 2  # a sub-map indents by the mapping indent width
 _SEQ_ITEM_INDENT = 2  # a seq item indents by the sequence indent width
-
-
-def _yaml_key(field_name: str, field_info: FieldInfo) -> str:
-    """Resolve the YAML key for a model field: serialization_alias wins,
-    then a string validation_alias, then alias, else the field name."""
-    alias = field_info.alias or field_name
-    if isinstance(field_info.validation_alias, str):
-        alias = field_info.validation_alias
-    return field_info.serialization_alias or alias
 
 
 def _apply_block_scalar_style(node: Any) -> None:

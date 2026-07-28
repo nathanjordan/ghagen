@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
 from typer.testing import CliRunner
 
 from ghagen.cli.deps import (
@@ -19,18 +20,7 @@ from ghagen.pin.engine import LockfileStaleEntry, VersionBump
 
 runner = CliRunner()
 
-
-def _repo_root() -> Path:
-    """Walk up to find the repo root (directory containing the shared fixtures)."""
-    d = Path(__file__).resolve().parent
-    while d != d.parent:
-        if (d / "fixtures" / "expected").is_dir():
-            return d
-        d = d.parent
-    raise RuntimeError("Cannot find repo root (directory containing fixtures/expected)")
-
-
-FIXTURES_DIR = _repo_root() / "fixtures" / "expected"
+FIXTURES_DIR = _FIXTURES_ROOT / "expected"
 
 
 _CONFIG = """\
@@ -193,9 +183,11 @@ def _mock_resolve_ref(owner: str, repo: str, ref: str, *, token=None) -> str:
     return "0" * 40
 
 
-def _mock_track_user_files(config_path, app_loader):
+def _mock_track_user_files(config_path):
     """Load the app and return ``(app, files)`` with the config file tracked."""
-    loaded_app = app_loader(config_path)
+    from ghagen.cli._common import _load_app
+
+    loaded_app = _load_app(config_path)
     # Return the config file based on the root -- in tests we write
     # ghagen_config.py in tmp_path which is also the cwd.
     root = loaded_app.root

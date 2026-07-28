@@ -1,8 +1,9 @@
 """Tests for ``ghagen.cli._common``'s config/entrypoint discovery.
 
-Covers ``_find_config`` and ``_entrypoint_from_ghagen_yml`` directly
-(unit level), complementing the CLI-level regression tests in
-``test_main.py``.
+Covers ``_find_config`` — the CLI render layer over
+:func:`ghagen.config.load_project_config` — at the unit level, complementing
+the value-level tests in ``test_config.py`` and the CLI-level regression tests
+in ``test_main.py``.
 """
 
 from __future__ import annotations
@@ -12,7 +13,8 @@ from pathlib import Path
 import pytest
 import typer
 
-from ghagen.cli._common import CONFIG_SEARCH_PATHS, _find_config
+from ghagen.cli._common import _find_config
+from ghagen.config import CONFIG_SEARCH_PATHS
 
 
 def test_root_ghagen_yml_resolved_from_root(tmp_path: Path, monkeypatch: object):

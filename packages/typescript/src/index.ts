@@ -137,8 +137,8 @@ export type {
 export type { ShellType, PermissionLevel } from "./models/common.js";
 
 // Emitter
-export { toYaml, toYamlFile } from "./emitter/yaml-writer.js";
-export type { ToYamlOptions } from "./emitter/yaml-writer.js";
+export { toYaml, toYamlFile, toData } from "./emitter/yaml-writer.js";
+export type { ToYamlOptions, ToDataOptions, CommentNode } from "./emitter/yaml-writer.js";
 export type { HeaderVariables } from "./emitter/header.js";
 
 // Helpers
@@ -159,6 +159,9 @@ export { App, DEFAULT_WORKFLOWS_DIR as WORKFLOWS_DIR } from "./app.js";
 
 // Transforms
 export type { Transform } from "./transforms.js";
+
+// Synthesis pipeline
+export { render, applyTransforms, type Rendered } from "./synth.js";
 
 // Pin subsystem
 export {

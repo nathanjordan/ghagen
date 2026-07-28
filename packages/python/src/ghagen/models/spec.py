@@ -18,14 +18,24 @@ class ModelSpec:
     """Serialization spec for one model type.
 
     Attributes:
-        yaml_keys: Maps each content field name to its emitted YAML key. Values
-            agree with the field's Pydantic ``serialization_alias`` (a plain
-            field with no alias maps to itself), so emitted YAML is unchanged.
-        order: Emitted YAML key names in canonical emission order. Keys absent
-            from ``order`` are appended alphabetically. An empty ``order`` emits
-            every key alphabetically (used by :class:`~ghagen.models.trigger.On`,
-            whose trigger keys have no canonical order).
+        yaml_keys: Maps each content field name to its emitted YAML key. This is
+            the single authority for the field -> emitted-key fact; models carry
+            no Pydantic ``serialization_alias`` (a field whose key equals its
+            name maps to itself).
+        order: The emission ordering mode. A ``tuple`` is *explicit*: the listed
+            YAML keys come first in that order, then any remaining keys (and
+            extras) in insertion order. ``None`` is *alphabetical*: every key,
+            extras included, is sorted at emit time — used by
+            :class:`~ghagen.models.trigger.On`, whose trigger keys have no
+            canonical order. This is the declarative peer of TypeScript's
+            ``OrderMode`` (explicit key list vs alphabetical); the sort lives in
+            the Emitter, identically for both ports.
+        present_null_when_empty: YAML keys whose value, when it resolves to an
+            empty map (an empty sub-model or ``{}``), is emitted as a bare null
+            key (``key:``) instead of ``key: {}``. The declarative replacement
+            for the old model-layer present-null smuggle.
     """
 
     yaml_keys: Mapping[str, str]
-    order: tuple[str, ...] = field(default_factory=tuple)
+    order: tuple[str, ...] | None = field(default_factory=tuple)
+    present_null_when_empty: frozenset[str] = frozenset()

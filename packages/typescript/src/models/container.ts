@@ -38,14 +38,14 @@ const CONTAINER_ORDER = ["image", "credentials", "env", "ports", "volumes", "opt
 export const CONTAINER_SPEC: ModelSpec = {
   kind: "container",
   fieldMap: CONTAINER_FIELD_MAP,
-  order: CONTAINER_ORDER,
+  order: { kind: "explicit", keys: CONTAINER_ORDER },
 };
 
 /** Serialization spec for {@link ServiceModel} (identical shape, distinct kind). */
 export const SERVICE_SPEC: ModelSpec = {
   kind: "service",
   fieldMap: CONTAINER_FIELD_MAP,
-  order: CONTAINER_ORDER,
+  order: { kind: "explicit", keys: CONTAINER_ORDER },
 };
 
 /**

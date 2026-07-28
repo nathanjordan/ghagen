@@ -9,6 +9,8 @@ that the emit path does not deep-copy the Document.
 
 from __future__ import annotations
 
+import pytest
+
 import ghagen.models._base as base_module
 from ghagen import (
     Action,
@@ -20,6 +22,7 @@ from ghagen import (
     Step,
     Workflow,
 )
+from ghagen.emitter.document import emit
 
 _TRIPLE_RUN = """
     echo building
@@ -43,6 +46,17 @@ def _run_line_indent(yaml: str, marker: str) -> int:
     """Leading-space count of the emitted block-scalar line containing *marker*."""
     line = next(ln for ln in yaml.splitlines() if marker in ln)
     return len(line) - len(line.lstrip(" "))
+
+
+def test_internal_emit_requires_auto_dedent() -> None:
+    """The internal emitter entry takes ``auto_dedent`` with no default.
+
+    Parity guard with the TS port: the sole default lives on the public
+    ``Document.to_yaml`` facade, never on the internal ``emit``. Calling it
+    without the argument is a ``TypeError``.
+    """
+    with pytest.raises(TypeError):
+        emit(_composite_action(), header=None)  # type: ignore[call-arg]
 
 
 def test_composite_action_run_is_dedented_by_default() -> None:

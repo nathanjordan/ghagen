@@ -4,7 +4,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { Command } from "commander";
-import { CliError, findConfig, loadApp } from "./_common.js";
+import { findConfig, loadApp } from "./_common.js";
+import { CliError } from "./_errors.js";
 import { buildDepsCommand } from "./deps.js";
 
 const INIT_TEMPLATE = `// GitHub Actions workflow definitions.

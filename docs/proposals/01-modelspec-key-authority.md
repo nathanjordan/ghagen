@@ -48,7 +48,7 @@ In the TS port there is one home. Each `X_SPEC.fieldMap` is the field→YAML-key
 type-checked against the generated schema types with `satisfies` (e.g.
 `packages/typescript/src/models/job.ts:145`,
 `CONCURRENCY_SPEC.fieldMap … satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>`).
-There is no second alias-like source. TS needs no structural change; see *ADR / CONTEXT.md impact*
+There is no second alias-like source. TS needs no structural change; see _ADR / CONTEXT.md impact_
 for the one-line parity note.
 
 ## Current interface
@@ -117,7 +117,7 @@ was `serialization_alias`, the field collapses to a bare annotation
 - `model_config` keeps `populate_by_name=True`, `use_enum_values=True`,
   `arbitrary_types_allowed=True` (`_base.py:104-108`).
 
-**Error modes:** the existing spec-vs-fields guard stays and becomes the *sole* consistency check.
+**Error modes:** the existing spec-vs-fields guard stays and becomes the _sole_ consistency check.
 `test_spec.py:45-49` (`test_spec_covers_exactly_the_content_fields`) already asserts
 `set(model.SPEC.yaml_keys) == content_fields(model)`. That is the one invariant worth keeping: the
 spec must name exactly the model's content fields. After this change it is the only key-name
@@ -134,7 +134,7 @@ therefore behaviourally inert outside the emitter, which does not read it.
 ## What sits behind the seam
 
 `ModelSpec` becomes a genuinely deep module: a small, single interface (`yaml_keys` + `order`) that
-is now the *only* place the field→key and ordering facts live, consumed by the emitter's recursion
+is now the _only_ place the field→key and ordering facts live, consumed by the emitter's recursion
 (`nodes.py`) and — after this proposal — by the conformance sweep. Nothing else needs to know how a
 field name becomes a YAML key. The Pydantic layer shrinks to what it is good at: input validation
 and Python-side field metadata.
@@ -164,7 +164,7 @@ Pre-1.0; clean break, no compat shim.
 
 3. **Delete `_yaml_key`** from `emitter/yaml_writer.py:30-36` and its `FieldInfo` import.
 
-4. **Delete the redundancy-guard tests** (see *Test impact*).
+4. **Delete the redundancy-guard tests** (see _Test impact_).
 
 5. Run the full suite; emitted YAML and all integration snapshots must be byte-identical.
 
@@ -198,7 +198,7 @@ Pre-1.0; clean break, no compat shim.
 
 The conformance assertions themselves (`test_scope_properties_covered`) are unchanged; they now
 compare the schema's property set against spec-derived names. Because the emitter and the conformance
-sweep now read the *same* `yaml_keys`, a model that emits a wrong key can no longer pass conformance
+sweep now read the _same_ `yaml_keys`, a model that emits a wrong key can no longer pass conformance
 by having a matching-but-unused alias — the test surface and the production surface are the same map.
 
 The bulk of model tests (`test_step.py`, `test_action.py`, …) are unaffected by this proposal; they
@@ -232,7 +232,7 @@ fields.
 - **CONTEXT.md (Python), "ModelSpec" entry:** already says "YAML key names (field → emitted key)".
   Add a sentence: "It is the single home for the emitted-key fact — models carry no
   `serialization_alias`."
-- **CONTEXT.md (TypeScript), parity note (no code change):** add under *Surface notes* that the
+- **CONTEXT.md (TypeScript), parity note (no code change):** add under _Surface notes_ that the
   TS `fieldMap` is the port-equivalent single home, type-checked against generated schema types with
   `satisfies`; the invariant "one home for the field→key fact" now holds identically in both ports
   (surface differs by idiom, per the parity mandate).

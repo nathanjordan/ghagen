@@ -22,3 +22,11 @@ parameter instead of by mutating and restoring a global.
 `step.run` (and the TypeScript step's `run` data) now holds the **raw** string until emission
 rather than being dedented at construction. Code that inspects `run` before synthesis sees the
 undedented value. The public `setAutoDedent` / `getAutoDedent` exports (TypeScript) are removed.
+
+## Notes (2026-07-28)
+
+- The serialization-time threading site is now `synth.render(...)` (see ADR-0005): one call site
+  per port assembles `header` / `auto_dedent`, consumed by `App.synth` and `App.check`.
+- The single `auto_dedent` default (`True`) lives on `GhagenOptions`; the public Document facades
+  default to it, and the internal emitter entry points take it as a **required** threaded
+  parameter with no default of their own.

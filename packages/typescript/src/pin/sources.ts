@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { MessageChannel } from "node:worker_threads";
 import { createJiti } from "jiti";
 import type { App } from "../app.js";
-import { resolveAppFromModule } from "../_load.js";
+import { resolveApp } from "../config.js";
 import { isUserFile } from "../_package_paths.js";
 
 /**
@@ -101,19 +101,18 @@ function ensureEsmHook(): Promise<void> {
 }
 
 /**
- * Import `configPath` through jiti and return both the resolved {@link App}
- * and the user-source files loaded as a side effect.
+ * Import `configPath` through jiti and return the imported module together
+ * with the user-source files loaded as a side effect. This is the ADR-0004
+ * tracking primitive: it runs the jiti-cache diff + ESM-hook union and does
+ * NOT resolve an {@link App}, so it can be exercised without the cross-realm
+ * `instanceof App` artifact that app resolution hits under Vitest.
  *
  * Returns absolute file paths, filtering out `node_modules` and files inside
- * the ghagen package itself. The App is resolved via the shared
- * {@link resolveAppFromModule} policy; pass `appLoader` to override how the
- * App is obtained (the jiti import — and therefore file tracking — always
- * runs regardless, so a custom loader does not disable the cache diff).
+ * the ghagen package itself (via {@link isUserFile}).
  */
-export async function trackUserFiles(
+export async function trackFiles(
   configPath: string,
-  appLoader?: (configPath: string) => Promise<App> | App,
-): Promise<{ app: App; files: Set<string> }> {
+): Promise<{ mod: unknown; files: Set<string> }> {
   // Wait for the ESM load hook's loader thread to be ready before importing,
   // so even the first import in the process is observed (ADR-0004 union).
   await ensureEsmHook();
@@ -156,8 +155,27 @@ export async function trackUserFiles(
     files.add(configPath);
   }
 
-  const app = appLoader ? await appLoader(configPath) : await resolveAppFromModule(mod, configPath);
-  return { app, files };
+  return { mod, files };
+}
+
+/**
+ * Import `configPath` through jiti and return both the resolved {@link App}
+ * and the user-source files loaded as a side effect.
+ *
+ * The file tracking is done by {@link trackFiles} (the ADR-0004 mechanism);
+ * the App is resolved from the imported module via the shared
+ * {@link resolveApp} policy. The jiti import — and therefore file tracking —
+ * always runs, so app resolution never disables the cache diff.
+ */
+export async function trackUserFiles(
+  configPath: string,
+): Promise<{ app: App; files: Set<string> }> {
+  const { mod, files } = await trackFiles(configPath);
+  const resolution = await resolveApp(mod, configPath);
+  if (resolution.error) {
+    throw new Error(resolution.error.message);
+  }
+  return { app: resolution.app, files };
 }
 
 /**

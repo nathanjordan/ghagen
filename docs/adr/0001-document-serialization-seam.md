@@ -37,3 +37,11 @@ their **ModelSpec** (YAML key names + emission order). `to_commented_map()` / mo
 Unchanged from the original decision: file-level serialization stays gated on **Document** —
 `Document.to_yaml()` / `to_yaml_file()` remain the public entry points, now thin delegates to the
 Emitter's `emit()`.
+
+## Amendment (2026-07-28): the Emitter's observation surface
+
+The Emitter's public surface is `emit` / `emit_file` / `to_data` (Python) and `toYaml` /
+`toYamlFile` / `toData` (TypeScript). `to_data` / `toData` emit **any** model to plain data
+(comments represented as **CommentNode** values) and are the supported way for tests and callers
+to observe a model's emitted structure; they are not gated on Document — only file emission is.
+Model tests assert through this surface, never through emitter internals or model `data` bags.

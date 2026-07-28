@@ -70,6 +70,18 @@ export class UsesRef {
       : `${this.owner}/${this.repo}`;
   }
 
+  /**
+   * The authored `owner/repo[/path]@ref` string — the lockfile key.
+   *
+   * Losslessly reconstructs the string {@link parse} consumed: parsing splits
+   * with no normalization, so `actionPart + "@" + ref` is byte-identical to
+   * the input. This is the dedup key and the lockfile key, so a collected ref
+   * lines up with its lockfile entry by construction.
+   */
+  get uses(): string {
+    return `${this.actionPart}@${this.ref}`;
+  }
+
   /** Rebuild the reference as `owner/repo[/path]@sha`. */
   withSha(sha: string): string {
     return `${this.actionPart}@${sha}`;

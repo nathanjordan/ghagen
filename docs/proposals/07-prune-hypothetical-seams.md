@@ -4,14 +4,14 @@
 
 ## Problem
 
-Several places in both ports carry the *shape* of an extension seam — an
+Several places in both ports carry the _shape_ of an extension seam — an
 injected loader, a re-exported helper, a per-file docs stub, a duplicated
 predicate — without the second adapter that would make the seam real. The
 governing rule: **one adapter is a hypothetical seam; two make it real.** A
 single-adapter seam is just indirection, and it fails the **deletion test** —
 removing it costs nothing a caller relied on. This proposal sweeps those,
 plus genuinely dead public surface, and — crucially — records which
-explorer-flagged items turn out to be *load-bearing* and must stay.
+explorer-flagged items turn out to be _load-bearing_ and must stay.
 
 Two of the flagged items are not dead at all, and the biggest value of this
 sweep is saying so before someone deletes them: `postProcess` and the
@@ -23,7 +23,7 @@ not sweep them up by momentum.
 ### A. `postProcess` / `post_process` — KEEP (documented public escape hatch)
 
 **Verdict: keep. Not dead surface.** The explorer's note that it has "zero
-production producers" is true but misleading: it is an *escape hatch*, so
+production producers" is true but misleading: it is an _escape hatch_, so
 ghagen internals are expected never to set it — the producers are users. It is
 **documented public API in both ports**:
 
@@ -46,8 +46,8 @@ change.**
 **Consequence for the clone machinery.** Because `postProcess` stays, the TS
 clone (`_base.ts:499-514` `cloneMeta`) must keep passing the function by
 reference, and `cloneModel` **cannot** move to `structuredClone`. But note the
-explorer's premise — that `postProcess` is the *only* reason — is wrong on a
-second count: `cloneValueInternal` (`_base.ts:433-489`) documents *two*
+explorer's premise — that `postProcess` is the _only_ reason — is wrong on a
+second count: `cloneValueInternal` (`_base.ts:433-489`) documents _two_
 independent blockers, and the other one is unconditional:
 
 - `structuredClone` "silently drops Symbol-keyed properties (would lose
@@ -68,7 +68,7 @@ idea is not re-proposed.
 awaiting a future TypeDoc run — they are **live entry points consumed today**.
 `docs/astro.config.mjs` instantiates nine `starlight-typedoc` plugins
 (`createStarlightTypeDocPlugin()` at lines 7-15), each pointed at exactly one
-`_docs-api-*.ts` file as its `entryPoints` (lines 125-186). TypeDoc *is* a
+`_docs-api-*.ts` file as its `entryPoints` (lines 125-186). TypeDoc _is_ a
 dependency — in `docs/package.json` (`typedoc`, `starlight-typedoc`,
 `typedoc-plugin-markdown`), not in the TS package, which is why a grep of the
 package's own `package.json` finds nothing. Each plugin instance produces one
@@ -96,7 +96,7 @@ proposal **concurs** and records the decision rather than reopening it:
   not. Not recommended as part of this sweep.
 
 Because they are excluded from nothing in `tsconfig.json` (`include: ["src"]`),
-they *are* compiled into `dist`, shipping nine tiny re-export modules in the
+they _are_ compiled into `dist`, shipping nine tiny re-export modules in the
 published package. If that matters, add `src/_docs-api-*.ts` to the
 `tsconfig.json` `exclude` list (they are never imported at runtime — grep finds
 no import site) so they serve docs only and stay out of `dist`. This is a safe,
@@ -107,7 +107,7 @@ self-contained tidy with no interface impact.
 The injection parameter differs between ports, and so does the verdict.
 
 **TypeScript — delete the parameter.** `trackUserFiles(configPath, appLoader?)`
-(`sources.ts:113-115`) takes an *optional* `appLoader`. Production never passes
+(`sources.ts:113-115`) takes an _optional_ `appLoader`. Production never passes
 it: `deps.ts:173` calls `trackUserFiles(configPath)` and the function falls
 back to the default `resolveAppFromModule` (`sources.ts:159`). The only callers
 that pass it are tests (`sources.test.ts:40,73`, both `async () => new App()`),
@@ -123,8 +123,8 @@ trivial `app`. ADR-0004 explicitly puts the `appLoader` parameter in scope
 mechanism stays untouched.
 
 **Python — remove via proposal 05, not standalone.** `track_user_files(config_path,
-app_loader)` (`sources.py:56-59`) makes `app_loader` *required*, and production
-*does* pass a real one: `deps.py:187` passes `_load_app`. So Python is not the
+app_loader)` (`sources.py:56-59`) makes `app_loader` _required_, and production
+_does_ pass a real one: `deps.py:187` passes `_load_app`. So Python is not the
 same "test-only" case as TS. But there is still only **one** production loader
 (`_load_app`); the parameter exists not because two loaders need to vary, but
 to dodge a `pin/ → cli/` import cycle (`_load_app` lives in `cli/_common.py`,
@@ -147,7 +147,7 @@ directly — Python `nodes.py:101-102` (`if isinstance(value, Commented): return
 _to_node(value.value, ...)`) and `nodes.py:171-174`; TS `yaml-writer.ts:79-82`
 and `102-103`. Confirmed by grep: zero internal consumers of either helper.
 
-This is an **asymmetry with `unwrap_raw`**, which *is* load-bearing —
+This is an **asymmetry with `unwrap_raw`**, which _is_ load-bearing —
 `nodes.py:106,125` route through `unwrap_raw` (and `_raw.py:22` documents it as
 the peel path). `unwrap_commented` is its sibling in the public API but earns
 its keep nowhere.
@@ -170,7 +170,7 @@ Two predicates decide "is this path ghagen-internal vs user code," with
 
 - `models/_base.py:33-44` — `_GHAGEN_ROOT = Path(__file__).parent.parent`, then
   `_is_internal_frame` checks `"pydantic" in parts` or `resolved == _GHAGEN_ROOT
-  or _GHAGEN_ROOT in resolved.parents`.
+or _GHAGEN_ROOT in resolved.parents`.
 - `pin/sources.py:20-53` — `_ghagen_package_root()` via `import ghagen`, then
   `_is_user_file` checks `"site-packages" in parts`, `relative_to(ghagen_root)`,
   and a stdlib sweep over `sysconfig.get_paths()`.
@@ -218,7 +218,7 @@ inline it." That read is wrong here for two reasons:
 Inlining it into `_base.ts` or `app.ts` would either bury a domain term inside
 a file that is not about it, or force `pin/transform.ts` and user code to import
 the concept from an unrelated module. **Verdict: keep the file.** The one honest
-question is *location*, not existence: `transforms.ts` sits at the package root
+question is _location_, not existence: `transforms.ts` sits at the package root
 as a tiny module, which matches the Python `transforms.py` module boundary
 (parity). Keeping it there preserves symmetry and gives the domain term a home
 whose name states what it is. Do not inline; do not rename. No change.
@@ -252,7 +252,7 @@ Items A, B (files themselves), F, G: no change.
   exactly what every production caller uses — the jiti-cache-diff + ESM-hook
   union behind it (ADR-0004) is untouched. The seam that remains
   (`trackUserFiles` itself) is real: it has one production caller and one
-  canary test, but its *interface* is the tracked-file contract, not a swappable
+  canary test, but its _interface_ is the tracked-file contract, not a swappable
   loader.
 - The Python shared predicate turns two divergent implementations behind two
   test surfaces into one implementation behind one — the same consolidation TS
@@ -282,7 +282,7 @@ Items A, B (files themselves), F, G: no change.
 
 - **A (`postProcess`):** no change — its tests stay as the guard that the
   escape hatch works. A one-line assertion may be added that `structuredClone`
-  is *not* introduced, but the two existing clone tests
+  is _not_ introduced, but the two existing clone tests
   (`_clone.test.ts:40` preserving `postProcess` by reference; the `Raw`/
   `Commented` round-trips) already lock the reference-passing contract.
 - **D:** existing `unwrap_commented`/`unwrapCommented` are exercised
@@ -319,7 +319,7 @@ All acceptable under the pre-1.0 clean-break policy; listed for the changelog:
   Verify once, then it is safe.
 - **Risk (E):** the two Python predicates have subtly different remits
   (pydantic-frame awareness for stack attribution vs stdlib/site-packages for
-  tracking). The shared module must expose *both* checks, not force one
+  tracking). The shared module must expose _both_ checks, not force one
   algorithm on both callers — mirror `_package_paths.ts`, which keeps
   `isInternalFrame` and `isUserFile` as two functions over one prefix. Do not
   over-merge into a single function.
@@ -337,8 +337,8 @@ All acceptable under the pre-1.0 clean-break policy; listed for the changelog:
 
 - **ADR-0004** — its "only the injection parameter is in scope" clause is
   exercised: the TS `appLoader` parameter is removed while the jiti-cache-diff
-  + ESM-hook mechanism stays verbatim. Add a one-line note that the parameter
-  was removed as hypothetical-seam indirection; the canary is unchanged.
+  - ESM-hook mechanism stays verbatim. Add a one-line note that the parameter
+    was removed as hypothetical-seam indirection; the canary is unchanged.
 - **CONTEXT.md (Python)** — document the new `_package_paths.py` shared
   predicate, matching the existing TS description of `_package_paths.ts`.
 - **`architecture-deepening-plan.md:51-52`** — this proposal formally adopts its

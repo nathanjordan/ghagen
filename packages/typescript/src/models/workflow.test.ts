@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { workflow, WORKFLOW_SPEC } from "./workflow.js";
+import { workflow } from "./workflow.js";
 import { isModel } from "./_base.js";
 import { job, concurrency } from "./job.js";
 import { step } from "./step.js";
 import { on } from "./trigger.js";
 import { permissions } from "./permissions.js";
+import { toData } from "../emitter/yaml-writer.js";
 
 describe("workflow", () => {
   it("creates a basic workflow with name, on, and jobs", () => {
@@ -24,8 +25,9 @@ describe("workflow", () => {
       on: on({ push: { branches: ["main"] } }),
       jobs: { build: j },
     });
-    expect(w.data["run-name"]).toBe("Build #${{ github.run_number }}");
-    expect(w.data).not.toHaveProperty("runName");
+    const data = toData(w) as Record<string, unknown>;
+    expect(data["run-name"]).toBe("Build #${{ github.run_number }}");
+    expect(data).not.toHaveProperty("runName");
   });
 
   it("auto-wraps on plain object into a model", () => {
@@ -114,6 +116,5 @@ describe("workflow", () => {
       jobs: { build: j },
     });
     expect(w.kind).toBe("workflow");
-    expect(w.spec).toBe(WORKFLOW_SPEC);
   });
 });

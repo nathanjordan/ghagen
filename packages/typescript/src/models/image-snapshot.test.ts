@@ -1,34 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { imageSnapshot, IMAGE_SNAPSHOT_SPEC } from "./image-snapshot.js";
+import { imageSnapshot } from "./image-snapshot.js";
 import { job } from "./job.js";
 import { isModel } from "./_base.js";
-import { modelToYamlMap, toYaml } from "../emitter/yaml-writer.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
 import { workflow } from "./workflow.js";
 
 describe("imageSnapshot", () => {
   it("creates a mapping-syntax model with image name and version", () => {
     const s = imageSnapshot({ imageName: "custom-ubuntu", version: "1.2" });
-    expect(s.data).toEqual({ "image-name": "custom-ubuntu", version: "1.2" });
+    expect(toData(s)).toEqual({ "image-name": "custom-ubuntu", version: "1.2" });
     expect(s.kind).toBe("imageSnapshot");
-    expect(s.spec).toBe(IMAGE_SNAPSHOT_SPEC);
   });
 
   it("maps imageName to image-name", () => {
-    const s = imageSnapshot({ imageName: "img" });
-    expect(s.data).toHaveProperty("image-name", "img");
-    expect(s.data).not.toHaveProperty("imageName");
+    const data = toData(imageSnapshot({ imageName: "img" })) as Record<string, unknown>;
+    expect(data).toHaveProperty("image-name", "img");
+    expect(data).not.toHaveProperty("imageName");
   });
 
   it("omits version when not provided", () => {
-    const s = imageSnapshot({ imageName: "img" });
-    expect(s.data).not.toHaveProperty("version");
+    expect(toData(imageSnapshot({ imageName: "img" }))).toEqual({ "image-name": "img" });
   });
 });
 
 describe("job snapshot field", () => {
   it("passes a string snapshot through untouched (string syntax)", () => {
-    const j = job({ runsOn: "ubuntu-latest", snapshot: "custom-ubuntu" });
-    expect(j.data.snapshot).toBe("custom-ubuntu");
+    const data = toData(job({ runsOn: "ubuntu-latest", snapshot: "custom-ubuntu" })) as Record<
+      string,
+      unknown
+    >;
+    expect(data.snapshot).toBe("custom-ubuntu");
   });
 
   it("promotes an inline object to an ImageSnapshot model (mapping syntax)", () => {
@@ -52,7 +53,7 @@ describe("job snapshot field", () => {
       container: "python:3.13",
       snapshot: "custom-ubuntu",
     });
-    const keys = modelToYamlMap(j).items.map((p) => (p.key as { value: string }).value);
+    const keys = Object.keys(toData(j) as Record<string, unknown>);
     expect(keys.indexOf("snapshot")).toBe(keys.indexOf("container") + 1);
   });
 });

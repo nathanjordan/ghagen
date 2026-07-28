@@ -33,22 +33,36 @@ _Avoid_: plugin, hook, middleware.
 
 **Emitter**:
 The module that serializes a model tree to YAML — key ordering, comments, block scalars. Owns all
-serialization recursion (see ADR-0001, amended); models never serialize themselves.
+serialization recursion (see ADR-0001, amended); models never serialize themselves. Also exposes
+the plain-data observation surface `toData()` — the supported way to inspect a model's emitted
+structure (see **CommentNode**).
 
 **ModelSpec**:
-The per-model serialization spec — YAML key names (field → emitted key), emission order, and the
-inline-input wrap map — declared next to the factory, consumed by the Emitter and factories.
+The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, the
+inline-input wrap map, and per-field emission rules (present-null-when-empty, dynamic-keys
+passthrough, extras placement) — declared next to the factory, consumed by the Emitter and
+factories. The single home for the emitted-key fact (`fieldMap`, type-checked with `satisfies`
+against the generated schema types); every factory builds through `buildModel`.
 _Avoid_: field map, key-order table.
+
+**OrderMode**:
+A ModelSpec's emission-order rule — an explicit key list, or alphabetical (extras interleaved).
+
+**CommentNode**:
+The Emitter's public, backend-neutral representation of a value plus its attached block/EOL
+comment, produced by `toData(..., { comments: true })`.
 
 ### Pinning
 
 **UsesRef**:
-A parsed `owner/repo[/path]@ref` action reference; knows whether it is **Pinnable**.
+A parsed `owner/repo[/path]@ref` action reference; knows whether it is **Pinnable**. Carries its
+authored `uses` string (the **Lockfile** key) via the `uses` accessor.
 
 **UsesSite**:
 One `uses:` occurrence inside a Document — a parsed **UsesRef** plus the ability to replace the
 ref in place. Pin's collect and transform both iterate UsesSites; the "which models carry `uses`"
-policy lives only in the UsesSite iterator.
+policy — and parse failure — live only in the UsesSite iterator. Collect returns parsed,
+deduplicated UsesRefs, never strings (ADR-0006).
 
 **Pinnable**:
 A UsesRef that is remote and not already a commit SHA, so it can be pinned. A ref already written as
@@ -89,6 +103,13 @@ Divergence between the committed schema Snapshot and the current upstream schema
   (the **Document** types) so a bare model cannot be serialized to a file.
 - Generated types are imported into the models for compile-time author-conformance against the
   schema (see ADR-0003). There is no runtime validation.
+- The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
+  App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
+  `cli/_errors.ts`. The synthesis pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs
+  last (ADR-0005).
+- `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
+  `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
+- Tests resolve repo paths via `src/paths.ts`, never via hand-rolled `../../../../` constants.
 
 ## Example dialogue
 

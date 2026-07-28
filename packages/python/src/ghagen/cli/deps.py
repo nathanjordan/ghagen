@@ -184,7 +184,7 @@ def deps_upgrade(
     config_path = _find_config(config)
 
     # Load the app while tracking the user source files it imported.
-    ghagen_app, user_files = track_user_files(config_path, _load_app)
+    ghagen_app, user_files = track_user_files(config_path)
 
     client = _github_client(token)
 

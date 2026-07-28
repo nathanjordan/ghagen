@@ -17,11 +17,12 @@ from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from ghagen._commented import Commented, is_commented
+from ghagen._commented import Commented, is_commented, unwrap_commented
 from ghagen._dedent import dedent_script
 from ghagen._raw import Raw, raw_scalar
 from ghagen.emitter.comments import attach, attach_model_comment
 from ghagen.models._base import GhagenModel
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 
 # Fields carrying serialization policy rather than YAML content; structurally
@@ -48,28 +49,49 @@ def unwrap_raw(value: Any) -> Any:
     return value
 
 
-def to_ordered_commented_map(
-    data: dict[str, Any],
-    key_order: list[str],
-) -> CommentedMap:
-    """Convert a dict to a CommentedMap with keys in canonical order.
+def order_entries(
+    raw: dict[str, Any],
+    extras: dict[str, Any],
+    spec: ModelSpec,
+) -> list[tuple[str, Any]]:
+    """Resolve a model's emitted ``(key, value)`` entries in canonical order.
 
-    Keys present in ``key_order`` come first in that order; remaining keys
-    follow in alphabetical order.
+    The single home for emission ordering, shared by the ruamel walk
+    (:func:`_model_to_map`) and the plain-data walk
+    (:func:`ghagen.emitter.data._model_to_data`), so the two cannot disagree.
+
+    - ``spec.order is None`` (*alphabetical*): every key — ``raw`` and ``extras``
+      alike — is sorted, so a dynamic extra event interleaves with the typed
+      fields rather than being force-appended.
+    - otherwise (*explicit*): the listed keys come first in that order, then the
+      remaining ``raw`` keys in insertion order, then ``extras`` in insertion
+      order.
     """
-    cm = CommentedMap()
+    if spec.order is None:
+        merged = {**raw, **extras}
+        return [(key, merged[key]) for key in sorted(merged)]
+
+    result: list[tuple[str, Any]] = []
     seen: set[str] = set()
-
-    for key in key_order:
-        if key in data:
-            cm[key] = data[key]
+    for key in spec.order:
+        if key in raw:
+            result.append((key, raw[key]))
             seen.add(key)
-
-    for key in sorted(data.keys()):
+    for key, value in raw.items():
         if key not in seen:
-            cm[key] = data[key]
+            result.append((key, value))
+    result.extend(extras.items())
+    return result
 
-    return cm
+
+def is_empty_map(node: Any) -> bool:
+    """True when *node* is an empty map — the trigger for ``present_null_when_empty``.
+
+    Booleans, non-empty maps, and non-map scalars are not empty maps. Both a
+    ruamel ``CommentedMap`` and a plain ``dict`` (used by the data walk) are
+    ``dict`` subclasses, so one check serves both Emitter passes.
+    """
+    return isinstance(node, dict) and len(node) == 0
 
 
 def _to_seq(items: list[Any], *, auto_dedent: bool) -> CommentedSeq:
@@ -99,7 +121,7 @@ def _to_node(value: Any, *, auto_dedent: bool) -> Any:
     ``toYamlValue``.
     """
     if isinstance(value, Commented):
-        return _to_node(value.value, auto_dedent=auto_dedent)
+        return _to_node(unwrap_commented(value), auto_dedent=auto_dedent)
     if isinstance(value, Raw):
         # Route through unwrap_raw to keep PlainScalarString wrapping of
         # Raw[str] (bypasses the block-scalar auto-cast).
@@ -161,19 +183,25 @@ def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> Commented
             value = dedent_script(value)
         raw[spec.yaml_keys.get(field_name, field_name)] = value
 
-    ordered = to_ordered_commented_map(raw, list(spec.order))
-
+    present_null = spec.present_null_when_empty
     cm = CommentedMap()
 
     # Emit each field, attaching any Commented-wrapper comment inline at the
     # point of emission (no collect-then-reattach two-pass). The comment
-    # module owns the actual placement.
-    for key, value in list(ordered.items()) + list(model.extras.items()):
+    # module owns the actual placement. A ``present_null_when_empty`` field whose
+    # value resolves to an empty map emits as a bare ``key:`` (null).
+    for key, value in order_entries(raw, model.extras, spec):
         if is_commented(value):
-            cm[key] = _to_node(value.value, auto_dedent=auto_dedent)
+            node = _to_node(unwrap_commented(value), auto_dedent=auto_dedent)
+            if key in present_null and is_empty_map(node):
+                node = None
+            cm[key] = node
             attach(cm, key, comment=value.comment, eol_comment=value.eol_comment)
         else:
-            cm[key] = _to_node(value, auto_dedent=auto_dedent)
+            node = _to_node(value, auto_dedent=auto_dedent)
+            if key in present_null and is_empty_map(node):
+                node = None
+            cm[key] = node
 
     if model.post_process is not None:
         model.post_process(cm)

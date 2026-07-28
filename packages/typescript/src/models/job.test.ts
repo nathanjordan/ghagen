@@ -1,74 +1,79 @@
 import { describe, it, expect } from "vitest";
-import {
-  job,
-  strategy,
-  matrix,
-  concurrency,
-  defaults,
-  environment,
-  JOB_SPEC,
-  STRATEGY_SPEC,
-  MATRIX_SPEC,
-  CONCURRENCY_SPEC,
-  DEFAULTS_SPEC,
-  ENVIRONMENT_SPEC,
-} from "./job.js";
-import { isModel } from "./_base.js";
+import { job, strategy, matrix, concurrency, defaults, environment } from "./job.js";
+import { isModel, withComment } from "./_base.js";
+import { toData, toYaml } from "../emitter/yaml-writer.js";
 import { step } from "./step.js";
 import { permissions } from "./permissions.js";
+import { workflow } from "./workflow.js";
+import { on } from "./trigger.js";
 
 describe("job", () => {
   it("creates a basic job with runsOn and steps", () => {
-    const s = step({ run: "echo hi" });
-    const j = job({ runsOn: "ubuntu-latest", steps: [s] });
-    expect(j.data["runs-on"]).toBe("ubuntu-latest");
-    expect(j.data.steps).toEqual([s]);
+    const j = job({ runsOn: "ubuntu-latest", steps: [step({ run: "echo hi" })] });
+    expect(toData(j)).toEqual({ "runs-on": "ubuntu-latest", steps: [{ run: "echo hi" }] });
   });
 
   it("maps runsOn to runs-on", () => {
-    const j = job({ runsOn: "ubuntu-latest", steps: [] });
-    expect(j.data).toHaveProperty("runs-on");
-    expect(j.data).not.toHaveProperty("runsOn");
+    const data = toData(job({ runsOn: "ubuntu-latest", steps: [] })) as Record<string, unknown>;
+    expect(data).toHaveProperty("runs-on");
+    expect(data).not.toHaveProperty("runsOn");
   });
 
   it("handles needs as a string", () => {
-    const j = job({ runsOn: "ubuntu-latest", needs: "build", steps: [] });
-    expect(j.data.needs).toBe("build");
+    const data = toData(job({ runsOn: "ubuntu-latest", needs: "build", steps: [] })) as Record<
+      string,
+      unknown
+    >;
+    expect(data.needs).toBe("build");
   });
 
   it("handles needs as an array", () => {
-    const j = job({ runsOn: "ubuntu-latest", needs: ["build", "lint"], steps: [] });
-    expect(j.data.needs).toEqual(["build", "lint"]);
+    const data = toData(
+      job({ runsOn: "ubuntu-latest", needs: ["build", "lint"], steps: [] }),
+    ) as Record<string, unknown>;
+    expect(data.needs).toEqual(["build", "lint"]);
   });
 
   it("maps if_ to if", () => {
-    const j = job({ runsOn: "ubuntu-latest", if_: "always()", steps: [] });
-    expect(j.data["if"]).toBe("always()");
-    expect(j.data).not.toHaveProperty("if_");
+    const data = toData(job({ runsOn: "ubuntu-latest", if_: "always()", steps: [] })) as Record<
+      string,
+      unknown
+    >;
+    expect(data["if"]).toBe("always()");
+    expect(data).not.toHaveProperty("if_");
   });
 
   it("maps with_ to with", () => {
-    const j = job({ uses: "org/repo/.github/workflows/ci.yml@main", with_: { foo: "bar" } });
-    expect(j.data["with"]).toEqual({ foo: "bar" });
-    expect(j.data).not.toHaveProperty("with_");
+    const data = toData(
+      job({ uses: "org/repo/.github/workflows/ci.yml@main", with_: { foo: "bar" } }),
+    ) as Record<string, unknown>;
+    expect(data["with"]).toEqual({ foo: "bar" });
+    expect(data).not.toHaveProperty("with_");
   });
 
   it("maps timeoutMinutes to timeout-minutes", () => {
-    const j = job({ runsOn: "ubuntu-latest", timeoutMinutes: 30, steps: [] });
-    expect(j.data["timeout-minutes"]).toBe(30);
-    expect(j.data).not.toHaveProperty("timeoutMinutes");
+    const data = toData(job({ runsOn: "ubuntu-latest", timeoutMinutes: 30, steps: [] })) as Record<
+      string,
+      unknown
+    >;
+    expect(data["timeout-minutes"]).toBe(30);
+    expect(data).not.toHaveProperty("timeoutMinutes");
   });
 
   it("maps continueOnError to continue-on-error", () => {
-    const j = job({ runsOn: "ubuntu-latest", continueOnError: true, steps: [] });
-    expect(j.data["continue-on-error"]).toBe(true);
-    expect(j.data).not.toHaveProperty("continueOnError");
+    const data = toData(
+      job({ runsOn: "ubuntu-latest", continueOnError: true, steps: [] }),
+    ) as Record<string, unknown>;
+    expect(data["continue-on-error"]).toBe(true);
+    expect(data).not.toHaveProperty("continueOnError");
   });
 
   it("supports uses with secrets inherit for reusable workflows", () => {
-    const j = job({ uses: "org/repo/.github/workflows/ci.yml@main", secrets: "inherit" });
-    expect(j.data.uses).toBe("org/repo/.github/workflows/ci.yml@main");
-    expect(j.data.secrets).toBe("inherit");
+    const data = toData(
+      job({ uses: "org/repo/.github/workflows/ci.yml@main", secrets: "inherit" }),
+    ) as Record<string, unknown>;
+    expect(data.uses).toBe("org/repo/.github/workflows/ci.yml@main");
+    expect(data.secrets).toBe("inherit");
   });
 
   it("auto-wraps permissions plain object into a model", () => {
@@ -138,24 +143,23 @@ describe("job", () => {
     expect(j.data.concurrency).toBe("ci-group");
   });
 
-  it("has correct kind and spec", () => {
+  it("has correct kind", () => {
     const j = job({ runsOn: "ubuntu-latest", steps: [] });
     expect(j.kind).toBe("job");
-    expect(j.spec).toBe(JOB_SPEC);
   });
 });
 
 describe("strategy", () => {
   it("maps failFast to fail-fast", () => {
-    const s = strategy({ failFast: false });
-    expect(s.data["fail-fast"]).toBe(false);
-    expect(s.data).not.toHaveProperty("failFast");
+    const data = toData(strategy({ failFast: false })) as Record<string, unknown>;
+    expect(data["fail-fast"]).toBe(false);
+    expect(data).not.toHaveProperty("failFast");
   });
 
   it("maps maxParallel to max-parallel", () => {
-    const s = strategy({ maxParallel: 3 });
-    expect(s.data["max-parallel"]).toBe(3);
-    expect(s.data).not.toHaveProperty("maxParallel");
+    const data = toData(strategy({ maxParallel: 3 })) as Record<string, unknown>;
+    expect(data["max-parallel"]).toBe(3);
+    expect(data).not.toHaveProperty("maxParallel");
   });
 
   it("auto-wraps matrix_ plain object with matrix()", () => {
@@ -163,10 +167,8 @@ describe("strategy", () => {
     expect(isModel(s.data.matrix)).toBe(true);
   });
 
-  it("has correct kind and spec", () => {
-    const s = strategy({ failFast: false });
-    expect(s.kind).toBe("strategy");
-    expect(s.spec).toBe(STRATEGY_SPEC);
+  it("has correct kind", () => {
+    expect(strategy({ failFast: false }).kind).toBe("strategy");
   });
 });
 
@@ -178,44 +180,83 @@ describe("matrix", () => {
       include: [{ os: "windows-latest", node: 20 }],
       exclude: [{ os: "ubuntu-latest", node: 18 }],
     });
-    expect(m.data.os).toEqual(["ubuntu-latest"]);
-    expect(m.data.node).toEqual([18, 20]);
-    expect(m.data.include).toEqual([{ os: "windows-latest", node: 20 }]);
-    expect(m.data.exclude).toEqual([{ os: "ubuntu-latest", node: 18 }]);
+    expect(toData(m)).toEqual({
+      os: ["ubuntu-latest"],
+      node: [18, 20],
+      include: [{ os: "windows-latest", node: 20 }],
+      exclude: [{ os: "ubuntu-latest", node: 18 }],
+    });
     expect(m.kind).toBe("matrix");
-    expect(m.spec).toBe(MATRIX_SPEC);
+  });
+
+  it("emits dynamic axes through buildModel, after include/exclude", () => {
+    // Dynamic axis keys pass through buildYamlData (spec.dynamicKeys) rather
+    // than a `new Model(...)` bypass; explicit order puts include/exclude
+    // first, then the axes in insertion order.
+    const m = matrix({
+      "node-version": ["18", "20"],
+      os: ["ubuntu-latest"],
+      exclude: [{ os: "ubuntu-latest" }],
+    });
+    expect(Object.keys(toData(m) as Record<string, unknown>)).toEqual([
+      "exclude",
+      "node-version",
+      "os",
+    ]);
   });
 });
 
 describe("concurrency", () => {
   it("maps cancelInProgress to cancel-in-progress", () => {
     const c = concurrency({ group: "ci", cancelInProgress: true });
-    expect(c.data.group).toBe("ci");
-    expect(c.data["cancel-in-progress"]).toBe(true);
-    expect(c.data).not.toHaveProperty("cancelInProgress");
+    const data = toData(c) as Record<string, unknown>;
+    expect(data.group).toBe("ci");
+    expect(data["cancel-in-progress"]).toBe(true);
+    expect(data).not.toHaveProperty("cancelInProgress");
     expect(c.kind).toBe("concurrency");
-    expect(c.spec).toBe(CONCURRENCY_SPEC);
   });
 });
 
 describe("defaults", () => {
   it("maps run.workingDirectory to run.working-directory", () => {
     const d = defaults({ run: { shell: "bash", workingDirectory: "/app" } });
-    const run = d.data.run as Record<string, unknown>;
+    const run = (toData(d) as Record<string, unknown>).run as Record<string, unknown>;
     expect(run.shell).toBe("bash");
     expect(run["working-directory"]).toBe("/app");
     expect(run).not.toHaveProperty("workingDirectory");
     expect(d.kind).toBe("defaults");
-    expect(d.spec).toBe(DEFAULTS_SPEC);
+  });
+
+  it("preserves a Commented wrapper on run.shell (comment-drop regression)", () => {
+    // `run` is modelled as a DefaultsRunModel so shell/working-directory flow
+    // through buildModel's Commented peel/re-apply — the comment survives the
+    // nested map instead of being silently dropped by a hand-built object.
+    const d = defaults({ run: { shell: withComment("bash", "login shell") } });
+    const data = toData(d, { comments: true }) as Record<string, unknown>;
+    const run = data.run as Record<string, unknown>;
+    expect(run.shell).toEqual({ value: "bash", comment: "login shell" });
+  });
+
+  it("emits the run.shell comment into YAML", () => {
+    const wf = workflow({
+      name: "W",
+      on: on({ push: { branches: ["main"] } }),
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          defaults: defaults({ run: { shell: withComment("bash", "login shell") } }),
+          steps: [step({ run: "echo hi" })],
+        }),
+      },
+    });
+    expect(toYaml(wf, { header: null })).toContain("# login shell");
   });
 });
 
 describe("environment", () => {
   it("creates an environment with name and url", () => {
     const e = environment({ name: "production", url: "https://example.com" });
-    expect(e.data.name).toBe("production");
-    expect(e.data.url).toBe("https://example.com");
+    expect(toData(e)).toEqual({ name: "production", url: "https://example.com" });
     expect(e.kind).toBe("environment");
-    expect(e.spec).toBe(ENVIRONMENT_SPEC);
   });
 });

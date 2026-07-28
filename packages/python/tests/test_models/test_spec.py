@@ -14,7 +14,6 @@ import ghagen.models.job  # noqa: F401
 import ghagen.models.trigger  # noqa: F401
 import ghagen.models.workflow  # noqa: F401
 from ghagen.emitter.nodes import _META_FIELDS
-from ghagen.emitter.yaml_writer import _yaml_key
 from ghagen.models._base import Document, GhagenModel
 from ghagen.models.trigger import On
 
@@ -49,43 +48,31 @@ def test_spec_covers_exactly_the_content_fields() -> None:
         )
 
 
-def test_yaml_keys_agree_with_pydantic_aliases() -> None:
-    """The spec's emitted key for a field must match Pydantic's alias.
-
-    This is the guarantee that byte output is unchanged: serialization now
-    reads ``spec.yaml_keys`` instead of the alias resolver, so they must agree.
-    """
-    for model in _all_model_classes():
-        for name in _content_fields(model):
-            expected = _yaml_key(name, model.model_fields[name])
-            assert model.SPEC.yaml_keys[name] == expected, (
-                f"{model.__name__}.{name}: spec key "
-                f"{model.SPEC.yaml_keys[name]!r} != alias key {expected!r}"
-            )
-
-
-def test_order_has_no_duplicates() -> None:
+def test_explicit_order_has_no_duplicates() -> None:
     for model in _all_model_classes():
         order = model.SPEC.order
+        if order is None:  # alphabetical
+            continue
         assert len(order) == len(set(order)), f"{model.__name__}: duplicate order keys"
 
 
-def test_order_is_complete_or_empty() -> None:
-    """Either the spec fully orders its keys, or opts into alphabetical (empty).
+def test_explicit_order_is_complete() -> None:
+    """An explicit ``order`` (a tuple) lists exactly the model's emitted keys.
 
-    A non-empty ``order`` must list exactly the model's emitted YAML keys — no
-    phantom keys, none missing. An empty ``order`` means alphabetical emission.
+    No phantom keys, none missing. ``order=None`` opts into alphabetical
+    emission and is exempt.
     """
     for model in _all_model_classes():
+        if model.SPEC.order is None:  # alphabetical
+            continue
         order = set(model.SPEC.order)
         keys = set(model.SPEC.yaml_keys.values())
-        if model.SPEC.order:
-            assert order == keys, (
-                f"{model.__name__}: order {order} must equal emitted keys {keys}"
-            )
+        assert order == keys, (
+            f"{model.__name__}: order {order} must equal emitted keys {keys}"
+        )
 
 
-def test_only_on_uses_empty_order() -> None:
-    """``On`` is the sole model that emits alphabetically (empty order)."""
-    empty = {m.__name__ for m in _all_model_classes() if not m.SPEC.order}
-    assert empty == {On.__name__}, f"unexpected empty-order models: {empty}"
+def test_only_on_uses_alphabetical_order() -> None:
+    """``On`` is the sole model that emits alphabetically (``order=None``)."""
+    alpha = {m.__name__ for m in _all_model_classes() if m.SPEC.order is None}
+    assert alpha == {On.__name__}, f"unexpected alphabetical-order models: {alpha}"

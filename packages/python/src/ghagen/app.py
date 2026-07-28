@@ -5,10 +5,11 @@ from __future__ import annotations
 import difflib
 from pathlib import Path
 
-from ghagen.config import load_options
+from ghagen.config import DEFAULT_LOCKFILE_PATH, GhagenOptions, load_options
 from ghagen.emitter.header import DEFAULT, HeaderInput
 from ghagen.models.action import Action
 from ghagen.models.workflow import Workflow
+from ghagen.synth import render
 from ghagen.transforms import Transform
 
 _Item = Workflow | Action
@@ -38,8 +39,9 @@ class App:
         self,
         root: str | Path = ".",
         header: HeaderInput = DEFAULT,
-        lockfile: str | Path | None = ".ghagen.lock.yml",
+        lockfile: str | Path | None = DEFAULT_LOCKFILE_PATH,
         transforms: list[Transform] | None = None,
+        options: GhagenOptions | None = None,
     ) -> None:
         """Initialize the App.
 
@@ -69,6 +71,10 @@ class App:
             transforms: Additional model transforms to apply during
                 synthesis.  The pin transform is auto-registered when
                 a lockfile is present; these are appended after it.
+            options: Pre-loaded project options. When omitted, ``App`` reads
+                them from ``.ghagen.yml`` itself (standalone ``App()`` works
+                unchanged); pass a value to avoid a redundant read when the
+                config was already parsed.
         """
         self.root = Path(root)
         self.header: HeaderInput = header
@@ -78,9 +84,10 @@ class App:
 
         # Load project-level options (e.g. auto_dedent) from .ghagen.yml.
         # These are threaded into the emitter at synth/check time rather than
-        # applied via a module-level global (ADR-0002).
-        options = load_options(self.root)
-        self._auto_dedent = options.auto_dedent
+        # applied via a module-level global (ADR-0002). load_options is total —
+        # a malformed `entrypoint:` never breaks it.
+        resolved_options = options if options is not None else load_options(self.root)
+        self._auto_dedent = resolved_options.auto_dedent
 
     def documents(self) -> list[_Item]:
         """Return the registered Documents (Workflows and Actions).
@@ -128,8 +135,13 @@ class App:
         self.add(action, Path(dir) / "action.yml")
 
     def _build_transforms(self) -> list[Transform]:
-        """Build the full transform list, auto-registering pin if needed."""
-        transforms: list[Transform] = []
+        """Build the full transform list, auto-registering pin last if needed.
+
+        User transforms run first so they see the authored ``uses:`` refs; the
+        pin transform runs *last* so it locks whatever refs survive to the end
+        of the pipeline, including refs a user transform injected.
+        """
+        transforms: list[Transform] = list(self._transforms)
 
         if self.lockfile_path is not None:
             full_lockfile = self.root / self.lockfile_path
@@ -140,18 +152,7 @@ class App:
                 lockfile = read_lockfile(full_lockfile)
                 transforms.append(PinTransform(lockfile))
 
-        transforms.extend(self._transforms)
         return transforms
-
-    def _apply_transforms(self, item: _Item, transforms: list[Transform]) -> _Item:
-        """Deep-copy a model and apply all transforms."""
-        if not transforms:
-            return item
-
-        working = item.model_copy(deep=True)
-        for transform in transforms:
-            working = transform(working)
-        return working
 
     def synth(self) -> list[Path]:
         """Synthesize all registered items to YAML files.
@@ -159,14 +160,16 @@ class App:
         Returns:
             List of file paths that were written.
         """
-        transforms = self._build_transforms()
         written: list[Path] = []
-        for item, rel_path in self._items:
-            full = self.root / rel_path
-            working = self._apply_transforms(item, transforms)
-            working.to_yaml_file(
-                full, header=self.header, auto_dedent=self._auto_dedent
-            )
+        for r in render(
+            self._items,
+            self._build_transforms(),
+            header=self.header,
+            auto_dedent=self._auto_dedent,
+        ):
+            full = self.root / r.path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(r.text)
             written.append(full)
         return written
 
@@ -177,25 +180,24 @@ class App:
             List of ``(path, diff)`` tuples for files that are out of date.
             Empty list means everything is in sync.
         """
-        transforms = self._build_transforms()
         stale: list[tuple[Path, str]] = []
-
-        for item, rel_path in self._items:
-            full = self.root / rel_path
-            working = self._apply_transforms(item, transforms)
-            expected = working.to_yaml(
-                header=self.header, auto_dedent=self._auto_dedent
-            )
+        for r in render(
+            self._items,
+            self._build_transforms(),
+            header=self.header,
+            auto_dedent=self._auto_dedent,
+        ):
+            full = self.root / r.path
 
             if not full.exists():
                 stale.append((full, f"File does not exist: {full}"))
                 continue
 
             actual = full.read_text()
-            if actual != expected:
+            if actual != r.text:
                 diff = difflib.unified_diff(
                     actual.splitlines(keepends=True),
-                    expected.splitlines(keepends=True),
+                    r.text.splitlines(keepends=True),
                     fromfile=f"{full} (on disk)",
                     tofile=f"{full} (generated)",
                 )

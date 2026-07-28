@@ -5,8 +5,10 @@ import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
 import { action, compositeRuns } from "../models/action.js";
-import { cloneModel, isCommented } from "../models/_base.js";
-import type { Model, Commented } from "../models/_base.js";
+import { cloneModel } from "../models/_base.js";
+import { toData } from "../emitter/yaml-writer.js";
+
+const PINNED = "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac";
 
 function makeLockfile(): Lockfile {
   const lf = new Lockfile();
@@ -33,17 +35,12 @@ describe("pinTransform()", () => {
       },
     });
     const cloned = cloneModel(wf);
-    const transform = pinTransform(makeLockfile());
-    transform(cloned);
+    pinTransform(makeLockfile())(cloned);
 
-    const jobs = cloned.data["jobs"] as Record<string, Model>;
-    const steps = jobs["test"]!.data["steps"] as Model[];
-    const uses = steps[0]!.data["uses"];
-    expect(isCommented(uses)).toBe(true);
-    expect((uses as Commented<string>).value).toBe(
-      "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
-    );
-    expect((uses as Commented<string>).eolComment).toBe("v4");
+    const data = toData(cloned, { comments: true }) as Record<string, unknown>;
+    const jobs = data.jobs as Record<string, Record<string, unknown>>;
+    const steps = jobs.test!.steps as Array<Record<string, unknown>>;
+    expect(steps[0]!.uses).toEqual({ value: PINNED, eolComment: "v4" });
   });
 
   it("throws PinError when an entry is missing", () => {
@@ -76,9 +73,10 @@ describe("pinTransform()", () => {
     const transform = pinTransform(new Lockfile());
     expect(() => transform(cloned)).not.toThrow();
 
-    const jobs = cloned.data["jobs"] as Record<string, Model>;
-    const steps = jobs["test"]!.data["steps"] as Model[];
-    expect(steps[0]!.data["uses"]).toBe(`actions/checkout@${sha}`);
+    const data = toData(cloned) as Record<string, unknown>;
+    const jobs = data.jobs as Record<string, Record<string, unknown>>;
+    const steps = jobs.test!.steps as Array<Record<string, unknown>>;
+    expect(steps[0]!.uses).toBe(`actions/checkout@${sha}`);
   });
 
   it("skips local refs (./) and docker refs", () => {
@@ -109,13 +107,9 @@ describe("pinTransform()", () => {
     const cloned = cloneModel(wf);
     pinTransform(makeLockfile())(cloned);
 
-    const jobs = cloned.data["jobs"] as Record<string, Model>;
-    const jobUses = jobs["test"]!.data["uses"];
-    expect(isCommented(jobUses)).toBe(true);
-    expect((jobUses as Commented<string>).value).toBe(
-      "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
-    );
-    expect((jobUses as Commented<string>).eolComment).toBe("v4");
+    const data = toData(cloned, { comments: true }) as Record<string, unknown>;
+    const jobs = data.jobs as Record<string, Record<string, unknown>>;
+    expect(jobs.test!.uses).toEqual({ value: PINNED, eolComment: "v4" });
   });
 
   it("pins composite-action steps", () => {
@@ -129,12 +123,10 @@ describe("pinTransform()", () => {
     });
     const cloned = cloneModel(a);
     pinTransform(makeLockfile())(cloned);
-    const runs = cloned.data["runs"] as Model;
-    const steps = runs.data["steps"] as Model[];
-    const actionUses = steps[0]!.data["uses"];
-    expect(isCommented(actionUses)).toBe(true);
-    expect((actionUses as Commented<string>).value).toBe(
-      "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac",
-    );
+
+    const data = toData(cloned, { comments: true }) as Record<string, unknown>;
+    const runs = data.runs as Record<string, unknown>;
+    const steps = runs.steps as Array<Record<string, unknown>>;
+    expect(steps[0]!.uses).toEqual({ value: PINNED, eolComment: "v4" });
   });
 });

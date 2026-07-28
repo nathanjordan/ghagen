@@ -36,6 +36,7 @@ from ghagen.models.trigger import (
     WorkflowDispatchTrigger,
 )
 from ghagen.models.workflow import Workflow
+from ghagen.synth import Rendered, apply_transforms, render
 from ghagen.transforms import Transform
 
 __all__ = [
@@ -72,6 +73,10 @@ __all__ = [
     "Workflow",
     # Transforms
     "Transform",
+    # Synthesis pipeline
+    "render",
+    "apply_transforms",
+    "Rendered",
     # Helpers
     "expr",
     # Header API

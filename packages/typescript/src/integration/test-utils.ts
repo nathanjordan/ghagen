@@ -3,10 +3,9 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
+import { FIXTURES_DIR, SCHEMA_DIR } from "../paths.js";
 
-export const FIXTURES_DIR = resolve(import.meta.dirname, "../../../../fixtures/expected");
-
-export const SCHEMA_DIR = resolve(import.meta.dirname, "../../../../schema");
+export { FIXTURES_DIR, SCHEMA_DIR };
 
 export function loadFixture(name: string): string {
   return readFileSync(resolve(FIXTURES_DIR, name), "utf-8");

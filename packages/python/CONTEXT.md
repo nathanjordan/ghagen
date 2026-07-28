@@ -33,22 +33,34 @@ _Avoid_: plugin, hook, middleware.
 
 **Emitter**:
 The module that serializes a model tree to YAML — key ordering, comments, block scalars. Owns all
-serialization recursion (see ADR-0001, amended); models never serialize themselves.
+serialization recursion (see ADR-0001, amended); models never serialize themselves. Also exposes
+the plain-data observation surface `to_data()` — the supported way to inspect a model's emitted
+structure (see **CommentNode**).
 
 **ModelSpec**:
-The per-model serialization spec — YAML key names (field → emitted key) and emission order —
-declared next to the model, consumed by the Emitter.
+The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, and
+per-field emission rules (present-null-when-empty) — declared next to the model, consumed by the
+Emitter. The single home for the emitted-key fact: models carry no `serialization_alias`.
 _Avoid_: field map, key-order table.
+
+**OrderMode**:
+A ModelSpec's emission-order rule — an explicit key list, or alphabetical (extras interleaved).
+
+**CommentNode**:
+The Emitter's public, backend-neutral representation of a value plus its attached block/EOL
+comment, produced by `to_data(..., comments=True)`.
 
 ### Pinning
 
 **UsesRef**:
-A parsed `owner/repo[/path]@ref` action reference; knows whether it is **Pinnable**.
+A parsed `owner/repo[/path]@ref` action reference; knows whether it is **Pinnable**. Carries its
+authored `uses` string (the **Lockfile** key) via the `uses` accessor.
 
 **UsesSite**:
 One `uses:` occurrence inside a Document — a parsed **UsesRef** plus the ability to replace the
 ref in place. Pin's collect and transform both iterate UsesSites; the "which models carry `uses`"
-policy lives only in the UsesSite iterator.
+policy — and parse failure — live only in the UsesSite iterator. Collect returns parsed,
+deduplicated UsesRefs, never strings (ADR-0006).
 
 **Pinnable**:
 A UsesRef that is remote and not already a commit SHA, so it can be pinned. A ref already written as
@@ -87,6 +99,12 @@ Divergence between the committed schema Snapshot and the current upstream schema
   (ADR-0001, amended).
 - User input is validated at construction (Pydantic). Schema faithfulness is checked by integration
   tests, not by generated types (see ADR-0003).
+- The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
+  App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
+  CLI-local. The synthesis pipeline is `synth.render()`; pin runs last (ADR-0005).
+- `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
+  the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
+  hand-rolled `parents[N]`.
 
 ## Example dialogue
 
