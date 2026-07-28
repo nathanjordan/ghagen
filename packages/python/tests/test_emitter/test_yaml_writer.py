@@ -2,7 +2,7 @@
 
 ``dump_yaml`` and the block-scalar / comment-column passes are the emitter's
 whole-tree rendering stage and are exercised directly. The value → node
-dispatch (`_to_node`, `unwrap_raw`, `to_ordered_commented_map`) lives in
+dispatch (`_to_node`, `unwrap_raw`, `order_entries`) lives in
 :mod:`ghagen.emitter.nodes`; those are low-level probes into the emitter's
 recursion core, kept because the behaviors (Raw see-through, key ordering,
 seq-item comment placement) are cheaper to pin at the node level than to
@@ -17,13 +17,14 @@ from ghagen._commented import with_comment
 from ghagen._raw import Raw
 from ghagen.emitter.nodes import (
     _to_node,
-    to_ordered_commented_map,
+    order_entries,
     unwrap_raw,
 )
 from ghagen.emitter.yaml_writer import (
     _apply_block_scalar_style,
     dump_yaml,
 )
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 
 
@@ -57,19 +58,27 @@ def test_unwrap_raw_passthrough():
     assert unwrap_raw(None) is None
 
 
-# --- to_ordered_commented_map: canonical key ordering ---
+# --- order_entries: canonical key ordering ---
 
 
-def test_to_ordered_commented_map():
-    data = {"c": 3, "a": 1, "b": 2}
-    cm = to_ordered_commented_map(data, ["a", "b", "c"])
-    assert list(cm.keys()) == ["a", "b", "c"]
+def test_order_entries_explicit():
+    spec = ModelSpec(yaml_keys={}, order=("a", "b", "c"))
+    entries = order_entries({"c": 3, "a": 1, "b": 2}, {}, spec)
+    assert [k for k, _ in entries] == ["a", "b", "c"]
 
 
-def test_to_ordered_commented_map_unknown_keys():
-    data = {"z": 26, "a": 1, "m": 13}
-    cm = to_ordered_commented_map(data, ["a"])
-    assert list(cm.keys()) == ["a", "m", "z"]
+def test_order_entries_explicit_remaining_insertion_order():
+    # Keys absent from the explicit order follow in insertion order, then extras.
+    spec = ModelSpec(yaml_keys={}, order=("a",))
+    entries = order_entries({"z": 26, "a": 1, "m": 13}, {"x-extra": 0}, spec)
+    assert [k for k, _ in entries] == ["a", "z", "m", "x-extra"]
+
+
+def test_order_entries_alphabetical_interleaves_extras():
+    # order=None sorts every key, extras included.
+    spec = ModelSpec(yaml_keys={}, order=None)
+    entries = order_entries({"push": 1, "workflow_run": 2}, {"merge_group": 3}, spec)
+    assert [k for k, _ in entries] == ["merge_group", "push", "workflow_run"]
 
 
 def test_dump_yaml_basic():

@@ -1,4 +1,4 @@
-import { Model, buildModel, buildYamlData, extractMeta } from "./_base.js";
+import { buildModel, extractMeta } from "./_base.js";
 import type {
   OnModel,
   PushTriggerModel,
@@ -41,7 +41,10 @@ export const PUSH_TRIGGER_SPEC: ModelSpec = {
     paths: "paths",
     pathsIgnore: "paths-ignore",
   },
-  order: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore"],
+  order: {
+    kind: "explicit",
+    keys: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore"],
+  },
 };
 
 /**
@@ -97,7 +100,10 @@ export const PR_TRIGGER_SPEC: ModelSpec = {
     pathsIgnore: "paths-ignore",
     types: "types",
   },
-  order: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore", "types"],
+  order: {
+    kind: "explicit",
+    keys: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore", "types"],
+  },
 };
 
 /**
@@ -145,7 +151,7 @@ export interface ScheduleTriggerInput {
 export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
   kind: "scheduleTrigger",
   fieldMap: { cron: "cron", timezone: "timezone" },
-  order: ["cron", "timezone"],
+  order: { kind: "explicit", keys: ["cron", "timezone"] },
 };
 
 export function scheduleTrigger(input: WithMeta<ScheduleTriggerInput>): ScheduleTriggerModel {
@@ -218,7 +224,7 @@ export const WORKFLOW_DISPATCH_INPUT_SPEC: ModelSpec = {
     type: "type",
     options: "options",
   },
-  order: ["description", "required", "default", "type", "options"],
+  order: { kind: "explicit", keys: ["description", "required", "default", "type", "options"] },
 };
 
 /** Wrap one `workflow_dispatch` input def into an ordered model. */
@@ -237,7 +243,7 @@ function workflowDispatchInputDef(
 export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
   kind: "workflowDispatch",
   fieldMap: { inputs: "inputs" },
-  order: ["inputs"],
+  order: { kind: "explicit", keys: ["inputs"] },
   wrap: { inputs: { factory: workflowDispatchInputDef, mode: "map" } },
 };
 
@@ -324,7 +330,7 @@ export interface WorkflowCallInput {
 export const WORKFLOW_CALL_SPEC: ModelSpec = {
   kind: "workflowCall",
   fieldMap: { inputs: "inputs", outputs: "outputs", secrets: "secrets" },
-  order: ["inputs", "outputs", "secrets"],
+  order: { kind: "explicit", keys: ["inputs", "outputs", "secrets"] },
 };
 
 export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
@@ -410,10 +416,12 @@ export interface OnInput {
 /**
  * Serialization spec for {@link OnModel}.
  *
- * `order` is empty: `on()` sorts the wrapped keys alphabetically before
- * constructing the model (matching Python's alphabetical trigger emission).
- * The typed trigger fields carry auto-wrap rules; the plain-object event
- * fields pass through untouched.
+ * `order` is `alphabetical`: the Emitter sorts every key (typed triggers and
+ * dynamic extra events alike) at emit time, matching Python's alphabetical
+ * trigger emission — the sort lives in one place, not in this factory. The
+ * typed trigger fields carry auto-wrap rules; the plain-object event fields
+ * pass through untouched. `presentNullWhenEmpty` renders an empty
+ * `workflow_dispatch` as a bare `workflow_dispatch:` key.
  */
 export const ON_SPEC: ModelSpec = {
   kind: "on",
@@ -452,7 +460,8 @@ export const ON_SPEC: ModelSpec = {
     watch: "watch",
     workflowRun: "workflow_run",
   },
-  order: [],
+  order: { kind: "alphabetical" },
+  presentNullWhenEmpty: ["workflow_dispatch"],
   wrap: {
     push: { factory: pushTrigger, mode: "model" },
     pullRequest: { factory: prTrigger, mode: "model" },
@@ -483,13 +492,5 @@ export const ON_SPEC: ModelSpec = {
  */
 export function on(input: WithMeta<OnInput>): OnModel {
   const [data, meta] = extractMeta(input);
-  const yamlData = buildYamlData(ON_SPEC, data as Record<string, unknown>);
-
-  // Sort keys alphabetically (matching Python behavior — no explicit trigger order).
-  const sortedData: Record<string, unknown> = {};
-  for (const key of Object.keys(yamlData).sort()) {
-    sortedData[key] = yamlData[key];
-  }
-
-  return new Model(ON_SPEC, sortedData, meta) as OnModel;
+  return buildModel<OnModel>(ON_SPEC, data as Record<string, unknown>, meta);
 }

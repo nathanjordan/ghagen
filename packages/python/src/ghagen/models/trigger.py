@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic import model_validator
-
 from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.spec import ModelSpec
@@ -83,7 +81,10 @@ WORKFLOW_CALL_SPEC = ModelSpec(
     order=("inputs", "outputs", "secrets"),
 )
 
-# ``On`` has no canonical trigger order: keys emit alphabetically (empty order).
+# ``On`` has no canonical trigger order: ``order=None`` selects alphabetical
+# emission (extras interleave). An empty ``workflow_dispatch`` emits as a bare
+# ``workflow_dispatch:`` key via ``present_null_when_empty`` — the declared rule
+# that replaces the old model-layer ``Raw(None)`` smuggle.
 ON_SPEC = ModelSpec(
     yaml_keys={
         "push": "push",
@@ -114,6 +115,8 @@ ON_SPEC = ModelSpec(
         "status": "status",
         "watch": "watch",
     },
+    order=None,
+    present_null_when_empty=frozenset({"workflow_dispatch"}),
 )
 
 
@@ -245,20 +248,3 @@ class On(GhagenModel):
     registry_package: OrRaw[dict[str, Any]] | None = None
     status: OrRaw[dict[str, Any]] | None = None
     watch: OrRaw[dict[str, Any]] | None = None
-
-    @model_validator(mode="after")
-    def _normalize_workflow_dispatch(self) -> On:
-        """Render an empty ``workflow_dispatch`` as a present null key.
-
-        ``workflow_dispatch:`` with no inputs must emit as a bare key (null),
-        not ``workflow_dispatch: {}``. Pydantic's ``exclude_none`` would drop
-        a plain ``None`` field, so an empty trigger is normalized to
-        ``Raw(None)`` at construction — which the emitter renders as a present
-        null value. A boolean ``workflow_dispatch`` is left untouched.
-        """
-        wd = self.workflow_dispatch
-        is_empty_model = isinstance(wd, WorkflowDispatchTrigger) and wd.inputs is None
-        is_empty_map = isinstance(wd, dict) and len(wd) == 0
-        if is_empty_model or is_empty_map:
-            object.__setattr__(self, "workflow_dispatch", Raw(None))
-        return self

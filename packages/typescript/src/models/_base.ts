@@ -174,6 +174,7 @@ export type ModelKind =
   | "matrix"
   | "concurrency"
   | "defaults"
+  | "defaultsRun"
   | "environment"
   | "container"
   | "service"
@@ -275,6 +276,7 @@ export type StrategyModel = ModelOf<"strategy">;
 export type MatrixModel = ModelOf<"matrix">;
 export type ConcurrencyModel = ModelOf<"concurrency">;
 export type DefaultsModel = ModelOf<"defaults">;
+export type DefaultsRunModel = ModelOf<"defaultsRun">;
 export type EnvironmentModel = ModelOf<"environment">;
 export type ContainerModel = ModelOf<"container">;
 export type ServiceModel = ModelOf<"service">;
@@ -304,8 +306,11 @@ export type Document = WorkflowModel | ActionModel;
  * Replaces the hand-rolled promotion ladders that lived inside `workflow()`,
  * `job()`, and `on()`. A `Commented` wrapper on a field is peeled before
  * wrapping and re-applied after, so `withComment(...)` survives around a
- * plain-object shorthand. `on()` calls this directly because it sorts keys
- * before constructing its Model.
+ * plain-object shorthand.
+ *
+ * When `spec.dynamicKeys` is set, any input key not named in `fieldMap` (after
+ * `extractMeta` has removed the meta keys) passes straight through to `data`
+ * instead of being dropped — the declared path for dynamic axes (`matrix()`).
  */
 export function buildYamlData(
   spec: ModelSpec,
@@ -342,6 +347,18 @@ export function buildYamlData(
     }
 
     yamlData[yamlKey] = value;
+  }
+
+  // Dynamic-key passthrough: input keys not named in `fieldMap` reach `data`
+  // as-is (e.g. matrix axis keys like "node-version"), keeping the factory on
+  // the common `buildModel` path.
+  if (spec.dynamicKeys) {
+    const mapped = new Set(Object.keys(spec.fieldMap));
+    for (const [key, value] of Object.entries(data)) {
+      if (!mapped.has(key) && value !== undefined) {
+        yamlData[key] = value;
+      }
+    }
   }
 
   return yamlData;

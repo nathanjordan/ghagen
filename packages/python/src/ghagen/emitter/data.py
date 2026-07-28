@@ -26,7 +26,7 @@ from typing import Any
 from ghagen._commented import is_commented
 from ghagen._dedent import dedent_script
 from ghagen._raw import Raw
-from ghagen.emitter.nodes import _META_FIELDS
+from ghagen.emitter.nodes import _META_FIELDS, is_empty_map, order_entries
 from ghagen.models._base import GhagenModel
 from ghagen.models.step import Step
 
@@ -86,24 +86,6 @@ def to_data(
     return _model_to_data(model, auto_dedent=auto_dedent, comments=comments)
 
 
-def _order_keys(data: dict[str, Any], order: tuple[str, ...]) -> dict[str, Any]:
-    """Order *data*'s keys: keys in *order* first, then the rest alphabetically.
-
-    The plain-data peer of
-    :func:`ghagen.emitter.nodes.to_ordered_commented_map` (same rule, no ruamel).
-    """
-    result: dict[str, Any] = {}
-    seen: set[str] = set()
-    for key in order:
-        if key in data:
-            result[key] = data[key]
-            seen.add(key)
-    for key in sorted(data):
-        if key not in seen:
-            result[key] = data[key]
-    return result
-
-
 def _model_to_data(
     model: GhagenModel, *, auto_dedent: bool, comments: bool
 ) -> dict[str, Any]:
@@ -132,14 +114,16 @@ def _model_to_data(
             value = dedent_script(value)
         raw[spec.yaml_keys.get(field_name, field_name)] = value
 
-    ordered = _order_keys(raw, tuple(spec.order))
+    present_null = spec.present_null_when_empty
 
     result: dict[str, Any] = {}
-    for key, value in list(ordered.items()) + list(model.extras.items()):
+    for key, value in order_entries(raw, model.extras, spec):
         if is_commented(value):
             inner = _value_to_data(
                 value.value, auto_dedent=auto_dedent, comments=comments
             )
+            if key in present_null and is_empty_map(inner):
+                inner = None
             if comments and (
                 value.comment is not None or value.eol_comment is not None
             ):
@@ -149,9 +133,12 @@ def _model_to_data(
             else:
                 result[key] = inner
         else:
-            result[key] = _value_to_data(
+            data_value = _value_to_data(
                 value, auto_dedent=auto_dedent, comments=comments
             )
+            if key in present_null and is_empty_map(data_value):
+                data_value = None
+            result[key] = data_value
     return result
 
 
