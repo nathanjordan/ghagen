@@ -1,4 +1,9 @@
-"""Shared CLI helpers used by both the top-level app and sub-apps."""
+"""Shared CLI helpers used by both the top-level app and sub-apps.
+
+Discovery + parse + validation live in :mod:`ghagen.config` and return typed
+values. This module is the *render* layer: it maps :class:`ConfigError` values
+to ``typer.Exit``, exactly as :mod:`ghagen.pin.engine` renders its typed report.
+"""
 
 from __future__ import annotations
 
@@ -9,80 +14,24 @@ from pathlib import Path
 import typer
 
 from ghagen.app import App
-from ghagen.config import GHAGEN_YML_MARKER, find_app_root, load_yaml_config
-
-CONFIG_SEARCH_PATHS = [
-    ".github/ghagen_workflows.py",
-    "ghagen_config.py",
-]
-
-
-def _entrypoint_from_ghagen_yml(root: Path) -> Path | None:
-    """Return the configured entrypoint path, or ``None`` if not set.
-
-    Reads ``.ghagen.yml`` in *root* (an already-discovered project root,
-    e.g. from :func:`ghagen.config.find_app_root`), extracts the
-    top-level ``entrypoint`` key, and resolves it relative to *root*.
-    Returns ``None`` if the file or key is absent. Raises
-    ``typer.Exit(1)`` on malformed YAML, a wrong-type value, or a
-    resolved path that does not exist.
-    """
-    ghagen_yml = root / GHAGEN_YML_MARKER
-    if not ghagen_yml.is_file():
-        return None
-
-    try:
-        data = load_yaml_config(ghagen_yml)
-    except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from exc
-
-    raw = data.get("entrypoint")
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        typer.echo(
-            f"Error: {ghagen_yml}: 'entrypoint' must be a string, "
-            f"got {type(raw).__name__}",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    resolved = (ghagen_yml.parent / raw).resolve()
-    if not resolved.is_file():
-        typer.echo(
-            f"Error: {ghagen_yml}: entrypoint '{raw}' does not exist "
-            f"(resolved to {resolved})",
-            err=True,
-        )
-        raise typer.Exit(1)
-    return resolved
+from ghagen.config import (
+    CONFIG_SEARCH_PATHS,
+    GHAGEN_YML_MARKER,
+    load_project_config,
+    resolve_app,
+)
 
 
 def _find_config(config: str | None) -> Path:
-    """Locate the workflow config file."""
-    if config:
-        path = Path(config)
-        if not path.exists():
-            typer.echo(f"Error: config file not found: {path}", err=True)
-            raise typer.Exit(1)
-        return path
+    """Locate the workflow config file, rendering config errors and exiting."""
+    project = load_project_config(cli_config_flag=config)
+    if project.errors:
+        for err in project.errors:
+            typer.echo(f"Error: {err.message}", err=True)
+        raise typer.Exit(1)
 
-    root = find_app_root()
-    if root is not None:
-        from_yml = _entrypoint_from_ghagen_yml(root)
-        if from_yml is not None:
-            return from_yml
-
-        for candidate in CONFIG_SEARCH_PATHS:
-            path = root / candidate
-            if path.exists():
-                return path
-    else:
-        for candidate in CONFIG_SEARCH_PATHS:
-            path = Path(candidate)
-            if path.exists():
-                return path
+    if project.config_path is not None:
+        return project.config_path
 
     typer.echo(
         "Error: no config file found. Searched:\n"
@@ -96,7 +45,12 @@ def _find_config(config: str | None) -> Path:
 
 
 def _load_app(config_path: Path) -> App:
-    """Dynamically import the config file and extract the App instance."""
+    """Dynamically import the config file and extract the App instance.
+
+    The import happens here (so ``pin.track_user_files``'s ``sys.modules``
+    snapshot observes it); the module -> App *policy* lives in
+    :func:`ghagen.config.resolve_app`, whose error value is rendered below.
+    """
     spec = importlib.util.spec_from_file_location("ghagen_config", config_path)
     if spec is None or spec.loader is None:
         typer.echo(f"Error: cannot load {config_path}", err=True)
@@ -110,30 +64,9 @@ def _load_app(config_path: Path) -> App:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    # Look for app variable or create_app function
-    if hasattr(module, "create_app"):
-        result = module.create_app()
-        if not isinstance(result, App):
-            typer.echo(
-                f"Error: create_app() in {config_path} must return an App instance",
-                err=True,
-            )
-            raise typer.Exit(1)
-        return result
-
-    if hasattr(module, "app"):
-        result = module.app
-        if not isinstance(result, App):
-            typer.echo(
-                f"Error: 'app' in {config_path} must be an App instance",
-                err=True,
-            )
-            raise typer.Exit(1)
-        return result
-
-    typer.echo(
-        f"Error: {config_path} must define 'app = App(...)'"
-        " or 'def create_app() -> App'",
-        err=True,
-    )
-    raise typer.Exit(1)
+    app, error = resolve_app(module, config_path)
+    if error is not None:
+        typer.echo(f"Error: {error.message}", err=True)
+        raise typer.Exit(1)
+    assert app is not None
+    return app
