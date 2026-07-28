@@ -7,6 +7,7 @@ the public ``to_data`` surface rather than the private recursion core.
 
 from ghagen._commented import with_comment, with_eol_comment
 from ghagen.emitter import CommentNode, to_data
+from ghagen.models.job import Defaults, DefaultsRun
 from ghagen.models.step import Step
 from ghagen.models.trigger import On
 from ghagen.models.workflow import Workflow
@@ -23,7 +24,11 @@ def test_explicit_none_dropped():
 
 
 def test_empty_workflow_dispatch_emits_present_null_key():
-    """On with empty workflow_dispatch emits a present null key (Raw(None))."""
+    """On with empty workflow_dispatch emits a present null key.
+
+    Driven by ``ON_SPEC.present_null_when_empty`` in the Emitter, not a
+    model-layer ``Raw(None)`` mutation.
+    """
     data = to_data(On(workflow_dispatch={}))
     assert "workflow_dispatch" in data
     assert data["workflow_dispatch"] is None
@@ -32,6 +37,37 @@ def test_empty_workflow_dispatch_emits_present_null_key():
     yaml = Workflow(name="W", on=On(workflow_dispatch={})).to_yaml(header=None)
     assert "workflow_dispatch:" in yaml
     assert "workflow_dispatch: {}" not in yaml
+
+
+def test_boolean_workflow_dispatch_not_present_null():
+    """A boolean workflow_dispatch is a scalar, not an empty map — left as-is."""
+    assert to_data(On(workflow_dispatch=True))["workflow_dispatch"] is True
+
+
+def test_on_emits_alphabetically_interleaving_extras():
+    """order=None sorts all keys; a dynamic extra event interleaves."""
+    data = to_data(
+        On(
+            workflow_run={"types": ["completed"]},
+            push={"branches": ["main"]},
+            extras={"merge_group": {}},
+        )
+    )
+    assert list(data) == ["merge_group", "push", "workflow_run"]
+
+
+def test_defaults_run_shell_comment_preserved():
+    """A Commented wrapper on defaults.run.shell survives to observed data.
+
+    Parity guard mirroring the TypeScript comment-drop fix: `run` is a proper
+    DefaultsRun model, so shell/working-directory flow through the normal
+    emitter path and their comments survive.
+    """
+    data = to_data(
+        Defaults(run=DefaultsRun(shell=with_comment("bash", "login shell"))),
+        comments=True,
+    )
+    assert data["run"]["shell"] == CommentNode("bash", comment="login shell")
 
 
 def test_spec_yaml_key_used():

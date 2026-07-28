@@ -48,28 +48,31 @@ def test_spec_covers_exactly_the_content_fields() -> None:
         )
 
 
-def test_order_has_no_duplicates() -> None:
+def test_explicit_order_has_no_duplicates() -> None:
     for model in _all_model_classes():
         order = model.SPEC.order
+        if order is None:  # alphabetical
+            continue
         assert len(order) == len(set(order)), f"{model.__name__}: duplicate order keys"
 
 
-def test_order_is_complete_or_empty() -> None:
-    """Either the spec fully orders its keys, or opts into alphabetical (empty).
+def test_explicit_order_is_complete() -> None:
+    """An explicit ``order`` (a tuple) lists exactly the model's emitted keys.
 
-    A non-empty ``order`` must list exactly the model's emitted YAML keys — no
-    phantom keys, none missing. An empty ``order`` means alphabetical emission.
+    No phantom keys, none missing. ``order=None`` opts into alphabetical
+    emission and is exempt.
     """
     for model in _all_model_classes():
+        if model.SPEC.order is None:  # alphabetical
+            continue
         order = set(model.SPEC.order)
         keys = set(model.SPEC.yaml_keys.values())
-        if model.SPEC.order:
-            assert order == keys, (
-                f"{model.__name__}: order {order} must equal emitted keys {keys}"
-            )
+        assert order == keys, (
+            f"{model.__name__}: order {order} must equal emitted keys {keys}"
+        )
 
 
-def test_only_on_uses_empty_order() -> None:
-    """``On`` is the sole model that emits alphabetically (empty order)."""
-    empty = {m.__name__ for m in _all_model_classes() if not m.SPEC.order}
-    assert empty == {On.__name__}, f"unexpected empty-order models: {empty}"
+def test_only_on_uses_alphabetical_order() -> None:
+    """``On`` is the sole model that emits alphabetically (``order=None``)."""
+    alpha = {m.__name__ for m in _all_model_classes() if m.SPEC.order is None}
+    assert alpha == {On.__name__}, f"unexpected alphabetical-order models: {alpha}"
