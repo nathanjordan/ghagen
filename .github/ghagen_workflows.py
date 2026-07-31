@@ -671,11 +671,6 @@ def _ghagen_update_action() -> Action:
                 required=False,
                 default="",
             ),
-            "group": ActionInput(
-                description="Group all updates into a single PR/issue",
-                required=False,
-                default="false",
-            ),
         },
         runs=CompositeRuns(
             steps=[

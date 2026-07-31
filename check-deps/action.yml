@@ -42,10 +42,6 @@ inputs:
     description: Optional prefix for commit messages (e.g. "chore(deps):")
     required: false
     default: ''
-  group:
-    description: Group all updates into a single PR/issue
-    required: false
-    default: 'false'
 runs:
   using: composite
   steps:
