@@ -24,6 +24,11 @@ from typing import Any, Protocol
 
 _API_BASE = "https://api.github.com"
 
+# Wall-clock ceiling on a single API request.  Mirrors the TypeScript port's
+# ``API_TIMEOUT_MS`` (``pin/github.ts``); without it a stalled connection hangs
+# ``ghagen pin`` forever.
+_API_TIMEOUT_SECONDS = 30.0
+
 
 class TransportError(Exception):
     """Raised by a transport when a request fails at the network level.
@@ -79,10 +84,11 @@ class HttpClient(Protocol):
 class UrllibTransport:
     """Default :class:`HttpClient` backed by stdlib :mod:`urllib.request`.
 
-    Holds the raw ``urlopen`` call and header building.  HTTP error responses
-    (4xx/5xx) are captured as :class:`Response` objects rather than raised, so
-    the client owns all status-based error mapping; genuine network failures
-    raise :class:`TransportError`.
+    Holds the raw ``urlopen`` call and header building.  Every request carries
+    a :data:`_API_TIMEOUT_SECONDS` ceiling.  HTTP error responses (4xx/5xx) are
+    captured as :class:`Response` objects rather than raised, so the client owns
+    all status-based error mapping; genuine network failures — timeouts
+    included — raise :class:`TransportError`.
     """
 
     def get(self, url: str, *, token: str | None = None) -> Response:
@@ -95,7 +101,9 @@ class UrllibTransport:
 
         req = urllib.request.Request(url, headers=headers)  # noqa: S310
         try:
-            with urllib.request.urlopen(req) as resp:  # noqa: S310
+            with urllib.request.urlopen(  # noqa: S310
+                req, timeout=_API_TIMEOUT_SECONDS
+            ) as resp:
                 return Response(
                     status=resp.status,
                     body=resp.read(),
@@ -110,7 +118,9 @@ class UrllibTransport:
                 reason=exc.reason or "",
                 headers=dict(exc.headers.items()),
             )
-        except urllib.error.URLError as exc:
+        except (urllib.error.URLError, TimeoutError) as exc:
+            # A read timeout surfaces as a bare TimeoutError rather than a
+            # URLError, so both map onto the transport's failure contract.
             raise TransportError(str(exc)) from exc
 
 

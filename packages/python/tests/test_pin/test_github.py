@@ -8,6 +8,7 @@ The pure helpers are unit-tested directly.
 from __future__ import annotations
 
 import json
+import urllib.request
 
 import pytest
 
@@ -16,6 +17,8 @@ from ghagen.pin.github import (
     ResolveError,
     Response,
     TransportError,
+    UrllibTransport,
+    _API_TIMEOUT_SECONDS,
     _commit_sha,
     _is_annotated_tag,
     _parse_next_link,
@@ -235,6 +238,43 @@ class TestPureHelpers:
         assert _parse_next_link(None) is None
         assert _parse_next_link("") is None
         assert _parse_next_link('<https://api.github.com/x?page=1>; rel="last"') is None
+
+
+class TestUrllibTransport:
+    """The production adapter's request policy (timeout, failure mapping)."""
+
+    def test_request_carries_a_timeout(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        class _FakeResp:
+            status = 200
+            reason = "OK"
+            headers = {}
+
+            def read(self) -> bytes:
+                return b"{}"
+
+            def __enter__(self) -> _FakeResp:
+                return self
+
+            def __exit__(self, *exc: object) -> None:
+                return None
+
+        def _fake_urlopen(req, **kwargs):
+            captured.update(kwargs)
+            return _FakeResp()
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+        UrllibTransport().get("https://api.github.com/x")
+        assert captured["timeout"] == _API_TIMEOUT_SECONDS
+
+    def test_timeout_becomes_transport_error(self, monkeypatch):
+        def _fake_urlopen(req, **kwargs):
+            raise TimeoutError("timed out")
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+        with pytest.raises(TransportError, match="timed out"):
+            UrllibTransport().get("https://api.github.com/x")
 
 
 class TestResponse:
