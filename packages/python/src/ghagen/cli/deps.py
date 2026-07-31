@@ -200,9 +200,12 @@ def deps_upgrade(
         typer.echo(f"warning: {warning}", err=True)
 
     if report.changed_files:
-        typer.echo("Applied version bumps:")
+        # Under --format the report itself owns stdout; this progress note goes
+        # to stderr so `--format json` (without --check) stays machine-parseable.
+        progress_to_stderr = output_format is not None
+        typer.echo("Applied version bumps:", err=progress_to_stderr)
         for f in report.changed_files:
-            typer.echo(f"  modified {f}")
+            typer.echo(f"  modified {f}", err=progress_to_stderr)
 
     check_versions = mode in ("versions", "all")
     check_lockfile = mode in ("lockfile", "all")

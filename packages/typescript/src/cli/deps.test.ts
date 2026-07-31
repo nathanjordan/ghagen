@@ -52,6 +52,15 @@ function captureStdout(): { text(): string; restore(): void } {
   return { text: () => out, restore: () => spy.mockRestore() };
 }
 
+function captureStderr(): { text(): string; restore(): void } {
+  let out = "";
+  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+    out += String(chunk);
+    return true;
+  });
+  return { text: () => out, restore: () => spy.mockRestore() };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   upgradeMock.mockReset();
@@ -204,6 +213,36 @@ describe("deps upgrade CLI --json mode behavior", () => {
     expect(data).toHaveProperty("lockfile_stale");
     expect(data).not.toHaveProperty("version_bumps");
     expect(out.text()).not.toContain("helper_provided");
+  });
+
+  test("apply mode keeps stdout parseable — the progress note goes to stderr", async () => {
+    trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
+    upgradeMock.mockResolvedValue(
+      emptyReport({
+        changedFiles: [".github/ghagen_workflows.ts"],
+        versionBumps: [
+          {
+            uses: "actions/checkout@v5",
+            current: "v5",
+            latest: "v6",
+            severity: "major",
+            source_files: [],
+          },
+        ],
+      }),
+    );
+
+    const out = captureStdout();
+    const err = captureStderr();
+    // No `check` -> apply mode, so report.changedFiles is non-empty.
+    await depsUpgrade({ mode: "versions", format: "json", token: "fake" });
+    out.restore();
+    err.restore();
+
+    expect(out.text()).not.toContain("Applied version bumps");
+    expect(JSON.parse(out.text())).toHaveProperty("version_bumps");
+    expect(err.text()).toContain("Applied version bumps");
+    expect(err.text()).toContain("modified .github/ghagen_workflows.ts");
   });
 
   test("the empty-report early return emits both keys as [] regardless of mode", async () => {

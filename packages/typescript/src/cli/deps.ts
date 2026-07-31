@@ -182,9 +182,12 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   }
 
   if (report.changedFiles.length > 0) {
-    process.stdout.write("Applied version bumps:\n");
+    // Under --format the report itself owns stdout; this progress note goes to
+    // stderr so `--format json` (without --check) stays machine-parseable.
+    const progress = format !== undefined ? process.stderr : process.stdout;
+    progress.write("Applied version bumps:\n");
     for (const f of report.changedFiles) {
-      process.stdout.write(`  modified ${f}\n`);
+      progress.write(`  modified ${f}\n`);
     }
   }
 

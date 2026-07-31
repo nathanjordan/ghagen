@@ -381,6 +381,30 @@ class TestUpgradeApply:
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_apply_with_json_format_keeps_stdout_parseable(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """--format json without --check must not interleave progress on stdout."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        _setup_upgrade_project(tmp_path)
+
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--format", "json"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Applied version bumps" not in result.stdout
+        data = json.loads(result.stdout)
+        assert "version_bumps" in data
+        assert "Applied version bumps" in result.stderr
+
+        # Verify the config file was actually modified
+        config_content = (tmp_path / "ghagen_config.py").read_text()
+        assert "actions/checkout@v7" in config_content
+        assert "actions/setup-python@v7" in config_content
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
     def test_check_flag_does_not_modify_source_files(
         self, mock_tags, mock_track, tmp_path, monkeypatch
     ):
