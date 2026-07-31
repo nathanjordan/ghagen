@@ -86,6 +86,11 @@ class GhagenModel(BaseModel):
         populate_by_name=True,
         use_enum_values=True,
         arbitrary_types_allowed=True,
+        # Reject unknown keyword arguments. Pydantic's default is "ignore",
+        # which silently swallowed misspelled field names (``Step(nmae=...)``
+        # constructed an empty Step). ``extras=`` is the sanctioned channel for
+        # unmodeled YAML keys.
+        extra="forbid",
     )
 
     # Per-model serialization spec (field → YAML key mapping + emission order).
