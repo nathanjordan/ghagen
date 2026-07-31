@@ -69,9 +69,20 @@ class Raw(Generic[T]):
 
     @classmethod
     def _validate(cls, value: Any) -> Raw[Any]:
+        """Accept only an explicit ``Raw`` wrapper.
+
+        ``Raw[T]`` appears as a union member alongside enums and ``Literal``
+        constraints (``Step.shell``, ``Job.runs_on``, every ``Permissions``
+        scope, …). Auto-wrapping an unwrapped value here would make that union
+        accept *anything*, disabling every constraint it sits beside. The
+        escape hatch stays opt-in: callers write ``Raw(...)``.
+        """
         if isinstance(value, Raw):
             return value
-        return cls(value)
+        raise ValueError(
+            "expected a Raw(...) wrapper; the escape hatch is opt-in "
+            f"(got {type(value).__name__})"
+        )
 
     @staticmethod
     def _serialize(value: Raw[Any]) -> Any:
