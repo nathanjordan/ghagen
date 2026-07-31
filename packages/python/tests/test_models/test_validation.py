@@ -57,9 +57,7 @@ class TestRawIsOptIn:
             Permissions(contents="reed")  # type: ignore[arg-type]
 
     def test_permission_escape_hatch_is_explicit(self):
-        assert Permissions(contents=Raw("future-level")).contents == Raw(
-            "future-level"
-        )
+        assert Permissions(contents=Raw("future-level")).contents == Raw("future-level")
 
     def test_runs_on_rejects_a_non_string(self):
         with pytest.raises(ValidationError):

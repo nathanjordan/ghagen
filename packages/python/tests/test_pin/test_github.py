@@ -13,12 +13,12 @@ import urllib.request
 import pytest
 
 from ghagen.pin.github import (
+    _API_TIMEOUT_SECONDS,
     GitHubClient,
     ResolveError,
     Response,
     TransportError,
     UrllibTransport,
-    _API_TIMEOUT_SECONDS,
     _commit_sha,
     _is_annotated_tag,
     _parse_next_link,
