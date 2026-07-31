@@ -240,6 +240,26 @@ class TestPureHelpers:
         assert _parse_next_link('<https://api.github.com/x?page=1>; rel="last"') is None
 
 
+class TestMalformedJson:
+    """A malformed 200 must surface as ResolveError, not JSONDecodeError."""
+
+    def test_resolve_ref_malformed_body(self):
+        transport = FakeTransport(
+            {"tags/v4": Response(status=200, body=b"<html>not json</html>")}
+        )
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Failed to parse JSON response"):
+            client.resolve_ref("actions", "checkout", "v4")
+
+    def test_list_tags_malformed_body(self):
+        transport = FakeTransport(
+            {"git/refs/tags": Response(status=200, body=b"<html>not json</html>")}
+        )
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Failed to parse JSON response"):
+            client.list_tags("actions", "checkout")
+
+
 class TestUrllibTransport:
     """The production adapter's request policy (timeout, failure mapping)."""
 

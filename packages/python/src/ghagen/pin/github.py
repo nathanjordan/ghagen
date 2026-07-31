@@ -226,19 +226,33 @@ class GitHubClient:
             )
         return resp
 
+    def _parse_json(self, resp: Response, url: str) -> Any:
+        """Parse a response body, mapping malformed JSON onto ``ResolveError``.
+
+        The module's documented error contract is :class:`ResolveError`; a
+        malformed 200 must not escape as a raw ``JSONDecodeError``.
+        """
+        try:
+            return resp.json()
+        except json.JSONDecodeError as exc:
+            raise ResolveError(
+                f"Failed to parse JSON response from {url}: {exc}"
+            ) from exc
+
     def _get_json(self, url: str) -> Any | None:
         """Fetch and parse JSON, or ``None`` on 404."""
         resp = self._fetch(url)
         if resp.status == 404:
             return None
-        return resp.json()
+        return self._parse_json(resp, url)
 
     def _get_page(self, url: str) -> tuple[list[dict], str | None] | None:
         """Fetch one page: ``(data, next_url)``, or ``None`` on 404."""
         resp = self._fetch(url)
         if resp.status == 404:
             return None
-        return resp.json(), _parse_next_link(resp.header("Link"))
+        data = self._parse_json(resp, url)
+        return data, _parse_next_link(resp.header("Link"))
 
 
 # -- pure helpers (unit-testable without a transport) ----------------------
