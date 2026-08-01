@@ -9,17 +9,35 @@ agree — and that the spec's YAML keys match the emitted keys byte-for-byte.
 
 from __future__ import annotations
 
-import ghagen.models.action  # noqa: F401  (ensure all model modules import)
-import ghagen.models.job  # noqa: F401
-import ghagen.models.trigger  # noqa: F401
-import ghagen.models.workflow  # noqa: F401
+import importlib
+import pkgutil
+
+import ghagen.models
 from ghagen.emitter.nodes import _META_FIELDS
 from ghagen.models._base import Document, GhagenModel
 from ghagen.models.trigger import On
 
 
+def _import_every_model_module() -> None:
+    """Import every module in ``ghagen.models``, so reflection sees them all.
+
+    ``__subclasses__()`` only reports classes whose defining module has been
+    imported, so seeding it with a hand-written import list makes coverage
+    depend on import luck: this file used to import four modules and reach
+    ``ImageSnapshot`` only because ``job.py`` happens to import it at runtime.
+    Moving that under ``TYPE_CHECKING`` would have shrunk the sweep with no
+    test failure -- the same defect as a hand-maintained list, one refactor
+    away. Walking the package is the Python-idiom peer of the TypeScript port's
+    ``satisfies Record<ModelKind, ModelSpec>``: coverage derived from the
+    language's own model of "all the model types".
+    """
+    for mod in pkgutil.iter_modules(ghagen.models.__path__):
+        importlib.import_module(f"ghagen.models.{mod.name}")
+
+
 def _all_model_classes() -> list[type[GhagenModel]]:
     """Every concrete GhagenModel subclass (excludes the abstract bases)."""
+    _import_every_model_module()
     seen: dict[str, type[GhagenModel]] = {}
 
     def _walk(cls: type[GhagenModel]) -> None:
