@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from ghagen.app import App
 from ghagen.models.job import Job
 from ghagen.models.step import Step
@@ -33,6 +35,23 @@ def _app_with_refs(root: Path, *uses: str) -> App:
             "test": Job(
                 runs_on="ubuntu-latest",
                 steps=[Step(uses=u) for u in uses],
+            )
+        },
+    )
+    app.add_workflow(wf, "ci.yml")
+    return app
+
+
+def _app_without_refs(root: Path) -> App:
+    """Build an App whose only step is a ``run:`` — no pinnable ``uses`` refs."""
+    app = App(root=root)
+    wf = Workflow(
+        name="CI",
+        on=On(push=PushTrigger(branches=["main"])),
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                steps=[Step(name="Test", run="echo hi")],
             )
         },
     )
@@ -230,18 +249,7 @@ class TestUpgrade:
         assert stale.latest_sha == new_sha
 
     def test_no_refs_returns_empty(self, tmp_path: Path):
-        app = App(root=tmp_path)
-        wf = Workflow(
-            name="CI",
-            on=On(push=PushTrigger(branches=["main"])),
-            jobs={
-                "test": Job(
-                    runs_on="ubuntu-latest",
-                    steps=[Step(name="Test", run="echo hi")],
-                )
-            },
-        )
-        app.add_workflow(wf, "ci.yml")
+        app = _app_without_refs(tmp_path)
         client = GitHubClient(FakeTransport({}))
 
         report = upgrade(app, client, set(), mode="all", apply=True)
@@ -249,3 +257,106 @@ class TestUpgrade:
         assert report.version_bumps == []
         assert report.lockfile_stale == []
         assert report.changed_files == []
+
+    def test_api_error_continues_with_warning(self, tmp_path: Path):
+        """A failed ``list_tags`` is recorded as a warning, not raised.
+
+        Moved here from ``test_cli/test_deps.py``: it asserts an engine fact
+        (``report.warnings``), and a canned transport scripted to answer the
+        tag list with a 500 covers it without a CLI runner.
+        """
+        app = _app_with_refs(tmp_path, "actions/checkout@v4")
+        client = GitHubClient(
+            FakeTransport(
+                {
+                    "git/refs/tags": canned(
+                        {"message": "boom"}, status=500, reason="Internal Server Error"
+                    )
+                }
+            )
+        )
+
+        report = upgrade(app, client, set(), mode="versions", apply=False)
+
+        assert report.version_bumps == []
+        assert len(report.warnings) == 1
+        assert "failed to list tags for actions/checkout" in report.warnings[0]
+
+
+# -- upgrade: what the run was asked to check ------------------------------
+
+
+class TestUpgradeCheckedFlags:
+    """``checked_versions`` / ``checked_lockfile`` are pure functions of *mode*.
+
+    They record what the run was *asked for*, so the renderer never has to
+    re-derive it from the CLI's ``--mode``.  "Asked for" is not "ran": with no
+    lockfile configured the lockfile stage is skipped and the flag stays True.
+    """
+
+    @pytest.mark.parametrize(
+        ("mode", "versions", "lockfile"),
+        [
+            ("versions", True, False),
+            ("lockfile", False, True),
+            ("all", True, True),
+        ],
+    )
+    def test_flags_follow_mode(
+        self, tmp_path: Path, mode: str, versions: bool, lockfile: bool
+    ):
+        app = _app_with_refs(tmp_path, "actions/checkout@v4")
+        client = GitHubClient(FakeTransport({"git/refs/tags": _tags("v4")}))
+
+        report = upgrade(app, client, set(), mode=mode, apply=False)  # type: ignore[arg-type]
+
+        assert report.checked_versions is versions
+        assert report.checked_lockfile is lockfile
+
+    @pytest.mark.parametrize(
+        ("mode", "versions", "lockfile"),
+        [
+            ("versions", True, False),
+            ("lockfile", False, True),
+            ("all", True, True),
+        ],
+    )
+    def test_no_refs_report_still_reports_checked_flags(
+        self, tmp_path: Path, mode: str, versions: bool, lockfile: bool
+    ):
+        """The flags are set *before* the no-refs early return.
+
+        This ordering is the fact the whole renderer design turns on: a
+        project with no pinnable refs must render the same JSON key set as
+        any other, so the flags cannot be set after the early return.
+        """
+        app = _app_without_refs(tmp_path)
+        client = GitHubClient(FakeTransport({}))
+
+        report = upgrade(app, client, set(), mode=mode, apply=True)  # type: ignore[arg-type]
+
+        assert report.version_bumps == []
+        assert report.lockfile_stale == []
+        assert report.checked_versions is versions
+        assert report.checked_lockfile is lockfile
+
+    def test_checked_lockfile_is_true_without_a_lockfile(self, tmp_path: Path):
+        """"Asked for" is not "ran" — ``lockfile=None`` skips the stage."""
+        app = App(root=tmp_path, lockfile=None)
+        wf = Workflow(
+            name="CI",
+            on=On(push=PushTrigger(branches=["main"])),
+            jobs={
+                "test": Job(
+                    runs_on="ubuntu-latest",
+                    steps=[Step(uses="actions/checkout@v4")],
+                )
+            },
+        )
+        app.add_workflow(wf, "ci.yml")
+        client = GitHubClient(FakeTransport({}))
+
+        report = upgrade(app, client, set(), mode="lockfile", apply=False)
+
+        assert report.checked_lockfile is True
+        assert report.lockfile_stale == []

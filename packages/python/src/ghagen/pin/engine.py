@@ -186,6 +186,19 @@ class UpgradeReport:
     changed_files: list[Path] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
+    checked_versions: bool = False
+    """The run was asked for newer version tags (``mode`` in versions/all)."""
+
+    checked_lockfile: bool = False
+    """The run was asked for stale lockfile SHAs (``mode`` in lockfile/all).
+
+    "Asked for", not "ran": this stays ``True`` when ``app.lockfile_path`` is
+    ``None``, where the lockfile stage below is skipped entirely.  A consumer
+    that must distinguish "no lockfile configured" from "checked, nothing
+    stale" still has to consult ``app.lockfile_path`` — this field does not
+    carry that fact.
+    """
+
 
 def upgrade(
     app: App,
@@ -202,7 +215,13 @@ def upgrade(
     version bumps are written back into the user source files identified by
     *user_files*; the changed files are recorded on the report.
     """
-    report = UpgradeReport()
+    # Set before the no-refs early return below, so a project with no pinnable
+    # refs still reports what it was asked to check and renders the same key
+    # set as any other run.
+    report = UpgradeReport(
+        checked_versions=mode in ("versions", "all"),
+        checked_lockfile=mode in ("lockfile", "all"),
+    )
 
     refs = collect_uses_refs(app)
     if not refs:
@@ -210,10 +229,7 @@ def upgrade(
 
     ref_locations = locate_uses_refs({r.uses for r in refs}, user_files)
 
-    check_versions = mode in ("versions", "all")
-    check_lockfile = mode in ("lockfile", "all")
-
-    if check_versions:
+    if report.checked_versions:
         # Group refs by owner/repo for efficient API calls — parsing is free,
         # so grouping is a cheap local step over the already-parsed refs.
         repo_refs: dict[tuple[str, str], list[UsesRef]] = {}
@@ -244,7 +260,7 @@ def upgrade(
                     )
                 )
 
-    if check_lockfile and app.lockfile_path is not None:
+    if report.checked_lockfile and app.lockfile_path is not None:
         lockfile_full = app.root / app.lockfile_path
         lockfile = read_lockfile(lockfile_full)
 

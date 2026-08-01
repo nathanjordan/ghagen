@@ -40,7 +40,15 @@ const { bumpToJson, staleToJson, depsUpgrade, renderPrBody, renderIssueBody } =
   await import("./deps.js");
 
 function emptyReport(overrides: Partial<UpgradeReport> = {}): UpgradeReport {
-  return { versionBumps: [], lockfileStale: [], changedFiles: [], warnings: [], ...overrides };
+  return {
+    versionBumps: [],
+    lockfileStale: [],
+    changedFiles: [],
+    warnings: [],
+    checkedVersions: false,
+    checkedLockfile: false,
+    ...overrides,
+  };
 }
 
 function captureStdout(): { text(): string; restore(): void } {
