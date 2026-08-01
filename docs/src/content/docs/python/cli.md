@@ -321,6 +321,6 @@ which both ports' `main()` is tested against.
 
 | Code | Meaning                                                                                                                                                                                                    |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The command did what it was asked. Includes both "no updates available" and "updates available" under `deps upgrade --check` — a report is not a failure.                                                  |
+| `0`  | The command did what it was asked. Includes both "no updates available" and "updates available" under `deps upgrade --check` and `deps update` — a report is not a failure.                                |
 | `1`  | Expected failure: generated files are stale, the lockfile is stale, refs failed to resolve, no config file was found, or the config module raised.                                                         |
 | `2`  | Usage error: unknown command, unknown option, missing option argument, invalid option value, or no arguments at all. Framework-detected and hand-validated usage errors are indistinguishable to a caller. |
