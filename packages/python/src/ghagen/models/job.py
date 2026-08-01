@@ -29,8 +29,8 @@ STRATEGY_SPEC = ModelSpec(
 )
 
 ENVIRONMENT_SPEC = ModelSpec(
-    yaml_keys={"name": "name", "url": "url"},
-    order=("name", "url"),
+    yaml_keys={"name": "name", "url": "url", "deployment": "deployment"},
+    order=("name", "url", "deployment"),
 )
 
 CONCURRENCY_SPEC = ModelSpec(
@@ -133,6 +133,9 @@ class Environment(GhagenModel):
 
     name: str
     url: str | None = None
+    # `False` lets the job use the environment's secrets and variables without
+    # creating a deployment record; wait timers and reviewers still apply.
+    deployment: bool | Raw[str] | None = None
 
 
 class Concurrency(GhagenModel):

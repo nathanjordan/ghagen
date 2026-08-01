@@ -246,18 +246,21 @@ def test_containers_and_services(workflow_schema: dict[str, Any]):
 
 
 def test_all_permissions(workflow_schema: dict[str, Any]):
-    """Workflow with all 13 permission scopes set."""
+    """Workflow with all 16 permission scopes set."""
     wf = Workflow(
         name="Full Permissions",
         on=On(push=PushTrigger(branches=["main"])),
         permissions=Permissions(
             actions=PermissionLevel.READ,
+            artifact_metadata=PermissionLevel.READ,
+            attestations=PermissionLevel.WRITE,
             checks=PermissionLevel.WRITE,
             contents=PermissionLevel.READ,
             deployments=PermissionLevel.WRITE,
             discussions=PermissionLevel.READ,
             id_token=PermissionLevel.WRITE,
             issues=PermissionLevel.READ,
+            models=PermissionLevel.READ,
             packages=PermissionLevel.WRITE,
             pages=PermissionLevel.READ,
             pull_requests=PermissionLevel.WRITE,
@@ -283,7 +286,10 @@ def test_all_permissions(workflow_schema: dict[str, Any]):
     assert perms["pull-requests"] == "write"
     assert perms["repository-projects"] == "read"
     assert perms["security-events"] == "write"
-    assert len(perms) == 13
+    assert perms["artifact-metadata"] == "read"
+    assert perms["attestations"] == "write"
+    assert perms["models"] == "read"
+    assert len(perms) == 16
 
 
 def test_complex_triggers(workflow_schema: dict[str, Any]):

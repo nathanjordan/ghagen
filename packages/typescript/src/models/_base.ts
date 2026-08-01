@@ -169,6 +169,9 @@ export type ModelKind =
   | "workflowDispatch"
   | "workflowDispatchInput"
   | "workflowCall"
+  | "workflowCallInput"
+  | "workflowCallOutput"
+  | "workflowCallSecret"
   | "permissions"
   | "strategy"
   | "matrix"
@@ -279,6 +282,9 @@ export type ScheduleTriggerModel = ModelOf<"scheduleTrigger">;
 export type WorkflowDispatchModel = ModelOf<"workflowDispatch">;
 export type WorkflowDispatchInputModel = ModelOf<"workflowDispatchInput">;
 export type WorkflowCallModel = ModelOf<"workflowCall">;
+export type WorkflowCallInputModel = ModelOf<"workflowCallInput">;
+export type WorkflowCallOutputModel = ModelOf<"workflowCallOutput">;
+export type WorkflowCallSecretModel = ModelOf<"workflowCallSecret">;
 export type PermissionsModel = ModelOf<"permissions">;
 export type StrategyModel = ModelOf<"strategy">;
 export type MatrixModel = ModelOf<"matrix">;

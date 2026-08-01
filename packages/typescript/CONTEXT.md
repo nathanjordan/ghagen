@@ -105,6 +105,11 @@ The committed canonical copy of an upstream JSON schema from SchemaStore.
 **Drift**:
 Divergence between the committed schema Snapshot and the current upstream schema.
 
+**Scope**:
+A named node in a Snapshot (`schema/conformance-scopes.yml`) that both ports must bind to a
+covering model, and whose declared property set that model must emit in full. A path segment may
+be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
+
 ### CLI
 
 **Exit code**:
@@ -143,6 +148,12 @@ framework renders the text, `main()` decides the number.
   pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs last (ADR-0005).
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
   `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
+- `models/registry.ts` is the one `ModelKind` → **ModelSpec** map (`SPECS_BY_KIND`, plus
+  `ALL_SPECS`). `satisfies Record<ModelKind, ModelSpec>` makes a missing kind a compile error, so
+  "every kind has a spec" is a property of the type rather than of a hand-maintained list. Add a
+  `ModelKind` member and its entry together. Every sub-map def with a canonical key order gets its
+  own spec and kind (e.g. `workflowCallInput`), which is what keeps emission order equal to
+  Python's.
 - Tests resolve repo paths via `src/paths.ts`, never via hand-rolled `../../../../` constants.
 - The pin transport seam is `HttpClient`, and its contract — the deadline, the totality of
   `TransportError`, and the transport reading the body — lives in its doc comment and is executed

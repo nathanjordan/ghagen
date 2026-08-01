@@ -97,10 +97,11 @@ Job environment configuration for deployment environments.
 
 ### Parameters
 
-| Parameter | Type          | Default  | Description           |
-| --------- | ------------- | -------- | --------------------- |
-| `name`    | `str`         | required | The environment name. |
-| `url`     | `str \| None` | `None`   | The environment URL.  |
+| Parameter    | Type                       | Default  | Description                                                                                                                                           |
+| ------------ | -------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`       | `str`                      | required | The environment name.                                                                                                                                 |
+| `url`        | `str \| None`              | `None`   | The environment URL.                                                                                                                                  |
+| `deployment` | `bool \| Raw[str] \| None` | `None`   | Whether the job creates a deployment record. `False` uses the environment's secrets and variables without one; wait timers and reviewers still apply. |
 
 ## Container
 

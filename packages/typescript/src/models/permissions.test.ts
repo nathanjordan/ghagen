@@ -10,16 +10,19 @@ describe("permissions", () => {
     });
   });
 
-  it("handles all 13 scopes", () => {
+  it("handles all 16 scopes", () => {
     const data = toData(
       permissions({
         actions: "read",
+        artifactMetadata: "read",
+        attestations: "write",
         checks: "write",
         contents: "read",
         deployments: "write",
         discussions: "read",
         idToken: "write",
         issues: "read",
+        models: "read",
         packages: "write",
         pages: "read",
         pullRequests: "write",
@@ -28,9 +31,26 @@ describe("permissions", () => {
         statuses: "read",
       }),
     ) as Record<string, unknown>;
-    expect(Object.keys(data)).toHaveLength(13);
+    expect(Object.keys(data)).toHaveLength(16);
     expect(data.actions).toBe("read");
     expect(data.statuses).toBe("read");
+  });
+
+  it("maps artifactMetadata to artifact-metadata", () => {
+    const data = toData(permissions({ artifactMetadata: "read" })) as Record<string, unknown>;
+    expect(data["artifact-metadata"]).toBe("read");
+    expect(data).not.toHaveProperty("artifactMetadata");
+  });
+
+  it("emits attestations and models under their own names", () => {
+    // `models` is the one scope the Snapshot narrows to `read | none`; ghagen
+    // types it like its fifteen siblings — see the ADR-0003 amendment.
+    const data = toData(permissions({ attestations: "write", models: "read" })) as Record<
+      string,
+      unknown
+    >;
+    expect(data.attestations).toBe("write");
+    expect(data.models).toBe("read");
   });
 
   it("maps idToken to id-token", () => {

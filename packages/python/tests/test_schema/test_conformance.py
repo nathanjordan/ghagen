@@ -46,10 +46,31 @@ from ghagen.models.action import (
     DockerRuns,
     NodeRuns,
 )
+from ghagen.models.container import Container
 from ghagen.models.image_snapshot import IMAGE_SNAPSHOT_SPEC, ImageSnapshot
-from ghagen.models.job import Job
+from ghagen.models.job import (
+    Concurrency,
+    Defaults,
+    DefaultsRun,
+    Environment,
+    Job,
+    Strategy,
+)
+from ghagen.models.permissions import Permissions
 from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
+from ghagen.models.trigger import (
+    On,
+    PRTrigger,
+    PushTrigger,
+    ScheduleTrigger,
+    WorkflowCallInput,
+    WorkflowCallOutput,
+    WorkflowCallSecret,
+    WorkflowCallTrigger,
+    WorkflowDispatchInput,
+    WorkflowDispatchTrigger,
+)
 from ghagen.models.workflow import Workflow
 
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
@@ -57,7 +78,10 @@ SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"
 VALUES_PATH = SCHEMA_DIR / "conformance-values.yml"
 
 # A JSON path into a loaded schema: the keys to walk before reading properties.
-SchemaPath = tuple[str, ...]
+# Integer segments index into a list -- ten of the workflow scopes name a
+# ``oneOf`` alternative positionally (``properties.on.oneOf[2]``,
+# ``definitions.snapshot.oneOf[1]``), and there is no other way to reach either.
+SchemaPath = tuple[str | int, ...]
 
 # ---------------------------------------------------------------------------
 # Sweep table. The scope set and each scope's schema path(s) are shared data at
@@ -86,6 +110,27 @@ _MODELS: dict[str, dict[str, type[GhagenModel]]] = {
         # reusable-workflow-call-job shapes.
         "job": Job,
         "step": Step,
+        # --- the on: sub-tree ---
+        "on": On,
+        "pushTrigger": PushTrigger,
+        # One model covers both `pull_request` and `pull_request_target`.
+        "prTrigger": PRTrigger,
+        "scheduleTrigger": ScheduleTrigger,
+        "workflowDispatch": WorkflowDispatchTrigger,
+        "workflowDispatchInput": WorkflowDispatchInput,
+        "workflowCall": WorkflowCallTrigger,
+        "workflowCallInput": WorkflowCallInput,
+        "workflowCallOutput": WorkflowCallOutput,
+        "workflowCallSecret": WorkflowCallSecret,
+        # --- job sub-shapes ---
+        "permissions": Permissions,
+        "container": Container,
+        "strategy": Strategy,
+        "concurrency": Concurrency,
+        "defaults": Defaults,
+        "defaultsRun": DefaultsRun,
+        "environment": Environment,
+        "imageSnapshot": ImageSnapshot,
     },
     "action_schema.json": {
         "action": Action,
@@ -133,7 +178,8 @@ def _load_gaps() -> dict[str, dict[str, list[str]]]:
     return YAML(typ="safe").load(GAPS_PATH.read_text())
 
 
-def _resolve(schema: dict[str, Any], path: SchemaPath) -> dict[str, Any]:
+def _resolve(schema: dict[str, Any], path: SchemaPath) -> Any:
+    """Walk *path* into *schema*; integer segments index into a list."""
     node: Any = schema
     for key in path:
         node = node[key]
@@ -255,14 +301,6 @@ def _load_values() -> dict[str, dict[str, dict[str, Any]]]:
 _VALUES = _load_values()
 
 
-def _resolve_value(schema: dict[str, Any], path: list[Any]) -> Any:
-    """Walk *path* into *schema*; integer segments index into a list."""
-    node: Any = schema
-    for key in path:
-        node = node[key]
-    return node
-
-
 def _iter_values() -> list[tuple[str, str]]:
     return [
         (snapshot, key)
@@ -288,7 +326,7 @@ def test_value_pattern_matches_snapshot(snapshot: str, key: str) -> None:
     field_name = key.split(".", 1)[1]
     pattern = binding.spec.patterns.get(field_name)
     assert pattern is not None, f"{key} declares no pattern in its ModelSpec"
-    assert pattern.pattern == _resolve_value(_load_schema(snapshot), entry["path"])
+    assert pattern.pattern == _resolve(_load_schema(snapshot), tuple(entry["path"]))
 
 
 @pytest.mark.parametrize(

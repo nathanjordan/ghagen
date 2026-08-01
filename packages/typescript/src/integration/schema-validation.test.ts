@@ -115,18 +115,21 @@ describe("workflow schema validation", () => {
     expect(() => validateWorkflowYaml(workflowYaml(w))).not.toThrow();
   });
 
-  it("validates all 13 permission scopes", () => {
+  it("validates all 16 permission scopes", () => {
     const w = workflow({
       name: "All Perms",
       on: { push: { branches: ["main"] } },
       permissions: {
         actions: "read",
+        artifactMetadata: "read",
+        attestations: "write",
         checks: "write",
         contents: "read",
         deployments: "read",
         discussions: "read",
         idToken: "write",
         issues: "write",
+        models: "read",
         packages: "read",
         pages: "write",
         pullRequests: "write",

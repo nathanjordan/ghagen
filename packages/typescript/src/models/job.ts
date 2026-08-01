@@ -248,6 +248,12 @@ export interface EnvironmentInput {
   name: string;
   /** The environment URL. */
   url?: string;
+  /**
+   * Whether the job creates a deployment record for this environment.
+   * `false` lets the job use the environment's secrets and variables without
+   * creating one; wait timers and reviewers still apply.
+   */
+  deployment?: boolean | Raw<string>;
 }
 
 /** Serialization spec for {@link EnvironmentModel}. */
@@ -256,8 +262,9 @@ export const ENVIRONMENT_SPEC: ModelSpec = {
   fieldMap: {
     name: "name",
     url: "url",
+    deployment: "deployment",
   } satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>,
-  order: { kind: "explicit", keys: ["name", "url"] },
+  order: { kind: "explicit", keys: ["name", "url", "deployment"] },
 };
 
 /**

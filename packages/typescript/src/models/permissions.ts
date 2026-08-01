@@ -15,6 +15,10 @@ import type { PermissionLevel } from "./common.js";
 export interface PermissionsInput {
   /** Permission for the `actions` scope. */
   actions?: PermissionLevel | Raw<string>;
+  /** Permission for the `artifact-metadata` scope. Serialized as `artifact-metadata`. */
+  artifactMetadata?: PermissionLevel | Raw<string>;
+  /** Permission for the `attestations` scope. */
+  attestations?: PermissionLevel | Raw<string>;
   /** Permission for the `checks` scope. */
   checks?: PermissionLevel | Raw<string>;
   /** Permission for the `contents` scope. */
@@ -27,6 +31,12 @@ export interface PermissionsInput {
   idToken?: PermissionLevel | Raw<string>;
   /** Permission for the `issues` scope. */
   issues?: PermissionLevel | Raw<string>;
+  /**
+   * Permission for the `models` scope. The Snapshot narrows this one scope to
+   * `read | none`; ghagen types it like its fifteen siblings and does not
+   * enforce the narrower enum — see the ADR-0003 amendment.
+   */
+  models?: PermissionLevel | Raw<string>;
   /** Permission for the `packages` scope. */
   packages?: PermissionLevel | Raw<string>;
   /** Permission for the `pages` scope. */
@@ -46,12 +56,15 @@ export const PERMISSIONS_SPEC: ModelSpec = {
   kind: "permissions",
   fieldMap: {
     actions: "actions",
+    artifactMetadata: "artifact-metadata",
+    attestations: "attestations",
     checks: "checks",
     contents: "contents",
     deployments: "deployments",
     discussions: "discussions",
     idToken: "id-token",
     issues: "issues",
+    models: "models",
     packages: "packages",
     pages: "pages",
     pullRequests: "pull-requests",
@@ -63,12 +76,15 @@ export const PERMISSIONS_SPEC: ModelSpec = {
     kind: "explicit",
     keys: [
       "actions",
+      "artifact-metadata",
+      "attestations",
       "checks",
       "contents",
       "deployments",
       "discussions",
       "id-token",
       "issues",
+      "models",
       "packages",
       "pages",
       "pull-requests",

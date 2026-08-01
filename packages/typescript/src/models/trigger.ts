@@ -7,6 +7,9 @@ import type {
   WorkflowDispatchModel,
   WorkflowDispatchInputModel,
   WorkflowCallModel,
+  WorkflowCallInputModel,
+  WorkflowCallOutputModel,
+  WorkflowCallSecretModel,
   WithMeta,
   ModelSpec,
   Raw,
@@ -184,6 +187,12 @@ export interface WorkflowDispatchInputDef {
   type?: "boolean" | "number" | "string" | "choice" | "environment" | Raw<string>;
   /** Available options when `type` is `"choice"`. */
   options?: string[];
+  /**
+   * Deprecation notice shown next to the input in the dispatch UI. Emitted as
+   * `deprecationMessage` — the Snapshot spells this key in camelCase while its
+   * five siblings are lowercase.
+   */
+  deprecationMessage?: string;
 }
 
 /**
@@ -230,8 +239,12 @@ export const WORKFLOW_DISPATCH_INPUT_SPEC: ModelSpec = {
     default: "default",
     type: "type",
     options: "options",
+    deprecationMessage: "deprecationMessage",
   },
-  order: { kind: "explicit", keys: ["description", "required", "default", "type", "options"] },
+  order: {
+    kind: "explicit",
+    keys: ["description", "required", "default", "type", "options", "deprecationMessage"],
+  },
 };
 
 /** Wrap one `workflow_dispatch` input def into an ordered model. */
@@ -336,11 +349,79 @@ export interface WorkflowCallInput {
  * })
  * ```
  */
+/**
+ * Serialization spec for a single `workflow_call` input definition.
+ *
+ * Python models each `workflow_call` sub-map entry as its own model with its
+ * own spec, so it emits canonical key order; TypeScript had no spec for any of
+ * the three, so the defs reached the Emitter as plain objects and emitted in
+ * the author's insertion order. Python's order is the reference.
+ */
+export const WORKFLOW_CALL_INPUT_SPEC: ModelSpec = {
+  kind: "workflowCallInput",
+  fieldMap: {
+    description: "description",
+    required: "required",
+    default: "default",
+    type: "type",
+  },
+  order: { kind: "explicit", keys: ["description", "required", "default", "type"] },
+};
+
+/** Serialization spec for a single `workflow_call` output definition. */
+export const WORKFLOW_CALL_OUTPUT_SPEC: ModelSpec = {
+  kind: "workflowCallOutput",
+  fieldMap: { description: "description", value: "value" },
+  order: { kind: "explicit", keys: ["description", "value"] },
+};
+
+/** Serialization spec for a single `workflow_call` secret definition. */
+export const WORKFLOW_CALL_SECRET_SPEC: ModelSpec = {
+  kind: "workflowCallSecret",
+  fieldMap: { description: "description", required: "required" },
+  order: { kind: "explicit", keys: ["description", "required"] },
+};
+
+/** Wrap one `workflow_call` input def into an ordered model. */
+function workflowCallInputDef(input: WithMeta<WorkflowCallInputDef>): WorkflowCallInputModel {
+  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
+  return buildModel<WorkflowCallInputModel>(
+    WORKFLOW_CALL_INPUT_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
+}
+
+/** Wrap one `workflow_call` output def into an ordered model. */
+function workflowCallOutputDef(input: WithMeta<WorkflowCallOutputDef>): WorkflowCallOutputModel {
+  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
+  return buildModel<WorkflowCallOutputModel>(
+    WORKFLOW_CALL_OUTPUT_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
+}
+
+/** Wrap one `workflow_call` secret def into an ordered model. */
+function workflowCallSecretDef(input: WithMeta<WorkflowCallSecretDef>): WorkflowCallSecretModel {
+  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
+  return buildModel<WorkflowCallSecretModel>(
+    WORKFLOW_CALL_SECRET_SPEC,
+    data as Record<string, unknown>,
+    meta,
+  );
+}
+
 /** Serialization spec for {@link WorkflowCallModel}. */
 export const WORKFLOW_CALL_SPEC: ModelSpec = {
   kind: "workflowCall",
   fieldMap: { inputs: "inputs", outputs: "outputs", secrets: "secrets" },
   order: { kind: "explicit", keys: ["inputs", "outputs", "secrets"] },
+  wrap: {
+    inputs: { factory: workflowCallInputDef, mode: "map" },
+    outputs: { factory: workflowCallOutputDef, mode: "map" },
+    secrets: { factory: workflowCallSecretDef, mode: "map" },
+  },
 };
 
 export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
@@ -407,6 +488,10 @@ export interface OnInput {
   projectCard?: Record<string, unknown>;
   /** Project column event configuration. */
   projectColumn?: Record<string, unknown>;
+  /** Pull request review event configuration. */
+  pullRequestReview?: Record<string, unknown>;
+  /** Pull request review comment event configuration. */
+  pullRequestReviewComment?: Record<string, unknown>;
   /** Repository visibility change event. Pass `null` for an event with no configuration. */
   public?: Record<string, unknown> | null;
   /** Registry package event. */
@@ -462,6 +547,8 @@ export const ON_SPEC: ModelSpec = {
     project: "project",
     projectCard: "project_card",
     projectColumn: "project_column",
+    pullRequestReview: "pull_request_review",
+    pullRequestReviewComment: "pull_request_review_comment",
     public: "public",
     registryPackage: "registry_package",
     release: "release",

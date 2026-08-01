@@ -20,35 +20,43 @@ on = On(
 
 ### Parameters
 
-| Parameter             | Type                                      | Default | Description                                                                          |
-| --------------------- | ----------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
-| `push`                | `PushTrigger \| None`                     | `None`  | Push event configuration.                                                            |
-| `pull_request`        | `PRTrigger \| None`                       | `None`  | Pull request event configuration.                                                    |
-| `pull_request_target` | `PRTrigger \| None`                       | `None`  | Pull request target event configuration.                                             |
-| `workflow_dispatch`   | `WorkflowDispatchTrigger \| bool \| None` | `None`  | Manual dispatch trigger. Set to `True` or `WorkflowDispatchTrigger()` for no inputs. |
-| `workflow_call`       | `WorkflowCallTrigger \| None`             | `None`  | Reusable workflow call trigger.                                                      |
-| `workflow_run`        | `dict[str, Any] \| None`                  | `None`  | Workflow run event configuration.                                                    |
-| `schedule`            | `list[ScheduleTrigger] \| None`           | `None`  | Cron schedule triggers.                                                              |
-| `release`             | `dict[str, Any] \| None`                  | `None`  | Release event configuration.                                                         |
-| `issues`              | `dict[str, Any] \| None`                  | `None`  | Issues event configuration.                                                          |
-| `issue_comment`       | `dict[str, Any] \| None`                  | `None`  | Issue comment event configuration.                                                   |
-| `create`              | `dict[str, Any] \| None`                  | `None`  | Branch/tag creation event.                                                           |
-| `delete`              | `dict[str, Any] \| None`                  | `None`  | Branch/tag deletion event.                                                           |
-| `fork`                | `dict[str, Any] \| None`                  | `None`  | Fork event configuration.                                                            |
-| `page_build`          | `dict[str, Any] \| None`                  | `None`  | GitHub Pages build event.                                                            |
-| `deployment`          | `dict[str, Any] \| None`                  | `None`  | Deployment event configuration.                                                      |
-| `deployment_status`   | `dict[str, Any] \| None`                  | `None`  | Deployment status event.                                                             |
-| `check_run`           | `dict[str, Any] \| None`                  | `None`  | Check run event configuration.                                                       |
-| `check_suite`         | `dict[str, Any] \| None`                  | `None`  | Check suite event configuration.                                                     |
-| `label`               | `dict[str, Any] \| None`                  | `None`  | Label event configuration.                                                           |
-| `milestone`           | `dict[str, Any] \| None`                  | `None`  | Milestone event configuration.                                                       |
-| `project`             | `dict[str, Any] \| None`                  | `None`  | Project event configuration.                                                         |
-| `project_card`        | `dict[str, Any] \| None`                  | `None`  | Project card event configuration.                                                    |
-| `project_column`      | `dict[str, Any] \| None`                  | `None`  | Project column event configuration.                                                  |
-| `public`              | `dict[str, Any] \| None`                  | `None`  | Repository visibility change event.                                                  |
-| `registry_package`    | `dict[str, Any] \| None`                  | `None`  | Registry package event.                                                              |
-| `status`              | `dict[str, Any] \| None`                  | `None`  | Commit status event.                                                                 |
-| `watch`               | `dict[str, Any] \| None`                  | `None`  | Watch/star event configuration.                                                      |
+| Parameter                     | Type                                      | Default | Description                                                                          |
+| ----------------------------- | ----------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `push`                        | `PushTrigger \| None`                     | `None`  | Push event configuration.                                                            |
+| `pull_request`                | `PRTrigger \| None`                       | `None`  | Pull request event configuration.                                                    |
+| `pull_request_target`         | `PRTrigger \| None`                       | `None`  | Pull request target event configuration.                                             |
+| `workflow_dispatch`           | `WorkflowDispatchTrigger \| bool \| None` | `None`  | Manual dispatch trigger. Set to `True` or `WorkflowDispatchTrigger()` for no inputs. |
+| `workflow_call`               | `WorkflowCallTrigger \| None`             | `None`  | Reusable workflow call trigger.                                                      |
+| `workflow_run`                | `dict[str, Any] \| None`                  | `None`  | Workflow run event configuration.                                                    |
+| `schedule`                    | `list[ScheduleTrigger] \| None`           | `None`  | Cron schedule triggers.                                                              |
+| `release`                     | `dict[str, Any] \| None`                  | `None`  | Release event configuration.                                                         |
+| `issues`                      | `dict[str, Any] \| None`                  | `None`  | Issues event configuration.                                                          |
+| `issue_comment`               | `dict[str, Any] \| None`                  | `None`  | Issue comment event configuration.                                                   |
+| `create`                      | `dict[str, Any] \| None`                  | `None`  | Branch/tag creation event.                                                           |
+| `delete`                      | `dict[str, Any] \| None`                  | `None`  | Branch/tag deletion event.                                                           |
+| `fork`                        | `dict[str, Any] \| None`                  | `None`  | Fork event configuration.                                                            |
+| `page_build`                  | `dict[str, Any] \| None`                  | `None`  | GitHub Pages build event.                                                            |
+| `deployment`                  | `dict[str, Any] \| None`                  | `None`  | Deployment event configuration.                                                      |
+| `deployment_status`           | `dict[str, Any] \| None`                  | `None`  | Deployment status event.                                                             |
+| `check_run`                   | `dict[str, Any] \| None`                  | `None`  | Check run event configuration.                                                       |
+| `check_suite`                 | `dict[str, Any] \| None`                  | `None`  | Check suite event configuration.                                                     |
+| `branch_protection_rule`      | `dict[str, Any] \| None`                  | `None`  | Branch protection rule event configuration.                                          |
+| `discussion`                  | `dict[str, Any] \| None`                  | `None`  | Discussion event configuration.                                                      |
+| `discussion_comment`          | `dict[str, Any] \| None`                  | `None`  | Discussion comment event configuration.                                              |
+| `gollum`                      | `dict[str, Any] \| None`                  | `None`  | Gollum (wiki) event configuration.                                                   |
+| `merge_group`                 | `dict[str, Any] \| None`                  | `None`  | Merge group event configuration.                                                     |
+| `pull_request_review`         | `dict[str, Any] \| None`                  | `None`  | Pull request review event configuration.                                             |
+| `pull_request_review_comment` | `dict[str, Any] \| None`                  | `None`  | Pull request review comment event configuration.                                     |
+| `repository_dispatch`         | `dict[str, Any] \| None`                  | `None`  | Repository dispatch event configuration.                                             |
+| `label`                       | `dict[str, Any] \| None`                  | `None`  | Label event configuration.                                                           |
+| `milestone`                   | `dict[str, Any] \| None`                  | `None`  | Milestone event configuration.                                                       |
+| `project`                     | `dict[str, Any] \| None`                  | `None`  | Project event configuration.                                                         |
+| `project_card`                | `dict[str, Any] \| None`                  | `None`  | Project card event configuration.                                                    |
+| `project_column`              | `dict[str, Any] \| None`                  | `None`  | Project column event configuration.                                                  |
+| `public`                      | `dict[str, Any] \| None`                  | `None`  | Repository visibility change event.                                                  |
+| `registry_package`            | `dict[str, Any] \| None`                  | `None`  | Registry package event.                                                              |
+| `status`                      | `dict[str, Any] \| None`                  | `None`  | Commit status event.                                                                 |
+| `watch`                       | `dict[str, Any] \| None`                  | `None`  | Watch/star event configuration.                                                      |
 
 Events without a dedicated model accept a `dict[str, Any]` for full flexibility.
 
@@ -96,6 +104,8 @@ pr = PRTrigger(
 | ----------------- | ------------------- | ------- | ---------------------------------------------------------------------------- |
 | `branches`        | `list[str] \| None` | `None`  | Branch filter patterns (matches the PR's base branch).                       |
 | `branches_ignore` | `list[str] \| None` | `None`  | Branch exclusion patterns. Serialized as `branches-ignore`.                  |
+| `tags`            | `list[str] \| None` | `None`  | Tag filter patterns.                                                         |
+| `tags_ignore`     | `list[str] \| None` | `None`  | Tag exclusion patterns. Serialized as `tags-ignore`.                         |
 | `paths`           | `list[str] \| None` | `None`  | Path filter patterns.                                                        |
 | `paths_ignore`    | `list[str] \| None` | `None`  | Path exclusion patterns. Serialized as `paths-ignore`.                       |
 | `types`           | `list[str] \| None` | `None`  | Activity types to filter on (e.g., `["opened", "synchronize", "reopened"]`). |
@@ -112,9 +122,10 @@ schedule = ScheduleTrigger(cron="0 0 * * 1")  # Every Monday at midnight
 
 ### Parameters
 
-| Parameter | Type  | Default  | Description                                                        |
-| --------- | ----- | -------- | ------------------------------------------------------------------ |
-| `cron`    | `str` | required | POSIX cron expression (e.g., `"0 0 * * *"` for daily at midnight). |
+| Parameter  | Type          | Default  | Description                                                        |
+| ---------- | ------------- | -------- | ------------------------------------------------------------------ |
+| `cron`     | `str`         | required | POSIX cron expression (e.g., `"0 0 * * *"` for daily at midnight). |
+| `timezone` | `str \| None` | `None`   | IANA timezone for the cron schedule.                               |
 
 ## WorkflowDispatchTrigger
 
@@ -147,13 +158,14 @@ An input parameter for `workflow_dispatch` triggers.
 
 ### Parameters
 
-| Parameter     | Type                                                                                  | Default | Description                                                                                 |
-| ------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `description` | `str \| None`                                                                         | `None`  | Human-readable description of the input.                                                    |
-| `required`    | `bool \| None`                                                                        | `None`  | Whether the input is required.                                                              |
-| `default`     | `str \| None`                                                                         | `None`  | Default value for the input.                                                                |
-| `type`        | `Literal["boolean", "number", "string", "choice", "environment"] \| Raw[str] \| None` | `None`  | Input type. Closed set — the five members `workflow_dispatch` accepts. Use `Raw` to bypass. |
-| `options`     | `list[str] \| None`                                                                   | `None`  | Available options when `type` is `"choice"`.                                                |
+| Parameter             | Type                                                                                  | Default | Description                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`         | `str \| None`                                                                         | `None`  | Human-readable description of the input.                                                                                                          |
+| `required`            | `bool \| None`                                                                        | `None`  | Whether the input is required.                                                                                                                    |
+| `default`             | `str \| None`                                                                         | `None`  | Default value for the input.                                                                                                                      |
+| `type`                | `Literal["boolean", "number", "string", "choice", "environment"] \| Raw[str] \| None` | `None`  | Input type. Closed set — the five members `workflow_dispatch` accepts. Use `Raw` to bypass.                                                       |
+| `options`             | `list[str] \| None`                                                                   | `None`  | Available options when `type` is `"choice"`.                                                                                                      |
+| `deprecation_message` | `str \| None`                                                                         | `None`  | Deprecation notice shown in the dispatch UI. Serialized as `deprecationMessage` — the schema spells this key camelCase, unlike its five siblings. |
 
 ## WorkflowCallTrigger
 
