@@ -112,6 +112,13 @@ engine's no-refs early return, so every run carries them, and the rendered outpu
 them rather than following what the run happened to find. "Asked for" is not "ran": the lockfile
 flag stays true when no lockfile is configured and the stage is skipped.
 
+**UpdatePlan**:
+What a caller should **do** about an **Upgrade report** — whether to apply bumps, whether to
+refresh the lockfile, what to raise, and under what branch, title, and labels. Every field is a
+decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
+as well as the report, because one rule turns on `app.lockfile_path`, a fact the serialized report
+deliberately does not carry.
+
 ### Schema
 
 **Snapshot**:
@@ -141,6 +148,8 @@ framework renders the text, `main()` decides the number.
 - **Pin** iterates **UsesSites** over each **Document**; only **Pinnable** refs are pinned.
 - `upgrade` compares only **version tags** with the same prefix; the comparison lives in
   `pin/versions`, never in a third-party library.
+- An **UpdatePlan** is derived from an **Upgrade report** *and* an **App**; the report alone is not
+  enough, and no consumer may reconstruct a plan from `deps upgrade --format json`.
 
 ## Surface notes (Python)
 
@@ -174,6 +183,15 @@ framework renders the text, `main()` decides the number.
   makes the `--format json` key set identical for empty and non-empty runs (ADR-0007;
   `docs/specs/0005-typed-engine-report-seam.md` §2.2). All four formats are byte-compared against
   shared goldens in `fixtures/expected/` by both ports.
+- `pin/plan` is the sibling of `pin/render` at the same layer: `render` answers "what bytes do I
+  write?", `plan` answers "what do I do next?". Both are pure — no network, no filesystem, no
+  console, and no clock either: `plan_update` takes `today` as an argument, the same reasoning
+  ADR-0002 applies to construction-time config globals. `plan_update(app, report, ...)` takes the
+  **App** for exactly one fact, `app.lockfile_path`, which is why `refresh_lockfile` is not
+  `bool(report.lockfile_stale)`. `ghagen deps update` is the one command that runs a whole
+  automation pass — sweep, write, plan — and prints the plan and nothing else on stdout, so
+  `--format github` can be a bare `>> "$GITHUB_OUTPUT"` redirect. `check-deps/action.yml` is its
+  only in-repo consumer; the shell there branches on the plan and computes nothing.
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.

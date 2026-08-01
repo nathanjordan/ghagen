@@ -8,6 +8,7 @@ typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -208,5 +209,159 @@ def deps_upgrade(
 
     typer.echo(
         render_upgrade_report(report, output_format=output_format or "text"),
+        nl=False,
+    )
+
+
+def _reject_newlines(**values: str) -> None:
+    """Exit 2 if any value spans lines.
+
+    These reach ``$GITHUB_OUTPUT`` as ``key=value`` lines, so an embedded
+    newline forges additional outputs -- an injection vector, since every one
+    of them is a workflow-author-supplied action input.  Rejecting at the edge
+    is what lets :func:`~ghagen.pin.plan.render_update_plan` stay single-line
+    per field and skip the heredoc-delimiter machinery entirely.
+    """
+    for name, value in values.items():
+        if "\n" in value or "\r" in value:
+            typer.echo(f"Error: --{name} must not contain a newline", err=True)
+            raise typer.Exit(2)
+
+
+@deps_app.command("update")
+def deps_update(
+    config: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file"
+    ),
+    mode: str = typer.Option(
+        "all",
+        "--mode",
+        help="Detection mode: 'versions', 'lockfile', or 'all' (default)",
+    ),
+    output: str = typer.Option(
+        "pr", "--output", help="What to raise when there is something: 'pr' or 'issue'"
+    ),
+    output_format: str = typer.Option(
+        "github",
+        "--format",
+        help="Plan format: 'github' ($GITHUB_OUTPUT key=value, default) or 'json'",
+    ),
+    branch_prefix: str = typer.Option(
+        "ghagen-update/", "--branch-prefix", help="Prefix for the dated PR branch"
+    ),
+    commit_message_prefix: str = typer.Option(
+        "", "--commit-message-prefix", help="Prefix for the commit subject"
+    ),
+    labels: str = typer.Option(
+        "", "--labels", help="Comma-separated labels for the PR or issue"
+    ),
+    body_file: str | None = typer.Option(
+        None, "--body-file", help="Write the PR/issue body to this path"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Decide everything, write nothing"
+    ),
+    token: str | None = typer.Option(
+        None, "--token", help="GitHub token (default: $GITHUB_TOKEN)"
+    ),
+) -> None:
+    """Sweep for dependency updates, apply them, and print the resulting plan.
+
+    One command per automation run.  It performs every write the update needs
+    -- version bumps in user source, and the lockfile re-resolve when, and only
+    when, that is the right thing to do -- and prints what the caller should
+    raise.  A caller reads the plan and acts on it; it never reconstructs a
+    decision from ``deps upgrade --format json``, which cannot answer the
+    lockfile question because the payload does not carry ``app.lockfile_path``.
+
+    Stdout carries the plan and nothing else, so ``--format github`` can be a
+    bare ``>> "$GITHUB_OUTPUT"`` redirect.  Warnings and progress go to stderr.
+    """
+    from ghagen.pin.engine import pin as pin_engine
+    from ghagen.pin.engine import upgrade as upgrade_engine
+    from ghagen.pin.plan import plan_update, render_update_plan
+    from ghagen.pin.render import render_upgrade_report
+    from ghagen.pin.sources import track_user_files
+
+    if mode not in ("versions", "lockfile", "all"):
+        typer.echo(
+            f"Error: unknown --mode value '{mode}' (valid: versions, lockfile, all)",
+            err=True,
+        )
+        raise typer.Exit(2)
+    if output not in ("pr", "issue"):
+        typer.echo(
+            f"Error: unknown --output value '{output}' (valid: pr, issue)", err=True
+        )
+        raise typer.Exit(2)
+    if output_format not in ("github", "json"):
+        typer.echo(
+            f"Error: unknown --format value '{output_format}' (valid: github, json)",
+            err=True,
+        )
+        raise typer.Exit(2)
+    _reject_newlines(
+        **{
+            "branch-prefix": branch_prefix,
+            "commit-message-prefix": commit_message_prefix,
+            "labels": labels,
+        }
+    )
+
+    config_path = _find_config(config)
+    ghagen_app, user_files = track_user_files(config_path)
+    client = _github_client(token)
+
+    report = upgrade_engine(
+        ghagen_app,
+        client,
+        user_files,
+        mode=mode,  # type: ignore[arg-type]
+        apply=not dry_run,
+    )
+    for warning in report.warnings:
+        typer.echo(f"warning: {warning}", err=True)
+
+    plan = plan_update(
+        ghagen_app,
+        report,
+        output=output,  # type: ignore[arg-type]
+        branch_prefix=branch_prefix,
+        commit_message_prefix=commit_message_prefix,
+        labels=labels,
+        # Read here, at the edge, and injected: `plan_update` has no clock, for
+        # the reason ADR-0002 gives about construction-time globals.
+        today=datetime.now(tz=UTC).date(),
+    )
+
+    changed = bool(report.changed_files)
+    for f in report.changed_files:
+        typer.echo(f"  modified {f}", err=True)
+
+    if plan.refresh_lockfile and not dry_run:
+        # Reached only when the app *has* a lockfile -- the plan decided that,
+        # holding the App, which is why no `_ensure_lockfile_path` guard (and
+        # no exit 1) is possible here.
+        pin_report = pin_engine(ghagen_app, client, update=True, prune=True)
+        for warning in pin_report.warnings:
+            typer.echo(f"warning: {warning}", err=True)
+        for error in pin_report.errors:
+            typer.echo(f"error: {error}", err=True)
+        if pin_report.errors:
+            # Do not print a plan telling the caller to raise a PR for a tree
+            # whose lockfile refresh failed.
+            typer.echo(f"{len(pin_report.errors)} ref(s) failed to resolve.", err=True)
+            raise typer.Exit(1)
+        if pin_report.written:
+            typer.echo(f"  modified {pin_report.lockfile_path}", err=True)
+            changed = True
+
+    if body_file is not None and plan.body_format is not None:
+        Path(body_file).write_text(
+            render_upgrade_report(report, output_format=plan.body_format)
+        )
+
+    typer.echo(
+        render_update_plan(plan, changed=changed, output_format=output_format),  # type: ignore[arg-type]
         nl=False,
     )

@@ -454,3 +454,266 @@ app.add_workflow(ci, "ci.yml")
                 data = json.loads(result.stdout)
                 assert data == expected, mode
                 assert "helper_provided" not in result.output
+
+
+# -- deps update -------------------------------------------------------------
+
+_LOCKFILE_NONE_CONFIG = """\
+from ghagen import App, Job, On, PushTrigger, Step, Workflow
+
+app = App(lockfile=None)
+ci = Workflow(
+    name="CI",
+    on=On(push=PushTrigger(branches=["main"])),
+    jobs={"test": Job(
+        runs_on="ubuntu-latest",
+        steps=[Step(uses="actions/checkout@v4")],
+    )},
+)
+app.add_workflow(ci, "ci.yml")
+"""
+
+#: The field set `--format github` and `--format json` both carry.
+_PLAN_FIELDS = {
+    "action",
+    "total_updates",
+    "apply_version_bumps",
+    "refresh_lockfile",
+    "branch",
+    "title",
+    "commit_message",
+    "labels",
+    "body_format",
+    "changed",
+}
+
+
+def _github_outputs(stdout: str) -> dict[str, str]:
+    """Parse ``--format github`` back into the mapping a runner would build."""
+    return dict(line.split("=", 1) for line in stdout.splitlines() if line)
+
+
+class TestDepsUpdate:
+    """The automation verb: one sweep, one plan, one answer.
+
+    Decision rules themselves are asserted offline in
+    ``tests/test_pin/test_plan.py``; body bytes in ``tests/test_pin/test_render.py``.
+    What is here is what is genuinely CLI -- flag validation, stream ownership,
+    the two wire shapes, and the end-to-end proof that the command does not do
+    the thing the shipped action's bash did.
+    """
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_lockfile_none_project_never_reaches_deps_pin(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """H7, end to end: a bump on a ``lockfile=None`` project must not cascade.
+
+        The shipped action's guard is
+        ``lockfile_stale != 0 || version_bumps != 0``, which fires here --
+        ``lockfile_stale`` is always ``0`` under ``lockfile=None`` because the
+        stage is skipped, but the bump is real. It then runs
+        ``ghagen deps pin --update``, which exits 1 with "lockfile is disabled",
+        killing the step under ``set -euo pipefail`` after the source edits were
+        written and before any commit.
+
+        This command applies the bump and stops, because ``plan_update`` holds
+        the ``App``.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+
+        result = runner.invoke(app, ["deps", "update", "--format", "json"])
+
+        assert result.exit_code == 0, result.output
+        assert "lockfile is disabled" not in result.output
+        plan = json.loads(result.stdout)
+        assert plan["refresh_lockfile"] is False
+        assert plan["apply_version_bumps"] is True
+        assert plan["action"] == "create-pr"
+        # The bump really was applied -- the command did the half that is safe.
+        assert "actions/checkout@v7" in (tmp_path / "ghagen_config.py").read_text()
+        assert plan["changed"] is True
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_github_format_is_github_output_shaped_and_owns_stdout(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--format github`` appends straight to ``$GITHUB_OUTPUT``.
+
+        Nothing human may share that stream: the action's plan step is a single
+        ``>> "$GITHUB_OUTPUT"`` redirect, so a stray progress line would become
+        a malformed output entry.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.delenv("GH_TOKEN", raising=False)
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+
+        result = runner.invoke(
+            app, ["deps", "update", "--dry-run", "--labels", " a , b ,, c "]
+        )
+
+        assert result.exit_code == 0, result.output
+        outputs = _github_outputs(result.stdout)
+        assert set(outputs) == _PLAN_FIELDS
+        assert outputs["action"] == "create-pr"
+        assert outputs["total_updates"] == "1"
+        assert outputs["refresh_lockfile"] == "false"
+        assert outputs["apply_version_bumps"] == "true"
+        assert outputs["changed"] == "false"
+        assert outputs["labels"] == "a,b,c"
+        assert outputs["commit_message"] == "update ghagen action dependencies"
+        # The no-token warning is real output and must not land in the payload.
+        assert "no GitHub token found" in result.stderr
+        assert "no GitHub token found" not in result.stdout
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_json_and_github_carry_the_same_fields(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """Two encodings of one shape -- a field added to either must appear in both."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+
+        as_json = runner.invoke(
+            app, ["deps", "update", "--dry-run", "--format", "json"]
+        )
+        as_github = runner.invoke(
+            app, ["deps", "update", "--dry-run", "--format", "github"]
+        )
+
+        assert as_json.exit_code == 0, as_json.output
+        assert as_github.exit_code == 0, as_github.output
+        assert set(json.loads(as_json.stdout)) == _PLAN_FIELDS
+        assert set(_github_outputs(as_github.stdout)) == _PLAN_FIELDS
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_dry_run_writes_nothing(self, mock_tags, mock_track, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        config = tmp_path / "ghagen_config.py"
+        config.write_text(_LOCKFILE_NONE_CONFIG)
+        before = config.read_text()
+
+        result = runner.invoke(app, ["deps", "update", "--dry-run", "--format", "json"])
+
+        assert result.exit_code == 0, result.output
+        assert config.read_text() == before
+        assert json.loads(result.stdout)["changed"] is False
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_body_file_is_written_in_the_plan_s_format(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """The body is a file path, never an output value.
+
+        Keeping bytes out of ``$GITHUB_OUTPUT`` sidesteps the multiline
+        delimiter dance entirely, which is why the plan carries ``body_format``
+        rather than a body.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+        body = tmp_path / "body.md"
+
+        result = runner.invoke(
+            app,
+            [
+                "deps",
+                "update",
+                "--dry-run",
+                "--body-file",
+                str(body),
+                "--format",
+                "json",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["body_format"] == "pr-body"
+        assert body.read_text().startswith("## ghagen dependency update")
+        assert "actions/checkout@v4" in body.read_text()
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_no_body_file_is_written_when_there_is_nothing_to_raise(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        # No pinnable refs at all -> empty report -> action == "none".
+        (tmp_path / "ghagen_config.py").write_text(
+            _LOCKFILE_NONE_CONFIG.replace(
+                'Step(uses="actions/checkout@v4")', 'Step(run="echo hi")'
+            )
+        )
+        body = tmp_path / "body.md"
+
+        result = runner.invoke(
+            app,
+            ["deps", "update", "--body-file", str(body), "--format", "json"],
+        )
+
+        assert result.exit_code == 0, result.output
+        plan = json.loads(result.stdout)
+        assert plan["action"] == "none"
+        assert plan["body_format"] is None
+        assert not body.exists()
+
+
+class TestDepsUpdateFlagValidation:
+    """Bad flag values exit 2 with one line -- never a traceback.
+
+    The construct being replaced turned every diagnosable CLI failure into
+    exit 1 plus a ``JSONDecodeError`` traceback from the *reader*, because the
+    detect step ended in ``|| true`` and the next line parsed the empty file it
+    was supposed to have written.
+    """
+
+    def _project(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+
+    def test_invalid_mode(self, tmp_path, monkeypatch):
+        self._project(tmp_path, monkeypatch)
+        result = runner.invoke(app, ["deps", "update", "--mode", "bogus"])
+        assert result.exit_code == 2
+        assert "unknown --mode value" in result.stderr
+        assert "Traceback" not in result.output
+        assert len(result.stderr.strip().splitlines()) == 1
+
+    def test_invalid_output(self, tmp_path, monkeypatch):
+        self._project(tmp_path, monkeypatch)
+        result = runner.invoke(app, ["deps", "update", "--output", "bogus"])
+        assert result.exit_code == 2
+        assert "unknown --output value" in result.stderr
+
+    def test_invalid_format(self, tmp_path, monkeypatch):
+        self._project(tmp_path, monkeypatch)
+        result = runner.invoke(app, ["deps", "update", "--format", "yaml"])
+        assert result.exit_code == 2
+        assert "unknown --format value" in result.stderr
+
+    def test_newline_in_a_prefix_is_rejected(self, tmp_path, monkeypatch):
+        """A newline would forge extra ``$GITHUB_OUTPUT`` entries.
+
+        ``commit-message-prefix`` is a workflow-author-supplied action input
+        that lands verbatim in a ``key=value`` line, so an embedded newline is
+        an output-injection vector, not a formatting nit.
+        """
+        self._project(tmp_path, monkeypatch)
+        result = runner.invoke(
+            app,
+            ["deps", "update", "--commit-message-prefix", "x\naction=create-pr"],
+        )
+        assert result.exit_code == 2
+        assert "must not contain a newline" in result.stderr

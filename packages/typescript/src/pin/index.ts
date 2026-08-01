@@ -21,6 +21,16 @@ export { UsesRef } from "./uses.js";
 export { type BumpSeverity } from "./versions.js";
 export { collectUsesRefs } from "./collect.js";
 export { renderUpgradeReport, type UpgradeFormat } from "./render.js";
+export {
+  planUpdate,
+  parseLabels,
+  renderUpdatePlan,
+  type PlanFormat,
+  type UpdateAction,
+  type UpdateOutput,
+  type UpdatePlan,
+  type PlanUpdateOptions,
+} from "./plan.js";
 export { UsesSite, iterUsesSites } from "./sites.js";
 export { PinError, type PinTransform, pinTransform } from "./transform.js";
 export { trackUserFiles, locateUsesRefs } from "./sources.js";

@@ -115,6 +115,13 @@ engine's no-refs early return, so every run carries them, and the rendered outpu
 them rather than following what the run happened to find. "Asked for" is not "ran": the lockfile
 flag stays true when no lockfile is configured and the stage is skipped.
 
+**UpdatePlan**:
+What a caller should **do** about an **Upgrade report** — whether to apply bumps, whether to
+refresh the lockfile, what to raise, and under what branch, title, and labels. Every field is a
+decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
+as well as the report, because one rule turns on `app.lockfilePath`, a fact the serialized report
+deliberately does not carry.
+
 ### Schema
 
 **Snapshot**:
@@ -144,6 +151,8 @@ framework renders the text, `main()` decides the number.
 - **Pin** iterates **UsesSites** over each **Document**; only **Pinnable** refs are pinned.
 - `upgrade` compares only **version tags** with the same prefix; the comparison lives in
   `pin/versions`, never in a third-party library.
+- An **UpdatePlan** is derived from an **Upgrade report** _and_ an **App**; the report alone is not
+  enough, and no consumer may reconstruct a plan from `deps upgrade --format json`.
 
 ## Surface notes (TypeScript)
 
@@ -180,6 +189,17 @@ framework renders the text, `main()` decides the number.
   key set identical for empty and non-empty runs (ADR-0007;
   `docs/specs/0005-typed-engine-report-seam.md` §2.2). All four formats are byte-compared against
   shared goldens in `fixtures/expected/` by both ports.
+- `pin/plan.ts` is the sibling of `pin/render.ts` at the same layer: `render` answers "what bytes do
+  I write?", `plan` answers "what do I do next?". Both are pure — no network, no filesystem, no
+  console, and no clock either: `planUpdate` takes `today` as an argument, the same reasoning
+  ADR-0002 applies to construction-time config globals. `planUpdate(app, report, options)` takes the
+  **App** for exactly one fact, `app.lockfilePath`, which is why `refreshLockfile` is not
+  `report.lockfileStale.length > 0`. `renderUpdatePlan` takes its format **positionally**, matching
+  `renderUpgradeReport`, and emits snake_case keys in both encodings because the field names are a
+  cross-port wire contract, not this port's interface. `ghagen deps update` is the one command that
+  runs a whole automation pass — sweep, write, plan — and prints the plan and nothing else on
+  stdout. `check-deps/action.yml` runs the Python port of it; the shell there branches on the plan
+  and computes nothing.
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
   `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
 - `models/registry.ts` is the one `ModelKind` → **ModelSpec** map (`SPECS_BY_KIND`, plus

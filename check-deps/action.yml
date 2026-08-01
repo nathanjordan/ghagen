@@ -42,6 +42,33 @@ inputs:
     description: Optional prefix for commit messages (e.g. "chore(deps):")
     required: false
     default: ''
+  source:
+    description: Local source path to install from (for testing). Leave empty to install from PyPI.
+    required: false
+    default: ''
+  dry-run:
+    description: 'Plan only: no source edits, no lockfile write, no git, no gh'
+    required: false
+    default: 'false'
+outputs:
+  action:
+    description: none | create-pr | create-issue
+    value: ${{ steps.plan.outputs.action }}
+  total_updates:
+    description: Version bumps plus stale lockfile entries
+    value: ${{ steps.plan.outputs.total_updates }}
+  refresh_lockfile:
+    description: Whether the lockfile was re-resolved (always false when lockfile=None)
+    value: ${{ steps.plan.outputs.refresh_lockfile }}
+  branch:
+    description: The dated branch, or empty unless action is create-pr
+    value: ${{ steps.plan.outputs.branch }}
+  title:
+    description: The PR or issue title
+    value: ${{ steps.plan.outputs.title }}
+  changed:
+    description: Whether anything was written (always false under dry-run)
+    value: ${{ steps.plan.outputs.changed }}
 runs:
   using: composite
   steps:
@@ -50,138 +77,107 @@ runs:
       python-version: ${{ inputs.python-version }}
   - name: Install ghagen
     run: |-
-      if [ -n "${{ inputs.ghagen-version }}" ]; then
+      if [ -n "${{ inputs.source }}" ]; then
+        pip install "${{ inputs.source }}"
+      elif [ -n "${{ inputs.ghagen-version }}" ]; then
         pip install "ghagen==${{ inputs.ghagen-version }}"
       else
         pip install ghagen
       fi
     shell: bash
-  - id: detect
-    name: Detect outdated dependencies
+  - id: plan
+    name: Plan dependency updates
     run: |-
       set -euo pipefail
 
-      JSON_FILE=$(mktemp)
-      ghagen deps upgrade --check --format json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
-
-      VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
-      LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
-
-      echo "version_bumps=$VERSION_BUMPS" >> "$GITHUB_OUTPUT"
-      echo "lockfile_stale=$LOCKFILE_STALE" >> "$GITHUB_OUTPUT"
-
-      TOTAL=$((VERSION_BUMPS + LOCKFILE_STALE))
-      echo "total_updates=$TOTAL" >> "$GITHUB_OUTPUT"
-
-      if [ "$TOTAL" -eq 0 ]; then
-        echo "No dependency updates found."
-      else
-        echo "Found $VERSION_BUMPS version bump(s) and $LOCKFILE_STALE stale lockfile entry/entries."
-      fi
+      ghagen deps update \
+        --config "${{ inputs.config }}" \
+        --mode "${{ inputs.mode }}" \
+        --output "${{ inputs.output }}" \
+        --labels "${{ inputs.labels }}" \
+        --branch-prefix "${{ inputs.branch-prefix }}" \
+        --commit-message-prefix "${{ inputs.commit-message-prefix }}" \
+        --body-file "$RUNNER_TEMP/ghagen-body.md" \
+        ${{ inputs.dry-run == 'true' && '--dry-run' || '' }} \
+        --format github >> "$GITHUB_OUTPUT"
     env:
       GITHUB_TOKEN: ${{ inputs.token }}
     shell: bash
-  - name: Exit early if no updates
-    if: steps.detect.outputs.total_updates == '0'
-    run: echo "Everything is up to date."
-    shell: bash
-  - name: Create PR
-    if: steps.detect.outputs.total_updates != '0' && inputs.output == 'pr'
+  - name: Raise PR or issue
+    if: steps.plan.outputs.action != 'none' && inputs.dry-run != 'true'
     run: |-
       set -euo pipefail
 
-      BRANCH="${{ inputs.branch-prefix }}$(date +%Y%m%d)"
-      PREFIX="${{ inputs.commit-message-prefix }}"
+      BODY_FILE="$RUNNER_TEMP/ghagen-body.md"
 
-      # Build label args as an array to avoid eval
+      # Already split and trimmed by the CLI; this only turns
+      # a comma-separated string into argv without eval.
       LABEL_ARGS=()
-      if [ -n "${{ inputs.labels }}" ]; then
-        IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
+      if [ -n "${{ steps.plan.outputs.labels }}" ]; then
+        IFS=',' read -ra LABELS <<< "${{ steps.plan.outputs.labels }}"
         for label in "${LABELS[@]}"; do
-          trimmed=$(echo "$label" | xargs)
-          LABEL_ARGS+=(--label "$trimmed")
+          LABEL_ARGS+=(--label "$label")
         done
       fi
 
-      # Check if branch/PR already exists
-      EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-      if [ -n "$EXISTING_PR" ]; then
-        echo "PR #$EXISTING_PR already exists for branch $BRANCH. Skipping."
-        exit 0
-      fi
+      case "${{ steps.plan.outputs.action }}" in
+        create-pr)
+          BRANCH="${{ steps.plan.outputs.branch }}"
 
-      # Render the PR body before applying updates, so the report
-      # reflects the pending changes rather than the post-apply state.
-      BODY_FILE=$(mktemp)
-      ghagen deps upgrade --check --format pr-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
+          # Dedupe on the thing `git push` will actually
+          # collide with -- the branch -- not on open PRs,
+          # which misses a same-day branch whose PR was
+          # closed. Distinguishes absent (2) from failed
+          # (anything else) rather than swallowing both;
+          # `--force-with-lease` is deliberately not used,
+          # since actions/checkout fetches a single ref so
+          # there is no remote-tracking ref to lease against.
+          set +e
+          git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null
+          LS=$?
+          set -e
+          case "$LS" in
+            0) echo "Branch $BRANCH already exists; skipping."; exit 0 ;;
+            2) : ;;
+            *) echo "::error::git ls-remote failed ($LS)"; exit "$LS" ;;
+          esac
 
-      git config user.name "github-actions[bot]"
-      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      git checkout -b "$BRANCH"
+          if [ "${{ steps.plan.outputs.changed }}" != "true" ]; then
+            echo "No file changes after applying updates."
+            exit 0
+          fi
 
-      # Apply version bumps if any
-      if [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-        ghagen deps upgrade --mode versions --config "${{ inputs.config }}"
-      fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "${{ steps.plan.outputs.commit_message }}"
+          git push -u origin "$BRANCH"
 
-      # Refresh lockfile
-      if [ "${{ steps.detect.outputs.lockfile_stale }}" != "0" ] || [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-        ghagen deps pin --config "${{ inputs.config }}" --update
-      fi
+          gh pr create \
+            --title "${{ steps.plan.outputs.title }}" \
+            --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+          ;;
+        create-issue)
+          # No `|| echo ""`: an API failure here used to read
+          # as "no existing issue" and open a duplicate.
+          # `// empty` because `.[0].number` on an empty list
+          # prints the string "null", which is not empty and
+          # would skip forever.
+          EXISTING=$(gh issue list \
+            --search "${{ steps.plan.outputs.title }} in:title" \
+            --state open --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already exists. Skipping."
+            exit 0
+          fi
 
-      # Check if there are actual changes
-      if git diff --quiet && git diff --cached --quiet; then
-        echo "No file changes after applying updates."
-        rm -f "$BODY_FILE"
-        exit 0
-      fi
-
-      # Build commit message
-      COMMIT_MSG="update ghagen action dependencies"
-      if [ -n "$PREFIX" ]; then
-        COMMIT_MSG="${PREFIX} ${COMMIT_MSG}"
-      fi
-
-      git add -A
-      git commit -m "$COMMIT_MSG"
-      git push -u origin "$BRANCH"
-
-      gh pr create --title "$COMMIT_MSG" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
-      rm -f "$BODY_FILE"
+          gh issue create \
+            --title "${{ steps.plan.outputs.title }}" \
+            --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+          ;;
+      esac
     env:
       GITHUB_TOKEN: ${{ inputs.token }}
-      GH_TOKEN: ${{ inputs.token }}
-    shell: bash
-  - name: Create issue
-    if: steps.detect.outputs.total_updates != '0' && inputs.output == 'issue'
-    run: |-
-      set -euo pipefail
-
-      TITLE="ghagen dependency updates available ($(date +%Y-%m-%d))"
-
-      # Build label args as an array
-      LABEL_ARGS=()
-      if [ -n "${{ inputs.labels }}" ]; then
-        IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
-        for label in "${LABELS[@]}"; do
-          trimmed=$(echo "$label" | xargs)
-          LABEL_ARGS+=(--label "$trimmed")
-        done
-      fi
-
-      # Check if issue already exists
-      EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
-      if [ -n "$EXISTING" ]; then
-        echo "Issue #$EXISTING already exists. Skipping."
-        exit 0
-      fi
-
-      # Render the issue body from the upgrade report
-      BODY_FILE=$(mktemp)
-      ghagen deps upgrade --check --format issue-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
-
-      gh issue create --title "$TITLE" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
-      rm -f "$BODY_FILE"
-    env:
       GH_TOKEN: ${{ inputs.token }}
     shell: bash

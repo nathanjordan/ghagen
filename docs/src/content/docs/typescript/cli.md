@@ -228,6 +228,80 @@ when the second does, and `patch` otherwise.
 The grammar is identical in the Python port — it is the shared contract in
 `schema/tag-grammar.yml`, which both ports' suites are driven against.
 
+## ghagen deps update
+
+Do one whole automation run: sweep for updates, perform every write the update
+needs, and print what the caller should raise. This is the command the shipped
+`check-deps` action runs.
+
+```bash
+npx ghagen deps update                          # Apply updates, print a $GITHUB_OUTPUT plan
+npx ghagen deps update --dry-run --format json  # Decide everything, write nothing
+npx ghagen deps update --output issue           # Raise an issue rather than a PR
+```
+
+`deps update` differs from `deps upgrade` in what it returns. `upgrade` reports
+what it _found_; `update` reports what to _do_ about it, which is a different
+question with a different input: the decision needs the `App`, not just the
+report. Callers must read the plan rather than reconstruct it from
+`deps upgrade --format json`, because that payload cannot carry
+`app.lockfilePath` and so cannot answer the lockfile question.
+
+### Options
+
+| Option                        | Description                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `--config PATH`, `-c`         | Path to the configuration file. Defaults to auto-detection.                         |
+| `--mode MODE`                 | Detection mode: `versions`, `lockfile`, or `all` (default).                         |
+| `--output OUTPUT`             | What to raise when there is something: `pr` (default) or `issue`.                   |
+| `--format FORMAT`             | Plan format: `github` (default, `key=value` lines) or `json`.                       |
+| `--branch-prefix PREFIX`      | Prefix for the dated PR branch. Default `ghagen-update/`.                           |
+| `--commit-message-prefix STR` | Prefix for the commit subject, e.g. `chore(deps):`. Default empty.                  |
+| `--labels LABELS`             | Comma-separated labels for the PR or issue. Split and trimmed for you.              |
+| `--body-file PATH`            | Write the PR or issue body to this path. Nothing is written when there is no body.  |
+| `--dry-run`                   | Decide everything, write nothing: no source edits, no lockfile write, no body file. |
+| `--token TOKEN`               | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`.     |
+
+An unknown `--mode`, `--output`, or `--format` value exits `2`, as does a
+newline in `--branch-prefix`, `--commit-message-prefix`, or `--labels` — under
+`--format github` a newline in a value would forge extra `$GITHUB_OUTPUT` keys.
+
+### The plan
+
+Stdout carries the plan and nothing else, so `--format github` can be a bare
+`>> "$GITHUB_OUTPUT"` redirect. Warnings and progress go to stderr. Both
+formats carry the same ten fields, in the same order, under the same
+snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
+interface, because the field names are a cross-port wire contract shared byte
+for byte with the Python port.
+
+| Field                 | Meaning                                                                     |
+| --------------------- | --------------------------------------------------------------------------- |
+| `action`              | `none`, `create-pr`, or `create-issue`.                                     |
+| `total_updates`       | Version bumps plus stale lockfile entries.                                  |
+| `apply_version_bumps` | Whether newer tags were written back into user source.                      |
+| `refresh_lockfile`    | Whether the lockfile was re-resolved. Always `false` with `lockfile: null`. |
+| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                  |
+| `title`               | The PR or issue title.                                                      |
+| `commit_message`      | The commit subject, prefix already applied.                                 |
+| `labels`              | Comma-separated under `github`, an array under `json`.                      |
+| `body_format`         | Which `pin/render` format the body is in; empty when there is no body.      |
+| `changed`             | Whether anything was written. Always `false` under `--dry-run`.             |
+
+`refreshLockfile` is not `lockfileStale.length > 0`. It is `false` whenever the
+`App` has no lockfile — `ghagen deps pin` exits `1` on such a project, so a
+cascade into it is not harmless extra work — and it is `true` when version
+bumps were applied even if no entry was stale, because a bumped ref makes the
+lockfile stale by definition.
+
+### Writes
+
+Without `--dry-run` this command modifies the working tree. Version bumps are
+written into your source files, and the lockfile is re-resolved when
+`refresh_lockfile` is true. That holds for `--output issue` too: the issue
+describes updates that have _already_ been applied locally. Use `--dry-run`
+when you want the decision without the writes.
+
 ## ghagen init
 
 Scaffold a starter configuration file with a minimal CI workflow.
