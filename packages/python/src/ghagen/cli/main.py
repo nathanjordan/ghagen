@@ -96,6 +96,7 @@ ci = Workflow(
     jobs={
         "test": Job(
             runs_on="ubuntu-latest",
+            timeout_minutes=10,
             steps=[
                 Step(uses="actions/checkout@v4"),
                 Step(name="Run tests", run="echo 'Add your test command here'"),
