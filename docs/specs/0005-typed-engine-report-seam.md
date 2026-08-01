@@ -209,6 +209,16 @@ bodies move into Python), so the phantom code is deleted rather than migrated.
 Define `check-deps` in `.github/ghagen_workflows.py` exactly as `check-synth` is
 defined, so it enters the generate-and-check loop and receives pinned refs.
 
+**Amended by proposal 18.** Generating the YAML was necessary but not
+sufficient: the shell inside it still reimplemented the update decision over
+`deps upgrade --format json`, a payload that cannot carry `app.lockfile_path`
+and therefore cannot answer whether the lockfile should be refreshed. The
+action now calls `ghagen deps update`, which owns the decision, and the shell
+does nothing but branch on the answer. The `|| true` in the §3.1 excerpt is the
+concrete cost of the old arrangement: it turned a CLI diagnostic into an empty
+stdout, which surfaced one step later as a `JSONDecodeError` traceback with a
+zero exit code.
+
 ### 3.1 Before (hand-written YAML excerpt)
 
 ```yaml
@@ -365,13 +375,25 @@ Fidelity notes:
 - `Step` supports `id`, `if_`, `env`, `with_`, `shell` — every field the current
   YAML uses. The `Create PR` / `Create issue` steps carry their `if:` guards
   (e.g. `steps.detect.outputs.total_updates != '0' && inputs.output == 'pr'`)
-  verbatim as `if_=`.
-- The action exposes no action-level `outputs:`; it only uses per-step
-  `$GITHUB_OUTPUT` + `steps.detect.outputs.*`, so no `ActionOutput` is needed.
-- The Python-heredoc PR/issue-body builders port unchanged **minus** the
-  `helper_provided` blocks (§2.4). `auto_dedent` + the `<<'PY'` sentinel keep
-  the heredoc bodies intact (same mechanism as `_release_workflow`'s
-  `python3 - <<'PY'` block, already round-tripping in CI).
+  verbatim as `if_=`. (**Amended by proposal 18**: the two steps were merged
+  into one `Raise PR or issue` step guarded on
+  `steps.plan.outputs.action != 'none'`, with the `pr`/`issue` split moved
+  inside as a `case`. The `detect` step no longer exists.)
+- **Reversed by proposal 18.** The action exposes six action-level `outputs:` —
+  `action`, `total_updates`, `refresh_lockfile`, `branch`, `title`, `changed` —
+  each an `ActionOutput` whose `value` forwards the corresponding
+  `steps.plan.outputs.*`. A composite action that makes a decision must publish
+  that decision: the workflow calling `uses: ./check-deps` is entitled to know
+  what was decided and what was written, and per-step `$GITHUB_OUTPUT` alone is
+  invisible outside the action. This is also what makes the action assertable
+  from a CI job without a network round-trip, which is what closed
+  `docs/issues/05-check-deps-action-untested.md`.
+- The Python-heredoc PR/issue-body builders are **deleted**, not ported
+  (**amended by proposal 18**). The body is rendered by
+  `ghagen.pin.render.render_upgrade_report` in the format
+  `plan.body_format` names, written by the CLI to `--body-file`, and passed to
+  `gh` as `--body-file`. No `python3` runs in the action at all; the only
+  interpreter the action needs is the one that runs `ghagen`.
 
 ### 3.3 How CI catches drift (same as check-synth)
 
@@ -421,8 +443,28 @@ not in out`; assert `source_files` omitted-when-empty; assert `--mode versions`
 - **Action generation:** the existing `snapshot`/integration action tests plus
   `ghagen check-synced` cover the regenerated `check-deps/action.yml`; add it to
   whatever fixture/snapshot enumeration lists composite actions if one is
-  exhaustive. The `test-action` CI job may optionally gain a smoke invocation of
-  `uses: ./check-deps` (dry-run `--check`), matching `./check-synth`.
+  exhaustive. (**Amended by proposal 18**: the enumeration now exists —
+  `packages/python/tests/test_integration/test_shipped_actions.py` reads the
+  generated YAML of every shipped action and asserts on its text, which is a
+  check `check-synced` cannot make: `check-synced` proves the file matches the
+  model, not that the model is right.)
+- **Action execution (mandatory, two exercises).** `check-synced` proves the
+  YAML matches the model; nothing in it proves the YAML _runs_. Proposal 18
+  makes the smoke invocation required rather than optional and splits it in
+  two, because no single job can be both per-PR-cheap and cover the network
+  path:
+  1. **Offline, every PR.** The `test-action` job runs `uses: ./check-deps`
+     with `dry-run: 'true'` against `fixtures/actions/all_pinned/`, whose refs
+     are all SHAs. Zero HTTP is structural there, not observed — no ref is
+     pinnable, so `upgrade()` returns before either detection stage — which is
+     what lets the exercise live in a job that declares no `permissions:` and
+     passes no token. A following step asserts the action's `outputs:`.
+  2. **Networked, scheduled.** `check-deps-smoke.yml` runs weekly and on
+     `workflow_dispatch` against `fixtures/actions/lockfile_none/`, the H7
+     reproducer: a project with `lockfile=None` and a floating ref. It asserts
+     the action exits `0` and reports `refresh_lockfile=false`, which is the
+     regression guard for the cascade into `deps pin` that used to abort the
+     run.
 - **Regression guard:** deleting the negative `helper_provided` assertion or
   re-adding the key fails CI.
 
