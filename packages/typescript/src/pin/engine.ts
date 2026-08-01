@@ -230,24 +230,21 @@ export async function upgrade(
       repoRefs.set(key, list);
     }
 
-    // Per-repo tag cache stays engine-local.
-    const tagsCache = new Map<string, string[]>();
+    // One `listTags` call per repo — the grouping above is what deduplicates,
+    // so no cache is involved.
     for (const [key, repoRefList] of [...repoRefs.entries()].sort(([a], [b]) =>
       a.localeCompare(b),
     )) {
       const [owner, repo] = key.split("/", 2) as [string, string];
-      let tags = tagsCache.get(key);
-      if (tags === undefined) {
-        try {
-          tags = await client.listTags(owner, repo);
-        } catch (err) {
-          if (err instanceof ResolveError) {
-            report.warnings.push(`failed to list tags for ${key}: ${err.message}`);
-            continue;
-          }
-          throw err;
+      let tags: string[];
+      try {
+        tags = await client.listTags(owner, repo);
+      } catch (err) {
+        if (err instanceof ResolveError) {
+          report.warnings.push(`failed to list tags for ${key}: ${err.message}`);
+          continue;
         }
-        tagsCache.set(key, tags);
+        throw err;
       }
 
       for (const ref of repoRefList) {

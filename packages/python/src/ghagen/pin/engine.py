@@ -222,20 +222,14 @@ def upgrade(
         for ref in refs:
             repo_refs.setdefault((ref.owner, ref.repo), []).append(ref)
 
-        # Per-repo tag cache stays engine-local.
-        repo_tags_cache: dict[tuple[str, str], list[str]] = {}
+        # One `list_tags` call per repo — the grouping above is what
+        # deduplicates, so no cache is involved.
         for (owner, repo), repo_ref_list in sorted(repo_refs.items()):
-            if (owner, repo) not in repo_tags_cache:
-                try:
-                    tags = client.list_tags(owner, repo)
-                except ResolveError as exc:
-                    report.warnings.append(
-                        f"failed to list tags for {owner}/{repo}: {exc}"
-                    )
-                    continue
-                repo_tags_cache[(owner, repo)] = tags
-
-            tags = repo_tags_cache[(owner, repo)]
+            try:
+                tags = client.list_tags(owner, repo)
+            except ResolveError as exc:
+                report.warnings.append(f"failed to list tags for {owner}/{repo}: {exc}")
+                continue
 
             for ref in repo_ref_list:
                 latest_tag = find_latest_tag(ref.ref, tags)
