@@ -276,19 +276,6 @@ export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel
   return buildModel<EnvironmentModel>(ENVIRONMENT_SPEC, data as Record<string, unknown>, meta);
 }
 
-// ---- Job output ----
-
-/**
- * Input for a job output definition, used when a downstream job needs to
- * consume this job's outputs.
- */
-export interface JobOutputInput {
-  /** Description of the output. */
-  description?: string;
-  /** The output value, typically a step output expression (e.g., `"${{ steps.build.outputs.url }}"`). */
-  value: string;
-}
-
 // ---- Job ----
 
 /**

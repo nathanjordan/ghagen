@@ -45,11 +45,6 @@ DEFAULTS_RUN_SPEC = ModelSpec(
     order=("shell", "working-directory"),
 )
 
-JOB_OUTPUT_SPEC = ModelSpec(
-    yaml_keys={"description": "description", "value": "value"},
-    order=("description", "value"),
-)
-
 JOB_SPEC = ModelSpec(
     yaml_keys={
         "name": "name",
@@ -166,15 +161,6 @@ class DefaultsRun(GhagenModel):
     working_directory: str | None = None
 
 
-class JobOutput(GhagenModel):
-    """A job output definition."""
-
-    SPEC: ClassVar[ModelSpec] = JOB_OUTPUT_SPEC
-
-    description: str | None = None
-    value: str
-
-
 class Job(GhagenModel):
     """A job within a GitHub Actions workflow.
 
@@ -201,7 +187,7 @@ class Job(GhagenModel):
     env: dict[str, str] | None = None
     defaults: OrRaw[Defaults] | None = None
     steps: list[OrRaw[Step]] | None = None
-    outputs: dict[str, OrRaw[str | JobOutput]] | None = None
+    outputs: dict[str, OrRaw[str]] | None = None
     timeout_minutes: int | None = Field(
         None,
         description="Maximum minutes the job can run before being cancelled.",

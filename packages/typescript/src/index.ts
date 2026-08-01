@@ -103,7 +103,6 @@ export type { ImageSnapshotInput } from "./models/image-snapshot.js";
 export { job, strategy, matrix, concurrency, defaults, environment } from "./models/job.js";
 export type {
   JobInput,
-  JobOutputInput,
   StrategyInput,
   MatrixInput,
   ConcurrencyInput,

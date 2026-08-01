@@ -34,7 +34,7 @@ job = Job(
 | `env`               | `dict[str, str] \| None`               | `None`  | Environment variables for all steps in this job.                                                 |
 | `defaults`          | `Defaults \| None`                     | `None`  | Default settings for `run` steps. See [Workflow - Defaults](/python/api/workflow/#defaults).     |
 | `steps`             | `list[Step] \| None`                   | `None`  | Steps to run. See [Step](/python/api/step/).                                                     |
-| `outputs`           | `dict[str, str \| JobOutput] \| None`  | `None`  | Job outputs, accessible by downstream jobs. Values can be strings or `JobOutput` objects.        |
+| `outputs`           | `dict[str, str] \| None`               | `None`  | Job outputs, accessible by downstream jobs. Values are strings.                                  |
 | `timeout_minutes`   | `int \| None`                          | `None`  | Maximum minutes the job can run before being cancelled. Serialized as `timeout-minutes`.         |
 | `continue_on_error` | `bool \| str \| None`                  | `None`  | Allow the workflow to continue when this job fails. Serialized as `continue-on-error`.           |
 | `concurrency`       | `str \| Concurrency \| None`           | `None`  | Concurrency group for this job. See [Workflow - Concurrency](/python/api/workflow/#concurrency). |
@@ -101,17 +101,6 @@ Job environment configuration for deployment environments.
 | --------- | ------------- | -------- | --------------------- |
 | `name`    | `str`         | required | The environment name. |
 | `url`     | `str \| None` | `None`   | The environment URL.  |
-
-## JobOutput
-
-A job output definition, used when a downstream job needs to consume this job's outputs.
-
-### Parameters
-
-| Parameter     | Type          | Default  | Description                                           |
-| ------------- | ------------- | -------- | ----------------------------------------------------- |
-| `description` | `str \| None` | `None`   | Description of the output.                            |
-| `value`       | `str`         | required | The output value, typically a step output expression. |
 
 ## Container
 
