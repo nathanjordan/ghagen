@@ -44,6 +44,18 @@ Think of this kind of like AWS CDK for Github Actions.
   specified.
 - **ALWAYS** make sure lint/format/type/test checks pass before completing a task.
 
+## Setup
+
+Four installs, all four required before the default gates pass. `scripts/*.sh` names the missing
+one and its command if you skip it.
+
+```sh
+uv sync                            # Python toolchain
+npm ci --prefix packages/typescript # TypeScript toolchain
+npm ci --prefix docs               # docs site toolchain (oxlint/oxfmt live here)
+pre-commit install                 # the local lint/fmt gate; not installed by default
+```
+
 ## Common Commands
 
 ```sh
@@ -53,6 +65,25 @@ scripts/typecheck.sh # check types
 scripts/test.sh # tests
 uv run ghagen check-synced # check GHA workflow files synced
 ```
+
+Each gate takes **one** scope argument, defaulting to `all` — which means "every scope this gate
+declares", never more:
+
+| Gate                   | Scopes                | `--fix` |
+| ---------------------- | --------------------- | ------- |
+| `scripts/lint.sh`      | `py ts docs meta all` | yes     |
+| `scripts/fmt.sh`       | `py ts docs all`      | yes     |
+| `scripts/typecheck.sh` | `py ts all`           | no      |
+| `scripts/test.sh`      | `py ts all`           | no      |
+
+- `py` / `ts` / `docs` each name **one** toolchain root: `packages/python/`,
+  `packages/typescript/`, `docs/`. `scripts/lint.sh py` needs no Node at all.
+- `meta` is the language-neutral scope: `uv run ghagen deps check-synced` plus the ADR-0003 schema
+  staleness guard (`python -m ghagen_schema check`). Run it through `scripts/lint.sh meta` rather
+  than open-coding either command; CI does the same. It is read-only — it leaves the working tree
+  byte-identical on both the pass and the fail path.
+- A scope a gate does not declare is an **error**, not a no-op: `scripts/test.sh docs` exits 1. So
+  does passing two scopes (`scripts/lint.sh py ts`), or `--fix` to a gate that does not accept it.
 
 ## Docs
 
