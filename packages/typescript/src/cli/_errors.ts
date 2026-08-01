@@ -3,8 +3,9 @@
 /**
  * Error thrown by CLI commands to signal a non-zero exit code.
  *
- * When caught by the top-level CLI runner, `exitCode` is forwarded to
- * `process.exit()` and `message` (if non-empty) is written to stderr.
+ * When caught by the top-level CLI runner, `exitCode` is what `main()` returns
+ * and `message` (if non-empty) is written to stderr. `main()` owns the exit
+ * code end to end; the bin shim only assigns it to `process.exitCode`.
  */
 export class CliError extends Error {
   /** Process exit code returned when this error propagates to the CLI entry point. */

@@ -85,6 +85,13 @@ The committed canonical copy of an upstream JSON schema from SchemaStore.
 **Drift**:
 Divergence between the committed schema Snapshot and the current upstream schema.
 
+### CLI
+
+**Exit code**:
+One of three numbers `main()` returns — `0` success, `1` expected failure, `2` usage error. The
+contract is `fixtures/cli-exit-codes.yml`, which both ports drive through their `main()`; the CLI
+framework renders the text, `main()` decides the number.
+
 ## Relationships
 
 - A **Document** is a **Workflow** or an **Action**.
@@ -108,8 +115,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
   Snapshot's pattern.
 - The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
-  `cli/_errors.ts`. The synthesis pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs
-  last (ADR-0005).
+  `cli/_errors.ts`. commander runs under `exitOverride()`, applied **recursively after tree
+  construction** (`_exitCallback` is per-`Command` and `addCommand()` never copies it), so `main()`
+  returns the exit code and the bin shim only assigns it to `process.exitCode`. The synthesis
+  pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs last (ADR-0005).
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
   `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
 - Tests resolve repo paths via `src/paths.ts`, never via hand-rolled `../../../../` constants.

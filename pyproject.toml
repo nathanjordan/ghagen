@@ -26,7 +26,7 @@ dependencies = ["packaging>=23", "pydantic>=2.6", "ruamel.yaml>=0.18", "typer>=0
 Repository = "https://github.com/nathanjordan/ghagen"
 
 [project.scripts]
-ghagen = "ghagen.cli.main:app"
+ghagen = "ghagen.cli.main:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -83,6 +83,13 @@ The committed canonical copy of an upstream JSON schema from SchemaStore.
 **Drift**:
 Divergence between the committed schema Snapshot and the current upstream schema.
 
+### CLI
+
+**Exit code**:
+One of three numbers `main()` returns — `0` success, `1` expected failure, `2` usage error. The
+contract is `fixtures/cli-exit-codes.yml`, which both ports drive through their `main()`; the CLI
+framework renders the text, `main()` decides the number.
+
 ## Relationships
 
 - A **Document** is a **Workflow** or an **Action**.
@@ -103,7 +110,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
   two are bound to the Snapshot by `schema/conformance-values.yml`.
 - The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
-  CLI-local. The synthesis pipeline is `synth.render()`; pin runs last (ADR-0005).
+  CLI-local. The CLI entry point is `main(argv) -> int`, not the Typer app: click runs in
+  `standalone_mode=False`, so the exit code is ghagen's decision rather than the framework's, and
+  Typer's error rendering is reproduced explicitly. The synthesis pipeline is `synth.render()`; pin
+  runs last (ADR-0005).
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.

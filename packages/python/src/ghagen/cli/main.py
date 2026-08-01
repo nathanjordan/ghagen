@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import typer
+import typer.core
+import typer.main
+from typer import rich_utils
+
+# Typer 0.27 vendors click as `typer._click` and does not depend on the
+# top-level `click` distribution at all, so this is the only import path for
+# the exception types click raises out of `command.main()`.
+from typer._click.exceptions import Abort, ClickException
 
 from ghagen.cli._common import _find_config, _load_app
 from ghagen.cli.deps import deps_app
@@ -87,6 +96,7 @@ ci = Workflow(
     jobs={
         "test": Job(
             runs_on="ubuntu-latest",
+            timeout_minutes=10,
             steps=[
                 Step(uses="actions/checkout@v4"),
                 Step(name="Run tests", run="echo 'Add your test command here'"),
@@ -101,3 +111,50 @@ app.add_workflow(ci, "ci.yml")
 
     typer.echo(f"Created {config_path}")
     typer.echo("Run `ghagen synth` to generate workflow YAML files.")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI. Returns the exit code.
+
+    The entry point is this function, not the Typer app: click runs in
+    ``standalone_mode=False`` so the exit code comes back as a value instead of
+    being handed to ``sys.exit`` from inside the framework. The codes are the
+    shared contract in ``fixtures/cli-exit-codes.yml`` -- ``0`` success, ``1``
+    expected failure, ``2`` usage error -- which both ports drive through their
+    ``main()``.
+
+    Turning standalone mode off also turns off the framework's error
+    *rendering*, so the handlers below reproduce Typer's own (``typer/core.py``
+    ``_main``, the ``ClickException`` and ``Abort`` branches). Calling
+    ``exc.show()`` instead would silently downgrade every error to click's
+    plain renderer; ``tests/test_cli/test_exit_codes.py`` guards that.
+
+    ``app`` stays exported for ``typer.testing.CliRunner``.
+    """
+    command = typer.main.get_command(app)
+    # `get_command` is typed as returning a plain click `Command`; the markup
+    # mode is a Typer attribute. Reading it defensively keeps the fallback
+    # identical to Typer's own non-rich branch.
+    markup_mode = getattr(command, "rich_markup_mode", None)
+    rich = typer.core.HAS_RICH and markup_mode is not None
+    try:
+        return (
+            command.main(
+                args=None if argv is None else list(argv),
+                prog_name="ghagen",
+                standalone_mode=False,
+            )
+            or 0
+        )
+    except ClickException as exc:
+        if rich:
+            rich_utils.rich_format_error(exc)
+        else:
+            exc.show()
+        return exc.exit_code
+    except Abort:
+        if rich:
+            rich_utils.rich_abort_error()
+        else:
+            typer.echo("Aborted!", err=True)
+        return 1
