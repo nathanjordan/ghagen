@@ -1,6 +1,7 @@
-# The TypeScript typecheck gate skips three things, including every test file
+# Neither port type-checks its own tests
 
-**Status:** open — from round 2. Deferred out of proposal 09 (item (b)); scope widened by proposal 23
+**Status:** open — from round 2. Deferred out of proposal 09 (item (b)); scope widened by
+proposals 23 and 10
 
 `packages/typescript/tsconfig.json` excludes:
 
@@ -40,3 +41,21 @@ stand, before touching `tsconfig.json`.
 
 Related: `docs/issues/17` — `scripts/` is outside every Python gate. Same shape of defect in the
 other port; worth fixing in one pass.
+
+## The Python port has the same hole, by a different mechanism
+
+`pyproject.toml:71` sets `include = ["packages/python/src"]` for pyright, while
+`testpaths = ["packages/python/tests"]` (`:74`) is where every Python test lives. **No Python test
+file is type-checked by anything.** There is no exclude list to audit here — the tests were never in
+scope to begin with, which is why this was not noticed alongside the TypeScript list.
+
+**Measured.** Proposal 10's implementer left a stale `order=("version",)` argument in
+`packages/python/tests/test_validation.py:122` after deleting the `order` field from `ModelSpec`. A
+full `./scripts/typecheck.sh all` passed clean. It was found by grep, not by a gate, and would
+otherwise have surfaced as a runtime `TypeError` at collection time — or, for a type-only mistake,
+not at all.
+
+So the two ports are not asymmetric after all: **neither** type-checks its tests. Fix them in one
+pass, and note the shapes differ — TypeScript needs entries removed from an `exclude` list that
+keeps growing, Python needs `packages/python/tests` added to `include` (expect a first run to be
+noisy: pytest fixtures and `monkeypatch` shims are written without annotations throughout).

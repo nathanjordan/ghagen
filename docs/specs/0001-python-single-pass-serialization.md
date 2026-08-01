@@ -235,6 +235,14 @@ def _yaml_key(field_name: str, field_info: FieldInfo) -> str:
 
 ### 3.3 After — `to_commented_map` (thin method on `GhagenModel`)
 
+**Amended by proposal 10.** The listing below is the shape this spec landed as, kept for the record.
+The membership walk now lives in `emitter/nodes.py::collect_fields` and iterates `spec.yaml_keys`
+rather than `type(self).model_fields`, so the `_META_FIELDS` skip shown at line 253 is gone —
+`test_spec_covers_exactly_the_content_fields` asserts
+`set(SPEC.yaml_keys) == set(model_fields) - _META_FIELDS` for every model, which makes the guard
+unreachable rather than merely unused. `_META_FIELDS` itself still exists, at
+`packages/python/src/ghagen/models/_base.py:76`, beside the four `exclude=True` fields it names.
+
 ```python
 _META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
 
@@ -307,7 +315,9 @@ primitive, not part of serialization.
 replicated exactly by the field walk. Precise rules — a field emits **iff all** hold:
 
 1. **Not a meta field.** `field_name not in _META_FIELDS`. (These carry `exclude=True` today;
-   they are structurally excluded from output.)
+   they are structurally excluded from output.) **Restated by proposal 10** as _named in
+   `spec.yaml_keys`_ — the spec, not the Pydantic class, is now the emission surface, and a meta
+   field can never appear in `yaml_keys`. Same membership, one less place to state it.
 2. **Set (`exclude_unset`).** `field_name in self.model_fields_set`. The wrap validator
    `_preserve_commented` (`:126-151`) validates the cleaned input dict, so every user-supplied
    key — including `Commented`-wrapped ones — is in `model_fields_set`; re-setting the wrapper

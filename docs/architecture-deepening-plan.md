@@ -91,6 +91,11 @@ STEP_SPEC = ModelSpec(
 )
 ```
 
+**Amended by round 2, proposal 10.** `order` is gone. Every spec declared it as an exact
+restatement of `tuple(yaml_keys.values())`, unguarded — both self-consistency tests compared only
+_sets_ — so the key map's declaration order is now the emission order directly, and `OrderMode` is
+`explicit | alphabetical` with no payload. See `docs/proposals/10-delete-modelspec-order.md`.
+
 - **Python:** models reference their spec; `_get_key_order()` overrides and
   `emitter/key_order.py` die. The Emitter consumes the spec.
 - **TypeScript:** spec subsumes `FIELD_MAP` + `*_KEY_ORDER`; `emitter/key-order.ts` dies. The 24
