@@ -194,6 +194,26 @@ class TestUpgrade:
         assert report.changed_files == [source]
         assert "actions/checkout@v5" in source.read_text()
 
+    def test_detects_bump_to_divergent_shape_tag(self, tmp_path: Path):
+        """A four-segment tag is a version tag, end to end, in both ports.
+
+        The shared grammar (``schema/tag-grammar.yml``) accepts arity > 3, so
+        ``v4.1.2.3`` is a real upgrade candidate. This is the source-file
+        mutation guard: before 14, TypeScript's SemVer rejected the tag and
+        left the file untouched while Python rewrote it.
+        """
+        app = _app_with_refs(tmp_path, "actions/checkout@v4")
+        source = tmp_path / "wf.py"
+        source.write_text('Step(uses="actions/checkout@v4")\n')
+        client = GitHubClient(FakeTransport({"git/refs/tags": _tags("v4", "v4.1.2.3")}))
+
+        report = upgrade(app, client, {source}, mode="versions", apply=False)
+
+        assert len(report.version_bumps) == 1
+        bump = report.version_bumps[0]
+        assert bump.latest == "v4.1.2.3"
+        assert bump.severity == "minor"
+
     def test_detects_stale_lockfile_entry(self, tmp_path: Path):
         old_sha = "a" * 40
         new_sha = "f" * 40

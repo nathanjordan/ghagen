@@ -1,64 +1,97 @@
-"""Version comparison utilities for GitHub Action tags.
+"""The version-tag grammar for GitHub Action refs — ghagen's own.
 
-Parses tag strings into :class:`packaging.version.Version` objects,
-classifies the severity of version bumps, and finds the latest
-available tag from a list of candidates.
+This module alone answers: *is this ref a version tag, which of two tags is
+newer, and how big is the jump?*  It holds the tag regex, the prefix rule, the
+canonical-release rule, the segment cap, the total order, the same-prefix
+filter, and the severity classification.
+
+The grammar is declared once, in ``schema/tag-grammar.yml``, and pinned by
+both ports' suites.  No third-party version library sits on this path — see
+``docs/adr/0008-ghagen-owns-its-tag-grammar.md``.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Literal
-
-from packaging.version import InvalidVersion, Version
 
 # Matches an optional prefix (delimited by - or /) followed by an
 # optional ``v`` and a numeric version.
 #   group 1 = prefix (including delimiter), or None
-#   group 2 = the version digits (e.g. "4", "4.1", "4.1.2")
+#   group 2 = the version digits (e.g. "4", "4.1", "4.1.2", "4.1.2.3")
 _TAG_RE = re.compile(
     r"^(?:(.+)[/-])?"  # optional prefix + delimiter
     r"v?(\d+(?:\.\d+)*)"  # version digits
     r"$"
 )
 
+#: Largest value a release segment may hold (10**15 - 1).
+#:
+#: The rule is on the integer **value**, not on the literal's length: a
+#: zero-padded ``v0000000000000001.0.0`` is 16 characters but the value 1, and
+#: is accepted, while ``v9999999999999999.0.0`` is rejected.  The cap exists so
+#: both ports can hold a release in a plain integer array — JS numbers are
+#: exact below 2**53, and 999_999_999_999_999 < 9_007_199_254_740_991.
+_MAX_SEGMENT = 999_999_999_999_999
 
-@dataclass(frozen=True)
+BumpSeverity = Literal["major", "minor", "patch"]
+"""Severity of a version bump."""
+
+
+@dataclass(frozen=True, order=True)
 class ParsedTag:
-    """A parsed tag — wraps a comparable version plus its optional prefix.
+    """A parsed version tag: its prefix and its canonical release.
 
-    Mirrors the TypeScript ``ParsedTag`` shape so the tag regex runs once
-    (no separate prefix re-extraction).
+    Mirrors the TypeScript ``ParsedTag`` shape down to the member that carries
+    the behaviour: ``release`` is the same integer sequence in both ports, and
+    the ordering on it is the same rule.  Two tags compare — and hash — by
+    ``release`` alone, so ``v1.2.3`` and ``v1.2.3.0`` are the same version.
     """
 
-    tag: str
-    """The original tag string (e.g. ``"v4"``, ``"prefix-v1.0.0"``)."""
+    tag: str = field(compare=False)
+    """The original tag string, preserved for rewriting the uses-site."""
 
-    prefix: str | None
+    prefix: str | None = field(compare=False)
     """Prefix (without delimiter), or ``None`` when there is no prefix."""
 
-    version: Version
-    """Comparable semantic version."""
+    release: tuple[int, ...]
+    """Canonical release: length >= 3, no trailing zeros past index 2."""
+
+
+@dataclass(frozen=True)
+class Bump:
+    """A newer tag for a ref, with everything the caller needs about it."""
+
+    current: ParsedTag
+    latest: ParsedTag
+    severity: BumpSeverity
 
 
 def parse_tag(tag: str) -> ParsedTag | None:
     """Parse a GitHub Action tag into a :class:`ParsedTag`, or ``None``.
 
-    Strips a leading ``v``, pads single-segment versions (``v4`` becomes
-    ``4.0.0``), and supports prefixed tags like ``prefix-v1.0.0`` or
-    ``prefix/v1.0.0``.
+    A ref is a version tag iff it matches the tag regex — an optional
+    ``prefix-`` / ``prefix/``, an optional ``v``, then dot-separated integers
+    — **and** every segment's value is at most :data:`_MAX_SEGMENT`.  When a
+    prefix is present the numeric part needs at least two segments, which
+    keeps branch-like refs such as ``release/v1`` out.
 
-    Returns ``None`` for refs that do not look like version tags (e.g.
-    ``main``, ``release/v1``).
+    The canonical release parses each segment as an integer, pads with zeros
+    to length three, then drops trailing zeros beyond index 2: ``v4`` becomes
+    ``(4, 0, 0)``, ``v01.02.03`` becomes ``(1, 2, 3)``, and ``v1.2.3.0``
+    becomes ``(1, 2, 3)`` — the same version as ``v1.2.3``.
+
+    Returns ``None`` for refs that are not version tags (e.g. ``main``,
+    ``release/v1``, ``v1.2.3-rc1``).
     """
     m = _TAG_RE.match(tag)
     if m is None:
         return None
 
     prefix = m.group(1)
-    version_str = m.group(2)
-    segments = version_str.split(".")
+    segments = m.group(2).split(".")
 
     # When a prefix is present (foo/v1, release/v1), require at least two
     # version segments so that branch-like refs such as ``release/v1`` are
@@ -66,61 +99,42 @@ def parse_tag(tag: str) -> ParsedTag | None:
     if prefix is not None and len(segments) < 2:
         return None
 
-    # Pad to three segments so ``v4`` → ``4.0.0``, ``v4.1`` → ``4.1.0``.
-    while len(segments) < 3:
-        segments.append("0")
-
-    try:
-        version = Version(".".join(segments))
-    except InvalidVersion:
+    release = [int(s) for s in segments]
+    if any(value > _MAX_SEGMENT for value in release):
         return None
 
-    return ParsedTag(tag=tag, prefix=prefix, version=version)
+    # Pad to three so ``v4`` -> (4, 0, 0), then strip trailing zeros beyond
+    # the third so ``v1.2.3.0`` compares equal to ``v1.2.3``.
+    while len(release) < 3:
+        release.append(0)
+    while len(release) > 3 and release[-1] == 0:
+        release.pop()
+
+    return ParsedTag(tag=tag, prefix=prefix, release=tuple(release))
 
 
-def classify_bump(
-    current: Version, latest: Version
-) -> Literal["major", "minor", "patch"]:
-    """Classify the severity of a version bump.
-
-    Args:
-        current: The currently-used version.
-        latest: The newer version to compare against.
-
-    Returns:
-        ``"major"``, ``"minor"``, or ``"patch"``.
-    """
-    if latest.major != current.major:
+def _classify(current: ParsedTag, latest: ParsedTag) -> BumpSeverity:
+    """Severity of the jump from *current* to *latest* (both length >= 3)."""
+    if latest.release[0] != current.release[0]:
         return "major"
-    if latest.minor != current.minor:
+    if latest.release[1] != current.release[1]:
         return "minor"
     return "patch"
 
 
-def find_latest_tag(current_ref: str, available_tags: list[str]) -> str | None:
-    """Find the latest tag that is newer than *current_ref*.
+def latest_bump(current_ref: str, available_tags: Iterable[str]) -> Bump | None:
+    """The newest same-prefix tag strictly newer than *current_ref*, classified.
 
-    Filters *available_tags* to those that share the same prefix (if any)
-    as *current_ref*, parses them as versions, and returns the original
-    tag string for the highest version — or ``None`` if *current_ref* is
-    already up to date (or unparseable).
-
-    Args:
-        current_ref: The tag currently in use (e.g. ``"v4"``).
-        available_tags: All known tags for the repository.
-
-    Returns:
-        The original tag string (preserving ``v`` prefix) of the latest
-        version, or ``None`` if the current ref is already the latest or
-        cannot be parsed.
+    ``None`` when *current_ref* is not a version tag, or when nothing in
+    *available_tags* is newer.  Equal versions are not newer, so they produce
+    no :class:`Bump` at all.  Every returned ``Bump`` holds parsed values; no
+    caller re-parses (ADR-0006).
     """
     current = parse_tag(current_ref)
     if current is None:
         return None
 
-    best_tag: str | None = None
-    best_version: Version | None = None
-
+    best: ParsedTag | None = None
     for tag in available_tags:
         parsed = parse_tag(tag)
         if parsed is None:
@@ -130,11 +144,13 @@ def find_latest_tag(current_ref: str, available_tags: list[str]) -> str | None:
         if parsed.prefix != current.prefix:
             continue
 
-        if parsed.version <= current.version:
+        if parsed.release <= current.release:
             continue
 
-        if best_version is None or parsed.version > best_version:
-            best_version = parsed.version
-            best_tag = tag
+        if best is None or parsed.release > best.release:
+            best = parsed
 
-    return best_tag
+    if best is None:
+        return None
+
+    return Bump(current=current, latest=best, severity=_classify(current, best))

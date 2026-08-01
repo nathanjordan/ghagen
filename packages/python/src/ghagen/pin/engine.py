@@ -22,14 +22,12 @@ from ghagen.pin.github import ResolveError
 from ghagen.pin.lockfile import PinEntry, read_lockfile, write_lockfile
 from ghagen.pin.sources import locate_uses_refs
 from ghagen.pin.update import apply_updates
-from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
+from ghagen.pin.versions import BumpSeverity, latest_bump
 
 if TYPE_CHECKING:
     from ghagen.app import App
     from ghagen.pin.github import GitHubClient
     from ghagen.pin.uses import UsesRef
-
-Severity = Literal["major", "minor", "patch"]
 
 
 # -- pin -------------------------------------------------------------------
@@ -165,7 +163,7 @@ class VersionBump:
     uses: str
     current: str
     latest: str
-    severity: Severity
+    severity: BumpSeverity
     source_files: list[str] = field(default_factory=list)
 
 
@@ -232,22 +230,16 @@ def upgrade(
                 continue
 
             for ref in repo_ref_list:
-                latest_tag = find_latest_tag(ref.ref, tags)
-                if latest_tag is None:
-                    continue  # up to date or non-semver
+                bump = latest_bump(ref.ref, tags)
+                if bump is None:
+                    continue  # not a version tag, or already the latest
 
-                current_ver = parse_tag(ref.ref)
-                latest_ver = parse_tag(latest_tag)
-                if current_ver is None or latest_ver is None:
-                    continue
-
-                severity = classify_bump(current_ver.version, latest_ver.version)
                 report.version_bumps.append(
                     VersionBump(
                         uses=ref.uses,
                         current=ref.ref,
-                        latest=latest_tag,
-                        severity=severity,
+                        latest=bump.latest.tag,
+                        severity=bump.severity,
                         source_files=[str(p) for p in ref_locations.get(ref.uses, [])],
                     )
                 )
