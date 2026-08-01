@@ -177,14 +177,12 @@ function toYamlValue(value: unknown): unknown {
 
 /**
  * Resolve a model's emitted `[key, value]` entries in canonical order, folding
- * in `meta.extras` per the spec's {@link OrderMode} and `extrasPlacement`.
+ * in `meta.extras` per the spec's {@link OrderMode}.
  *
  * The single home for both Emitter passes ({@link modelToYamlMap} and
  * {@link modelToData}), so the YAML nodes and the observed data cannot disagree
  * on ordering. `alphabetical` sorts every key (extras included); `explicit`
- * places the ordered keys first, then the rest — with extras appended
- * (`afterOrdered`, the default) or folded into the ordering pool
- * (`withinOrder`).
+ * places the ordered keys first, then the rest, with extras appended last.
  */
 function orderedEntries(model: Model): [string, unknown][] {
   const data = model.data;
@@ -199,11 +197,6 @@ function orderedEntries(model: Model): [string, unknown][] {
   }
 
   const orderKeys = model.spec.order.keys;
-  if ((model.spec.extrasPlacement ?? "afterOrdered") === "withinOrder") {
-    const pool = [...new Set([...dataKeys, ...extrasKeys])];
-    return orderExplicit(pool, orderKeys).map((key) => [key, valueOf(key)]);
-  }
-
   const entries: [string, unknown][] = orderExplicit(dataKeys, orderKeys).map((key) => [
     key,
     data[key],

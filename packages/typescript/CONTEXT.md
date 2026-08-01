@@ -40,7 +40,7 @@ structure (see **CommentNode**).
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, the
 inline-input wrap map, and per-field emission rules (present-null-when-empty, dynamic-keys
-passthrough, extras placement) — declared next to the factory, consumed by the Emitter and
+passthrough) — declared next to the factory, consumed by the Emitter and
 factories. The single home for the emitted-key fact (`fieldMap`, type-checked with `satisfies`
 against the generated schema types); every factory builds through `buildModel`.
 _Avoid_: field map, key-order table.

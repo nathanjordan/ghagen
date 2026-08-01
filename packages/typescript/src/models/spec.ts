@@ -27,8 +27,7 @@ export interface WrapRule {
  * How a model's emitted keys are ordered.
  *
  * - `explicit` — the listed `keys` come first, in that order; any remaining
- *   keys (dynamic passthroughs, extras under `afterOrdered`) follow in
- *   insertion order.
+ *   keys (dynamic passthroughs, extras) follow in insertion order.
  * - `alphabetical` — every key, including extras, is sorted at emit time. This
  *   is the declarative replacement for the old "empty order" signal, which the
  *   two Emitters disagreed on (Python sorted; TS kept insertion order).
@@ -50,8 +49,8 @@ export type OrderMode =
  * `*_FIELD_MAP` constants and `emitter/key-order.ts` tables.
  *
  * Every gap that factories once filled by hand is now declarable here: the
- * ordering {@link OrderMode}, extras placement, dynamic-key passthrough, and
- * the present-null-when-empty rule. This keeps `buildModel` the only
+ * ordering {@link OrderMode}, dynamic-key passthrough, and the
+ * present-null-when-empty rule. This keeps `buildModel` the only
  * input→Model path — no factory hand-rolls `data`.
  */
 export interface ModelSpec {
@@ -70,18 +69,6 @@ export interface ModelSpec {
    * fields. Defaults to `false`.
    */
   readonly dynamicKeys?: boolean;
-  /**
-   * Where `meta.extras` land relative to the ordered keys.
-   *
-   * - `afterOrdered` (default) — extras are appended after the ordered keys.
-   * - `withinOrder` — extras join the key pool before ordering, so an
-   *   `explicit` order may pull them forward and the rest follow in insertion
-   *   order.
-   *
-   * Under `alphabetical` order this field is moot: extras always participate in
-   * the single sort.
-   */
-  readonly extrasPlacement?: "afterOrdered" | "withinOrder";
   /**
    * YAML keys whose value, when it resolves to an empty map, is emitted as a
    * bare null key (`key:`) instead of `key: {}`. The declarative replacement
