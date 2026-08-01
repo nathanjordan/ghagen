@@ -224,7 +224,9 @@ wherever 0001 lands the recursive `to_commented_map(value)`):
 - `emitter/yaml_writer.py`: `attach_comment` and `attach_field_comments` **move out** to
   `comments.py`. yaml_writer keeps `dump_yaml`, `unwrap_raw`, `to_ordered_commented_map`,
   `_apply_block_scalar_style`, `_apply_pre_comment_columns` (emission/formatting, not
-  attachment).
+  attachment). **Superseded by proposal 12**: `_apply_pre_comment_columns` moved again, out
+  of `yaml_writer.py` into `emitter/comment_geometry.py`, which now owns every comment-column
+  decision in the Python port.
 - `emitter/emit.py`: the inline root-comment attach (57–58) becomes a call to
   `attach_model_comment` (or, better, 0001's single pass already invokes call site 3 for the
   root, and emit.py stops touching comments entirely).
@@ -287,6 +289,11 @@ export function attachModelComment(
 - `emitter/yaml-writer.ts`: `attachBlockComment` and `attachEolComment` **move** to
   `comments.ts` (fold into `attachModelComment`). `fixInlineCommentSpacing` **stays** — it
   is string-level output normalization on the final dump, not node attachment.
+  **Superseded by proposal 12**: leaving a regex pass over the emitted document was wrong —
+  it could not tell a comment `#` from a `#` inside a `run:` script or a quoted scalar, and
+  corrupted user data. `fixInlineCommentSpacing` is deleted; the EOL gutter is now rendered
+  into the comment payload at attach time by `emitter/comment-geometry.ts`, so no pass ever
+  reads the emitted text.
 
 ### One note on the ports not being byte-identical
 

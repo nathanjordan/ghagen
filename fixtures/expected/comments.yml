@@ -1,6 +1,6 @@
 # The name shown in the GitHub UI
 name: Commented Workflow
-on: # trigger configuration
+on:  # trigger configuration
   push:
     branches:
     - main

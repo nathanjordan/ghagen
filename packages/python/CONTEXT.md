@@ -36,6 +36,9 @@ The module that serializes a model tree to YAML — key ordering, comments, bloc
 serialization recursion (see ADR-0001, amended); models never serialize themselves. Also exposes
 the plain-data observation surface `to_data()` — the supported way to inspect a model's emitted
 structure (see **CommentNode**).
+Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) and the block-comment
+column — is a named module, `emitter/comment_geometry.py`, applied as a node pass before the dump.
+No Emitter pass rewrites emitted text.
 
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, and

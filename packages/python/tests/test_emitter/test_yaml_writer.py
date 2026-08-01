@@ -1,12 +1,13 @@
 """Tests for the YAML rendering passes and the node dispatcher.
 
-``dump_yaml`` and the block-scalar / comment-column passes are the emitter's
-whole-tree rendering stage and are exercised directly. The value → node
-dispatch (`_to_node`, `unwrap_raw`, `order_entries`) lives in
-:mod:`ghagen.emitter.nodes`; those are low-level probes into the emitter's
-recursion core, kept because the behaviors (Raw see-through, key ordering,
-seq-item comment placement) are cheaper to pin at the node level than to
-reverse-engineer from rendered YAML.
+``dump_yaml`` and the block-scalar pass are the emitter's whole-tree rendering
+stage and are exercised directly. Comment columns are NOT exercised here — they
+moved to :mod:`ghagen.emitter.comment_geometry` and are covered by
+``test_comment_geometry.py``. The value → node dispatch (`_to_node`,
+`unwrap_raw`, `order_entries`) lives in :mod:`ghagen.emitter.nodes`; those are
+low-level probes into the emitter's recursion core, kept because the behaviors
+(Raw see-through, key ordering, seq-item comment placement) are cheaper to pin
+at the node level than to reverse-engineer from rendered YAML.
 """
 
 import pytest

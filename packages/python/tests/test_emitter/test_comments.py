@@ -6,10 +6,17 @@ round-trip. Assertions are split between the raw comment structures on
 (the seq-item ruamel quirks and block-comment column alignment).
 """
 
+from io import StringIO
+
+from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from ghagen.emitter.comments import attach, attach_model_comment
 from ghagen.emitter.yaml_writer import dump_yaml
+from ghagen.models.job import Job
+from ghagen.models.step import Step
+from ghagen.models.trigger import On, PushTrigger
+from ghagen.models.workflow import Workflow
 
 
 def _block_token(node, key):
@@ -219,6 +226,89 @@ def test_block_comment_on_nested_map_field_is_indented():
     assert lines[comment_idx + 1].startswith("    needs:")
 
 
+# --- Comment geometry: the gutter is a property of the comment alone ---
+#
+# Cross-port parity: every string asserted in this section is asserted
+# byte-identically by ``packages/typescript/src/emitter/yaml-writer.test.ts``.
+
+
+def test_eol_gutter_is_independent_of_neighbouring_comments():
+    """The gutter is two columns whether or not a neighbouring key is commented.
+
+    Left to ruamel, ``yaml_add_eol_comment`` sizes the gutter by peeking at a
+    NEIGHBOURING key's EOL slot, which yields one column whenever an adjacent
+    key carries a block-only comment.
+    """
+    scalar = CommentedMap({"name": "ci", "on": "push"})
+    attach(scalar, "on", eol_comment="trigger")
+    assert "on: push  # trigger\n" in dump_yaml(scalar)
+
+    scalar_with_neighbour = CommentedMap({"name": "ci", "on": "push"})
+    attach(scalar_with_neighbour, "name", comment="the name")
+    attach(scalar_with_neighbour, "on", eol_comment="trigger")
+    assert "on: push  # trigger\n" in dump_yaml(scalar_with_neighbour)
+
+    collection = CommentedMap({"name": "ci", "on": CommentedMap({"push": {}})})
+    attach(collection, "on", eol_comment="trigger")
+    assert "on:  # trigger\n" in dump_yaml(collection)
+
+    collection_with_neighbour = CommentedMap(
+        {"name": "ci", "on": CommentedMap({"push": {}})}
+    )
+    attach(collection_with_neighbour, "name", comment="the name")
+    attach(collection_with_neighbour, "on", eol_comment="trigger")
+    assert "on:  # trigger\n" in dump_yaml(collection_with_neighbour)
+
+
+def test_multiline_eol_comment_degrades_to_a_block_comment():
+    """A newline-bearing EOL payload renders above the item, and parses.
+
+    Before this rule the payload was emitted verbatim after the value, which
+    produced a document ruamel itself could not read back.
+    """
+    cm = CommentedMap({"name": "ci"})
+    attach(cm, "name", eol_comment="line one\nline two")
+    result = dump_yaml(cm)
+    assert result == "# line one\n# line two\nname: ci\n"
+
+    yaml = YAML()
+    assert dict(yaml.load(StringIO(result))) == {"name": "ci"}
+
+
+def test_multiline_eol_comment_joins_after_an_existing_block_comment():
+    cm = CommentedMap({"name": "ci"})
+    attach(cm, "name", comment="above", eol_comment="line one\nline two")
+    assert dump_yaml(cm) == "# above\n# line one\n# line two\nname: ci\n"
+
+
+# --- Comment geometry: a model's own EOL comment on a collection value ---
+#
+# Cross-port parity: every string asserted below is asserted byte-identically
+# by ``packages/typescript/src/emitter/yaml-writer.test.ts``.
+
+
+def test_job_eol_comment_renders_on_the_steps_key_line():
+    """A Job's own ``eol_comment`` sits on the ``steps:`` key line."""
+    wf = Workflow(
+        name="x",
+        on=On(push=PushTrigger()),
+        jobs={"j": Job(runs_on="u", eol_comment="job note", steps=[Step(run="x")])},
+    )
+    assert "    steps:  # job note\n    - run: x\n" in wf.to_yaml(header=None)
+
+
+def test_seq_item_model_eol_comment_renders_on_the_dash_line():
+    """A seq-item model's own ``eol_comment`` sits on the ``- with:`` line."""
+    wf = Workflow(
+        name="x",
+        on=On(push=PushTrigger()),
+        jobs={
+            "j": Job(runs_on="u", steps=[Step(with_={"a": "1"}, eol_comment="note")])
+        },
+    )
+    assert "    - with:  # note\n        a: '1'\n" in wf.to_yaml(header=None)
+
+
 def test_attach_model_comment_renders_block_and_eol_via_dump():
     """attach_model_comment renders a block before the first key and an EOL on
     the last value when the map is dumped."""
@@ -228,4 +318,10 @@ def test_attach_model_comment_renders_block_and_eol_via_dump():
     lines = result.split("\n")
     assert lines[0] == "# Run linters before tests"
     assert lines[1].startswith("name: Lint")
-    assert "runs-on: ubuntu-latest # job note" in result
+    # INVERTED: this used to assert a ONE-column gutter. That was ruamel's
+    # neighbour heuristic leaking through — the block comment on the adjacent
+    # ``name`` key made ``CommentedMap._yaml_get_column`` raise, which skipped
+    # the line that widens the gutter. The gutter is now a property of the
+    # comment alone, so it is two columns here as it always was without the
+    # neighbour. See ``test_eol_gutter_is_independent_of_neighbouring_comments``.
+    assert "runs-on: ubuntu-latest  # job note" in result

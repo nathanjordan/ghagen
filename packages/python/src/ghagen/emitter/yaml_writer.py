@@ -1,8 +1,8 @@
-"""Final YAML rendering: block-scalar promotion, comment-column alignment, dump.
+"""Final YAML rendering: block-scalar promotion, dump.
 
-The value → node recursion lives in :mod:`ghagen.emitter.nodes`; this module
-owns the two whole-tree passes ruamel needs before serialization and the
-:func:`dump_yaml` call itself.
+The value → node recursion lives in :mod:`ghagen.emitter.nodes` and every
+comment-column decision lives in :mod:`ghagen.emitter.comment_geometry`; this
+module owns the block-scalar pass and the :func:`dump_yaml` call itself.
 """
 
 from __future__ import annotations
@@ -11,19 +11,13 @@ from io import StringIO
 from typing import Any
 
 from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import (
     LiteralScalarString,
     ScalarString,
 )
 
-# ruamel.yaml geometry assumed by :func:`dump_yaml` (``best_map_indent=2``,
-# ``best_sequence_indent=2``, ``sequence_dash_offset=0``, and indentless block
-# sequences when a seq is a mapping value). These are the ONLY constants the
-# pre-comment column alignment depends on; keeping them named and in one place
-# means a change to the dump geometry has a single home to update.
-_MAP_VALUE_INDENT = 2  # a sub-map indents by the mapping indent width
-_SEQ_ITEM_INDENT = 2  # a seq item indents by the sequence indent width
+from ghagen.emitter.comment_geometry import apply_comment_geometry
 
 
 def _apply_block_scalar_style(node: Any) -> None:
@@ -60,43 +54,6 @@ def _apply_block_scalar_style(node: Any) -> None:
                 _apply_block_scalar_style(value)
 
 
-def _apply_pre_comment_columns(node: Any, indent: int = 0) -> None:
-    """Rewrite the column of every pre-item/pre-key block comment in the tree.
-
-    ruamel.yaml's emitter renders pre-comments at exactly
-    ``CommentToken.start_mark.column`` — it does NOT auto-indent. This walker is
-    the single owner of the *final* column decision: it computes the correct
-    column for every CommentedMap key and every CommentedSeq index and rewrites
-    each pre-comment token accordingly so block comments align with the item
-    they annotate. The placeholder column stamped by
-    :func:`ghagen.emitter.comments.attach` is always overwritten here.
-
-    Uses the ruamel geometry constants :data:`_MAP_VALUE_INDENT` /
-    :data:`_SEQ_ITEM_INDENT`; block sequences under a mapping value are
-    indentless (ruamel default), so a sub-seq keeps its parent's indent.
-    """
-    if isinstance(node, (CommentedSeq, CommentedMap)):
-        items = getattr(node.ca, "items", None) or {}
-        for entry in items.values():
-            if entry and len(entry) > 1 and entry[1]:
-                for token in entry[1]:
-                    if token is not None:
-                        token.start_mark.column = indent
-        if isinstance(node, CommentedSeq):
-            for child in node:
-                _apply_pre_comment_columns(child, indent + _SEQ_ITEM_INDENT)
-        else:
-            for value in node.values():
-                # Sub-seqs are indentless under a map value (ruamel default);
-                # sub-maps indent by the mapping-indent width.
-                next_indent = (
-                    indent
-                    if isinstance(value, CommentedSeq)
-                    else indent + _MAP_VALUE_INDENT
-                )
-                _apply_pre_comment_columns(value, next_indent)
-
-
 def dump_yaml(
     data: CommentedMap,
     header: str | None = None,
@@ -117,10 +74,9 @@ def dump_yaml(
 
     # Auto-formatting passes:
     # 1. Promote multiline plain strings to | literal block scalars.
-    # 2. Rewrite block-comment columns so pre-item / pre-key comments align
-    #    with their containing node instead of sticking to column 0.
+    # 2. Apply every comment-column decision (block columns, EOL gutter).
     _apply_block_scalar_style(data)
-    _apply_pre_comment_columns(data, indent=0)
+    apply_comment_geometry(data)
 
     stream = StringIO()
     if header:
