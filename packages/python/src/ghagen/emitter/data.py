@@ -24,11 +24,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from ghagen._commented import is_commented
-from ghagen._dedent import dedent_script
 from ghagen._raw import Raw
-from ghagen.emitter.nodes import _META_FIELDS, is_empty_map, order_entries
+from ghagen.emitter.nodes import collect_fields, is_empty_map, order_entries
 from ghagen.models._base import GhagenModel
-from ghagen.models.step import Step
 
 
 @dataclass(frozen=True)
@@ -91,29 +89,17 @@ def _model_to_data(
 ) -> dict[str, Any]:
     """Walk a model's fields to a plain dict — the peer of ``_model_to_map``.
 
-    Applies the same ``exclude_none`` / ``exclude_unset`` semantics, canonical
-    key ordering, YAML-key mapping, extras merge, and (when *auto_dedent*)
-    Step ``run`` dedent as the ruamel walk — but produces plain data and does
-    NOT run ``post_process``. A model's OWN comment is not represented here; it
-    is a container-placement concern, surfaced by :func:`_value_to_data` when a
-    model appears as a value.
+    Shares its ``exclude_none`` / ``exclude_unset`` semantics, YAML-key mapping
+    and (when *auto_dedent*) Step ``run`` dedent with the ruamel walk by calling
+    the same :func:`~ghagen.emitter.nodes.collect_fields`, and its canonical key
+    ordering and extras merge by calling the same
+    :func:`~ghagen.emitter.nodes.order_entries` — but produces plain data and
+    does NOT run ``post_process``. A model's OWN comment is not represented
+    here; it is a container-placement concern, surfaced by
+    :func:`_value_to_data` when a model appears as a value.
     """
     spec = type(model).SPEC
-    is_step = isinstance(model, Step)
-
-    raw: dict[str, Any] = {}
-    for field_name in type(model).model_fields:
-        if field_name in _META_FIELDS:
-            continue
-        if field_name not in model.model_fields_set:  # exclude_unset
-            continue
-        value = getattr(model, field_name, None)
-        if value is None:  # exclude_none
-            continue
-        if auto_dedent and is_step and field_name == "run" and isinstance(value, str):
-            value = dedent_script(value)
-        raw[spec.yaml_keys.get(field_name, field_name)] = value
-
+    raw = collect_fields(model, auto_dedent=auto_dedent)
     present_null = spec.present_null_when_empty
 
     result: dict[str, Any] = {}
