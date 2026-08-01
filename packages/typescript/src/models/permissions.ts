@@ -1,40 +1,44 @@
 import type { PermissionsEvent as SchemaPermissions } from "../schema/workflow-types.generated.js";
 import { buildModel, extractMeta } from "./_base.js";
-import type { WithMeta, ModelSpec, PermissionsModel } from "./_base.js";
+import type { Raw, WithMeta, ModelSpec, PermissionsModel } from "./_base.js";
 import type { PermissionLevel } from "./common.js";
 
 /**
  * Input for configuring `GITHUB_TOKEN` permission scopes at the workflow or
  * job level. Each scope can be set to `"read"`, `"write"`, or `"none"`.
  * Only set the scopes you need; unset scopes are omitted from the output.
+ *
+ * Every scope also accepts `raw("...")` for a level GitHub has shipped but
+ * ghagen has not yet modelled — the mirror of Python's
+ * `PermissionLevel | Raw[str] | None` (`models/permissions.py`).
  */
 export interface PermissionsInput {
   /** Permission for the `actions` scope. */
-  actions?: PermissionLevel;
+  actions?: PermissionLevel | Raw<string>;
   /** Permission for the `checks` scope. */
-  checks?: PermissionLevel;
+  checks?: PermissionLevel | Raw<string>;
   /** Permission for the `contents` scope. */
-  contents?: PermissionLevel;
+  contents?: PermissionLevel | Raw<string>;
   /** Permission for the `deployments` scope. */
-  deployments?: PermissionLevel;
+  deployments?: PermissionLevel | Raw<string>;
   /** Permission for the `discussions` scope. */
-  discussions?: PermissionLevel;
+  discussions?: PermissionLevel | Raw<string>;
   /** Permission for the `id-token` scope. Serialized as `id-token`. */
-  idToken?: PermissionLevel;
+  idToken?: PermissionLevel | Raw<string>;
   /** Permission for the `issues` scope. */
-  issues?: PermissionLevel;
+  issues?: PermissionLevel | Raw<string>;
   /** Permission for the `packages` scope. */
-  packages?: PermissionLevel;
+  packages?: PermissionLevel | Raw<string>;
   /** Permission for the `pages` scope. */
-  pages?: PermissionLevel;
+  pages?: PermissionLevel | Raw<string>;
   /** Permission for the `pull-requests` scope. Serialized as `pull-requests`. */
-  pullRequests?: PermissionLevel;
+  pullRequests?: PermissionLevel | Raw<string>;
   /** Permission for the `repository-projects` scope. Serialized as `repository-projects`. */
-  repositoryProjects?: PermissionLevel;
+  repositoryProjects?: PermissionLevel | Raw<string>;
   /** Permission for the `security-events` scope. Serialized as `security-events`. */
-  securityEvents?: PermissionLevel;
+  securityEvents?: PermissionLevel | Raw<string>;
   /** Permission for the `statuses` scope. */
-  statuses?: PermissionLevel;
+  statuses?: PermissionLevel | Raw<string>;
 }
 
 /** Serialization spec for {@link PermissionsModel}. */

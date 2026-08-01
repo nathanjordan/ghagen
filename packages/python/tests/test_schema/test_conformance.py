@@ -16,16 +16,24 @@ same allow-list means both modelling the same property set -- cross-port surface
 agreement, structurally. Anything upstream but missing from the models (and not
 allow-listed) fails the sweep, surfacing schema drift as a conformance gap.
 
+A second sweep, one level down, covers *values* rather than properties: the
+shared ``schema/conformance-values.yml`` binds each declared value grammar (a
+``ModelSpec.patterns`` entry) back to the pattern string in the canonical
+Snapshot, and carries accept/reject vectors that catch what a pattern *string*
+comparison cannot -- regex-dialect divergence.
+
 It needs no code generation -- it reads each model's ``ModelSpec`` directly.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 from ghagen_schema.paths import SCHEMA_DIR
+from pydantic import ValidationError
 from ruamel.yaml import YAML
 
 from ghagen.models._base import GhagenModel
@@ -38,12 +46,15 @@ from ghagen.models.action import (
     DockerRuns,
     NodeRuns,
 )
+from ghagen.models.image_snapshot import IMAGE_SNAPSHOT_SPEC, ImageSnapshot
 from ghagen.models.job import Job
+from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 from ghagen.models.workflow import Workflow
 
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
 SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"
+VALUES_PATH = SCHEMA_DIR / "conformance-values.yml"
 
 # A JSON path into a loaded schema: the keys to walk before reading properties.
 SchemaPath = tuple[str, ...]
@@ -199,5 +210,122 @@ def test_scope_set_matches_shared_table() -> None:
         assert set(_MODELS[snapshot]) == set(shared[snapshot]), (
             f"{snapshot} conformance scopes diverge from {SCOPES_PATH.name}: "
             f"port has {sorted(_MODELS[snapshot])}, shared table has "
+            f"{sorted(shared[snapshot])}."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Value-grammar sweep. The scope table above covers *which properties* a model
+# exposes; this covers *which values* a field accepts. The shared table is
+# schema/conformance-values.yml, read identically by the TypeScript sweep
+# (packages/typescript/src/models/conformance.test.ts); only the spec +
+# constructor binding stays here.
+# ---------------------------------------------------------------------------
+
+
+class ValueBinding:
+    """One declared value grammar: this port's spec plus a constructor."""
+
+    def __init__(
+        self, spec: ModelSpec, construct: Callable[[str], GhagenModel]
+    ) -> None:
+        self.spec = spec
+        self.construct = construct
+
+
+# snapshot filename -> "<kind>.<field>" -> binding. The key format is exactly a
+# TypeScript ``spec.kind`` plus a ``patterns`` key; Python's ModelSpec carries
+# no ``kind`` field (a pre-existing asymmetry between the two spec shapes), so
+# this port supplies the ``kind`` half from the table below.
+_VALUE_BINDINGS: dict[str, dict[str, ValueBinding]] = {
+    "workflow_schema.json": {
+        "imageSnapshot.version": ValueBinding(
+            IMAGE_SNAPSHOT_SPEC,
+            lambda version: ImageSnapshot(image_name="img", version=version),
+        ),
+    },
+}
+
+
+def _load_values() -> dict[str, dict[str, dict[str, Any]]]:
+    """Load the shared value table: snapshot -> "<kind>.<field>" -> entry."""
+    return YAML(typ="safe").load(VALUES_PATH.read_text())
+
+
+_VALUES = _load_values()
+
+
+def _resolve_value(schema: dict[str, Any], path: list[Any]) -> Any:
+    """Walk *path* into *schema*; integer segments index into a list."""
+    node: Any = schema
+    for key in path:
+        node = node[key]
+    return node
+
+
+def _iter_values() -> list[tuple[str, str]]:
+    return [
+        (snapshot, key)
+        for snapshot, entries in _VALUES.items()
+        for key in entries
+        if key in _VALUE_BINDINGS.get(snapshot, {})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_pattern_matches_snapshot(snapshot: str, key: str) -> None:
+    """The port's pattern source equals the canonical Snapshot's string.
+
+    ``re.ASCII`` changes matching, not the source string, so the flag that
+    fixes the Unicode-digit dialect bug leaves this comparison intact.
+    """
+    entry = _VALUES[snapshot][key]
+    binding = _VALUE_BINDINGS[snapshot][key]
+    field_name = key.split(".", 1)[1]
+    pattern = binding.spec.patterns.get(field_name)
+    assert pattern is not None, f"{key} declares no pattern in its ModelSpec"
+    assert pattern.pattern == _resolve_value(_load_schema(snapshot), entry["path"])
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_vectors(snapshot: str, key: str) -> None:
+    """Every ``accept`` constructs; every ``reject`` raises.
+
+    This is the assertion pattern identity cannot make: both dialect bugs this
+    table was written for leave ``.pattern`` byte-identical and are visible
+    only to executed vectors.
+    """
+    entry = _VALUES[snapshot][key]
+    construct = _VALUE_BINDINGS[snapshot][key].construct
+    for value in entry["accept"]:
+        construct(value)  # must not raise
+    for value in entry["reject"]:
+        with pytest.raises(ValidationError):
+            construct(value)
+
+
+def test_value_key_set_matches_shared_table() -> None:
+    """This port's value-grammar bindings must match the shared table exactly.
+
+    The mirror of this guard in the TypeScript sweep asserts the same equality,
+    so a grammar enforced in one port and not the other fails a test.
+    """
+    shared = _load_values()
+    assert set(_VALUE_BINDINGS) == set(shared), (
+        f"value-grammar snapshots diverge from {VALUES_PATH.name}: "
+        f"port has {sorted(_VALUE_BINDINGS)}, shared table has {sorted(shared)}."
+    )
+    for snapshot in shared:
+        assert set(_VALUE_BINDINGS[snapshot]) == set(shared[snapshot]), (
+            f"{snapshot} value grammars diverge from {VALUES_PATH.name}: "
+            f"port has {sorted(_VALUE_BINDINGS[snapshot])}, shared table has "
             f"{sorted(shared[snapshot])}."
         )

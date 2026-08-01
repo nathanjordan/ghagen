@@ -5,4 +5,5 @@
  */
 export { toYaml, toYamlFile, toData } from "./emitter/yaml-writer.js";
 export type { ToDataOptions, CommentNode } from "./emitter/yaml-writer.js";
-export { raw } from "./models/_base.js";
+export { raw, ModelInputError } from "./models/_base.js";
+export type { ModelInputProblem } from "./models/_base.js";

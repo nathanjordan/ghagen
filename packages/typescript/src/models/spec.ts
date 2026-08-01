@@ -75,4 +75,14 @@ export interface ModelSpec {
    * for the model-layer present-null smuggle. Defaults to empty.
    */
   readonly presentNullWhenEmpty?: readonly string[];
+  /**
+   * Value grammars for individual input fields, keyed by the same camelCase
+   * input names as `fieldMap`. Checked in `buildYamlData` against the peeled
+   * value; non-string values (including `Raw`) are skipped, so the escape hatch
+   * stays opt-in. Patterns carry no flags — `RegExp.test` is stateful under
+   * `/g`. Each grammar's single home is the canonical Snapshot; the shared
+   * `schema/conformance-values.yml` binds the two together by test.
+   * Defaults to empty.
+   */
+  readonly patterns?: Readonly<Record<string, RegExp>>;
 }

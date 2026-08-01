@@ -35,10 +35,35 @@ def test_version_pattern_accepts_valid(version: str):
 
 
 @pytest.mark.parametrize(
-    "version", ["1.*", "1.2.3", "v1", "1.", "latest", "*", "1.2.*"]
+    "version", ["1.*", "1.2.3", "v1", "1.", "latest", "*", "1.2.*", "", " 1", "1.2*"]
 )
 def test_version_pattern_rejects_invalid(version: str):
     """Non-matching versions (patch versions, prefixes, etc.) are rejected."""
+    with pytest.raises(ValidationError):
+        ImageSnapshot(image_name="img", version=version)
+
+
+@pytest.mark.parametrize("version", ["1\n", "1.2\n", "1*\n"])
+def test_version_pattern_rejects_trailing_newline(version: str):
+    """A trailing newline is not in the schema language.
+
+    ``re.match`` anchors only the start, and Python's ``$`` matches *before* a
+    trailing newline, so the old hand-written validator accepted
+    ``version="1\\n"`` and emitted it. ``fullmatch`` is what closes it.
+    """
+    with pytest.raises(ValidationError):
+        ImageSnapshot(image_name="img", version=version)
+
+
+@pytest.mark.parametrize("version", ["١", "١.٢"])
+def test_version_pattern_rejects_unicode_digits(version: str):
+    """``\\d`` is Unicode in Python's ``re`` and ASCII-only in ECMA-262.
+
+    JSON Schema's regex dialect is ECMA-262, so the Snapshot rejects
+    ARABIC-INDIC DIGIT ONE while an unflagged Python pattern accepts it.
+    ``re.ASCII`` matches the schema dialect and leaves ``.pattern``
+    byte-identical.
+    """
     with pytest.raises(ValidationError):
         ImageSnapshot(image_name="img", version=version)
 

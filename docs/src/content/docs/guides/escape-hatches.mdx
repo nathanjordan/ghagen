@@ -44,6 +44,8 @@ step({ name: "Custom shell", run: "echo hello", shell: raw("custom-shell") });
 
 `raw` is the lightest escape hatch. It preserves type safety on all other fields and only bypasses the constraint on the specific field you wrap.
 
+Both ports offer `raw` on the same fields. Besides `shell` and `runsOn`, that includes every `permissions` scope and the `type` of a `workflow_dispatch` or `workflow_call` input -- each of which is a closed set drawn from the canonical schema, so `raw` is how you reach a value GitHub has shipped and ghagen has not yet modelled.
+
 ## 2. extras -- Inject arbitrary YAML keys
 
 The `extras` dictionary lets you add key-value pairs that are merged into the model's YAML output. Use this when a model doesn't have a typed field for a key you need.

@@ -155,7 +155,7 @@ snapshot = ImageSnapshot(image_name="custom-ubuntu", version="1.2")
 
 ### Parameters
 
-| Parameter    | Type          | Default  | Description                                                         |
-| ------------ | ------------- | -------- | ------------------------------------------------------------------- |
-| `image_name` | `str`         | required | Name of the image to create or version. Serialized as `image-name`. |
-| `version`    | `str \| None` | `None`   | Optional version (`1`, `1.2`, or `1*` wildcard). No patch versions. |
+| Parameter    | Type          | Default  | Description                                                                                                                                          |
+| ------------ | ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `image_name` | `str`         | required | Name of the image to create or version. Serialized as `image-name`.                                                                                  |
+| `version`    | `str \| None` | `None`   | Optional version. Enforced at construction against the canonical schema grammar `^\d+(\.\d+\|\*)?$` (`1`, `1.2`, `1*`); patch versions are rejected. |

@@ -9,6 +9,7 @@ import type {
   WorkflowCallModel,
   WithMeta,
   ModelSpec,
+  Raw,
 } from "./_base.js";
 
 /**
@@ -173,8 +174,14 @@ export interface WorkflowDispatchInputDef {
   required?: boolean;
   /** Default value for the input. */
   default?: string | boolean | number;
-  /** Input type (e.g., `"string"`, `"boolean"`, `"choice"`, `"environment"`). */
-  type?: "boolean" | "number" | "string" | "choice" | "environment";
+  /**
+   * Input type (e.g., `"string"`, `"boolean"`, `"choice"`, `"environment"`).
+   *
+   * Five members here, three on {@link WorkflowCallInputDef.type}: the
+   * canonical Snapshot gives the two events different enums. `raw("...")`
+   * escapes the union.
+   */
+  type?: "boolean" | "number" | "string" | "choice" | "environment" | Raw<string>;
   /** Available options when `type` is `"choice"`. */
   options?: string[];
 }
@@ -266,8 +273,11 @@ export interface WorkflowCallInputDef {
   required?: boolean;
   /** Default value. */
   default?: string | boolean | number;
-  /** Input type (`"string"`, `"boolean"`, or `"number"`). */
-  type: "boolean" | "number" | "string";
+  /**
+   * Input type (`"string"`, `"boolean"`, or `"number"`). Required — the
+   * Snapshot marks it so. `raw("...")` escapes the union.
+   */
+  type: "boolean" | "number" | "string" | Raw<string>;
 }
 
 /**
