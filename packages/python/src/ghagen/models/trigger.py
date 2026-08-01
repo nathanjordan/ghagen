@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel, OrRaw
@@ -161,7 +161,15 @@ class WorkflowDispatchInput(GhagenModel):
     description: str | None = None
     required: bool | None = None
     default: str | None = None
-    type: str | Raw[str] | None = None
+    # The canonical Snapshot's five-member enum for this event, matching the
+    # TypeScript port's union. `workflow_call` has a *narrower* set (below);
+    # widening either to the other would manufacture a divergence from the
+    # schema.
+    type: (
+        Literal["boolean", "number", "string", "choice", "environment"]
+        | Raw[str]
+        | None
+    ) = None
     options: list[str] | None = None
 
 
@@ -181,7 +189,10 @@ class WorkflowCallInput(GhagenModel):
     description: str | None = None
     required: bool | None = None
     default: str | None = None
-    type: str | Raw[str] | None = None
+    # Three members, not five: the Snapshot gives `workflow_call` a narrower
+    # enum than `workflow_dispatch`, and marks it `"required"` — both of which
+    # the TypeScript port already declared.
+    type: Literal["boolean", "number", "string"] | Raw[str]
 
 
 class WorkflowCallOutput(GhagenModel):
