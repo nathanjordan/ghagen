@@ -1,102 +1,18 @@
 import { describe, it, expect } from "vitest";
-import type { ModelKind, ModelSpec } from "./_base.js";
-import { STEP_SPEC } from "./step.js";
-import { PERMISSIONS_SPEC } from "./permissions.js";
-import { CONTAINER_SPEC, SERVICE_SPEC } from "./container.js";
-import {
-  MATRIX_SPEC,
-  STRATEGY_SPEC,
-  CONCURRENCY_SPEC,
-  DEFAULTS_SPEC,
-  DEFAULTS_RUN_SPEC,
-  ENVIRONMENT_SPEC,
-  JOB_SPEC,
-} from "./job.js";
-import { WORKFLOW_SPEC } from "./workflow.js";
-import {
-  PUSH_TRIGGER_SPEC,
-  PR_TRIGGER_SPEC,
-  SCHEDULE_TRIGGER_SPEC,
-  WORKFLOW_DISPATCH_INPUT_SPEC,
-  WORKFLOW_DISPATCH_SPEC,
-  WORKFLOW_CALL_SPEC,
-  ON_SPEC,
-} from "./trigger.js";
-import {
-  ACTION_INPUT_SPEC,
-  ACTION_OUTPUT_SPEC,
-  BRANDING_SPEC,
-  COMPOSITE_RUNS_SPEC,
-  DOCKER_RUNS_SPEC,
-  NODE_RUNS_SPEC,
-  ACTION_SPEC,
-} from "./action.js";
-
-/** Every ModelSpec in the library. */
-const ALL_SPECS: ModelSpec[] = [
-  STEP_SPEC,
-  PERMISSIONS_SPEC,
-  CONTAINER_SPEC,
-  SERVICE_SPEC,
-  MATRIX_SPEC,
-  STRATEGY_SPEC,
-  CONCURRENCY_SPEC,
-  DEFAULTS_SPEC,
-  DEFAULTS_RUN_SPEC,
-  ENVIRONMENT_SPEC,
-  JOB_SPEC,
-  WORKFLOW_SPEC,
-  PUSH_TRIGGER_SPEC,
-  PR_TRIGGER_SPEC,
-  SCHEDULE_TRIGGER_SPEC,
-  WORKFLOW_DISPATCH_INPUT_SPEC,
-  WORKFLOW_DISPATCH_SPEC,
-  WORKFLOW_CALL_SPEC,
-  ON_SPEC,
-  ACTION_INPUT_SPEC,
-  ACTION_OUTPUT_SPEC,
-  BRANDING_SPEC,
-  COMPOSITE_RUNS_SPEC,
-  DOCKER_RUNS_SPEC,
-  NODE_RUNS_SPEC,
-  ACTION_SPEC,
-];
-
-/** Every ModelKind the discriminant union declares. */
-const ALL_KINDS: ModelKind[] = [
-  "step",
-  "job",
-  "workflow",
-  "action",
-  "on",
-  "pushTrigger",
-  "prTrigger",
-  "scheduleTrigger",
-  "workflowDispatch",
-  "workflowDispatchInput",
-  "workflowCall",
-  "permissions",
-  "strategy",
-  "matrix",
-  "concurrency",
-  "defaults",
-  "defaultsRun",
-  "environment",
-  "container",
-  "service",
-  "actionInput",
-  "actionOutput",
-  "branding",
-  "compositeRuns",
-  "dockerRuns",
-  "nodeRuns",
-];
+import { ALL_SPECS, SPECS_BY_KIND } from "./registry.js";
 
 describe("ModelSpec self-consistency", () => {
-  it("every ModelKind has exactly one spec", () => {
-    const kinds = ALL_SPECS.map((s) => s.kind).sort();
-    expect(kinds).toEqual([...ALL_KINDS].sort());
-    expect(new Set(kinds).size).toBe(ALL_SPECS.length);
+  // "every ModelKind has exactly one spec" is not a test any more: it is
+  // `satisfies Record<ModelKind, ModelSpec>` in registry.ts, checked by
+  // `tsc --noEmit -p tsconfig.json`. The two hand-maintained lists this file
+  // used to carry both omitted `imageSnapshot`, so the assertion that replaced
+  // it compared 26 against 26 and never consulted the union.
+  it("every registry entry's kind equals its key", () => {
+    // The one invariant `satisfies Record<ModelKind, ModelSpec>` cannot
+    // express: binding `imageSnapshot: STEP_SPEC` compiles clean.
+    for (const [key, spec] of Object.entries(SPECS_BY_KIND)) {
+      expect(spec.kind, `registry key ${key} is bound to a ${spec.kind} spec`).toBe(key);
+    }
   });
 
   it.each(ALL_SPECS)("$kind: explicit order has no duplicates", (spec) => {

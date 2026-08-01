@@ -22,26 +22,21 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SCHEMA_DIR } from "../paths.js";
 import type { ModelSpec } from "./_base.js";
-import {
-  ACTION_INPUT_SPEC,
-  ACTION_OUTPUT_SPEC,
-  ACTION_SPEC,
-  BRANDING_SPEC,
-  COMPOSITE_RUNS_SPEC,
-  DOCKER_RUNS_SPEC,
-  NODE_RUNS_SPEC,
-} from "./action.js";
-import { IMAGE_SNAPSHOT_SPEC, imageSnapshot } from "./image-snapshot.js";
-import { JOB_SPEC } from "./job.js";
-import { STEP_SPEC } from "./step.js";
-import { WORKFLOW_SPEC } from "./workflow.js";
+import { imageSnapshot } from "./image-snapshot.js";
+import { SPECS_BY_KIND } from "./registry.js";
 
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
 const SCOPES_PATH = resolve(SCHEMA_DIR, "conformance-scopes.yml");
 const VALUES_PATH = resolve(SCHEMA_DIR, "conformance-values.yml");
 
-/** A JSON path into a loaded schema: the keys to walk before reading props. */
-type SchemaPath = readonly string[];
+/**
+ * A JSON path into a loaded schema: the keys to walk before reading props.
+ *
+ * Integer segments index into a list — ten of the workflow scopes name a
+ * `oneOf` alternative positionally (`properties.on.oneOf[2]`,
+ * `definitions.snapshot.oneOf[1]`), and there is no other way to reach either.
+ */
+type SchemaPath = readonly (string | number)[];
 
 interface Scope {
   readonly spec: ModelSpec;
@@ -56,20 +51,20 @@ interface Scope {
 // match, so a scope added to one port and not the other fails a test.
 const SPECS: Record<string, Record<string, ModelSpec>> = {
   "workflow_schema.json": {
-    workflow: WORKFLOW_SPEC,
+    workflow: SPECS_BY_KIND.workflow,
     // ghagen's single job model covers both the regular-job and the
     // reusable-workflow-call-job shapes.
-    job: JOB_SPEC,
-    step: STEP_SPEC,
+    job: SPECS_BY_KIND.job,
+    step: SPECS_BY_KIND.step,
   },
   "action_schema.json": {
-    action: ACTION_SPEC,
-    compositeRuns: COMPOSITE_RUNS_SPEC,
-    dockerRuns: DOCKER_RUNS_SPEC,
-    nodeRuns: NODE_RUNS_SPEC,
-    actionInput: ACTION_INPUT_SPEC,
-    actionOutput: ACTION_OUTPUT_SPEC,
-    branding: BRANDING_SPEC,
+    action: SPECS_BY_KIND.action,
+    compositeRuns: SPECS_BY_KIND.compositeRuns,
+    dockerRuns: SPECS_BY_KIND.dockerRuns,
+    nodeRuns: SPECS_BY_KIND.nodeRuns,
+    actionInput: SPECS_BY_KIND.actionInput,
+    actionOutput: SPECS_BY_KIND.actionOutput,
+    branding: SPECS_BY_KIND.branding,
   },
 };
 
@@ -107,7 +102,7 @@ function loadGaps(): Gaps {
 function resolvePath(schema: Record<string, unknown>, path: SchemaPath): Record<string, unknown> {
   let node: unknown = schema;
   for (const key of path) {
-    node = (node as Record<string, unknown>)[key];
+    node = (node as Record<string | number, unknown>)[key];
   }
   return node as Record<string, unknown>;
 }
@@ -199,11 +194,9 @@ describe("schema conformance sweep", () => {
 // spec + constructor binding stays here.
 // ---------------------------------------------------------------------------
 
-/** A JSON path into a loaded schema that may index into a list. */
-type ValuePath = readonly (string | number)[];
-
 interface ValueEntry {
-  readonly path: ValuePath;
+  /** Walks to a pattern *string*, so it ends one segment deeper than a scope path. */
+  readonly path: SchemaPath;
   readonly accept: readonly string[];
   readonly reject: readonly string[];
 }
@@ -220,7 +213,7 @@ interface ValueBinding {
 const VALUE_BINDINGS: Record<string, Record<string, ValueBinding>> = {
   "workflow_schema.json": {
     "imageSnapshot.version": {
-      spec: IMAGE_SNAPSHOT_SPEC,
+      spec: SPECS_BY_KIND.imageSnapshot,
       construct: (version) => imageSnapshot({ imageName: "img", version }),
     },
   },
@@ -230,7 +223,7 @@ function loadValues(): Record<string, Record<string, ValueEntry>> {
   return parse(readFileSync(VALUES_PATH, "utf8")) as Record<string, Record<string, ValueEntry>>;
 }
 
-function resolveValuePath(schema: Record<string, unknown>, path: ValuePath): unknown {
+function resolveValuePath(schema: Record<string, unknown>, path: SchemaPath): unknown {
   let node: unknown = schema;
   for (const key of path) {
     node = (node as Record<string | number, unknown>)[key];

@@ -57,6 +57,7 @@ export type {
   MatrixModel,
   ConcurrencyModel,
   DefaultsModel,
+  DefaultsRunModel,
   EnvironmentModel,
   ContainerModel,
   ServiceModel,
