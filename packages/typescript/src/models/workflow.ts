@@ -1,13 +1,12 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
+import { defineFactory } from "./_base.js";
 import type {
   OnModel,
   PermissionsModel,
   ConcurrencyModel,
   DefaultsModel,
   JobModel,
-  WithMeta,
   Raw,
   ModelSpec,
   WorkflowModel,
@@ -92,8 +91,6 @@ export const WORKFLOW_SPEC: ModelSpec = {
  *   },
  * })
  * ```
+ * @function
  */
-export function workflow(input: WithMeta<WorkflowInput>): WorkflowModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<WorkflowModel>(WORKFLOW_SPEC, data as Record<string, unknown>, meta);
-}
+export const workflow = defineFactory<WorkflowModel, WorkflowInput>(WORKFLOW_SPEC);

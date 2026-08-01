@@ -3,7 +3,7 @@ import type {
   Concurrency as SchemaConcurrency,
   Environment as SchemaEnvironment,
 } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
+import { defineFactory } from "./_base.js";
 import type {
   JobModel,
   StrategyModel,
@@ -17,7 +17,6 @@ import type {
   ContainerModel,
   ServiceModel,
   ImageSnapshotModel,
-  WithMeta,
   Raw,
   ModelSpec,
 } from "./_base.js";
@@ -79,10 +78,8 @@ export const MATRIX_SPEC: ModelSpec = {
   dynamicKeys: true,
 };
 
-export function matrix(input: WithMeta<MatrixInput>): MatrixModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<MatrixModel>(MATRIX_SPEC, data as Record<string, unknown>, meta);
-}
+/** @function */
+export const matrix = defineFactory<MatrixModel, MatrixInput>(MATRIX_SPEC);
 
 /**
  * Input for job strategy configuration including matrix builds, fail-fast
@@ -122,10 +119,8 @@ export const STRATEGY_SPEC: ModelSpec = {
   wrap: { matrix_: { factory: matrix, mode: "model" } },
 };
 
-export function strategy(input: WithMeta<StrategyInput>): StrategyModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<StrategyModel>(STRATEGY_SPEC, data as Record<string, unknown>, meta);
-}
+/** @function */
+export const strategy = defineFactory<StrategyModel, StrategyInput>(STRATEGY_SPEC);
 
 // ---- Concurrency ----
 
@@ -163,11 +158,9 @@ export const CONCURRENCY_SPEC: ModelSpec = {
  *   cancelInProgress: true,
  * })
  * ```
+ * @function
  */
-export function concurrency(input: WithMeta<ConcurrencyInput>): ConcurrencyModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<ConcurrencyModel>(CONCURRENCY_SPEC, data as Record<string, unknown>, meta);
-}
+export const concurrency = defineFactory<ConcurrencyModel, ConcurrencyInput>(CONCURRENCY_SPEC);
 
 // ---- Defaults ----
 
@@ -215,10 +208,13 @@ export const DEFAULTS_RUN_SPEC: ModelSpec = {
   order: { kind: "explicit", keys: ["shell", "working-directory"] },
 };
 
-/** Promote an inline `run` shorthand into an ordered {@link DefaultsRunModel}. */
-function defaultsRun(input: DefaultsRunInput): DefaultsRunModel {
-  return buildModel<DefaultsRunModel>(DEFAULTS_RUN_SPEC, input as Record<string, unknown>, {});
-}
+/**
+ * Promote an inline `run` shorthand into an ordered {@link DefaultsRunModel}.
+ *
+ * Module-private: reached only through {@link DEFAULTS_SPEC}'s wrap rule, so it
+ * renders nowhere and needs no `@function` tag.
+ */
+const defaultsRun = defineFactory<DefaultsRunModel, DefaultsRunInput>(DEFAULTS_RUN_SPEC);
 
 /**
  * Serialization spec for {@link DefaultsModel}.
@@ -233,10 +229,8 @@ export const DEFAULTS_SPEC: ModelSpec = {
   wrap: { run: { factory: defaultsRun, mode: "objectModel" } },
 };
 
-export function defaults(input: WithMeta<DefaultsInput>): DefaultsModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<DefaultsModel>(DEFAULTS_SPEC, data as Record<string, unknown>, meta);
-}
+/** @function */
+export const defaults = defineFactory<DefaultsModel, DefaultsInput>(DEFAULTS_SPEC);
 
 // ---- Environment ----
 
@@ -277,11 +271,9 @@ export const ENVIRONMENT_SPEC: ModelSpec = {
  * ```ts
  * environment({ name: "production", url: "https://example.com" })
  * ```
+ * @function
  */
-export function environment(input: WithMeta<EnvironmentInput>): EnvironmentModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<EnvironmentModel>(ENVIRONMENT_SPEC, data as Record<string, unknown>, meta);
-}
+export const environment = defineFactory<EnvironmentModel, EnvironmentInput>(ENVIRONMENT_SPEC);
 
 // ---- Job ----
 
@@ -415,8 +407,6 @@ export const JOB_SPEC: ModelSpec = {
  *   ],
  * })
  * ```
+ * @function
  */
-export function job(input: WithMeta<JobInput>): JobModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<JobModel>(JOB_SPEC, data as Record<string, unknown>, meta);
-}
+export const job = defineFactory<JobModel, JobInput>(JOB_SPEC);

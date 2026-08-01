@@ -1,6 +1,6 @@
 import type { Container as SchemaContainer } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
-import type { WithMeta, ModelSpec, ContainerModel, ServiceModel } from "./_base.js";
+import { defineFactory } from "./_base.js";
+import type { ModelSpec, ContainerModel, ServiceModel } from "./_base.js";
 
 /**
  * Input properties for defining a container used in a GitHub Actions job.
@@ -65,11 +65,9 @@ export const SERVICE_SPEC: ModelSpec = {
  *   ports: ["5432:5432"],
  * });
  * ```
+ * @function
  */
-export function container(input: WithMeta<ContainerInput>): ContainerModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<ContainerModel>(CONTAINER_SPEC, data as Record<string, unknown>, meta);
-}
+export const container = defineFactory<ContainerModel, ContainerInput>(CONTAINER_SPEC);
 
 /**
  * Create a service container model.
@@ -89,8 +87,6 @@ export function container(input: WithMeta<ContainerInput>): ContainerModel {
  *   ports: ["6379:6379"],
  * });
  * ```
+ * @function
  */
-export function service(input: WithMeta<ContainerInput>): ServiceModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<ServiceModel>(SERVICE_SPEC, data as Record<string, unknown>, meta);
-}
+export const service = defineFactory<ServiceModel, ContainerInput>(SERVICE_SPEC);

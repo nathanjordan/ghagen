@@ -1,4 +1,4 @@
-import { buildModel, extractMeta } from "./_base.js";
+import { defineFactory } from "./_base.js";
 import type {
   OnModel,
   PushTriggerModel,
@@ -10,7 +10,6 @@ import type {
   WorkflowCallInputModel,
   WorkflowCallOutputModel,
   WorkflowCallSecretModel,
-  WithMeta,
   ModelSpec,
   Raw,
 } from "./_base.js";
@@ -65,11 +64,9 @@ export const PUSH_TRIGGER_SPEC: ModelSpec = {
  *   pathsIgnore: ["docs/**"],
  * })
  * ```
+ * @function
  */
-export function pushTrigger(input: WithMeta<PushTriggerInput>): PushTriggerModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<PushTriggerModel>(PUSH_TRIGGER_SPEC, data as Record<string, unknown>, meta);
-}
+export const pushTrigger = defineFactory<PushTriggerModel, PushTriggerInput>(PUSH_TRIGGER_SPEC);
 
 /**
  * Input for `pull_request` and `pull_request_target` event trigger
@@ -124,11 +121,9 @@ export const PR_TRIGGER_SPEC: ModelSpec = {
  *   types: ["opened", "synchronize"],
  * })
  * ```
+ * @function
  */
-export function prTrigger(input: WithMeta<PRTriggerInput>): PRTriggerModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<PRTriggerModel>(PR_TRIGGER_SPEC, data as Record<string, unknown>, meta);
-}
+export const prTrigger = defineFactory<PRTriggerModel, PRTriggerInput>(PR_TRIGGER_SPEC);
 
 /**
  * Input for cron-based schedule trigger configuration.
@@ -158,14 +153,10 @@ export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
   order: { kind: "explicit", keys: ["cron", "timezone"] },
 };
 
-export function scheduleTrigger(input: WithMeta<ScheduleTriggerInput>): ScheduleTriggerModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<ScheduleTriggerModel>(
-    SCHEDULE_TRIGGER_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+/** @function */
+export const scheduleTrigger = defineFactory<ScheduleTriggerModel, ScheduleTriggerInput>(
+  SCHEDULE_TRIGGER_SPEC,
+);
 
 /**
  * Definition for a single input parameter on a `workflow_dispatch` trigger.
@@ -248,16 +239,10 @@ export const WORKFLOW_DISPATCH_INPUT_SPEC: ModelSpec = {
 };
 
 /** Wrap one `workflow_dispatch` input def into an ordered model. */
-function workflowDispatchInputDef(
-  input: WithMeta<WorkflowDispatchInputDef>,
-): WorkflowDispatchInputModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<WorkflowDispatchInputModel>(
-    WORKFLOW_DISPATCH_INPUT_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+const workflowDispatchInputDef = defineFactory<
+  WorkflowDispatchInputModel,
+  WorkflowDispatchInputDef
+>(WORKFLOW_DISPATCH_INPUT_SPEC);
 
 /** Serialization spec for {@link WorkflowDispatchModel}. */
 export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
@@ -267,14 +252,10 @@ export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
   wrap: { inputs: { factory: workflowDispatchInputDef, mode: "map" } },
 };
 
-export function workflowDispatch(input: WithMeta<WorkflowDispatchInput>): WorkflowDispatchModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<WorkflowDispatchModel>(
-    WORKFLOW_DISPATCH_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+/** @function */
+export const workflowDispatch = defineFactory<WorkflowDispatchModel, WorkflowDispatchInput>(
+  WORKFLOW_DISPATCH_SPEC,
+);
 
 /**
  * Definition for a single input parameter on a `workflow_call` trigger.
@@ -383,34 +364,19 @@ export const WORKFLOW_CALL_SECRET_SPEC: ModelSpec = {
 };
 
 /** Wrap one `workflow_call` input def into an ordered model. */
-function workflowCallInputDef(input: WithMeta<WorkflowCallInputDef>): WorkflowCallInputModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<WorkflowCallInputModel>(
-    WORKFLOW_CALL_INPUT_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+const workflowCallInputDef = defineFactory<WorkflowCallInputModel, WorkflowCallInputDef>(
+  WORKFLOW_CALL_INPUT_SPEC,
+);
 
 /** Wrap one `workflow_call` output def into an ordered model. */
-function workflowCallOutputDef(input: WithMeta<WorkflowCallOutputDef>): WorkflowCallOutputModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<WorkflowCallOutputModel>(
-    WORKFLOW_CALL_OUTPUT_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+const workflowCallOutputDef = defineFactory<WorkflowCallOutputModel, WorkflowCallOutputDef>(
+  WORKFLOW_CALL_OUTPUT_SPEC,
+);
 
 /** Wrap one `workflow_call` secret def into an ordered model. */
-function workflowCallSecretDef(input: WithMeta<WorkflowCallSecretDef>): WorkflowCallSecretModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<WorkflowCallSecretModel>(
-    WORKFLOW_CALL_SECRET_SPEC,
-    data as Record<string, unknown>,
-    meta,
-  );
-}
+const workflowCallSecretDef = defineFactory<WorkflowCallSecretModel, WorkflowCallSecretDef>(
+  WORKFLOW_CALL_SECRET_SPEC,
+);
 
 /** Serialization spec for {@link WorkflowCallModel}. */
 export const WORKFLOW_CALL_SPEC: ModelSpec = {
@@ -424,10 +390,8 @@ export const WORKFLOW_CALL_SPEC: ModelSpec = {
   },
 };
 
-export function workflowCall(input: WithMeta<WorkflowCallInput>): WorkflowCallModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<WorkflowCallModel>(WORKFLOW_CALL_SPEC, data as Record<string, unknown>, meta);
-}
+/** @function */
+export const workflowCall = defineFactory<WorkflowCallModel, WorkflowCallInput>(WORKFLOW_CALL_SPEC);
 
 /**
  * Top-level trigger configuration for the `on:` section of a workflow.
@@ -586,8 +550,6 @@ export const ON_SPEC: ModelSpec = {
  *   workflowDispatch: true,
  * })
  * ```
+ * @function
  */
-export function on(input: WithMeta<OnInput>): OnModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<OnModel>(ON_SPEC, data as Record<string, unknown>, meta);
-}
+export const on = defineFactory<OnModel, OnInput>(ON_SPEC);

@@ -1,9 +1,8 @@
 import type { YAMLMap } from "yaml";
 import type { HttpsJsonSchemastoreOrgGithubActionJson as SchemaAction } from "../schema/action-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
+import { defineFactory } from "./_base.js";
 import type {
   StepModel,
-  WithMeta,
   Raw,
   ModelSpec,
   ActionModel,
@@ -270,11 +269,11 @@ export const ACTION_SPEC: ModelSpec = {
  *   default: "World",
  * });
  * ```
+ * @function
  */
-export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInputModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<ActionInputModel>(ACTION_INPUT_SPEC, data as Record<string, unknown>, meta);
-}
+export const actionInputDef = defineFactory<ActionInputModel, ActionInputDefInput>(
+  ACTION_INPUT_SPEC,
+);
 
 /**
  * Create an action output definition model.
@@ -291,11 +290,11 @@ export function actionInputDef(input: WithMeta<ActionInputDefInput>): ActionInpu
  *   value: "${{ steps.greet.outputs.time }}",
  * });
  * ```
+ * @function
  */
-export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOutputModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<ActionOutputModel>(ACTION_OUTPUT_SPEC, data as Record<string, unknown>, meta);
-}
+export const actionOutputDef = defineFactory<ActionOutputModel, ActionOutputDefInput>(
+  ACTION_OUTPUT_SPEC,
+);
 
 /**
  * Create a branding model for a GitHub Actions Marketplace listing.
@@ -307,11 +306,9 @@ export function actionOutputDef(input: WithMeta<ActionOutputDefInput>): ActionOu
  * ```ts
  * const badge = branding({ icon: "award", color: "green" });
  * ```
+ * @function
  */
-export function branding(input: WithMeta<BrandingInput>): BrandingModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<BrandingModel>(BRANDING_SPEC, data as Record<string, unknown>, meta);
-}
+export const branding = defineFactory<BrandingModel, BrandingInput>(BRANDING_SPEC);
 
 /**
  * Create a composite runs model.
@@ -329,11 +326,11 @@ export function branding(input: WithMeta<BrandingInput>): BrandingModel {
  *   steps: [step({ run: "echo Hello" })],
  * });
  * ```
+ * @function
  */
-export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRunsModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<CompositeRunsModel>(COMPOSITE_RUNS_SPEC, data as Record<string, unknown>, meta);
-}
+export const compositeRuns = defineFactory<CompositeRunsModel, CompositeRunsInput>(
+  COMPOSITE_RUNS_SPEC,
+);
 
 /**
  * Create a Docker runs model.
@@ -352,11 +349,9 @@ export function compositeRuns(input: WithMeta<CompositeRunsInput>): CompositeRun
  *   args: ["--name", "${{ inputs.name }}"],
  * });
  * ```
+ * @function
  */
-export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<DockerRunsModel>(DOCKER_RUNS_SPEC, data as Record<string, unknown>, meta);
-}
+export const dockerRuns = defineFactory<DockerRunsModel, DockerRunsInput>(DOCKER_RUNS_SPEC);
 
 /**
  * Create a Node.js runs model.
@@ -375,11 +370,9 @@ export function dockerRuns(input: WithMeta<DockerRunsInput>): DockerRunsModel {
  *   post: "dist/cleanup.js",
  * });
  * ```
+ * @function
  */
-export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<NodeRunsModel>(NODE_RUNS_SPEC, data as Record<string, unknown>, meta);
-}
+export const nodeRuns = defineFactory<NodeRunsModel, NodeRunsInput>(NODE_RUNS_SPEC);
 
 /**
  * Create an action model representing a complete `action.yml` definition.
@@ -399,8 +392,6 @@ export function nodeRuns(input: WithMeta<NodeRunsInput>): NodeRunsModel {
  *   runs: nodeRuns({ using: "node20", main: "dist/index.js" }),
  * });
  * ```
+ * @function
  */
-export function action(input: WithMeta<ActionInput>): ActionModel {
-  const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
-  return buildModel<ActionModel>(ACTION_SPEC, data as Record<string, unknown>, meta);
-}
+export const action = defineFactory<ActionModel, ActionInput>(ACTION_SPEC);

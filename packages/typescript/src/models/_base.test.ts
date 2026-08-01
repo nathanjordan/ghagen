@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
   raw,
@@ -7,13 +9,15 @@ import {
   withComment,
   extractMeta,
   buildYamlData,
+  defineFactory,
   Model,
   ModelInputError,
 } from "./_base.js";
 import type { ModelSpec } from "./_base.js";
 import { WORKFLOW_SPEC } from "./workflow.js";
 import { STEP_SPEC } from "./step.js";
-import { JOB_SPEC } from "./job.js";
+import { JOB_SPEC, defaults } from "./job.js";
+import type { DefaultsRunInput } from "./job.js";
 
 // ---------------------------------------------------------------------------
 // raw()
@@ -242,5 +246,147 @@ describe("buildYamlData()", () => {
     const data = { env: withComment({ CI: "true" }, "environment") };
     const out = buildYamlData(spec, data);
     expect(isCommented(out["env"])).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defineFactory()
+// ---------------------------------------------------------------------------
+
+describe("defineFactory()", () => {
+  interface DemoInput {
+    runsOn?: string;
+    timeoutMinutes?: number;
+  }
+
+  const DEMO_SPEC = {
+    kind: "job",
+    fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
+    order: { kind: "explicit", keys: ["runs-on", "timeout-minutes"] },
+  } as unknown as ModelSpec;
+
+  it("splits meta off the input and maps the rest through the spec fieldMap", () => {
+    const demo = defineFactory<Model, DemoInput>(DEMO_SPEC);
+    const model = demo({ runsOn: "ubuntu-latest", timeoutMinutes: 10, comment: "hi" });
+    expect(model.data).toEqual({ "runs-on": "ubuntu-latest", "timeout-minutes": 10 });
+    expect(model.meta.comment).toBe("hi");
+  });
+
+  it("takes the model kind from the passed spec", () => {
+    const demo = defineFactory<Model, DemoInput>(DEMO_SPEC);
+    expect(demo({ runsOn: "ubuntu-latest" }).kind).toBe("job");
+    expect(demo({ runsOn: "ubuntu-latest" })).toBeInstanceOf(Model);
+  });
+
+  it("applies the spec's wrap rules", () => {
+    const inner = defineFactory<Model, DemoInput>(DEMO_SPEC);
+    const outerSpec = {
+      kind: "workflow",
+      fieldMap: { nested: "nested" },
+      order: { kind: "explicit", keys: ["nested"] },
+      wrap: { nested: { mode: "model", factory: inner } },
+    } as unknown as ModelSpec;
+    const outer = defineFactory<Model, { nested?: DemoInput }>(outerSpec);
+    const model = outer({ nested: { runsOn: "ubuntu-latest" } });
+    expect(isModel(model.data["nested"])).toBe(true);
+  });
+
+  it("honours dynamicKeys", () => {
+    const dynSpec = {
+      kind: "matrix",
+      fieldMap: { include: "include" },
+      order: { kind: "explicit", keys: ["include"] },
+      dynamicKeys: true,
+    } as unknown as ModelSpec;
+    const dyn = defineFactory<Model, Record<string, unknown>>(dynSpec);
+    expect(dyn({ "node-version": [20, 22] }).data).toEqual({ "node-version": [20, 22] });
+  });
+
+  // The two 09 behaviours every collapsed factory must keep. `defineFactory`
+  // wraps nothing in try/catch, so both propagate with the caller's frame.
+  it("propagates ModelInputError for an unknown input key", () => {
+    const demo = defineFactory<Model, DemoInput>(DEMO_SPEC);
+    expect(() => demo({ nope: 1 } as unknown as DemoInput)).toThrow(ModelInputError);
+    expect(() => demo({ nope: 1 } as unknown as DemoInput)).toThrow(/nope/);
+  });
+
+  it("propagates ModelInputError for a value outside the spec's declared grammar", () => {
+    const patSpec = {
+      kind: "imageSnapshot",
+      fieldMap: { version: "version" },
+      order: { kind: "explicit", keys: ["version"] },
+      patterns: { version: /^\d+$/ },
+    } as unknown as ModelSpec;
+    const snap = defineFactory<Model, { version?: string }>(patSpec);
+    expect(() => snap({ version: "v1" })).toThrow(ModelInputError);
+    expect(snap({ version: "12" }).data).toEqual({ version: "12" });
+  });
+
+  // `captureSourceLocation` skips internal frames by predicate, not by a fixed
+  // count, so the extra closure frame `defineFactory` introduces must stay
+  // invisible. A regression here silently degrades every PinTransform
+  // diagnostic, so pin it rather than reason about it.
+  it("keeps sourceLocation pointing at the caller, not at the closure", () => {
+    const demo = defineFactory<Model, DemoInput>(DEMO_SPEC);
+    const model = demo({ runsOn: "ubuntu-latest" });
+    const here = fileURLToPath(import.meta.url);
+    expect(model.sourceLocation).not.toBeNull();
+    expect(model.sourceLocation?.file).toBe(here);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultsRun meta promotion
+// ---------------------------------------------------------------------------
+
+// The sweep's ONLY behavioural change. `defaultsRun` was the one factory body
+// that skipped `extractMeta` and hard-coded `{}` as meta, so a meta key
+// reaching the `run` shorthand was passed to `buildYamlData` as a *data* key
+// -- which post-09 makes it a hard ModelInputError. Routing it through
+// `defineFactory` promotes the key to meta like every other factory.
+describe("defaults({ run }) meta promotion", () => {
+  it("promotes a meta key on the run shorthand instead of rejecting it", () => {
+    const model = defaults({
+      run: { shell: "bash", comment: "default shell" } as DefaultsRunInput,
+    });
+    const runModel = model.data["run"];
+    expect(isModel(runModel)).toBe(true);
+    expect((runModel as Model).data).toEqual({ shell: "bash" });
+    expect((runModel as Model).meta.comment).toBe("default shell");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `@function` tag guard
+// ---------------------------------------------------------------------------
+
+// TypeDoc reflects a function-typed `const` as a Variable unless the doc block
+// carries `@function`. Without the tag every collapsed factory's page moves
+// from `functions/` to `variables/`, breaking published deep links -- and
+// nothing else in CI notices: tsc, oxlint and the docs build are all silent.
+// The identical failure mode (a doc block that does not attach) is already
+// live in six factories, so the sweep brings its own detector.
+describe("exported defineFactory bindings carry @function", () => {
+  const MODULES = [
+    "action.ts",
+    "container.ts",
+    "image-snapshot.ts",
+    "job.ts",
+    "permissions.ts",
+    "step.ts",
+    "trigger.ts",
+    "workflow.ts",
+  ];
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+
+  it.each(MODULES)("%s", (name) => {
+    const source = readFileSync(`${dir}${name}`, "utf8");
+    const bindings = [...source.matchAll(/^export const (\w+) = defineFactory</gm)];
+    expect(bindings.length).toBeGreaterThan(0);
+    for (const match of bindings) {
+      const preceding = source.slice(0, match.index);
+      const block = preceding.slice(preceding.lastIndexOf("/**"));
+      expect(block, `${name}: ${match[1]} is missing @function`).toContain("@function");
+    }
   });
 });
