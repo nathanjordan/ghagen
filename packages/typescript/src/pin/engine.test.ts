@@ -234,6 +234,28 @@ describe("upgrade()", () => {
     expect(stale.latest_sha).toBe(newSha);
   });
 
+  // Moved here from src/cli/deps.test.ts's non-semver test, which asserted it
+  // through a JSON payload. The grammar itself is pinned by
+  // schema/tag-grammar.yml (`main` -> null); this is the engine's half — a ref
+  // the grammar rejects yields no bump even when newer version tags exist.
+  it("never bumps a ref whose tag is not a version tag", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@main");
+    const source = join(tmp, "wf.ts");
+    writeFileSync(source, 'step({ uses: "actions/checkout@main" });\n');
+    const client = new GitHubClient(
+      new FakeTransport({ "git/refs/tags": tags("v1", "v2", "v3", "v4", "v5") }),
+    );
+
+    const report = await upgrade(app, client, new Set([source]), {
+      mode: "versions",
+      apply: true,
+    });
+
+    expect(report.versionBumps).toEqual([]);
+    expect(report.changedFiles).toEqual([]);
+    expect(readFileSync(source, "utf8")).toContain("actions/checkout@main");
+  });
+
   it("returns an empty report when there are no refs", async () => {
     const app = appWithoutRefs(tmp);
     const client = new GitHubClient(new FakeTransport({}));

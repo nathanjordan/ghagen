@@ -248,6 +248,28 @@ class TestUpgrade:
         assert stale.current_sha == old_sha
         assert stale.latest_sha == new_sha
 
+    def test_non_version_tag_ref_is_never_a_bump(self, tmp_path: Path):
+        """``@main`` is not a version tag, so it is not an upgrade candidate.
+
+        Moved here from ``test_cli/test_deps.py::TestUpgradeNonSemver``, which
+        asserted it through a CliRunner and a JSON payload.  The grammar itself
+        is pinned by ``schema/tag-grammar.yml`` (``main`` -> null); this is the
+        engine's half — a ref the grammar rejects yields no bump even when the
+        repo has plenty of newer version tags.
+        """
+        app = _app_with_refs(tmp_path, "actions/checkout@main")
+        source = tmp_path / "wf.py"
+        source.write_text('Step(uses="actions/checkout@main")\n')
+        client = GitHubClient(
+            FakeTransport({"git/refs/tags": _tags("v1", "v2", "v3", "v4", "v5")})
+        )
+
+        report = upgrade(app, client, {source}, mode="versions", apply=True)
+
+        assert report.version_bumps == []
+        assert report.changed_files == []
+        assert "actions/checkout@main" in source.read_text()
+
     def test_no_refs_returns_empty(self, tmp_path: Path):
         app = _app_without_refs(tmp_path)
         client = GitHubClient(FakeTransport({}))
