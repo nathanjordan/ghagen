@@ -66,31 +66,40 @@ def test_main_returns_for_every_row(tmp_path: Path, monkeypatch: Any):
 # stderr-rendering fidelity: Typer's renderer, not click's
 # ---------------------------------------------------------------------------
 
-#: ``(argv, message, prog)``. ``prog`` is ``None`` for the one case Typer
+#: ``(argv, fragments, prog)``. ``prog`` is ``None`` for the one case Typer
 #: renders without a usage preamble (a missing option argument is raised before
 #: the failing option's context carries one).
+#:
+#: ``fragments`` are matched as substrings, not as a whole message, and they
+#: deliberately exclude click's punctuation around the offending token. click
+#: reworded its usage errors in 8.4 (``No such option: --bogus`` became
+#: ``No such option '--bogus'.``), and `pyproject.toml` declares ``click>=8.2.1``
+#: with no ceiling, so both wordings are manifest-legal and a fresh resolve gets
+#: whichever is current. What this test is *for* is the renderer -- the rich
+#: panel below -- not click's prose, so pinning the prose only made the test
+#: fail on a wording change it does not care about.
 _FIDELITY_CASES = [
     pytest.param(
         ["bogus-command"],
-        "No such command 'bogus-command'.",
+        ("No such command", "bogus-command"),
         "ghagen",
         id="unknown-command",
     ),
     pytest.param(
         ["synth", "--bogus"],
-        "No such option: --bogus",
+        ("No such option", "--bogus"),
         "ghagen synth",
         id="unknown-option",
     ),
     pytest.param(
         ["init", "--outdir"],
-        "Option '--outdir' requires an argument.",
+        ("Option '--outdir' requires an argument.",),
         None,
         id="missing-option-argument",
     ),
     pytest.param(
         ["--version"],
-        "No such option: --version",
+        ("No such option", "--version"),
         "ghagen",
         id="unknown-top-level-option",
     ),
@@ -102,10 +111,10 @@ _FIDELITY_CASES = [
     reason="TYPER_USE_RICH=0 -- Typer itself falls back to click's plain renderer, "
     "and main() mirrors that branch",
 )
-@pytest.mark.parametrize(("argv", "message", "prog"), _FIDELITY_CASES)
+@pytest.mark.parametrize(("argv", "fragments", "prog"), _FIDELITY_CASES)
 def test_error_rendering_is_typers_not_clicks(
     argv: list[str],
-    message: str,
+    fragments: tuple[str, ...],
     prog: str | None,
     tmp_path: Path,
     monkeypatch: Any,
@@ -125,7 +134,8 @@ def test_error_rendering_is_typers_not_clicks(
     assert "╭─" in err, "Typer's rich error panel is gone -- click's plain renderer?"
     assert "Error" in err
     assert "╰─" in err
-    assert message in err
+    for fragment in fragments:
+        assert fragment in err
     if prog is not None:
         assert err.startswith("Usage: ")
         assert f"Try '{prog} --help' for help." in err
