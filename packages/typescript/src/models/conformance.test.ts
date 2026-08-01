@@ -31,12 +31,14 @@ import {
   DOCKER_RUNS_SPEC,
   NODE_RUNS_SPEC,
 } from "./action.js";
+import { IMAGE_SNAPSHOT_SPEC, imageSnapshot } from "./image-snapshot.js";
 import { JOB_SPEC } from "./job.js";
 import { STEP_SPEC } from "./step.js";
 import { WORKFLOW_SPEC } from "./workflow.js";
 
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
 const SCOPES_PATH = resolve(SCHEMA_DIR, "conformance-scopes.yml");
+const VALUES_PATH = resolve(SCHEMA_DIR, "conformance-values.yml");
 
 /** A JSON path into a loaded schema: the keys to walk before reading props. */
 type SchemaPath = readonly string[];
@@ -185,6 +187,107 @@ describe("schema conformance sweep", () => {
       expect(
         Object.keys(SPECS[snapshot]).sort(),
         `${snapshot} scopes diverge from conformance-scopes.yml`,
+      ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Value-grammar sweep. The scope table above covers *which properties* a model
+// exposes; this covers *which values* a field accepts. The shared table is
+// schema/conformance-values.yml, read identically by the Python sweep; only the
+// spec + constructor binding stays here.
+// ---------------------------------------------------------------------------
+
+/** A JSON path into a loaded schema that may index into a list. */
+type ValuePath = readonly (string | number)[];
+
+interface ValueEntry {
+  readonly path: ValuePath;
+  readonly accept: readonly string[];
+  readonly reject: readonly string[];
+}
+
+interface ValueBinding {
+  readonly spec: ModelSpec;
+  /** Construct the model with `value` in the bound field. Throws on reject. */
+  readonly construct: (value: string) => unknown;
+}
+
+// snapshot filename -> `<kind>.<field>` -> this port's spec + constructor. The
+// key format is exactly `spec.kind` plus a `patterns` key, so the shared table
+// *is* the spec data under one join.
+const VALUE_BINDINGS: Record<string, Record<string, ValueBinding>> = {
+  "workflow_schema.json": {
+    "imageSnapshot.version": {
+      spec: IMAGE_SNAPSHOT_SPEC,
+      construct: (version) => imageSnapshot({ imageName: "img", version }),
+    },
+  },
+};
+
+function loadValues(): Record<string, Record<string, ValueEntry>> {
+  return parse(readFileSync(VALUES_PATH, "utf8")) as Record<string, Record<string, ValueEntry>>;
+}
+
+function resolveValuePath(schema: Record<string, unknown>, path: ValuePath): unknown {
+  let node: unknown = schema;
+  for (const key of path) {
+    node = (node as Record<string | number, unknown>)[key];
+  }
+  return node;
+}
+
+describe("schema value-grammar sweep", () => {
+  const values = loadValues();
+
+  for (const [snapshot, entries] of Object.entries(values)) {
+    const schema = loadSchema(snapshot);
+
+    for (const [key, entry] of Object.entries(entries)) {
+      const binding = VALUE_BINDINGS[snapshot]?.[key];
+      if (binding === undefined) {
+        continue; // the parity guard below is the failure surface
+      }
+      const field = key.slice(key.indexOf(".") + 1);
+
+      it(`${snapshot}:${key} pattern matches the canonical Snapshot`, () => {
+        const pattern = binding.spec.patterns?.[field];
+        expect(pattern, `${key} declares no pattern in its ModelSpec`).toBeDefined();
+        expect(pattern?.source).toBe(resolveValuePath(schema, entry.path));
+        // A `/g` pattern makes `RegExp.test` stateful across calls.
+        expect(pattern?.flags, `${key} pattern must carry no flags`).toBe("");
+      });
+
+      it(`${snapshot}:${key} accepts every schema-valid vector`, () => {
+        for (const value of entry.accept) {
+          expect(
+            () => binding.construct(value),
+            `${key} rejected ${JSON.stringify(value)}`,
+          ).not.toThrow();
+        }
+      });
+
+      it(`${snapshot}:${key} rejects every schema-invalid vector`, () => {
+        for (const value of entry.reject) {
+          expect(
+            () => binding.construct(value),
+            `${key} accepted ${JSON.stringify(value)}`,
+          ).toThrow();
+        }
+      });
+    }
+  }
+
+  it("value-grammar key set matches the shared value table", () => {
+    // Mirrors the Python guard (test_value_key_set_matches_shared_table): a
+    // grammar enforced in one port and not the other fails here.
+    const shared = loadValues();
+    expect(Object.keys(VALUE_BINDINGS).sort()).toEqual(Object.keys(shared).sort());
+    for (const snapshot of Object.keys(shared)) {
+      expect(
+        Object.keys(VALUE_BINDINGS[snapshot]).sort(),
+        `${snapshot} value grammars diverge from conformance-values.yml`,
       ).toEqual(Object.keys(shared[snapshot]).sort());
     }
   });

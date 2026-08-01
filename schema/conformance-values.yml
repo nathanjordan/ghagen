@@ -1,0 +1,64 @@
+# Shared conformance-sweep value-grammar table for the hand-written ghagen models.
+#
+# The peer of conformance-scopes.yml, one level down. Where the scope table
+# covers *which properties* a model exposes, this table covers *which values* a
+# field accepts. Without it a value grammar exists as a regex literal in one
+# port, a sentence in a doc comment in the other, and a JSON string in the
+# canonical Snapshot, with nothing asserting the three agree.
+#
+# Keys are `<snapshot filename>` -> `<kind>.<field>`, which is exactly a
+# ModelSpec's `kind` plus one of its `patterns` keys. Each entry carries:
+#
+#   path    - the keys to walk into the loaded schema to reach the pattern
+#             string. Integer segments index into a list (e.g. a `oneOf`).
+#             Positional, so an upstream reordering breaks the sweep — which is
+#             the intent: ADR-0003's posture is that upstream change surfaces as
+#             a failing conformance check, and schema-drift.yml already turns
+#             upstream change into a PR where this path is updated alongside the
+#             Snapshot.
+#   accept  - values every port must construct successfully.
+#   reject  - values every port must refuse at construction.
+#
+# Each sweep binds each key to its own port's spec + a constructor, then asserts
+# three things:
+#
+#   1. Pattern identity - the port's pattern source string equals the schema's
+#      pattern string at `path`. (The TypeScript half also asserts `.flags` is
+#      empty: `RegExp.test` is stateful under `/g`.)
+#   2. Vectors - every `accept` constructs, every `reject` raises. This is what
+#      pattern identity cannot see: both dialect bugs this table was written for
+#      (`re.match` accepting a trailing newline, and Python's Unicode-aware
+#      `\d`) leave `.pattern` byte-identical and are only visible to executed
+#      vectors.
+#   3. Key-set parity - both sweeps assert their bound key set equals this
+#      file's, so a grammar enforced in one port and not the other fails a test.
+#
+# Read by:
+#   - Python (packages/python/tests/test_schema/test_conformance.py)
+#   - TypeScript (packages/typescript/src/models/conformance.test.ts)
+
+workflow_schema.json:
+  imageSnapshot.version:
+    path: [definitions, snapshot, oneOf, 1, properties, version, pattern]
+    accept: ["1", "01", "12", "1.2", "12.34", "1*"]
+    reject:
+      # Schema-invalid shapes.
+      - ""
+      - " 1"
+      - "1."
+      - "1.2.3"
+      - "1.*"
+      - "1.2*"
+      - "*"
+      - "v1"
+      - "latest"
+      # Trailing newline: `re.match` anchors only the start, and Python's `$`
+      # matches before a trailing newline. `re.fullmatch` is the fix.
+      - "1\n"
+      - "1.2\n"
+      - "1*\n"
+      # ARABIC-INDIC DIGIT ONE/TWO: `\d` is Unicode by default in Python's `re`
+      # and ASCII-only in ECMA-262, the dialect JSON Schema uses. `re.ASCII` is
+      # the fix, and it leaves `.pattern` byte-identical.
+      - "١"
+      - "١.٢"
