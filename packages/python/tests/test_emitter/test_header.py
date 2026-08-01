@@ -78,6 +78,60 @@ def test_format_header_ends_with_newline() -> None:
     assert result.endswith("\n")
 
 
+# --- format_header shape contract ------------------------------------------
+#
+# The peer of ``formatHeader() shape contract`` in
+# ``packages/typescript/src/emitter/header.test.ts``. ``None`` is the *only*
+# skip signal; every other input yields a ``#``-prefixed block ending in
+# exactly one ``\n``.
+
+
+def test_format_header_empty_string_renders_bare_hash() -> None:
+    """``header=""`` is a header — a lone ``#`` — not a skip."""
+    assert format_header("", None) == "#\n"
+
+
+def test_format_header_drops_one_trailing_break() -> None:
+    assert format_header("x\n", None) == "# x\n"
+    assert format_header("x\n\n", None) == "# x\n#\n"
+    assert format_header("\r\n", None) == "#\n"
+
+
+def test_format_header_crlf_is_one_break() -> None:
+    result = format_header("a\r\nb", None)
+    assert result == "# a\n# b\n"
+    assert "\r" not in result
+
+
+def test_format_header_bare_cr_is_a_break() -> None:
+    result = format_header("a\rb\rc", None)
+    assert result == "# a\n# b\n# c\n"
+    assert "\r" not in result
+
+
+def test_format_header_non_lf_unicode_breaks() -> None:
+    """VT/FF/FS/GS/RS/NEL/U+2028/U+2029 all break the line.
+
+    Not cosmetic: ruamel rejects VT/FF/FS/GS/RS inside a comment outright
+    ("unacceptable character") and rescans NEL/U+2028/U+2029 as line breaks,
+    so a surviving control character makes an unreadable document.
+    """
+    for char in "\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029":
+        assert format_header(f"a{char}b", None) == "# a\n# b\n", repr(char)
+
+
+def test_format_header_leading_break_is_not_collapsed() -> None:
+    assert format_header("\nx", None) == "#\n# x\n"
+
+
+def test_format_header_already_hashed_line_is_prefixed_again() -> None:
+    assert format_header("# already hashed", None) == "# # already hashed\n"
+
+
+def test_format_header_preserves_interior_whitespace() -> None:
+    assert format_header("   ", None) == "#    \n"
+
+
 def test_default_header_is_a_template() -> None:
     """DEFAULT_HEADER references {source_file} so default output is useful."""
     assert "{source_file}" in DEFAULT_HEADER

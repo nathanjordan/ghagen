@@ -320,6 +320,21 @@ Emits:
 
 A plain string is emitted verbatim, with no substitution -- literal `{` and `}` survive untouched. Multiline strings (and multiline closure return values) are fine; every line gets a leading `# `, blank lines render as a bare `#`.
 
+The YAML body follows the header immediately, with **no blank line** between them:
+
+{/* prettier-ignore */}
+```yaml
+# Hand written
+name: CI
+```
+
+Two further shape rules, identical in both ports:
+
+- One trailing line break in the header string is dropped, so `"Hand written\n"` and `"Hand written"` emit the same bytes. A second trailing break is not: `"Hand written\n\n"` emits `# Hand written` followed by a bare `#`.
+- An empty-string header is a header, not a skip -- it renders a single bare `#`. Only `None` / `null` suppresses the header.
+
+CRLF, a bare CR, and the remaining Python `splitlines()` breaks (VT, FF, FS, GS, RS, NEL, U+2028, U+2029) all count as line breaks, so no control character survives into the emitted comment.
+
 To skip the header entirely on a single `to_yaml()` call, pass `header=None` -- this is what ghagen's own snapshot tests use to decouple body assertions from header text.
 
 ## Comment geometry

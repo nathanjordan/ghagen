@@ -449,3 +449,71 @@ def test_triple_quoted_run(snapshot: Snapshot):
     # Similar to multiline_run.yml but uses |- (strip) instead of | (clip)
     # because dedent_script strips the artifact trailing \n from triple quotes.
     snapshot.assert_match(wf.to_yaml(header=None), "triple_quoted_run.yml")
+
+
+# --- Header goldens --------------------------------------------------------
+#
+# The cross-port byte oracle for ``format_header``. These six are read by hand
+# rather than through pytest-snapshot because they are an *oracle* — the
+# artefact that proves the two ports' headers agree byte-for-byte — not a
+# regenerable snapshot of current behaviour. Peer:
+# ``packages/typescript/src/integration/snapshots.test.ts``.
+
+
+def _header_workflow(**kwargs: object) -> Workflow:
+    """The one body every header golden shares: 10 lines, no comments."""
+    return Workflow(
+        name="CI",
+        on=On(push=PushTrigger(branches=["main"])),
+        jobs={
+            "build": Job(
+                runs_on="ubuntu-latest",
+                steps=[Step(uses="actions/checkout@v4")],
+            ),
+        },
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def _golden(name: str) -> str:
+    return (SNAPSHOT_DIR / name).read_text()
+
+
+def test_header_string_golden() -> None:
+    """A string header sits immediately above the body — no blank line."""
+    assert _header_workflow().to_yaml(header="Hand written") == _golden(
+        "header_string.yml"
+    )
+
+
+def test_header_multiline_golden() -> None:
+    """Blank source line renders a bare ``#``; one trailing break is dropped."""
+    assert _header_workflow().to_yaml(header="line1\n\nline3\n") == _golden(
+        "header_multiline.yml"
+    )
+
+
+def test_header_crlf_golden() -> None:
+    """CRLF and a bare CR are both line breaks; no CR reaches the output."""
+    out = _header_workflow().to_yaml(header="a\r\nb\rc")
+    assert out == _golden("header_crlf.yml")
+    assert "\r" not in out
+
+
+def test_header_empty_golden() -> None:
+    """``header=""`` is a header — a lone ``#`` — not a skip."""
+    assert _header_workflow().to_yaml(header="") == _golden("header_empty.yml")
+
+
+def test_header_closure_golden() -> None:
+    """The closure branch wraps like the string branch; ``#`` survives verbatim."""
+    assert _header_workflow().to_yaml(
+        header=lambda v: f"built by {v['tool']} # verbatim"
+    ) == _golden("header_closure.yml")
+
+
+def test_header_doc_comment_golden() -> None:
+    """The root Document comment sits directly under the header."""
+    assert _header_workflow(comment="root doc comment").to_yaml(
+        header="Hand written"
+    ) == _golden("header_doc_comment.yml")

@@ -90,10 +90,26 @@ def test_dump_yaml_basic():
 
 
 def test_dump_yaml_with_header():
+    """``header`` is written verbatim: dump_yaml wraps, pads and re-indents nothing.
+
+    The argument is a fully formatted comment block — the contract of
+    ``ghagen.emitter.header.format_header`` — so the emitted bytes are exactly
+    the block followed by the body, with no separator line.
+    """
     cm = CommentedMap({"key": "value"})
-    result = dump_yaml(cm, header="# My header\n")
-    assert result.startswith("# My header\n")
-    assert "key: value" in result
+    assert dump_yaml(cm, header="# My header\n") == "# My header\nkey: value\n"
+
+
+def test_dump_yaml_header_none_emits_no_header():
+    """``None`` is the only skip signal."""
+    cm = CommentedMap({"key": "value"})
+    assert dump_yaml(cm, header=None) == "key: value\n"
+
+
+def test_dump_yaml_bare_hash_header_is_not_dropped():
+    """A ``"#\\n"`` header (what ``format_header("")`` returns) survives."""
+    cm = CommentedMap({"key": "value"})
+    assert dump_yaml(cm, header="#\n") == "#\nkey: value\n"
 
 
 # --- Multiline string block-scalar auto-conversion tests ---

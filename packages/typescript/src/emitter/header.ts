@@ -1,14 +1,25 @@
 /**
  * Auto-generated header comment for YAML output.
  *
- * Mirrors `packages/python/src/ghagen/emitter/header.py` so the two
- * implementations emit identical headers given identical inputs.
+ * `formatHeader` owns the emitted header bytes end to end: the `#` prefix, the
+ * line-break set, blank-line rendering and the trailing newline are all decided
+ * here, and the writer concatenates the result. The backend stringifier never
+ * sees header text — it separates a document `commentBefore` from the body with
+ * a blank line and silently drops a falsy one, neither of which is
+ * configurable, so a header routed through the document node could not match
+ * the Python port's bytes.
+ *
+ * Peer of `packages/python/src/ghagen/emitter/header.py`. The two return
+ * byte-identical blocks for byte-identical inputs, and
+ * `fixtures/expected/header_*.yml` is the assertion of that — read
+ * byte-for-byte by both suites.
  */
 
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { SourceLocation } from "../_source_location.js";
 import { findAppRoot } from "../config.js";
+import { renderBlockComment } from "./comment-geometry.js";
 
 /**
  * Default template used when `App({ header: ... })` is not set.
@@ -94,21 +105,55 @@ export function buildHeaderVariables(sourceLocation: SourceLocation | null): Hea
 }
 
 /**
- * Resolve a header value into the string that should be emitted (or `null`
- * to skip the header).
+ * Split header text into lines, dropping one trailing break.
+ *
+ * The break set is Python `str.splitlines()`'s, written out rather than
+ * inherited, so both ports implement the same *stated* rule. It is not an
+ * arbitrary choice: ruamel rejects VT/FF/FS/GS/RS outright inside a comment
+ * ("unacceptable character") and rescans NEL/U+2028/U+2029 as line breaks, so
+ * any of them surviving into the emitted comment produces a document the
+ * Python port cannot read back.
+ */
+// eslint-disable-next-line no-control-regex -- the control characters are the point
+const HEADER_BREAK = /\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]/;
+
+function splitHeaderLines(text: string): string[] {
+  const lines = text.split(HEADER_BREAK);
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  return lines.length === 0 ? [""] : lines;
+}
+
+/**
+ * Wrap header text as a `#`-prefixed block terminated by exactly one "\n".
+ *
+ * The per-line prefixing is `renderBlockComment`'s, shared with TypeScript's
+ * in-document block comments so the two cannot drift on it.
+ */
+function wrapAsComment(text: string): string {
+  return renderBlockComment(splitHeaderLines(text).join("\n")) + "\n";
+}
+
+/**
+ * Resolve a header value into the exact bytes that precede the YAML body.
  *
  * Branching:
  *
  * - `null`      → return `null`; the caller skips emitting any header.
  * - `undefined` → render `DEFAULT_HEADER` with the captured source-file
  *   variables. This is the only place `{variable}` substitution happens.
- * - `string`    → return the string as-is. No placeholder substitution
+ * - `string`    → wrap the string as-is. No placeholder substitution
  *   on user-supplied strings — literal `{` survives unchanged.
  * - function    → invoke with a fully-populated `HeaderVariables` and
- *   return its result.
+ *   wrap its result.
  *
- * Returns the comment text without `#` prefixes — the yaml library handles
- * comment formatting automatically.
+ * Returns a `#`-prefixed comment block terminated by exactly one "\n": every
+ * line gains a "# " prefix, a blank line renders as a bare "#", one trailing
+ * line break in the input is dropped, and CRLF, CR, LF, VT, FF, FS, GS, RS,
+ * NEL, LINE SEPARATOR and PARAGRAPH SEPARATOR are all line breaks. Returns
+ * `null`, and only `null`, to mean "emit no header". `""` is a header: it
+ * renders as "#\n".
  */
 export function formatHeader(
   header: string | null | ((vars: HeaderVariables) => string) | undefined,
@@ -118,17 +163,19 @@ export function formatHeader(
     return null;
   }
   if (typeof header === "string") {
-    return header;
+    return wrapAsComment(header);
   }
   const variables = buildHeaderVariables(sourceLocation ?? null);
   if (header === undefined) {
-    return DEFAULT_HEADER.replace(/\{(\w+)\}/g, (_, key: string) => {
-      const value = variables[key as keyof HeaderVariables];
-      if (value === undefined) {
-        throw new Error(`Internal error: DEFAULT_HEADER references unknown variable {${key}}.`);
-      }
-      return value;
-    });
+    return wrapAsComment(
+      DEFAULT_HEADER.replace(/\{(\w+)\}/g, (_, key: string) => {
+        const value = variables[key as keyof HeaderVariables];
+        if (value === undefined) {
+          throw new Error(`Internal error: DEFAULT_HEADER references unknown variable {${key}}.`);
+        }
+        return value;
+      }),
+    );
   }
-  return header(variables);
+  return wrapAsComment(header(variables));
 }

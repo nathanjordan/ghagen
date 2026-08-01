@@ -17,3 +17,12 @@ Also added in round 2: no file under `fixtures/expected/` contains `workflow_cal
 the same canonical key order; that byte change has unit coverage in both ports and no shared
 fixture oracle. A `workflow_call` block with inputs, outputs, and secrets belongs in the same
 fixture.
+
+**Amendment (proposal 13):** the inventory above was incomplete — **headers** were a gap of the
+same kind, and a larger one. Every one of the ten emitter goldens passed `header=None`, so the byte
+oracle contained zero header bytes and never saw a live five-way byte divergence between the ports.
+Closed by `fixtures/expected/header_*.yml` (six files, read byte-for-byte by both suites). The gaps
+listed above remain open; they are body-shape gaps and 13 adds no body coverage. Scheduling note:
+the remedy above and the header goldens touch the same two test files (`test_snapshots.py`,
+`snapshots.test.ts`) and the same directory, so a single pass over `fixtures/expected/` avoids a
+second round of conflicts.
