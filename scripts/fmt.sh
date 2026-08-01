@@ -1,45 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-
-FIX=0
-SCOPE="all"
-for arg in "$@"; do
-  case "$arg" in
-    --fix) FIX=1 ;;
-    py | ts | all) SCOPE="$arg" ;;
-    *)
-      echo "Usage: $0 [py|ts|all] [--fix]" >&2
-      exit 1
-      ;;
-  esac
-done
+GATE_NAME=fmt GATE_SCOPES="py ts docs" GATE_ALLOW_FIX=1
+source "$(dirname "$0")/_gate.sh"
+gate_parse "$@"
 
 if [[ "$FIX" -eq 1 ]]; then
-  if [[ "$SCOPE" == "py" || "$SCOPE" == "all" ]]; then
-    echo "==> Ruff format (fix)"
-    uv run ruff format packages/python/src/ packages/python/tests/
-  fi
-
-  if [[ "$SCOPE" == "ts" || "$SCOPE" == "all" ]]; then
-    echo "==> oxfmt (typescript, fix)"
-    npm run fmt --prefix "$REPO_ROOT/packages/typescript"
-
-    echo "==> oxfmt (docs, fix)"
-    npm run fmt --prefix "$REPO_ROOT/docs"
-  fi
+  NPM_FMT=fmt
+  MODE=fix
 else
-  if [[ "$SCOPE" == "py" || "$SCOPE" == "all" ]]; then
-    echo "==> Ruff format (check)"
+  NPM_FMT=fmt:check
+  MODE=check
+fi
+
+if in_scope py; then
+  step "Ruff format ($MODE)"
+  if [[ "$FIX" -eq 1 ]]; then
+    uv run ruff format packages/python/src/ packages/python/tests/
+  else
     uv run ruff format --check packages/python/src/ packages/python/tests/
   fi
+fi
 
-  if [[ "$SCOPE" == "ts" || "$SCOPE" == "all" ]]; then
-    echo "==> oxfmt (typescript, check)"
-    npm run fmt:check --prefix "$REPO_ROOT/packages/typescript"
+if in_scope ts; then
+  need_node packages/typescript
+  step "oxfmt (typescript, $MODE)"
+  npm run "$NPM_FMT" --prefix "$REPO_ROOT/packages/typescript"
+fi
 
-    echo "==> oxfmt (docs, check)"
-    npm run fmt:check --prefix "$REPO_ROOT/docs"
-  fi
+if in_scope docs; then
+  need_node docs
+  step "oxfmt (docs, $MODE)"
+  npm run "$NPM_FMT" --prefix "$REPO_ROOT/docs"
 fi
