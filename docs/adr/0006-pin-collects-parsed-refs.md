@@ -18,3 +18,9 @@ of "which stage swallowed the unparseable ref" bugs.
 **The Lockfile boundary stays string-keyed** — `uses` strings → SHAs, snake_case keys, identical
 across both ports. Do not "simplify" the Lockfile to store structured refs; the on-disk format is
 cross-language interop surface. Only the in-memory pin flow is typed.
+
+**The rule covers tag parsing as well as ref parsing.** `find_latest_tag` used to return a string
+it had already parsed, so `upgrade` re-parsed it behind a `parse(...) is None` guard that could
+never fire — this shape, one level down. `latest_bump` / `latestBump` returns a `Bump` of parsed
+values instead (ADR-0008). Any pin stage that hands a caller a string it has already parsed is
+re-growing the same defect.

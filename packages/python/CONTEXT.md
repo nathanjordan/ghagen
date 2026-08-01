@@ -80,6 +80,18 @@ The injected HTTP adapter behind `HttpClient`. Returns a response for any status
 raises `TransportError` for every failure to obtain one, and honours the module deadline —
 including reading the body. Every adapter, real or canned, passes the transport conformance table.
 
+**Version tag**:
+A `uses:` ref that matches ghagen's declared tag grammar (optional `prefix-`/`prefix/`, optional
+`v`, dot-separated integers, each ≤ 10^15 − 1); its **canonical release** is the integer tuple
+padded to three and stripped of trailing zeros beyond the third. Refs that are not version tags
+(`main`, `release/v1`) are never upgrade candidates. The grammar is declared once, in
+`schema/tag-grammar.yml`, and pinned by both suites.
+
+**Bump**:
+A version tag strictly newer than the current one, with the same prefix, plus its severity
+(major/minor/patch). `pin/versions` is the sole authority on both; the engine consumes Bumps and
+never compares versions itself. Equal versions produce no Bump.
+
 ### Schema
 
 **Snapshot**:
@@ -102,6 +114,8 @@ framework renders the text, `main()` decides the number.
 - The **Emitter** serializes any model to a node; only a **Document** can be emitted to a file.
 - Every model declares a **ModelSpec**; the **Emitter** reads it for key names and ordering.
 - **Pin** iterates **UsesSites** over each **Document**; only **Pinnable** refs are pinned.
+- `upgrade` compares only **version tags** with the same prefix; the comparison lives in
+  `pin/versions`, never in a third-party library.
 
 ## Surface notes (Python)
 

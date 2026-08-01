@@ -175,6 +175,35 @@ npx ghagen deps upgrade --check --format json  # Machine-readable JSON report
 | `--mode MODE`         | Detection mode: `versions`, `lockfile`, or `all` (default).                      |
 | `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`.  |
 
+### Which refs count as version tags
+
+Only refs that match ghagen's version-tag grammar are upgrade candidates. A ref
+is a version tag when it is an optional prefix (`prefix-` or `prefix/`), an
+optional `v`, and dot-separated integers — and every segment's value is at most
+`999999999999999`. When a prefix is present the numeric part needs at least two
+segments, so `release/v1` stays a branch ref.
+
+| Ref              | Version tag? | Why                                         |
+| ---------------- | ------------ | ------------------------------------------- |
+| `v4`             | yes          | release `4.0.0` — short forms are padded    |
+| `v4.1`           | yes          | release `4.1.0`                             |
+| `v1.2.3.4`       | yes          | more than three segments is allowed         |
+| `v2.04`          | yes          | release `2.4.0` — leading zeros are numeric |
+| `prefix/v1.0.0`  | yes          | prefixed, two or more segments              |
+| `release/v1`     | no           | prefixed with one segment — a branch ref    |
+| `main`, `latest` | no           | not numeric                                 |
+| `v1.2.3-rc1`     | no           | prereleases and build metadata are not tags |
+
+The **canonical release** of a tag is its segments as integers, padded to three
+and stripped of trailing zeros beyond the third — so `v1.2.3.0` and `v1.2.3` are
+the same version. Two tags are compared by that release, element-wise and then
+by length, and only tags sharing the current ref's prefix are considered. The
+severity reported for a bump is `major` when the first element changes, `minor`
+when the second does, and `patch` otherwise.
+
+The grammar is identical in the Python port — it is the shared contract in
+`schema/tag-grammar.yml`, which both ports' suites are driven against.
+
 ## ghagen init
 
 Scaffold a starter configuration file with a minimal CI workflow.
