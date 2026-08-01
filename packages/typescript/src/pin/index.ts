@@ -18,13 +18,7 @@ export {
   type RequestOptions,
 } from "./github.js";
 export { UsesRef } from "./uses.js";
-export {
-  type BumpSeverity,
-  type ParsedTag,
-  parseTag,
-  classifyBump,
-  findLatestTag,
-} from "./versions.js";
+export { type BumpSeverity } from "./versions.js";
 export { collectUsesRefs } from "./collect.js";
 export { UsesSite, iterUsesSites } from "./sites.js";
 export { PinError, type PinTransform, pinTransform } from "./transform.js";
