@@ -117,3 +117,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
 > **Maintainer:** "The signature is narrowed to `WorkflowModel | ActionModel` — the **Document**
 > types. A step model isn't a **Document**, so `toYaml` rejects it at compile time; the **Emitter**
 > recurses into it while emitting its containing Document."
+
+> **Dev:** "My lockfile diff shows nine changed lines and I only added one action."
+> **Maintainer:** "Both ports write one canonical encoding — every value double-quoted,
+> `resolved_at` UTC at whole seconds — and a reader raises `LockfileError` rather than degrading to
+> an empty **Lockfile**. `fixtures/expected/lockfile_golden.yml` is the byte oracle both suites
+> assert against. The Python port carries one extra write-time guard against a naive timestamp; a
+> `Date` is always an absolute instant, so there is nothing here to guard."

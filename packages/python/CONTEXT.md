@@ -112,3 +112,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
 > **Maintainer:** "No — only a **Document** (a **Workflow** or **Action**) serializes to a file. A
 > **Step** doesn't serialize itself at all; the **Emitter** recurses into it while emitting the
 > Document that contains it."
+
+> **Dev:** "My lockfile diff shows nine changed lines and I only added one action."
+> **Maintainer:** "Both ports write one canonical encoding — every value double-quoted,
+> `resolved_at` UTC at whole seconds — and a reader raises `LockfileError` rather than degrading to
+> an empty **Lockfile**. `fixtures/expected/lockfile_golden.yml` is the byte oracle both suites
+> assert against. Python adds one guard the TypeScript port doesn't need: a naive `datetime` in a
+> **PinEntry** is rejected at write time, because `Date` makes that mistake unrepresentable."

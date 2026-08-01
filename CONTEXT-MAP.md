@@ -16,6 +16,9 @@ the same domain vocabulary plus a short "surface notes" section for language-idi
   even where the *surface* differs by language idiom (Python methods vs TypeScript free functions).
 - **Shared on-disk formats**: both emit the same YAML and read/write the same `.ghagen.lock.yml`
   lockfile (snake_case keys for cross-language interop) and the same canonical schema snapshot.
+- **The lockfile's shared surface is the whole encoding, not just the key spelling**: canonical
+  double-quoted scalars and one UTC whole-second `resolved_at` grammar, pinned byte-for-byte by
+  `fixtures/expected/lockfile_golden.yml` (ADR-0006).
 
 ## Architectural decisions
 
