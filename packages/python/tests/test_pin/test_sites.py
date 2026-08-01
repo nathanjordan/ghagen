@@ -208,3 +208,29 @@ class TestReplace:
         assert "# v4" in yaml
         # The pre-existing block comment survives the replace.
         assert "# please pin" in yaml
+
+
+class TestExtrasTraversalParity:
+    """H14 — ``extras`` is traversed, and traversed last, in both ports.
+
+    TypeScript keeps extras on ``meta`` rather than ``data``, so its
+    ``children()`` skipped them entirely and ``ghagen pin`` left an
+    extras-nested action unpinned. Python reaches them via its
+    ``model_fields`` loop but reached them *first*, because base-class fields
+    precede subclass fields. Both ports must reach extras, and reach them
+    after the model's own fields.
+    """
+
+    def test_extras_nested_model_is_reached_last(self):
+        wf = Workflow(
+            on=On(push=PushTrigger()),
+            jobs={
+                "build": Job(
+                    runs_on="ubuntu-latest",
+                    steps=[Step(uses="actions/checkout@v4")],
+                    extras={"hidden": Step(uses="actions/setup-node@v4")},
+                )
+            },
+        )
+
+        assert _uses(wf) == ["actions/checkout@v4", "actions/setup-node@v4"]

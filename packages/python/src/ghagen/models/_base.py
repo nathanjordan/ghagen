@@ -145,9 +145,19 @@ class GhagenModel(BaseModel):
         Generic field scan: walks each field value, recursing through
         Commented wrappers, dicts, and lists (Raw values are opaque). This
         is the traversal primitive; subclasses need not override it.
+
+        Schema fields come first, in declaration order, then ``extras``.
+        ``extras`` is declared on this base class, so the plain
+        ``model_fields`` order would yield it *before* every subclass field;
+        TypeScript keeps extras outside ``data`` and appends them, so the
+        skip-and-rescan below is what makes the two ports agree on visit
+        order as well as visit set.
         """
         for field_name in type(self).model_fields:
+            if field_name == "extras":
+                continue
             yield from _scan_for_models(field_name, getattr(self, field_name, None))
+        yield from _scan_for_models("extras", self.extras)
 
     def walk(self) -> Iterator[tuple[list[str], GhagenModel]]:
         """Depth-first walk yielding ``(path, model)`` for self and all descendants.

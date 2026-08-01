@@ -193,3 +193,23 @@ describe("UsesSite.replace()", () => {
     expect(yaml).toContain("# please pin");
   });
 });
+
+describe("iterUsesSites() — extras traversal parity", () => {
+  // H14: `extras` lives on `meta`, not `data`, so `children()` used to skip it
+  // entirely and `ghagen pin` silently left an extras-nested action unpinned.
+  // Python reaches extras via its `model_fields` loop; both ports must reach it,
+  // and both must reach it *after* the model's own fields.
+  it("reaches a model nested in extras, after the model's own fields", () => {
+    const wf = workflow({
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ uses: "actions/checkout@v4" })],
+          extras: { hidden: step({ uses: "actions/setup-node@v4" }) },
+        }),
+      },
+    });
+
+    expect(usesOf(wf)).toEqual(["actions/checkout@v4", "actions/setup-node@v4"]);
+  });
+});

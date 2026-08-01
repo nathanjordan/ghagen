@@ -233,9 +233,17 @@ export class Model {
     return new Model(this.spec, cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
   }
 
-  /** Yield child Models found in data. */
+  /** Yield child Models found in data, then in extras.
+   *
+   * Extras live on `meta` rather than `data`, so they need their own pass —
+   * without it `walk()` never sees a model nested in `extras`, and both
+   * `iterUsesSites` and `dedentSteps` skip it. Python reaches extras through
+   * its `model_fields` loop and orders them last; this matches. */
   *children(): Iterable<{ key: string; model: Model }> {
     for (const [key, value] of Object.entries(this.data)) {
+      yield* scanForModels(key, value);
+    }
+    for (const [key, value] of Object.entries(this.meta.extras ?? {})) {
       yield* scanForModels(key, value);
     }
   }
