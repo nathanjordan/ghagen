@@ -471,6 +471,33 @@ export function buildModel<M extends Model = Model>(
   return new Model(spec, buildYamlData(spec, data), meta) as M;
 }
 
+/**
+ * Build the factory function for one {@link ModelSpec}.
+ *
+ * The single implementation of "split meta off the input, map fields through
+ * the spec, return a Model of the spec's kind" — the body every model factory
+ * used to repeat verbatim. Declare a factory by binding its spec and its two
+ * type parameters; the `Record<string, unknown>` casts that each factory
+ * carried live here once.
+ *
+ * The returned closure is a plain arrow function that wraps nothing in
+ * `try`/`catch`, so a {@link ModelInputError} from {@link buildYamlData}
+ * propagates with the caller's frame intact, and `captureSourceLocation`
+ * (which skips internal frames by predicate, not by a fixed count) still
+ * attributes the model to user code.
+ *
+ * Mark the resulting `const` with `@function` in its doc comment so TypeDoc
+ * renders it as a function, not a variable.
+ */
+export function defineFactory<M extends Model, I extends object>(
+  spec: ModelSpec,
+): (input: WithMeta<I>) => M {
+  return (input: WithMeta<I>): M => {
+    const [data, meta] = extractMeta(input as unknown as Record<string, unknown>);
+    return buildModel<M>(spec, data as Record<string, unknown>, meta);
+  };
+}
+
 /** Apply one {@link WrapRule} to a field value; see {@link WrapRule.mode}. */
 function applyWrapRule(rule: WrapRule, value: unknown): unknown {
   const factory = rule.factory as (input: unknown) => Model;

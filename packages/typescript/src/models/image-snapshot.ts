@@ -1,6 +1,6 @@
 import type { Snapshot as SchemaSnapshot } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
-import type { WithMeta, ModelSpec, ImageSnapshotModel } from "./_base.js";
+import { defineFactory } from "./_base.js";
+import type { ModelSpec, ImageSnapshotModel } from "./_base.js";
 
 /** The mapping-syntax half of the schema `Snapshot` union (string | object). */
 type SchemaSnapshotObject = Extract<SchemaSnapshot, { "image-name": string }>;
@@ -55,8 +55,8 @@ export const IMAGE_SNAPSHOT_SPEC: ModelSpec = {
  * ```ts
  * imageSnapshot({ imageName: "custom-ubuntu", version: "1.0" });
  * ```
+ * @function
  */
-export function imageSnapshot(input: WithMeta<ImageSnapshotInput>): ImageSnapshotModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<ImageSnapshotModel>(IMAGE_SNAPSHOT_SPEC, data as Record<string, unknown>, meta);
-}
+export const imageSnapshot = defineFactory<ImageSnapshotModel, ImageSnapshotInput>(
+  IMAGE_SNAPSHOT_SPEC,
+);

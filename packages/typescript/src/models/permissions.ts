@@ -1,6 +1,6 @@
 import type { PermissionsEvent as SchemaPermissions } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
-import type { Raw, WithMeta, ModelSpec, PermissionsModel } from "./_base.js";
+import { defineFactory } from "./_base.js";
+import type { Raw, ModelSpec, PermissionsModel } from "./_base.js";
 import type { PermissionLevel } from "./common.js";
 
 /**
@@ -109,8 +109,6 @@ export const PERMISSIONS_SPEC: ModelSpec = {
  *   idToken: "write",
  * })
  * ```
+ * @function
  */
-export function permissions(input: WithMeta<PermissionsInput>): PermissionsModel {
-  const [data, meta] = extractMeta(input);
-  return buildModel<PermissionsModel>(PERMISSIONS_SPEC, data as Record<string, unknown>, meta);
-}
+export const permissions = defineFactory<PermissionsModel, PermissionsInput>(PERMISSIONS_SPEC);

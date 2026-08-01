@@ -1,6 +1,6 @@
 import type { Step as SchemaStep } from "../schema/workflow-types.generated.js";
-import { buildModel, extractMeta } from "./_base.js";
-import type { WithMeta, Raw, ModelSpec, StepModel } from "./_base.js";
+import { defineFactory } from "./_base.js";
+import type { Raw, ModelSpec, StepModel } from "./_base.js";
 import type { ShellType } from "./common.js";
 
 /**
@@ -33,7 +33,11 @@ export interface StepInput {
   timeoutMinutes?: number;
 }
 
-/** Serialization spec for {@link StepModel}. */
+/**
+ * Serialization spec for {@link StepModel}.
+ *
+ * `run` holds the raw string; dedent is applied at emit time (ADR-0002).
+ */
 export const STEP_SPEC: ModelSpec = {
   kind: "step",
   fieldMap: {
@@ -86,9 +90,6 @@ export const STEP_SPEC: ModelSpec = {
  *   env: { CI: "true" },
  * })
  * ```
+ * @function
  */
-export function step(input: WithMeta<StepInput>): StepModel {
-  const [data, meta] = extractMeta(input);
-  // `run` holds the raw string; dedent is applied at emit time (ADR-0002).
-  return buildModel<StepModel>(STEP_SPEC, data as Record<string, unknown>, meta);
-}
+export const step = defineFactory<StepModel, StepInput>(STEP_SPEC);
