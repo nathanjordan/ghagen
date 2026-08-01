@@ -102,7 +102,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
 - `toYaml()` / `toYamlFile()` are **free functions**, narrowed to `WorkflowModel | ActionModel`
   (the **Document** types) so a bare model cannot be serialized to a file.
 - Generated types are imported into the models for compile-time author-conformance against the
-  schema (see ADR-0003). There is no runtime validation.
+  schema (ADR-0003); separately, factories enforce their construction-time input contract at
+  runtime — unknown input keys raise `ModelInputError` (use `extras`), and a **value grammar**
+  declared in a spec's `patterns` (e.g. `ImageSnapshot.version`) is checked against the canonical
+  Snapshot's pattern.
 - The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
   `cli/_errors.ts`. The synthesis pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs

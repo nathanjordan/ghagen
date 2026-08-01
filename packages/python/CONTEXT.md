@@ -98,7 +98,9 @@ Divergence between the committed schema Snapshot and the current upstream schema
   `emit()` / `emit_file()`. Models do not serialize themselves — the Emitter owns all recursion
   (ADR-0001, amended).
 - User input is validated at construction (Pydantic). Schema faithfulness is checked by integration
-  tests, not by generated types (see ADR-0003).
+  tests, not by generated types (see ADR-0003). The TypeScript port enforces the same
+  construction-time input contract; declared value grammars live in each port's `ModelSpec` and the
+  two are bound to the Snapshot by `schema/conformance-values.yml`.
 - The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
   CLI-local. The synthesis pipeline is `synth.render()`; pin runs last (ADR-0005).

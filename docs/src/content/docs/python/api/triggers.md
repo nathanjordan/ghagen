@@ -147,13 +147,13 @@ An input parameter for `workflow_dispatch` triggers.
 
 ### Parameters
 
-| Parameter     | Type                      | Default | Description                                                              |
-| ------------- | ------------------------- | ------- | ------------------------------------------------------------------------ |
-| `description` | `str \| None`             | `None`  | Human-readable description of the input.                                 |
-| `required`    | `bool \| None`            | `None`  | Whether the input is required.                                           |
-| `default`     | `str \| None`             | `None`  | Default value for the input.                                             |
-| `type`        | `str \| Raw[str] \| None` | `None`  | Input type (e.g., `"string"`, `"boolean"`, `"choice"`, `"environment"`). |
-| `options`     | `list[str] \| None`       | `None`  | Available options when `type` is `"choice"`.                             |
+| Parameter     | Type                                                                                  | Default | Description                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| `description` | `str \| None`                                                                         | `None`  | Human-readable description of the input.                                                    |
+| `required`    | `bool \| None`                                                                        | `None`  | Whether the input is required.                                                              |
+| `default`     | `str \| None`                                                                         | `None`  | Default value for the input.                                                                |
+| `type`        | `Literal["boolean", "number", "string", "choice", "environment"] \| Raw[str] \| None` | `None`  | Input type. Closed set — the five members `workflow_dispatch` accepts. Use `Raw` to bypass. |
+| `options`     | `list[str] \| None`                                                                   | `None`  | Available options when `type` is `"choice"`.                                                |
 
 ## WorkflowCallTrigger
 
@@ -204,12 +204,12 @@ An input parameter for `workflow_call` triggers.
 
 ### Parameters
 
-| Parameter     | Type                      | Default | Description                                       |
-| ------------- | ------------------------- | ------- | ------------------------------------------------- |
-| `description` | `str \| None`             | `None`  | Human-readable description of the input.          |
-| `required`    | `bool \| None`            | `None`  | Whether the input is required.                    |
-| `default`     | `str \| None`             | `None`  | Default value.                                    |
-| `type`        | `str \| Raw[str] \| None` | `None`  | Input type (`"string"`, `"boolean"`, `"number"`). |
+| Parameter     | Type                                                 | Default  | Description                                                                                                                     |
+| ------------- | ---------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | `str \| None`                                        | `None`   | Human-readable description of the input.                                                                                        |
+| `required`    | `bool \| None`                                       | `None`   | Whether the input is required.                                                                                                  |
+| `default`     | `str \| None`                                        | `None`   | Default value.                                                                                                                  |
+| `type`        | `Literal["boolean", "number", "string"] \| Raw[str]` | required | Input type. Closed set — narrower than `workflow_dispatch`'s, and required, both per the canonical schema. Use `Raw` to bypass. |
 
 ## WorkflowCallOutput
 

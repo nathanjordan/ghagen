@@ -51,3 +51,18 @@ with an explicit allow-list for gaps) is a tracked stretch item and needs no cod
 - Drift handling is detect → PR (with an issue fallback), not detect → issue-with-diff.
 - The two ports still enforce different things (TS compile-time, Python runtime-test). The shared
   conformance scope table drives coverage parity only; generated Python models stay removed.
+
+## Amendment (2026-07-31): schema conformance vs. the model input contract
+
+The "No runtime validation" above is about **schema conformance** — whether the hand-written model
+surface matches the Snapshot. That is unchanged: generated types stay imported into the TypeScript
+models, `tsc` stays the conformance check, generated Python models stay removed, and the two ports
+still enforce conformance differently.
+
+A model's own **construction-time input contract** is a separate invariant, and it _is_
+port-symmetric: unknown input keys are an error in both ports, escape hatches are opt-in in both
+ports, and a value grammar declared in a model's `ModelSpec` is enforced in both ports. The shared
+`schema/conformance-values.yml` extends the `conformance-scopes.yml` mechanism from property
+coverage to value grammars; the Snapshot remains the single home for each grammar and the ports
+remain bound to it by test, not by codegen. Read `:34`'s "No runtime validation" as scoped to schema
+conformance, not as a prohibition on this contract.
