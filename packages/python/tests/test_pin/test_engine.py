@@ -341,7 +341,7 @@ class TestUpgradeCheckedFlags:
         assert report.checked_lockfile is lockfile
 
     def test_checked_lockfile_is_true_without_a_lockfile(self, tmp_path: Path):
-        """"Asked for" is not "ran" — ``lockfile=None`` skips the stage."""
+        """ "Asked for" is not "ran" — ``lockfile=None`` skips the stage."""
         app = App(root=tmp_path, lockfile=None)
         wf = Workflow(
             name="CI",

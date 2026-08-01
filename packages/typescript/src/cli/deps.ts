@@ -14,8 +14,7 @@ import {
   pin,
   checkSync,
   upgrade,
-  type VersionBump,
-  type LockfileStaleEntry,
+  renderUpgradeReport,
 } from "../pin/index.js";
 import { findConfig, loadApp } from "./_common.js";
 import { CliError } from "./_errors.js";
@@ -191,154 +190,7 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
     }
   }
 
-  const checkVersions = mode === "versions" || mode === "all";
-  const checkLockfile = mode === "lockfile" || mode === "all";
-
-  if (report.versionBumps.length === 0 && report.lockfileStale.length === 0) {
-    if (format === "json") {
-      process.stdout.write(
-        JSON.stringify({ version_bumps: [], lockfile_stale: [] }, null, 2) + "\n",
-      );
-    } else if (format === "pr-body") {
-      process.stdout.write(renderPrBody([], []));
-    } else if (format === "issue-body") {
-      process.stdout.write(renderIssueBody([], []));
-    } else {
-      process.stdout.write("Everything is up to date.\n");
-    }
-    return;
-  }
-
-  if (format === "json") {
-    const result: {
-      version_bumps?: Array<Record<string, unknown>>;
-      lockfile_stale?: Array<Record<string, unknown>>;
-    } = {};
-    if (checkVersions) {
-      result.version_bumps = report.versionBumps.map(bumpToJson);
-    }
-    if (checkLockfile) {
-      result.lockfile_stale = report.lockfileStale.map(staleToJson);
-    }
-    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-  } else if (format === "pr-body") {
-    process.stdout.write(renderPrBody(report.versionBumps, report.lockfileStale));
-  } else if (format === "issue-body") {
-    process.stdout.write(renderIssueBody(report.versionBumps, report.lockfileStale));
-  } else {
-    printHumanReport(report.versionBumps, report.lockfileStale);
-  }
-}
-
-/**
- * Render the pull-request body markdown for an upgrade report.
- *
- * Golden-file tested against `fixtures/expected/upgrade_pr_body.md` and kept
- * byte-identical with the Python port's `_render_pr_body`.
- */
-function renderPrBody(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): string {
-  const lines: string[] = ["## ghagen dependency update", ""];
-
-  if (versionBumps.length > 0) {
-    lines.push("### Version bumps", "");
-    for (const bump of versionBumps) {
-      lines.push(`- \`${bump.uses}\` -> \`${bump.latest}\` [${bump.severity}]`);
-    }
-    lines.push("");
-  }
-
-  if (lockfileStale.length > 0) {
-    lines.push("### Lockfile maintenance", "");
-    for (const entry of lockfileStale) {
-      lines.push(`- \`${entry.uses}\` SHA refreshed`);
-    }
-    lines.push("");
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Render the issue body markdown for an upgrade report.
- *
- * Golden-file tested against `fixtures/expected/upgrade_issue_body.md` and kept
- * byte-identical with the Python port's `_render_issue_body`.
- */
-function renderIssueBody(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): string {
-  const lines: string[] = [];
-
-  if (versionBumps.length > 0) {
-    lines.push("## Version updates available", "");
-    for (const bump of versionBumps) {
-      let line = `- [ ] \`${bump.uses}\` -> \`${bump.latest}\` [${bump.severity}]`;
-      if (bump.source_files.length > 0) {
-        const files = bump.source_files.map((f) => `\`${f}\``).join(", ");
-        line += `  in ${files}`;
-      }
-      lines.push(line);
-    }
-    lines.push("");
-  }
-
-  if (lockfileStale.length > 0) {
-    lines.push("## Stale lockfile entries", "");
-    lines.push("Run `ghagen deps pin --update` to refresh.", "");
-    for (const entry of lockfileStale) {
-      lines.push(`- [ ] \`${entry.uses}\` — SHA changed`);
-    }
-    lines.push("");
-  }
-
-  return lines.join("\n");
-}
-
-/** Serialize a version bump for `--format json` (omitting empty `source_files`). */
-function bumpToJson(bump: VersionBump): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    uses: bump.uses,
-    current: bump.current,
-    latest: bump.latest,
-    severity: bump.severity,
-  };
-  if (bump.source_files.length > 0) {
-    entry.source_files = [...bump.source_files];
-  }
-  return entry;
-}
-
-/** Serialize a stale entry for `--format json` (omitting empty `source_files`). */
-function staleToJson(stale: LockfileStaleEntry): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    uses: stale.uses,
-    current_sha: stale.current_sha,
-    latest_sha: stale.latest_sha,
-  };
-  if (stale.source_files.length > 0) {
-    entry.source_files = [...stale.source_files];
-  }
-  return entry;
-}
-
-function printHumanReport(versionBumps: VersionBump[], lockfileStale: LockfileStaleEntry[]): void {
-  if (versionBumps.length > 0) {
-    process.stdout.write("Version updates available:\n\n");
-    for (const bump of versionBumps) {
-      process.stdout.write(`  ${bump.uses}  →  ${bump.latest}  [${bump.severity}]\n`);
-      for (const src of bump.source_files) {
-        process.stdout.write(`    in ${src}\n`);
-      }
-    }
-    process.stdout.write("\n");
-  }
-  if (lockfileStale.length > 0) {
-    process.stdout.write("Stale lockfile entries:\n\n");
-    for (const entry of lockfileStale) {
-      process.stdout.write(`  ${entry.uses}\n`);
-      process.stdout.write(`    current SHA: ${entry.current_sha.slice(0, 12)}...\n`);
-      process.stdout.write(`    latest SHA:  ${entry.latest_sha.slice(0, 12)}...\n`);
-    }
-    process.stdout.write("\n");
-  }
+  process.stdout.write(renderUpgradeReport(report, format ?? "text"));
 }
 
 /** Build the `deps` sub-command for mounting on the top-level CLI. */
@@ -378,12 +230,4 @@ export function buildDepsCommand(): Command {
 }
 
 /** Public re-exports useful for testing. */
-export {
-  depsPin,
-  depsCheckSynced,
-  depsUpgrade,
-  bumpToJson,
-  staleToJson,
-  renderPrBody,
-  renderIssueBody,
-};
+export { depsPin, depsCheckSynced, depsUpgrade };
