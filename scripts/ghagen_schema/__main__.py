@@ -1,8 +1,8 @@
 """Argparse dispatch for the three-verb schema pipeline.
 
-    python -m ghagen_schema sync       # network: refresh the Snapshot
-    python -m ghagen_schema generate   # offline: regenerate the TS types
-    python -m ghagen_schema check      # offline: staleness guard (CI-safe)
+python -m ghagen_schema sync       # network: refresh the Snapshot
+python -m ghagen_schema generate   # offline: regenerate the TS types
+python -m ghagen_schema check      # offline: staleness guard (CI-safe)
 """
 
 from __future__ import annotations
