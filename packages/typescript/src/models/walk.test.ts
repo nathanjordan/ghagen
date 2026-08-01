@@ -15,6 +15,7 @@ import { workflow } from "./workflow.js";
 import { job } from "./job.js";
 import { step } from "./step.js";
 import { action, compositeRuns } from "./action.js";
+import { toYaml } from "../emitter/yaml-writer.js";
 
 /** Every model `walk()` visits, in order, labelled by kind + a stable field. */
 function visitLabels(root: Model): string[] {
@@ -152,5 +153,28 @@ describe("walk()", () => {
       "step:actions/checkout@v4",
       "step:actions/setup-node@v4",
     ]);
+  });
+
+  it("dedents an extras-nested step's run at emit", () => {
+    // The second consequence of H14, which the hotfix fixed but left
+    // unguarded: `dedentSteps` is a `walk()` consumer, so a step `walk()`
+    // cannot reach keeps its authored indentation and is emitted as `|2-`
+    // where Python emits `|-`. Byte parity, not just site parity.
+    const wf = workflow({
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ run: "echo one" })],
+          extras: { hidden: step({ run: "  echo indented\n  echo more" }) },
+        }),
+      },
+    });
+
+    const yaml = toYaml(wf, { header: null });
+
+    // Undedented, the authored two-space indent survives and `yaml` must emit
+    // an explicit indentation indicator (`|2-`) to preserve it.
+    expect(yaml).toContain("|-");
+    expect(yaml).not.toMatch(/\|\d/);
   });
 });

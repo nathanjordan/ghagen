@@ -138,6 +138,13 @@ framework renders the text, `main()` decides the number.
 ## Surface notes (Python)
 
 - Models are Pydantic classes. **Document** is a base class; **Workflow** and **Action** extend it.
+- `GhagenModel.walk()` / `.children()` are the traversal primitive, and both yield **bare models** —
+  no key path: `walk()` is every model in this document, root first, depth-first; within a model,
+  its schema fields in declaration order, then its `extras`. That is *traversal* order, not emission
+  order (emission order is the spec's, via `order_entries`), and it is the same sequence
+  TypeScript's `walk()` produces. `extras` is declared on the base class, so `children()` skips it
+  in the `model_fields` loop and rescans it last — that is what keeps the two ports agreeing on
+  visit order as well as visit set.
 - `to_yaml()` / `to_yaml_file()` are **methods** on Document that delegate to the Emitter's
   `emit()` / `emit_file()`. Models do not serialize themselves — the Emitter owns all recursion
   (ADR-0001, amended).

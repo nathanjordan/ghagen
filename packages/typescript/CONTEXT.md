@@ -142,7 +142,11 @@ framework renders the text, `main()` decides the number.
 
 - Models are products of **factory functions** (`workflow()`, `job()`, `step()`) over a `data` bag,
   with one shared `Model` class carrying `kind` + **ModelSpec** and providing `walk()` /
-  `children()`. Models do not serialize themselves — the Emitter owns all recursion (ADR-0001,
+  `children()`. Both yield **bare `Model`s** — no key path, no prune protocol: `walk(fn)` is every
+  model in this document, root first, depth-first; within a model, its `data` fields in declaration
+  order, then its `extras`. That is _traversal_ order, not emission order (emission order is the
+  spec's, via `orderedEntries`), and it is the same sequence Python's `walk()` produces.
+  Models do not serialize themselves — the Emitter owns all recursion (ADR-0001,
   amended). Each factory is a one-line spec binding, `export const f = defineFactory<M, I>(SPEC)`;
   its doc comment **must** carry `@function`, or TypeDoc reflects it as a Variable and the
   published page moves from `functions/` to `variables/`. A guard test in `models/_base.test.ts`
