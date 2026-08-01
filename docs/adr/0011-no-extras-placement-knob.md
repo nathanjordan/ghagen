@@ -43,7 +43,7 @@ the deletion test answering in the negative.
 ## Consequences
 
 **Do not re-add `extrasPlacement`, and do not add a Python `extras_placement`.** Reopen only with a
-concrete model that needs interleaved extras *and* a plan for emitting the same bytes from both
+concrete model that needs interleaved extras _and_ a plan for emitting the same bytes from both
 ports. Symmetry with `dynamicKeys` is not a reason — that field earned its place by acquiring an
 adapter, and this one is being judged by the same standard, not a different one.
 
@@ -53,5 +53,5 @@ this deletion rather than being decided separately.
 
 **Round-1 risk acceptances are revisitable on evidence, not on taste.** The argument here is not
 "06 was wrong" — it is that the acceptance rested on "few models use it" and one of the two fields
-turned out to be used by *none*, with its named candidate having already chosen otherwise. A round-1
+turned out to be used by _none_, with its named candidate having already chosen otherwise. A round-1
 acceptance stands until the specific condition it rested on is measured false.
