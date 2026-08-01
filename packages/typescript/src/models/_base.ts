@@ -236,33 +236,36 @@ export class Model {
     return new Model(this.spec, cloneRecord(this.data), cloneMeta(this.meta), this.sourceLocation);
   }
 
-  /** Yield child Models found in data, then in extras.
+  /** Yield every child Model, in traversal order: data fields, then extras.
    *
    * Extras live on `meta` rather than `data`, so they need their own pass —
    * without it `walk()` never sees a model nested in `extras`, and both
    * `iterUsesSites` and `dedentSteps` skip it. Python reaches extras through
-   * its `model_fields` loop and orders them last; this matches. */
-  *children(): Iterable<{ key: string; model: Model }> {
-    for (const [key, value] of Object.entries(this.data)) {
-      yield* scanForModels(key, value);
+   * its `model_fields` loop and orders them last; this matches.
+   *
+   * This is *traversal* order, not emission order — emission order is the
+   * spec's, resolved by `orderedEntries` in the emitter. */
+  *children(): Iterable<Model> {
+    for (const value of Object.values(this.data)) {
+      yield* scanForModels(value);
     }
-    for (const [key, value] of Object.entries(this.meta.extras ?? {})) {
-      yield* scanForModels(key, value);
+    for (const value of Object.values(this.meta.extras ?? {})) {
+      yield* scanForModels(value);
     }
   }
 
-  /** Depth-first walk. `fn` receives each model + key path.
-   * Return false to skip children. */
-  walk(fn: (model: Model, path: string[]) => void | false): void {
-    function visit(model: Model, path: string[]) {
-      if (fn(model, path) === false) {
-        return;
-      }
-      for (const { key, model: child } of model.children()) {
-        visit(child, [...path, key]);
+  /** Depth-first pre-order visit of this model and every descendant.
+   *
+   * The root is visited first. Read the passed models to inspect the tree, or
+   * mutate their `data` in place (e.g. the pin transform rewrites `uses`). */
+  walk(fn: (model: Model) => void): void {
+    function visit(model: Model) {
+      fn(model);
+      for (const child of model.children()) {
+        visit(child);
       }
     }
-    visit(this, []);
+    visit(this);
   }
 }
 
@@ -532,18 +535,18 @@ function applyWrapRule(rule: WrapRule, value: unknown): unknown {
 
 // ---- children() helpers ----
 
-function* scanForModels(key: string, value: unknown): Iterable<{ key: string; model: Model }> {
+function* scanForModels(value: unknown): Iterable<Model> {
   if (value instanceof Model) {
-    yield { key, model: value };
+    yield value;
   } else if (isCommented(value)) {
-    yield* scanForModels(key, value.value);
+    yield* scanForModels(value.value);
   } else if (Array.isArray(value)) {
     for (const item of value) {
-      yield* scanForModels(key, item);
+      yield* scanForModels(item);
     }
   } else if (typeof value === "object" && value !== null && !isRaw(value)) {
-    for (const [k, v] of Object.entries(value)) {
-      yield* scanForModels(k, v);
+    for (const v of Object.values(value)) {
+      yield* scanForModels(v);
     }
   }
 }
