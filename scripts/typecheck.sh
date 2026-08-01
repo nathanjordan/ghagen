@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+GATE_NAME=typecheck GATE_SCOPES="py ts"
+source "$(dirname "$0")/_gate.sh"
+gate_parse "$@"
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-
-SCOPE="${1:-all}"
-case "$SCOPE" in
-  py | ts | all) ;;
-  *)
-    echo "Usage: $0 [py|ts|all]" >&2
-    exit 1
-    ;;
-esac
-
-if [[ "$SCOPE" == "py" || "$SCOPE" == "all" ]]; then
-  echo "==> Pyright (python)"
+if in_scope py; then
+  step "Pyright (python)"
   uv run pyright packages/python/src/
 fi
 
-if [[ "$SCOPE" == "ts" || "$SCOPE" == "all" ]]; then
-  echo "==> tsc (typescript)"
+if in_scope ts; then
+  need_node packages/typescript
+  step "tsc (typescript)"
   npm run typecheck --prefix "$REPO_ROOT/packages/typescript"
 fi
