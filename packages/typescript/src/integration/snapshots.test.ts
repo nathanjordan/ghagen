@@ -291,3 +291,61 @@ describe("snapshot tests", () => {
     expect(toYaml(w, { header: null })).toBe(loadFixture("triple_quoted_run.yml"));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Header goldens — the cross-port byte oracle for `formatHeader`.
+//
+// The six files are generated from the Python port and read byte-for-byte by
+// both suites; every byte that differs between them is header. Peer:
+// `packages/python/tests/test_integration/test_snapshots.py`.
+// ---------------------------------------------------------------------------
+describe("header goldens", () => {
+  /** The one body every header golden shares: 10 lines, no comments. */
+  function headerWorkflow(comment?: string) {
+    return workflow({
+      name: "CI",
+      on: { push: { branches: ["main"] } },
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ uses: "actions/checkout@v4" })],
+        }),
+      },
+      ...(comment === undefined ? {} : { comment }),
+    });
+  }
+
+  it("header_string.yml", () => {
+    expect(toYaml(headerWorkflow(), { header: "Hand written" })).toBe(
+      loadFixture("header_string.yml"),
+    );
+  });
+
+  it("header_multiline.yml", () => {
+    expect(toYaml(headerWorkflow(), { header: "line1\n\nline3\n" })).toBe(
+      loadFixture("header_multiline.yml"),
+    );
+  });
+
+  it("header_crlf.yml", () => {
+    const out = toYaml(headerWorkflow(), { header: "a\r\nb\rc" });
+    expect(out).toBe(loadFixture("header_crlf.yml"));
+    expect(out).not.toContain("\r");
+  });
+
+  it("header_empty.yml", () => {
+    expect(toYaml(headerWorkflow(), { header: "" })).toBe(loadFixture("header_empty.yml"));
+  });
+
+  it("header_closure.yml", () => {
+    expect(toYaml(headerWorkflow(), { header: (v) => `built by ${v.tool} # verbatim` })).toBe(
+      loadFixture("header_closure.yml"),
+    );
+  });
+
+  it("header_doc_comment.yml", () => {
+    expect(toYaml(headerWorkflow("root doc comment"), { header: "Hand written" })).toBe(
+      loadFixture("header_doc_comment.yml"),
+    );
+  });
+});

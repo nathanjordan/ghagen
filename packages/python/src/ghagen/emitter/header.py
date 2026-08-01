@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -126,9 +127,31 @@ def build_header_variables(
     }
 
 
+#: Python ``str.splitlines()``'s break set, written out so the contract this
+#: module publishes is the contract it implements. See
+#: :func:`format_header`'s docstring. It is not an arbitrary choice: ruamel
+#: rejects VT/FF/FS/GS/RS outright inside a comment ("unacceptable character")
+#: and rescans NEL/U+2028/U+2029 as line breaks, so any of them surviving into
+#: the emitted comment produces a document this port cannot read back.
+_HEADER_BREAK = re.compile("\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _split_header_lines(text: str) -> list[str]:
+    """Split header *text* into lines, dropping one trailing break.
+
+    Byte-equivalent to ``text.splitlines() or [""]``; the point is that the
+    rule is *stated* here rather than inherited from an undocumented stdlib
+    behaviour, so the TypeScript peer can be derived from it.
+    """
+    lines = _HEADER_BREAK.split(text)
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines or [""]
+
+
 def _wrap_as_comment(text: str) -> str:
     """Wrap *text* with ``# `` line prefixes, terminated by a newline."""
-    lines = text.splitlines() or [""]
+    lines = _split_header_lines(text)
     return "\n".join(f"# {line}" if line else "#" for line in lines) + "\n"
 
 
@@ -136,7 +159,13 @@ def format_header(
     header: HeaderInput,
     source_location: tuple[str, int] | None,
 ) -> str | None:
-    """Resolve a ``header`` argument into a ``#``-prefixed comment block.
+    """Resolve a ``header`` argument into the exact bytes that precede the body.
+
+    This docstring is the normative statement of the header contract for
+    **both** ports; ``formatHeader`` in
+    ``packages/typescript/src/emitter/header.ts`` implements the same rules and
+    ``fixtures/expected/header_*.yml`` is the assertion of that, read
+    byte-for-byte by both suites.
 
     Branching:
 
@@ -149,6 +178,20 @@ def format_header(
       user-supplied strings; literal braces survive unchanged.
     - callable        — invoke with a fully-populated
       :class:`HeaderVariables` and emit the returned string.
+
+    The returned block, for every non-``None`` branch:
+
+    - every line gains a ``"# "`` prefix; a blank line renders as a bare ``#``;
+    - it is terminated by exactly one ``"\\n"``;
+    - one trailing line break in the input is dropped, so ``"x\\n"`` and
+      ``"x"`` both render ``"# x\\n"``;
+    - CRLF, CR, LF, VT, FF, FS, GS, RS, NEL, LINE SEPARATOR and PARAGRAPH
+      SEPARATOR are all line breaks (:data:`_HEADER_BREAK`), so no control
+      character survives into the comment;
+    - ``""`` is a header, not a skip: it renders ``"#\\n"``. ``None`` is the
+      only skip signal.
+
+    The writer concatenates the result; it does not wrap, pad, or re-indent it.
 
     Args:
         header: One of the four shapes documented above.

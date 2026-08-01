@@ -8,7 +8,7 @@ import {
   type Document as GhagenDocument,
 } from "../models/_base.js";
 import { attachFieldComment, attachModelComment } from "./comments.js";
-import { commentString, renderBlockComment } from "./comment-geometry.js";
+import { commentString } from "./comment-geometry.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { dedentScript } from "../_dedent.js";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -403,11 +403,6 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
   const doc = new Document();
   doc.contents = modelToYamlMap(target);
 
-  const headerStr = formatHeader(options?.header, target.sourceLocation);
-  if (headerStr !== null) {
-    doc.commentBefore = renderBlockComment(headerStr);
-  }
-
   if (doc.contents instanceof YAMLMap) {
     // The root model's OWN comment, rendered on the map as a whole — the same
     // helper that closes the nested map-value gap.
@@ -418,8 +413,18 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
 
   // No text pass runs over the result: every comment payload was rendered by
   // `comment-geometry.ts` at attach time, so `commentString` is the identity
-  // and no `#` inside a scalar is ever mistaken for a comment.
-  return doc.toString({ lineWidth: 0, indentSeq: false, singleQuote: true, commentString });
+  // and no `#` inside a scalar is ever mistaken for a comment. (This is
+  // compatible with docs/specs/0003 either way: that spec ruled string-level
+  // output normalization in scope to stay, and header text is now out of any
+  // such pass's reach regardless of what the pass becomes.)
+  const yaml = doc.toString({ lineWidth: 0, indentSeq: false, singleQuote: true, commentString });
+
+  // The header never reaches the document node. `stringifyDocument` would
+  // insert a blank line between a `commentBefore` and the body and drop a
+  // falsy one outright — neither configurable, and neither what the Python
+  // port emits. `formatHeader` returns the exact bytes; this concatenates.
+  const headerStr = formatHeader(options?.header, target.sourceLocation);
+  return headerStr === null ? yaml : headerStr + yaml;
 }
 
 /**

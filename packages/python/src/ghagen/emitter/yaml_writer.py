@@ -62,7 +62,10 @@ def dump_yaml(
 
     Args:
         data: The CommentedMap to serialize.
-        header: Optional header comment to prepend (already formatted with #).
+        header: A fully wrapped comment block — ``"#"``-prefixed and
+            ``"\\n"``-terminated, the contract of
+            :func:`ghagen.emitter.header.format_header` — or ``None`` for
+            "no header". ``None`` is the only skip signal; ``""`` is not one.
 
     Returns:
         The YAML string.
@@ -79,10 +82,11 @@ def dump_yaml(
     apply_comment_geometry(data)
 
     stream = StringIO()
-    if header:
+    if header is not None:
+        # A fully wrapped comment block, "#"-prefixed and "\n"-terminated (the
+        # contract of ghagen.emitter.header.format_header). dump_yaml does not
+        # wrap, pad, or re-indent it.
         stream.write(header)
-        if not header.endswith("\n"):
-            stream.write("\n")
     yaml.dump(data, stream)
 
     return stream.getvalue()

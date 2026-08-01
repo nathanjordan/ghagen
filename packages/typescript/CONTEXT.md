@@ -38,7 +38,8 @@ the plain-data observation surface `toData()` — the supported way to inspect a
 structure (see **CommentNode**).
 Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) and the block-comment
 column — is a named module, `emitter/comment-geometry.ts`, and every comment payload is rendered
-through it at attach time. No Emitter pass rewrites emitted text.
+through it at attach time. No Emitter pass rewrites emitted text. The Emitter also owns the emitted
+**Header** bytes end to end — the backend never sees them.
 
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, the
@@ -54,6 +55,15 @@ A ModelSpec's emission-order rule — an explicit key list, or alphabetical (ext
 **CommentNode**:
 The Emitter's public, backend-neutral representation of a value plus its attached block/EOL
 comment, produced by `toData(..., { comments: true })`.
+
+**Header**:
+The auto-generated comment block at the top of every emitted file. `format_header` /
+`formatHeader` resolves the four input shapes (default, `None`/`null`, string, closure) to the
+exact bytes that precede the YAML body — `#`-prefixed, one trailing newline, blank lines as a
+bare `#`, one trailing line break in the input dropped — or to `None`/`null` for "no header".
+The writer concatenates; it never re-wraps, pads, or re-indents. Byte parity is asserted by
+`fixtures/expected/header_*.yml`.
+_Avoid_: banner, preamble, file comment.
 
 ### Pinning
 
