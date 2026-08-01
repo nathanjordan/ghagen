@@ -20,6 +20,7 @@ export {
 export { UsesRef } from "./uses.js";
 export { type BumpSeverity } from "./versions.js";
 export { collectUsesRefs } from "./collect.js";
+export { renderUpgradeReport, type UpgradeFormat } from "./render.js";
 export { UsesSite, iterUsesSites } from "./sites.js";
 export { PinError, type PinTransform, pinTransform } from "./transform.js";
 export { trackUserFiles, locateUsesRefs } from "./sources.js";

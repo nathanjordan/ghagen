@@ -1,0 +1,12 @@
+Version updates available:
+
+  actions/checkout@v5  →  v6  [major]
+    in .github/ghagen_workflows.py
+  actions/setup-node@v3  →  v4  [major]
+
+Stale lockfile entries:
+
+  actions/setup-python@v6
+    current SHA: ece7cb06caef...
+    latest SHA:  aaaa1111bbbb...
+

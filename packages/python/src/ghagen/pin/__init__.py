@@ -27,6 +27,7 @@ from ghagen.pin.lockfile import (
     read_lockfile,
     write_lockfile,
 )
+from ghagen.pin.render import UpgradeFormat, render_upgrade_report
 from ghagen.pin.sites import UsesSite, iter_uses_sites
 from ghagen.pin.transform import PinTransform
 from ghagen.pin.uses import UsesRef
@@ -47,6 +48,7 @@ __all__ = [
     "Response",
     "SyncReport",
     "TransportError",
+    "UpgradeFormat",
     "UpgradeReport",
     "UrllibTransport",
     "UsesRef",
@@ -57,6 +59,7 @@ __all__ = [
     "iter_uses_sites",
     "pin",
     "read_lockfile",
+    "render_upgrade_report",
     "upgrade",
     "write_lockfile",
 ]

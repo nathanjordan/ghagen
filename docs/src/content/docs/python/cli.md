@@ -162,6 +162,30 @@ ghagen deps upgrade --check --format json  # Machine-readable JSON report
 | `--mode MODE`         | Detection mode: `versions`, `lockfile`, or `all` (default).                      |
 | `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`.  |
 
+### Which keys `--format json` emits
+
+The JSON payload's top-level keys are decided by `--mode` alone, never by what
+the run happened to find. A key is present exactly when its stage was asked
+for, and its value is `[]` when that stage found nothing.
+
+| `--mode`            | Keys emitted                      |
+| ------------------- | --------------------------------- |
+| `versions`          | `version_bumps`                   |
+| `lockfile`          | `lockfile_stale`                  |
+| `all` (the default) | `version_bumps`, `lockfile_stale` |
+
+So `--mode versions --format json` always emits exactly `version_bumps`, and a
+consumer can index it unconditionally. Both keys appear together only under
+`--mode all`.
+
+`--mode lockfile` reports what it was _asked_ to check, not what it ran: with
+`lockfile=None` on the `App` the lockfile stage is skipped entirely, and the
+payload is still `{"lockfile_stale": []}`.
+
+The same rule is applied by `ghagen.pin.render.render_upgrade_report`, which
+this command calls — the payload is identical whether you go through the CLI
+or render a report yourself. The key set is identical in the TypeScript port.
+
 ### Which refs count as version tags
 
 Only refs that match ghagen's version-tag grammar are upgrade candidates. A ref

@@ -7,7 +7,6 @@ typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
 
 from __future__ import annotations
 
-import json as json_mod
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,7 +17,6 @@ from ghagen.cli._common import _find_config, _load_app
 
 if TYPE_CHECKING:
     from ghagen.app import App
-    from ghagen.pin.engine import LockfileStaleEntry, VersionBump
     from ghagen.pin.github import GitHubClient
 
 deps_app = typer.Typer(
@@ -161,6 +159,7 @@ def deps_upgrade(
 ) -> None:
     """Upgrade action dependencies to latest versions."""
     from ghagen.pin.engine import upgrade as upgrade_engine
+    from ghagen.pin.render import render_upgrade_report
     from ghagen.pin.sources import track_user_files
 
     if mode not in ("versions", "lockfile", "all"):
@@ -207,154 +206,7 @@ def deps_upgrade(
         for f in report.changed_files:
             typer.echo(f"  modified {f}", err=progress_to_stderr)
 
-    check_versions = mode in ("versions", "all")
-    check_lockfile = mode in ("lockfile", "all")
-
-    if not report.version_bumps and not report.lockfile_stale:
-        if output_format == "json":
-            typer.echo(
-                json_mod.dumps(
-                    {"version_bumps": [], "lockfile_stale": []},
-                    indent=2,
-                )
-            )
-        elif output_format == "pr-body":
-            typer.echo(_render_pr_body([], []), nl=False)
-        elif output_format == "issue-body":
-            typer.echo(_render_issue_body([], []), nl=False)
-        else:
-            typer.echo("Everything is up to date.")
-        raise typer.Exit(0)
-
-    if output_format == "json":
-        result: dict = {}
-        if check_versions:
-            result["version_bumps"] = [
-                _bump_to_json(bump) for bump in report.version_bumps
-            ]
-        if check_lockfile:
-            result["lockfile_stale"] = [
-                _stale_to_json(entry) for entry in report.lockfile_stale
-            ]
-        typer.echo(json_mod.dumps(result, indent=2))
-    elif output_format == "pr-body":
-        typer.echo(
-            _render_pr_body(report.version_bumps, report.lockfile_stale), nl=False
-        )
-    elif output_format == "issue-body":
-        typer.echo(
-            _render_issue_body(report.version_bumps, report.lockfile_stale), nl=False
-        )
-    else:
-        _print_human_report(report.version_bumps, report.lockfile_stale)
-
-
-def _bump_to_json(bump: VersionBump) -> dict:
-    """Serialize a version bump for ``--format json`` (omits empty ``source_files``)."""
-    entry: dict = {
-        "uses": bump.uses,
-        "current": bump.current,
-        "latest": bump.latest,
-        "severity": bump.severity,
-    }
-    if bump.source_files:
-        entry["source_files"] = list(bump.source_files)
-    return entry
-
-
-def _stale_to_json(stale: LockfileStaleEntry) -> dict:
-    """Serialize a stale entry for ``--format json`` (omits empty ``source_files``)."""
-    entry: dict = {
-        "uses": stale.uses,
-        "current_sha": stale.current_sha,
-        "latest_sha": stale.latest_sha,
-    }
-    if stale.source_files:
-        entry["source_files"] = list(stale.source_files)
-    return entry
-
-
-def _render_pr_body(
-    version_bumps: list[VersionBump],
-    lockfile_stale: list[LockfileStaleEntry],
-) -> str:
-    """Render the pull-request body markdown for an upgrade report.
-
-    Golden-file tested against ``fixtures/expected/upgrade_pr_body.md`` and kept
-    byte-identical with the TypeScript port's ``renderPrBody``.
-    """
-    lines = ["## ghagen dependency update", ""]
-
-    if version_bumps:
-        lines.append("### Version bumps")
-        lines.append("")
-        for bump in version_bumps:
-            lines.append(f"- `{bump.uses}` -> `{bump.latest}` [{bump.severity}]")
-        lines.append("")
-
-    if lockfile_stale:
-        lines.append("### Lockfile maintenance")
-        lines.append("")
-        for entry in lockfile_stale:
-            lines.append(f"- `{entry.uses}` SHA refreshed")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def _render_issue_body(
-    version_bumps: list[VersionBump],
-    lockfile_stale: list[LockfileStaleEntry],
-) -> str:
-    """Render the issue body markdown for an upgrade report.
-
-    Golden-file tested against ``fixtures/expected/upgrade_issue_body.md`` and
-    kept byte-identical with the TypeScript port's ``renderIssueBody``.
-    """
-    lines: list[str] = []
-
-    if version_bumps:
-        lines.append("## Version updates available")
-        lines.append("")
-        for bump in version_bumps:
-            line = f"- [ ] `{bump.uses}` -> `{bump.latest}` [{bump.severity}]"
-            if bump.source_files:
-                files = ", ".join(f"`{f}`" for f in bump.source_files)
-                line += f"  in {files}"
-            lines.append(line)
-        lines.append("")
-
-    if lockfile_stale:
-        lines.append("## Stale lockfile entries")
-        lines.append("")
-        lines.append("Run `ghagen deps pin --update` to refresh.")
-        lines.append("")
-        for entry in lockfile_stale:
-            lines.append(f"- [ ] `{entry.uses}` — SHA changed")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def _print_human_report(
-    version_bumps: list[VersionBump],
-    lockfile_stale: list[LockfileStaleEntry],
-) -> None:
-    """Print a human-readable upgrade report."""
-    if version_bumps:
-        typer.echo("Version updates available:")
-        typer.echo("")
-        for bump in version_bumps:
-            typer.echo(f"  {bump.uses}  →  {bump.latest}  [{bump.severity}]")
-            for src in bump.source_files:
-                typer.echo(f"    in {src}")
-        typer.echo("")
-
-    if lockfile_stale:
-        typer.echo("Stale lockfile entries:")
-        typer.echo("")
-        for entry in lockfile_stale:
-            typer.echo(f"  {entry.uses}")
-            typer.echo(f"    current SHA: {entry.current_sha[:12]}...")
-            typer.echo(f"    latest SHA:  {entry.latest_sha[:12]}...")
-        typer.echo("")
+    typer.echo(
+        render_upgrade_report(report, output_format=output_format or "text"),
+        nl=False,
+    )

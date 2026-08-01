@@ -201,4 +201,6 @@ export {
   type UpgradeOptions,
   type VersionBump,
   type LockfileStaleEntry,
+  renderUpgradeReport,
+  type UpgradeFormat,
 } from "./pin/index.js";

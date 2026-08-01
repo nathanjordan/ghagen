@@ -108,6 +108,13 @@ A version tag strictly newer than the current one, with the same prefix, plus it
 (major/minor/patch). `pin/versions` is the sole authority on both; the engine consumes Bumps and
 never compares versions itself. Equal versions produce no Bump.
 
+**Upgrade report**:
+What one `upgrade` run was **asked to check** and what it found — the **Bumps**, the stale lockfile
+entries, and a flag per stage recording what the run's mode asked for. The flags are set before the
+engine's no-refs early return, so every run carries them, and the rendered output's shape follows
+them rather than following what the run happened to find. "Asked for" is not "ran": the lockfile
+flag stays true when no lockfile is configured and the stage is skipped.
+
 ### Schema
 
 **Snapshot**:
@@ -160,6 +167,15 @@ framework renders the text, `main()` decides the number.
   construction** (`_exitCallback` is per-`Command` and `addCommand()` never copies it), so `main()`
   returns the exit code and the bin shim only assigns it to `process.exitCode`. The synthesis
   pipeline is `synth.ts`'s `render()`, fully synchronous; pin runs last (ADR-0005).
+- The upgrade path is three layers with one direction of dependency: `pin/engine` produces an
+  **Upgrade report** and never formats; `pin/render` turns that report into a string and never
+  writes, exits, or touches the network (`renderUpgradeReport(report, format)` — one function over
+  all four formats, `text` the default); `cli/deps` owns stream selection and exit codes only, and
+  writes the returned string verbatim. The report's `checkedVersions` / `checkedLockfile` flags
+  exist so the renderer never has to re-derive `--mode`, which is what makes the `--format json`
+  key set identical for empty and non-empty runs (ADR-0007;
+  `docs/specs/0005-typed-engine-report-seam.md` §2.2). All four formats are byte-compared against
+  shared goldens in `fixtures/expected/` by both ports.
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
   `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
 - `models/registry.ts` is the one `ModelKind` → **ModelSpec** map (`SPECS_BY_KIND`, plus

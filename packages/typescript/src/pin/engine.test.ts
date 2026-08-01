@@ -44,6 +44,20 @@ function appWithRefs(root: string, ...uses: string[]): App {
   return app;
 }
 
+/** An App whose only step is a `run:` — no pinnable `uses` refs. */
+function appWithoutRefs(root: string): App {
+  const app = new App({ root });
+  app.addWorkflow(
+    workflow({
+      name: "CI",
+      on: { push: { branches: ["main"] } },
+      jobs: { test: job({ runsOn: "ubuntu-latest", steps: [step({ run: "echo hi" })] }) },
+    }),
+    "ci.yml",
+  );
+  return app;
+}
+
 function writeLock(root: string, pins: Record<string, string>): void {
   const lf = new Lockfile();
   for (const [uses, sha] of Object.entries(pins)) {
@@ -220,16 +234,30 @@ describe("upgrade()", () => {
     expect(stale.latest_sha).toBe(newSha);
   });
 
-  it("returns an empty report when there are no refs", async () => {
-    const app = new App({ root: tmp });
-    app.addWorkflow(
-      workflow({
-        name: "CI",
-        on: { push: { branches: ["main"] } },
-        jobs: { test: job({ runsOn: "ubuntu-latest", steps: [step({ run: "echo hi" })] }) },
-      }),
-      "ci.yml",
+  // Moved here from src/cli/deps.test.ts's non-semver test, which asserted it
+  // through a JSON payload. The grammar itself is pinned by
+  // schema/tag-grammar.yml (`main` -> null); this is the engine's half — a ref
+  // the grammar rejects yields no bump even when newer version tags exist.
+  it("never bumps a ref whose tag is not a version tag", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@main");
+    const source = join(tmp, "wf.ts");
+    writeFileSync(source, 'step({ uses: "actions/checkout@main" });\n');
+    const client = new GitHubClient(
+      new FakeTransport({ "git/refs/tags": tags("v1", "v2", "v3", "v4", "v5") }),
     );
+
+    const report = await upgrade(app, client, new Set([source]), {
+      mode: "versions",
+      apply: true,
+    });
+
+    expect(report.versionBumps).toEqual([]);
+    expect(report.changedFiles).toEqual([]);
+    expect(readFileSync(source, "utf8")).toContain("actions/checkout@main");
+  });
+
+  it("returns an empty report when there are no refs", async () => {
+    const app = appWithoutRefs(tmp);
     const client = new GitHubClient(new FakeTransport({}));
 
     const report = await upgrade(app, client, new Set(), { mode: "all", apply: true });
@@ -237,5 +265,89 @@ describe("upgrade()", () => {
     expect(report.versionBumps).toEqual([]);
     expect(report.lockfileStale).toEqual([]);
     expect(report.changedFiles).toEqual([]);
+  });
+
+  // Moved from src/cli/deps.test.ts: it asserts an engine fact
+  // (report.warnings), and a canned transport scripted to answer the tag list
+  // with a 500 covers it without driving the command.
+  it("continues with a warning when the tag API fails", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@v4");
+    const client = new GitHubClient(
+      new FakeTransport({
+        "git/refs/tags": canned(
+          { message: "boom" },
+          { status: 500, statusText: "Internal Server Error" },
+        ),
+      }),
+    );
+
+    const report = await upgrade(app, client, new Set(), { mode: "versions", apply: false });
+
+    expect(report.versionBumps).toEqual([]);
+    expect(report.warnings).toHaveLength(1);
+    expect(report.warnings[0]).toContain("failed to list tags for actions/checkout");
+  });
+});
+
+// ---- upgrade: what the run was asked to check ----
+
+/**
+ * `checkedVersions` / `checkedLockfile` are pure functions of `mode`. They
+ * record what the run was *asked for*, so the renderer never re-derives it
+ * from the CLI's `--mode`. "Asked for" is not "ran": with no lockfile
+ * configured the lockfile stage is skipped and the flag stays true.
+ */
+describe("upgrade() checked flags", () => {
+  const cases = [
+    { mode: "versions", versions: true, lockfile: false },
+    { mode: "lockfile", versions: false, lockfile: true },
+    { mode: "all", versions: true, lockfile: true },
+  ] as const;
+
+  for (const { mode, versions, lockfile } of cases) {
+    it(`reports checkedVersions=${versions} checkedLockfile=${lockfile} for --mode ${mode}`, async () => {
+      const app = appWithRefs(tmp, "actions/checkout@v4");
+      const client = new GitHubClient(new FakeTransport({ "git/refs/tags": tags("v4") }));
+
+      const report = await upgrade(app, client, new Set(), { mode, apply: false });
+
+      expect(report.checkedVersions).toBe(versions);
+      expect(report.checkedLockfile).toBe(lockfile);
+    });
+
+    // The flags are set *before* the no-refs early return. This ordering is
+    // the fact the whole renderer design turns on: a project with no pinnable
+    // refs must render the same JSON key set as any other.
+    it(`a no-refs report still reports the checked flags for --mode ${mode}`, async () => {
+      const app = appWithoutRefs(tmp);
+      const client = new GitHubClient(new FakeTransport({}));
+
+      const report = await upgrade(app, client, new Set(), { mode, apply: true });
+
+      expect(report.versionBumps).toEqual([]);
+      expect(report.lockfileStale).toEqual([]);
+      expect(report.checkedVersions).toBe(versions);
+      expect(report.checkedLockfile).toBe(lockfile);
+    });
+  }
+
+  it('is true without a lockfile — "asked for" is not "ran"', async () => {
+    const app = new App({ root: tmp, lockfile: null });
+    app.addWorkflow(
+      workflow({
+        name: "CI",
+        on: { push: { branches: ["main"] } },
+        jobs: {
+          test: job({ runsOn: "ubuntu-latest", steps: [step({ uses: "actions/checkout@v4" })] }),
+        },
+      }),
+      "ci.yml",
+    );
+    const client = new GitHubClient(new FakeTransport({}));
+
+    const report = await upgrade(app, client, new Set(), { mode: "lockfile", apply: false });
+
+    expect(report.checkedLockfile).toBe(true);
+    expect(report.lockfileStale).toEqual([]);
   });
 });

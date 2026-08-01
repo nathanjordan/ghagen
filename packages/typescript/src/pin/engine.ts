@@ -181,6 +181,20 @@ export interface UpgradeReport {
   lockfileStale: LockfileStaleEntry[];
   changedFiles: string[];
   warnings: string[];
+
+  /** The run was asked for newer version tags (`mode` in versions/all). */
+  checkedVersions: boolean;
+
+  /**
+   * The run was asked for stale lockfile SHAs (`mode` in lockfile/all).
+   *
+   * "Asked for", not "ran": this stays `true` when `app.lockfilePath` is
+   * `null`, where the lockfile stage below is skipped entirely. A consumer
+   * that must distinguish "no lockfile configured" from "checked, nothing
+   * stale" still has to consult `app.lockfilePath` — this field does not carry
+   * that fact.
+   */
+  checkedLockfile: boolean;
 }
 
 export interface UpgradeOptions {
@@ -202,11 +216,16 @@ export async function upgrade(
   userFiles: ReadonlySet<string>,
   opts: UpgradeOptions,
 ): Promise<UpgradeReport> {
+  // Set before the no-refs early return below, so a project with no pinnable
+  // refs still reports what it was asked to check and renders the same key set
+  // as any other run.
   const report: UpgradeReport = {
     versionBumps: [],
     lockfileStale: [],
     changedFiles: [],
     warnings: [],
+    checkedVersions: opts.mode === "versions" || opts.mode === "all",
+    checkedLockfile: opts.mode === "lockfile" || opts.mode === "all",
   };
 
   const refs = collectUsesRefs(app);
@@ -216,10 +235,7 @@ export async function upgrade(
 
   const refLocations = locateUsesRefs(new Set(refs.map((r) => r.uses)), userFiles);
 
-  const checkVersions = opts.mode === "versions" || opts.mode === "all";
-  const checkLockfile = opts.mode === "lockfile" || opts.mode === "all";
-
-  if (checkVersions) {
+  if (report.checkedVersions) {
     // Group refs by owner/repo for efficient API calls — parsing is free, so
     // grouping is a cheap local step over the already-parsed refs.
     const repoRefs = new Map<string, UsesRef[]>();
@@ -263,7 +279,7 @@ export async function upgrade(
     }
   }
 
-  if (checkLockfile && app.lockfilePath !== null) {
+  if (report.checkedLockfile && app.lockfilePath !== null) {
     const lockfile = readLockfile(resolve(app.rootAbsPath, app.lockfilePath));
     for (const ref of refs) {
       const entry = lockfile.get(ref.uses);
