@@ -55,15 +55,26 @@ def _ci_workflow() -> Workflow:
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
                     Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
-                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
                     Step(name="Lint", run="scripts/lint.sh ts"),
                     Step(name="Format check", run="scripts/fmt.sh ts"),
                 ],
             ),
-            # actionlint and `ghagen deps check-synced` are language-neutral, so
-            # scripts/lint.sh only runs them under its default `all` scope (see the
-            # script). The per-language jobs above call it scoped to `py`/`ts` and
-            # never trigger them, so this job runs them directly instead.
+            # `docs/` is a separate npm root from `packages/typescript/`, so it is a
+            # separate scope and a separate job: lint-ts no longer installs an Astro
+            # site to run oxlint, and docs linting runs in parallel instead of
+            # serially inside it.
+            "lint-docs": Job(
+                name="Lint (docs)",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
+                    Step(name="Lint", run="scripts/lint.sh docs"),
+                    Step(name="Format check", run="scripts/fmt.sh docs"),
+                ],
+            ),
             "lint-meta": Job(
                 name="Lint (meta)",
                 runs_on="ubuntu-latest",
@@ -78,21 +89,15 @@ def _ci_workflow() -> Workflow:
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.12",
                     ),
-                    Step(
-                        name="ghagen deps check-synced",
-                        run="uv run ghagen deps check-synced",
-                        env={"GITHUB_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
-                    ),
-                    # Staleness guard: regenerate the TS reference types from the
-                    # committed Snapshot and fail if they differ from what is
-                    # committed. Offline and deterministic (no token, no network),
-                    # so it is safe on every PR. This is the single line that
-                    # actively enforces ADR-0003's author-conformance guarantee.
-                    Step(
-                        name="Schema types up to date",
-                        run="uv run python -m ghagen_schema check",
-                        env={"PYTHONPATH": "scripts"},
-                    ),
+                    # `meta` is a declared scope of scripts/lint.sh, so its contents
+                    # live in the script rather than being re-listed here: the
+                    # lockfile sync check, plus the staleness guard that regenerates
+                    # the TS reference types from the committed Snapshot and fails if
+                    # they differ from what is committed. Both are offline and
+                    # deterministic (no token, no network), so they are safe on every
+                    # PR. The staleness guard is the single line that actively
+                    # enforces ADR-0003's author-conformance guarantee.
+                    Step(name="Meta lint", run="scripts/lint.sh meta"),
                 ],
             ),
             "typecheck-py": Job(

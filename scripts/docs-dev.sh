@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Not a scoped gate: sources _gate.sh for need_node/step only, never gate_parse.
+GATE_NAME=docs-dev
+source "$(dirname "$0")/_gate.sh"
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+need_node docs
 
-echo "==> Building docs"
+step "Building docs"
 npm run build --prefix "$REPO_ROOT/docs"
 
-echo "==> Starting docs dev server"
+step "Starting docs dev server"
 exec npm run dev --prefix "$REPO_ROOT/docs"

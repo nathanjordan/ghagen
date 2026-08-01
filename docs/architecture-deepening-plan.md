@@ -62,8 +62,8 @@ instead of calling `scripts/*.sh`, and have already drifted (CI test job omits v
 **Design (decided): scripts are the single seam for "what constitutes each gate", with a scope
 argument.**
 
-- `scripts/test.sh [py|ts|all]`, `scripts/lint.sh [py|ts|all]`, `scripts/typecheck.sh [py|ts|all]`
-  (default `all`). `fmt.sh` likewise for symmetry.
+- Each gate declares its own scopes (`lint.sh`: `py ts docs meta`; `fmt.sh`: `py ts docs`;
+  `test.sh`/`typecheck.sh`: `py ts`), default `all` = the union. See `AGENTS.md`.
 - `.github/ghagen_workflows.py` CI jobs call the scripts with a scope — per-language jobs keep
   parallel caches (`test-py` → `scripts/test.sh py`, `test-ts` → `scripts/test.sh ts`, etc.).
 - Pre-commit and humans call with default `all`.
