@@ -2,12 +2,15 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { YAMLMap, Scalar, Pair } from "yaml";
+import YAML, { YAMLMap, Scalar, Pair } from "yaml";
 import { toYaml, toYamlFile, toData } from "./yaml-writer.js";
+import { EOL_GUTTER } from "./comment-geometry.js";
 import type { HeaderVariables } from "./header.js";
 import { Model, raw, withComment, withEolComment } from "../models/_base.js";
 import type { ModelMeta, ModelSpec } from "../models/_base.js";
-import { JOB_SPEC } from "../models/job.js";
+import { JOB_SPEC, job } from "../models/job.js";
+import { workflow } from "../models/workflow.js";
+import { step } from "../models/step.js";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -122,7 +125,7 @@ describe("comments", () => {
   it("withEolComment adds an EOL comment on the field value", () => {
     const m = simpleModel({ name: withEolComment("ci", "inline note") });
     const yaml = toYaml(m, { header: null });
-    expect(yaml).toMatch(/name: ci\s+# inline note/);
+    expect(yaml).toContain(`name: ci${" ".repeat(EOL_GUTTER)}# inline note`);
   });
 
   it("model-level comment attaches to the first key", () => {
@@ -138,7 +141,143 @@ describe("comments", () => {
   it("model-level eolComment attaches to the last value", () => {
     const m = simpleModel({ alpha: 1, zulu: 2 }, { eolComment: "end of block" });
     const yaml = toYaml(m, { header: null });
-    expect(yaml).toMatch(/zulu: 2\s+# end of block/);
+    expect(yaml).toContain(`zulu: 2${" ".repeat(EOL_GUTTER)}# end of block`);
+  });
+
+  it("a `#` in a comment payload is not a comment delimiter", () => {
+    const m = simpleModel({ name: withComment("ci", "see issue # 42 for details") });
+    const yaml = toYaml(m, { header: null });
+    expect(yaml).toContain("# see issue # 42 for details\n");
+  });
+
+  it("the EOL gutter does not depend on a neighbouring key's comment", () => {
+    // Cross-port parity: `test_comments.py` asserts the same four strings.
+    // The gutter is EOL_GUTTER whichever side of the key the comment sits on
+    // and whether or not a neighbour carries one. On `main` TypeScript emitted
+    // one column for a collection value (the regex refused to widen after a
+    // `:`) and Python emitted one column whenever a neighbour was commented.
+    const scalar = simpleModel({ name: "ci", on: withEolComment("push", "trigger") }, {}, [
+      "name",
+      "on",
+    ]);
+    expect(toYaml(scalar, { header: null })).toContain("on: push  # trigger\n");
+
+    const scalarWithNeighbour = simpleModel(
+      { name: withComment("ci", "the name"), on: withEolComment("push", "trigger") },
+      {},
+      ["name", "on"],
+    );
+    expect(toYaml(scalarWithNeighbour, { header: null })).toContain("on: push  # trigger\n");
+
+    const collection = simpleModel(
+      { name: "ci", on: withEolComment({ push: {} }, "trigger") },
+      {},
+      ["name", "on"],
+    );
+    expect(toYaml(collection, { header: null })).toContain("on:  # trigger\n");
+
+    const collectionWithNeighbour = simpleModel(
+      { name: withComment("ci", "the name"), on: withEolComment({ push: {} }, "trigger") },
+      {},
+      ["name", "on"],
+    );
+    expect(toYaml(collectionWithNeighbour, { header: null })).toContain("on:  # trigger\n");
+  });
+
+  it("a multi-line EOL comment degrades to a block comment above the field", () => {
+    // Cross-port parity: `test_comments.py` asserts the same string, and the
+    // Python port emitted unparseable YAML for this input before the fix.
+    const m = simpleModel({ name: withEolComment("ci", "line one\nline two") });
+    const yaml = toYaml(m, { header: null });
+    expect(yaml).toBe("# line one\n# line two\nname: ci\n");
+    expect(YAML.parse(yaml)).toEqual({ name: "ci" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scalar content is never rewritten — the emitted document is not inspected
+// for `#`, so a `#` in a `run:` script survives a full emit → parse round trip.
+// ---------------------------------------------------------------------------
+describe("scalar round-trip", () => {
+  const RUN_SHAPES = [
+    "echo hi # note",
+    "npm ci # install deps\nnpm test\n",
+    "echo 'a # b'",
+    "curl https://x/y#frag # note",
+    "echo hi #note",
+    "echo hi  # note",
+    "echo hi: # note",
+    "# note\necho hi",
+    "#!/usr/bin/env bash\necho hi",
+    "echo hi\t# note",
+    "sed -i 's/# a/# b/' f",
+  ];
+
+  it.each(RUN_SHAPES)("a step's `run` survives emit → parse: %j", (run) => {
+    const w = workflow({
+      name: "x",
+      on: { push: {} },
+      jobs: { j: job({ runsOn: "u", steps: [step({ run })] }) },
+    });
+    // A round trip, not a substring match: the corrupted output was still
+    // valid YAML, so only comparing against the input catches the injection.
+    const parsed = YAML.parse(toYaml(w, { header: null })) as {
+      jobs: { j: { steps: { run: string }[] } };
+    };
+    expect(parsed.jobs.j.steps[0]!.run).toBe(run);
+  });
+
+  it("an env value keeps its `#`", () => {
+    const m = simpleModel({ env: { COLOR: "red # crimson" } });
+    const yaml = toYaml(m, { header: null });
+    expect((YAML.parse(yaml) as { env: { COLOR: string } }).env.COLOR).toBe("red # crimson");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Headers — all three documented forms survive a `#` in the payload.
+// ---------------------------------------------------------------------------
+describe("header payloads containing `#`", () => {
+  it("a string header is emitted verbatim", () => {
+    const m = simpleModel({ name: "ci" });
+    expect(toYaml(m, { header: "build # 7 of pipeline" })).toContain("# build # 7 of pipeline\n");
+  });
+
+  it("a closure header is emitted verbatim", () => {
+    const m = simpleModel({ name: "ci" });
+    expect(toYaml(m, { header: (v) => `build # 7 by ${v.tool}` })).toContain(
+      "# build # 7 by ghagen\n",
+    );
+  });
+
+  it("the default header is unchanged", () => {
+    const m = simpleModel({ name: "ci" });
+    expect(toYaml(m)).toContain("# This file is generated by ghagen");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Comment geometry — a model's own EOL comment when the target value is a
+// collection. Cross-port parity: every string asserted here is asserted
+// byte-identically by `tests/test_emitter/test_comments.py`.
+// ---------------------------------------------------------------------------
+describe("model EOL comment on a collection value", () => {
+  it("renders a job's own eolComment on the `steps:` key line", () => {
+    const w = workflow({
+      name: "x",
+      on: { push: {} },
+      jobs: { j: job({ runsOn: "u", eolComment: "job note", steps: [step({ run: "x" })] }) },
+    });
+    expect(toYaml(w, { header: null })).toContain("    steps:  # job note\n    - run: x\n");
+  });
+
+  it("renders a seq-item model's own eolComment on the `- with:` line", () => {
+    const w = workflow({
+      name: "x",
+      on: { push: {} },
+      jobs: { j: job({ runsOn: "u", steps: [step({ with_: { a: "1" }, eolComment: "note" })] }) },
+    });
+    expect(toYaml(w, { header: null })).toContain("    - with:  # note\n        a: '1'\n");
   });
 });
 

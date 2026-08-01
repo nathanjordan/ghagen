@@ -8,6 +8,7 @@ import {
   type Document as GhagenDocument,
 } from "../models/_base.js";
 import { attachFieldComment, attachModelComment } from "./comments.js";
+import { commentString, renderBlockComment } from "./comment-geometry.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { dedentScript } from "../_dedent.js";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -288,8 +289,8 @@ export interface ToDataOptions {
  *   {@link CommentNode}.
  *
  * Any model may be passed (step, job, on, …). Unlike {@link toYaml}, this does
- * not run the `yaml`-backend passes (block-literal promotion, comment spacing)
- * or `postProcess`; assert those via the YAML string.
+ * not run the `yaml`-backend passes (block-literal promotion, comment
+ * geometry) or `postProcess`; assert those via the YAML string.
  */
 export function toData(model: Model, options?: ToDataOptions): unknown {
   return modelToData(model, options?.comments ?? false, options?.autoDedent ?? false);
@@ -379,24 +380,6 @@ function commentNode(value: unknown, comment?: string, eolComment?: string): Com
   return node;
 }
 
-/** Format a YAML comment by prefixing each line with `#`. */
-function formatYamlComment(comment: string): string {
-  return comment
-    .split("\n")
-    .map((line) => (line ? `# ${line}` : "#"))
-    .join("\n");
-}
-
-/**
- * Widen the gap before inline `#` comments from 1 space to 2 to match
- * ruamel.yaml's convention. The lookbehind condition (non-whitespace,
- * non-colon) leaves block comments (indented `#`) and key-only comments
- * (`key: #`) alone.
- */
-function fixInlineCommentSpacing(yaml: string): string {
-  return yaml.replace(/([^\s:]) (# )/g, "$1  $2");
-}
-
 /**
  * Serialize a workflow or action model to a YAML string.
  *
@@ -422,7 +405,7 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
 
   const headerStr = formatHeader(options?.header, target.sourceLocation);
   if (headerStr !== null) {
-    doc.commentBefore = headerStr;
+    doc.commentBefore = renderBlockComment(headerStr);
   }
 
   if (doc.contents instanceof YAMLMap) {
@@ -433,14 +416,10 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
     });
   }
 
-  const yaml = doc.toString({
-    lineWidth: 0,
-    indentSeq: false,
-    singleQuote: true,
-    commentString: formatYamlComment,
-  });
-
-  return fixInlineCommentSpacing(yaml);
+  // No text pass runs over the result: every comment payload was rendered by
+  // `comment-geometry.ts` at attach time, so `commentString` is the identity
+  // and no `#` inside a scalar is ever mistaken for a comment.
+  return doc.toString({ lineWidth: 0, indentSeq: false, singleQuote: true, commentString });
 }
 
 /**

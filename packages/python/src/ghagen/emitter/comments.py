@@ -3,9 +3,9 @@
 Every path by which a YAML comment reaches a node routes through this module:
 
 - :func:`attach` — the low-level primitive. Attaches a block and/or EOL comment
-  to a map key or a seq index. Owns the map-vs-seq dispatch, the seq-item map
-  EOL-redirect quirk, and the block-comment placeholder column (rewritten later
-  by :func:`~ghagen.emitter.yaml_writer.dump_yaml`).
+  to a map key or a seq index. Owns the map-vs-seq dispatch and the seq-item
+  map EOL-redirect quirk. Comment *columns* are not its business:
+  :mod:`ghagen.emitter.comment_geometry` owns those.
 - :func:`attach_model_comment` — a model's OWN comment, rendered on the map as a
   whole: block before the first key, EOL after the last value. Used for the
   Document root AND every nested map-value model.
@@ -16,6 +16,18 @@ This is the Python peer of ``emitter/comments.ts``.
 from __future__ import annotations
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+
+from ghagen.emitter.comment_geometry import render_eol_comment
+
+
+def _fits_at_eol(text: str) -> bool:
+    """True when *text* can be rendered as an end-of-line comment.
+
+    Delegates to :func:`~ghagen.emitter.comment_geometry.render_eol_comment`,
+    which owns the rule; a multi-line payload cannot sit at end of line (ruamel
+    would emit unparseable YAML) and is redirected to the block path.
+    """
+    return render_eol_comment(text) is not None
 
 
 def attach(
@@ -40,12 +52,22 @@ def attach(
         the dash line (a ruamel.yaml quirk when EOL-commenting seq indices
         whose items are maps).
 
-        Block comments are stored with a placeholder column of 0; the actual
-        column is rewritten by
-        :func:`~ghagen.emitter.yaml_writer._apply_pre_comment_columns` during
-        :func:`~ghagen.emitter.yaml_writer.dump_yaml` so the comment aligns
-        with its containing item.
+        A multi-line ``eol_comment`` cannot sit at end of line at all — ruamel
+        would emit unparseable YAML — so it degrades to a block comment on the
+        same item, joined after any ``comment`` already given. The rule lives
+        in :mod:`ghagen.emitter.comment_geometry`.
+
+        This module decides WHICH node a comment lands on; every column
+        decision — the block-comment column and the end-of-line gutter — is
+        made by :func:`~ghagen.emitter.comment_geometry.apply_comment_geometry`
+        during :func:`~ghagen.emitter.yaml_writer.dump_yaml`.
     """
+    # A payload that cannot sit at end of line degrades to a block comment on
+    # the same item, after any block comment already there.
+    if eol_comment is not None and not _fits_at_eol(eol_comment):
+        comment = eol_comment if comment is None else f"{comment}\n{eol_comment}"
+        eol_comment = None
+
     if isinstance(parent, CommentedMap) and isinstance(key, str):
         if comment is not None:
             parent.yaml_set_comment_before_after_key(key, before=comment)
