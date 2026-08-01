@@ -135,6 +135,13 @@ export interface ScheduleTriggerInput {
   timezone?: string;
 }
 
+/** Serialization spec for {@link ScheduleTriggerModel}. */
+export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
+  kind: "scheduleTrigger",
+  fieldMap: { cron: "cron", timezone: "timezone" },
+  order: { kind: "explicit", keys: ["cron", "timezone"] },
+};
+
 /**
  * Create a schedule trigger model for cron-based workflow execution.
  *
@@ -145,15 +152,8 @@ export interface ScheduleTriggerInput {
  * ```ts
  * scheduleTrigger({ cron: "0 0 * * 1" }) // Every Monday at midnight
  * ```
+ * @function
  */
-/** Serialization spec for {@link ScheduleTriggerModel}. */
-export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
-  kind: "scheduleTrigger",
-  fieldMap: { cron: "cron", timezone: "timezone" },
-  order: { kind: "explicit", keys: ["cron", "timezone"] },
-};
-
-/** @function */
 export const scheduleTrigger = defineFactory<ScheduleTriggerModel, ScheduleTriggerInput>(
   SCHEDULE_TRIGGER_SPEC,
 );
@@ -197,26 +197,6 @@ export interface WorkflowDispatchInput {
 }
 
 /**
- * Create a workflow dispatch trigger model for manual workflow execution.
- *
- * @param input - Dispatch input definitions and optional model metadata.
- * @returns A `WorkflowDispatchModel` for use in an `OnInput`.
- *
- * @example
- * ```ts
- * workflowDispatch({
- *   inputs: {
- *     environment: {
- *       description: "Deployment target",
- *       required: true,
- *       type: "choice",
- *       options: ["staging", "production"],
- *     },
- *   },
- * })
- * ```
- */
-/**
  * Serialization spec for a single `workflow_dispatch` input definition.
  *
  * Gives dispatch input defs canonical key ordering (description, required,
@@ -252,7 +232,27 @@ export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
   wrap: { inputs: { factory: workflowDispatchInputDef, mode: "map" } },
 };
 
-/** @function */
+/**
+ * Create a workflow dispatch trigger model for manual workflow execution.
+ *
+ * @param input - Dispatch input definitions and optional model metadata.
+ * @returns A `WorkflowDispatchModel` for use in an `OnInput`.
+ *
+ * @example
+ * ```ts
+ * workflowDispatch({
+ *   inputs: {
+ *     environment: {
+ *       description: "Deployment target",
+ *       required: true,
+ *       type: "choice",
+ *       options: ["staging", "production"],
+ *     },
+ *   },
+ * })
+ * ```
+ * @function
+ */
 export const workflowDispatch = defineFactory<WorkflowDispatchModel, WorkflowDispatchInput>(
   WORKFLOW_DISPATCH_SPEC,
 );
@@ -308,28 +308,6 @@ export interface WorkflowCallInput {
   secrets?: Record<string, WorkflowCallSecretDef>;
 }
 
-/**
- * Create a workflow call trigger model for reusable workflow interfaces.
- *
- * @param input - Inputs, outputs, secrets definitions and optional model metadata.
- * @returns A `WorkflowCallModel` for use in an `OnInput`.
- *
- * @example
- * ```ts
- * workflowCall({
- *   inputs: {
- *     environment: {
- *       description: "Target environment",
- *       required: true,
- *       type: "string",
- *     },
- *   },
- *   secrets: {
- *     DEPLOY_TOKEN: { description: "Deployment token", required: true },
- *   },
- * })
- * ```
- */
 /**
  * Serialization spec for a single `workflow_call` input definition.
  *
@@ -390,7 +368,29 @@ export const WORKFLOW_CALL_SPEC: ModelSpec = {
   },
 };
 
-/** @function */
+/**
+ * Create a workflow call trigger model for reusable workflow interfaces.
+ *
+ * @param input - Inputs, outputs, secrets definitions and optional model metadata.
+ * @returns A `WorkflowCallModel` for use in an `OnInput`.
+ *
+ * @example
+ * ```ts
+ * workflowCall({
+ *   inputs: {
+ *     environment: {
+ *       description: "Target environment",
+ *       required: true,
+ *       type: "string",
+ *     },
+ *   },
+ *   secrets: {
+ *     DEPLOY_TOKEN: { description: "Deployment token", required: true },
+ *   },
+ * })
+ * ```
+ * @function
+ */
 export const workflowCall = defineFactory<WorkflowCallModel, WorkflowCallInput>(WORKFLOW_CALL_SPEC);
 
 /**

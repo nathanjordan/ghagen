@@ -48,6 +48,22 @@ export interface MatrixInput {
 }
 
 /**
+ * Serialization spec for {@link MatrixModel}.
+ *
+ * `fieldMap` names only the static keys; `dynamicKeys` declares that any other
+ * input key (a user-defined axis like `"node-version"`) passes straight through
+ * to `data`, so the factory routes through {@link defineFactory} like every other.
+ * The explicit `order` places `include`/`exclude` first; dynamic axes follow in
+ * insertion order.
+ */
+export const MATRIX_SPEC: ModelSpec = {
+  kind: "matrix",
+  fieldMap: { include: "include", exclude: "exclude" },
+  order: { kind: "explicit", keys: ["include", "exclude"] },
+  dynamicKeys: true,
+};
+
+/**
  * Create a matrix model for strategy configuration.
  *
  * @param input - Matrix dimensions, include/exclude lists, and optional model metadata.
@@ -61,24 +77,8 @@ export interface MatrixInput {
  *   include: [{ os: "ubuntu-latest", experimental: true }],
  * })
  * ```
+ * @function
  */
-/**
- * Serialization spec for {@link MatrixModel}.
- *
- * `fieldMap` names only the static keys; `dynamicKeys` declares that any other
- * input key (a user-defined axis like `"node-version"`) passes straight through
- * to `data`, so the factory routes through {@link buildModel} like every other.
- * The explicit `order` places `include`/`exclude` first; dynamic axes follow in
- * insertion order.
- */
-export const MATRIX_SPEC: ModelSpec = {
-  kind: "matrix",
-  fieldMap: { include: "include", exclude: "exclude" },
-  order: { kind: "explicit", keys: ["include", "exclude"] },
-  dynamicKeys: true,
-};
-
-/** @function */
 export const matrix = defineFactory<MatrixModel, MatrixInput>(MATRIX_SPEC);
 
 /**
@@ -93,6 +93,14 @@ export interface StrategyInput {
   /** Maximum number of matrix jobs to run in parallel. Serialized as `max-parallel`. */
   maxParallel?: number;
 }
+
+/** Serialization spec for {@link StrategyModel}. */
+export const STRATEGY_SPEC: ModelSpec = {
+  kind: "strategy",
+  fieldMap: { matrix_: "matrix", failFast: "fail-fast", maxParallel: "max-parallel" },
+  order: { kind: "explicit", keys: ["matrix", "fail-fast", "max-parallel"] },
+  wrap: { matrix_: { factory: matrix, mode: "model" } },
+};
 
 /**
  * Create a strategy model for controlling matrix builds.
@@ -110,16 +118,8 @@ export interface StrategyInput {
  *   failFast: false,
  * })
  * ```
+ * @function
  */
-/** Serialization spec for {@link StrategyModel}. */
-export const STRATEGY_SPEC: ModelSpec = {
-  kind: "strategy",
-  fieldMap: { matrix_: "matrix", failFast: "fail-fast", maxParallel: "max-parallel" },
-  order: { kind: "explicit", keys: ["matrix", "fail-fast", "max-parallel"] },
-  wrap: { matrix_: { factory: matrix, mode: "model" } },
-};
-
-/** @function */
 export const strategy = defineFactory<StrategyModel, StrategyInput>(STRATEGY_SPEC);
 
 // ---- Concurrency ----
@@ -183,24 +183,10 @@ export interface DefaultsInput {
 }
 
 /**
- * Create a defaults model for setting default shell and working directory
- * for all `run` steps.
- *
- * @param input - Default run settings and optional model metadata.
- * @returns A `DefaultsModel` for use in a workflow or job.
- *
- * @example
- * ```ts
- * defaults({
- *   run: { shell: "bash", workingDirectory: "./src" },
- * })
- * ```
- */
-/**
  * Serialization spec for the nested `run` map of {@link DefaultsModel},
  * mirroring Python's `DefaultsRun`. Modelling `run` as its own spec (rather than
  * a hand-built plain object) routes shell/working-directory through
- * {@link buildModel}, so a `Commented` wrapper on `run.shell` survives to YAML.
+ * {@link defineFactory}, so a `Commented` wrapper on `run.shell` survives to YAML.
  */
 export const DEFAULTS_RUN_SPEC: ModelSpec = {
   kind: "defaultsRun",
@@ -229,7 +215,21 @@ export const DEFAULTS_SPEC: ModelSpec = {
   wrap: { run: { factory: defaultsRun, mode: "objectModel" } },
 };
 
-/** @function */
+/**
+ * Create a defaults model for setting default shell and working directory
+ * for all `run` steps.
+ *
+ * @param input - Default run settings and optional model metadata.
+ * @returns A `DefaultsModel` for use in a workflow or job.
+ *
+ * @example
+ * ```ts
+ * defaults({
+ *   run: { shell: "bash", workingDirectory: "./src" },
+ * })
+ * ```
+ * @function
+ */
 export const defaults = defineFactory<DefaultsModel, DefaultsInput>(DEFAULTS_SPEC);
 
 // ---- Environment ----
