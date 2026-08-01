@@ -46,7 +46,8 @@ The per-model serialization spec — YAML key names (field → emitted key), an 
 inline-input wrap map, and per-field emission rules (present-null-when-empty, dynamic-keys
 passthrough) — declared next to the factory, consumed by the Emitter and
 factories. The single home for the emitted-key fact (`fieldMap`, type-checked with `satisfies`
-against the generated schema types); every factory builds through `buildModel`.
+against the generated schema types); every factory _is_ `defineFactory(SPEC)` — there is one
+construction body in the port, and a factory declaration carries no code.
 _Avoid_: field map, key-order table.
 
 **OrderMode**:
@@ -142,7 +143,10 @@ framework renders the text, `main()` decides the number.
 - Models are products of **factory functions** (`workflow()`, `job()`, `step()`) over a `data` bag,
   with one shared `Model` class carrying `kind` + **ModelSpec** and providing `walk()` /
   `children()`. Models do not serialize themselves — the Emitter owns all recursion (ADR-0001,
-  amended).
+  amended). Each factory is a one-line spec binding, `export const f = defineFactory<M, I>(SPEC)`;
+  its doc comment **must** carry `@function`, or TypeDoc reflects it as a Variable and the
+  published page moves from `functions/` to `variables/`. A guard test in `models/_base.test.ts`
+  enforces the tag on every exported binding.
 - `toYaml()` / `toYamlFile()` are **free functions**, narrowed to `WorkflowModel | ActionModel`
   (the **Document** types) so a bare model cannot be serialized to a file.
 - Generated types are imported into the models for compile-time author-conformance against the
