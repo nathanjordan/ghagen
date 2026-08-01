@@ -24,10 +24,11 @@ from typing import Any, Protocol
 
 _API_BASE = "https://api.github.com"
 
-# Wall-clock ceiling on a single API request.  Mirrors the TypeScript port's
-# ``API_TIMEOUT_MS`` (``pin/github.ts``); without it a stalled connection hangs
-# ``ghagen pin`` forever.
-_API_TIMEOUT_SECONDS = 30.0
+#: Wall-clock ceiling on a single :class:`HttpClient` request, body read
+#: included.  Part of the transport contract rather than an adapter's private
+#: business — a third-party adapter is expected to honour it, so it is public
+#: and mirrors the TypeScript port's ``API_TIMEOUT_MS`` (``pin/github.ts``).
+API_TIMEOUT_SECONDS = 30.0
 
 
 class TransportError(Exception):
@@ -73,23 +74,52 @@ class Response:
 
 
 class HttpClient(Protocol):
-    """Transport seam: a single authenticated GET returning a :class:`Response`."""
+    """Transport seam: a single authenticated GET returning a :class:`Response`.
+
+    The contract every adapter — production or canned — must satisfy, stated
+    here once rather than re-decided per adapter.  It is executable: the
+    conformance table in ``tests/test_pin/transport_contract.py`` runs it
+    against each of them, and its TypeScript peer runs the identical table.
+
+    **Deadline.**  A ``get`` completes, or fails, within
+    :data:`API_TIMEOUT_SECONDS` — *including reading the body*.  Production
+    adapters take the deadline as one defaulted constructor argument so the
+    promise is testable rather than merely stated.
+
+    **Error taxonomy — total.**  ``get`` either returns a :class:`Response` or
+    raises :class:`TransportError`, and nothing else:
+
+    - it returns a :class:`Response` for **any** HTTP response it obtains,
+      including 4xx, 5xx and a body that is not JSON.  The transport never
+      parses and never judges a status; :class:`GitHubClient` owns that.
+    - it raises :class:`TransportError` for **every** failure to obtain one —
+      refusal, DNS, reset, mid-body abort, truncated body, deadline.
+    - it never lets the underlying library's exception type escape.
+
+    The totality is load-bearing: the pin engine recovers per ref on
+    :class:`ResolveError` (``pin/engine.py``), so an exception outside the
+    taxonomy turns one unresolvable ref into an aborted run that writes
+    nothing.
+
+    **The body is read by the transport**, inside its own deadline and its own
+    failure mapping, so a caller may assume the network is done with once
+    ``get`` has returned.
+    """
 
     def get(self, url: str, *, token: str | None = None) -> Response:
-        """GET ``url`` and return the response (raise :class:`TransportError` on
-        network failure)."""
+        """GET ``url``, returning the response or raising :class:`TransportError`."""
         ...
 
 
 class UrllibTransport:
     """Default :class:`HttpClient` backed by stdlib :mod:`urllib.request`.
 
-    Holds the raw ``urlopen`` call and header building.  Every request carries
-    a :data:`_API_TIMEOUT_SECONDS` ceiling.  HTTP error responses (4xx/5xx) are
-    captured as :class:`Response` objects rather than raised, so the client owns
-    all status-based error mapping; genuine network failures — timeouts
-    included — raise :class:`TransportError`.
+    Holds the raw ``urlopen`` call and header building; the policy it
+    implements is :class:`HttpClient`'s, not its own.
     """
+
+    def __init__(self, timeout: float = API_TIMEOUT_SECONDS) -> None:
+        self._timeout = timeout
 
     def get(self, url: str, *, token: str | None = None) -> Response:
         headers = {
@@ -100,28 +130,31 @@ class UrllibTransport:
             headers["Authorization"] = f"Bearer {token}"
 
         req = urllib.request.Request(url, headers=headers)  # noqa: S310
+        # Only the I/O sits under the handlers, and the Response is built after
+        # all of them: a defect in this module's own construction must surface
+        # as itself, not as a network failure.
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                req, timeout=_API_TIMEOUT_SECONDS
-            ) as resp:
-                return Response(
-                    status=resp.status,
-                    body=resp.read(),
-                    reason=resp.reason or "",
-                    headers=dict(resp.headers.items()),
-                )
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # noqa: S310
+                status, body = resp.status, resp.read()
+                reason, response_headers = resp.reason or "", dict(resp.headers.items())
         except urllib.error.HTTPError as exc:
-            # HTTPError is itself a response — capture its status/headers/body.
-            return Response(
-                status=exc.code,
-                body=exc.read(),
-                reason=exc.reason or "",
-                headers=dict(exc.headers.items()),
-            )
-        except (urllib.error.URLError, TimeoutError) as exc:
-            # A read timeout surfaces as a bare TimeoutError rather than a
-            # URLError, so both map onto the transport's failure contract.
+            # An HTTPError *is* a response — but reading it is still I/O and can
+            # itself truncate, so it gets the same total mapping.  HTTPError
+            # subclasses URLError subclasses OSError, so this branch must
+            # precede the total one below.
+            try:
+                status, body = exc.code, exc.read()
+                reason, response_headers = exc.reason or "", dict(exc.headers.items())
+            except Exception as read_exc:
+                raise TransportError(str(read_exc)) from read_exc
+        except Exception as exc:
+            # Total, per the interface contract.  An enumeration is what let
+            # RemoteDisconnected and IncompleteRead escape; the next leak would
+            # be a type nobody thought of either.
             raise TransportError(str(exc)) from exc
+        return Response(
+            status=status, body=body, reason=reason, headers=response_headers
+        )
 
 
 class GitHubClient:

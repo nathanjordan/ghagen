@@ -77,6 +77,11 @@ Maps `uses:` strings to resolved commit SHAs (`.ghagen.lock.yml`); always holds 
 **PinEntry**:
 One resolved pin — a commit SHA plus a resolved-at timestamp.
 
+**Transport**:
+The injected HTTP adapter behind `HttpClient`. Returns a response for any status it obtains,
+raises `TransportError` for every failure to obtain one, and honours the module deadline —
+including reading the body. Every adapter, real or canned, passes the transport conformance table.
+
 ### Schema
 
 **Snapshot**:
@@ -122,6 +127,14 @@ framework renders the text, `main()` decides the number.
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
   `DefaultsRun`), so Commented wrappers on `run.shell` / `run.workingDirectory` survive emission.
 - Tests resolve repo paths via `src/paths.ts`, never via hand-rolled `../../../../` constants.
+- The pin transport seam is `HttpClient`, and its contract — the deadline, the totality of
+  `TransportError`, and the transport reading the body — lives in its doc comment and is executed
+  by the conformance table (`src/pin/transport-contract.ts`) that every adapter runs.
+  `HttpResponse` is a **class** an adapter author constructs, not an interface they implement. The
+  one intentional asymmetry with Python is the response type: `HttpResponse` here, `Response` there
+  (the name `Response` is taken by the platform global), carrying `string` here and `bytes` there,
+  matching each stdlib. `TransportError` and `ResolveError` are the only two error types crossing
+  the pin/network boundary, and the engine's per-ref recovery depends on that totality.
 
 ## Example dialogue
 

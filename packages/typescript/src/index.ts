@@ -177,7 +177,7 @@ export {
   FetchTransport,
   TransportError,
   type HttpClient,
-  type HttpResponse,
+  HttpResponse,
   type RequestOptions,
   UsesRef,
   type BumpSeverity,
