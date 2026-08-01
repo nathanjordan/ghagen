@@ -1,10 +1,18 @@
 # Architecture proposals
 
-Deepening proposals from the 2026-07-21 architecture review. Each turns a shallow seam into a
-deeper module — more behaviour behind a smaller interface — with testability and cross-port
-parity as the driving goals. All are **proposed**; none are implemented.
+Deepening proposals from the architecture review rounds. Each turns a shallow seam into a deeper
+module — more behaviour behind a smaller interface — with testability and cross-port parity as the
+driving goals.
 
-## Reading order
+**[`INDEX.md`](./INDEX.md) is the authority on status.** Numbering is monotonic across rounds and
+never restarts; a proposal file describes what was proposed, not necessarily what landed. Where the
+two disagree, the ADRs in `docs/adr/` and the code win over both.
+
+Deferred work lives in [`../issues/`](../issues/).
+
+## Round 1 — reading order
+
+The ModelSpec/Emitter cluster is one theme and should be read (and, if accepted, landed) in order:
 
 The ModelSpec/Emitter cluster is one theme and should be read (and, if accepted, landed) in order:
 
@@ -20,9 +28,10 @@ The rest are independent of that cluster and of each other, except 07 which part
 - [07 — Prune hypothetical seams and dead surface](./07-prune-hypothetical-seams.md) (both ports; depends on 05)
 - [08 — Schema pipeline orchestration](./08-schema-pipeline-orchestration.md) (dev tooling)
 
-## Decisions needing explicit sign-off
+## Round 1 — decisions that needed explicit sign-off
 
-Points where a proposal recommends a behaviour change or picks between live options:
+Points where a round-1 proposal recommended a behaviour change or picked between live options. All
+were signed off and landed; kept here as the record of what was chosen and why.
 
 - **03**: flips Transform ordering from pin-first to pin-last — user Transforms then see refs, not
   SHAs, and refs they inject get pinned. Deliberate behaviour change; alternatives documented in
@@ -36,10 +45,10 @@ Points where a proposal recommends a behaviour change or picks between live opti
 - **08**: upgrades the schema-drift workflow from detect→issue to detect→PR, with the
   `GITHUB_TOKEN`-authored-PRs-don't-trigger-CI caveat addressed in its Risks section.
 
-## Findings that reversed the initial survey
+## Round 1 — findings that reversed the initial survey
 
 The proposal writers verified every claim against source; these survey claims were wrong and the
-proposals reflect the corrected reality:
+proposals reflect the corrected reality. **Do not re-suggest the reversed items.**
 
 - `postProcess` / `post_process` is documented public escape-hatch API with real tests — **kept**,
   not pruned (07). Its removal would not unlock `structuredClone` either; the symbol-branded
