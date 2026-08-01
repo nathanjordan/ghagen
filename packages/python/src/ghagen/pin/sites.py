@@ -73,7 +73,7 @@ def iter_uses_sites(document: Document) -> Iterator[UsesSite]:
     A ref already written as a SHA *does* yield a site, whose
     ``ref.is_pinnable`` is ``False``.
     """
-    for _path, model in document.walk():
+    for model in document.walk():
         if not isinstance(model, (Step, Job)):
             continue
         value = getattr(model, _USES_FIELD, None)

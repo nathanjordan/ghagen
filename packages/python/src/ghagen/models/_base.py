@@ -44,24 +44,24 @@ def _find_user_frame() -> tuple[str, int] | None:
     return None
 
 
-def _scan_for_models(key: str, value: Any) -> Iterator[tuple[str, GhagenModel]]:
-    """Yield ``(key, model)`` for every GhagenModel reachable from *value*.
+def _scan_for_models(value: Any) -> Iterator[GhagenModel]:
+    """Yield every GhagenModel reachable from *value*.
 
     Recurses through Commented wrappers, dicts, and lists. Raw-wrapped
     values are opaque escape hatches and are not traversed.
     """
     if isinstance(value, GhagenModel):
-        yield (key, value)
+        yield value
     elif isinstance(value, Commented):
-        yield from _scan_for_models(key, value.value)
+        yield from _scan_for_models(value.value)
     elif isinstance(value, Raw):
         return
     elif isinstance(value, dict):
-        for k, v in value.items():
-            yield from _scan_for_models(k, v)
+        for v in value.values():
+            yield from _scan_for_models(v)
     elif isinstance(value, (list, tuple)):
         for item in value:
-            yield from _scan_for_models(key, item)
+            yield from _scan_for_models(item)
 
 
 class GhagenModel(BaseModel):
@@ -168,14 +168,16 @@ class GhagenModel(BaseModel):
         """Capture the construction site's file/line from the call stack."""
         self._source_location = _find_user_frame()
 
-    def children(self) -> Iterator[tuple[str, GhagenModel]]:
-        """Yield ``(key, child)`` for every nested GhagenModel in this model.
+    def children(self) -> Iterator[GhagenModel]:
+        """Yield every nested GhagenModel in this model, in traversal order.
 
         Generic field scan: walks each field value, recursing through
         Commented wrappers, dicts, and lists (Raw values are opaque). This
         is the traversal primitive; subclasses need not override it.
 
         Schema fields come first, in declaration order, then ``extras``.
+        This is *traversal* order, not emission order -- emission order is
+        the spec's, resolved by :func:`~ghagen.emitter.nodes.order_entries`.
         ``extras`` is declared on this base class, so the plain
         ``model_fields`` order would yield it *before* every subclass field;
         TypeScript keeps extras outside ``data`` and appends them, so the
@@ -185,26 +187,23 @@ class GhagenModel(BaseModel):
         for field_name in type(self).model_fields:
             if field_name == "extras":
                 continue
-            yield from _scan_for_models(field_name, getattr(self, field_name, None))
-        yield from _scan_for_models("extras", self.extras)
+            yield from _scan_for_models(getattr(self, field_name, None))
+        yield from _scan_for_models(self.extras)
 
-    def walk(self) -> Iterator[tuple[list[str], GhagenModel]]:
-        """Depth-first walk yielding ``(path, model)`` for self and all descendants.
+    def walk(self) -> Iterator[GhagenModel]:
+        """Depth-first pre-order iterator over self and every descendant.
 
-        The root is yielded first with an empty path; each descendant's
-        path is its parent's path plus the field key it was found under.
-        Read the yielded models to inspect the tree, or mutate their fields
-        in place (e.g. the pin transform rewrites ``uses``).
+        The root is yielded first. Read the yielded models to inspect the
+        tree, or mutate their fields in place (e.g. the pin transform
+        rewrites ``uses``).
         """
 
-        def _visit(
-            path: list[str], model: GhagenModel
-        ) -> Iterator[tuple[list[str], GhagenModel]]:
-            yield (path, model)
-            for key, child in model.children():
-                yield from _visit([*path, key], child)
+        def _visit(model: GhagenModel) -> Iterator[GhagenModel]:
+            yield model
+            for child in model.children():
+                yield from _visit(child)
 
-        yield from _visit([], self)
+        yield from _visit(self)
 
 
 class Document(GhagenModel):

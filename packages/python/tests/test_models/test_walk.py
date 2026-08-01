@@ -9,8 +9,7 @@ def test_children_yields_direct_nested_models():
         runs_on="ubuntu-latest",
         steps=[Step(uses="actions/checkout@v4"), Step(run="pytest")],
     )
-    children = list(job.children())
-    models = [m for _key, m in children]
+    models = list(job.children())
     assert all(isinstance(m, Step) for m in models)
     assert len(models) == 2
 
@@ -20,11 +19,9 @@ def test_children_skips_scalars_and_none():
     assert list(step.children()) == []
 
 
-def test_walk_yields_self_first_with_empty_path():
+def test_walk_yields_self_first():
     wf = Workflow(name="CI", on=On(push=PushTrigger(branches=["main"])))
-    first_path, first_model = next(iter(wf.walk()))
-    assert first_path == []
-    assert first_model is wf
+    assert next(iter(wf.walk())) is wf
 
 
 def test_walk_reaches_steps_inside_workflow_jobs():
@@ -38,8 +35,8 @@ def test_walk_reaches_steps_inside_workflow_jobs():
             ),
         },
     )
-    steps = [m for _p, m in wf.walk() if isinstance(m, Step)]
-    jobs = [m for _p, m in wf.walk() if isinstance(m, Job)]
+    steps = [m for m in wf.walk() if isinstance(m, Step)]
+    jobs = [m for m in wf.walk() if isinstance(m, Job)]
     assert len(jobs) == 1
     assert {s.uses or s.run for s in steps} == {"actions/checkout@v4", "pytest"}
 
@@ -55,18 +52,49 @@ def test_walk_reaches_steps_inside_composite_action_runs():
             ],
         ),
     )
-    steps = [m for _p, m in action.walk() if isinstance(m, Step)]
+    steps = [m for m in action.walk() if isinstance(m, Step)]
     assert len(steps) == 2
 
 
-def test_walk_paths_track_field_keys():
+# --- extras participate in traversal, last (H14; see the TypeScript twin in
+# packages/typescript/src/models/walk.test.ts) ---
+
+
+def _extras_job() -> Job:
+    return Job(
+        runs_on="ubuntu-latest",
+        steps=[Step(uses="actions/checkout@v4")],
+        extras={"hidden": Step(uses="actions/setup-node@v4")},
+    )
+
+
+def test_children_reaches_models_nested_in_extras():
+    """``extras`` is a traversed field, not an opaque blob."""
+    uses = [m.uses for m in _extras_job().children()]
+    assert "actions/setup-node@v4" in uses
+
+
+def test_children_yields_extras_last():
+    """``extras`` is declared on the base class but must be scanned last.
+
+    ``model_fields`` puts base-class fields before subclass fields, so the
+    plain declaration order would yield extras *first*; TypeScript keeps
+    extras off ``data`` and appends them. The skip-and-rescan in
+    ``children()`` is what makes the two ports agree on visit order.
+    """
+    assert [m.uses for m in _extras_job().children()] == [
+        "actions/checkout@v4",
+        "actions/setup-node@v4",
+    ]
+
+
+def test_walk_visits_extras_nested_models_last():
     wf = Workflow(
         name="CI",
         on=On(push=PushTrigger(branches=["main"])),
-        jobs={"test": Job(runs_on="ubuntu-latest", steps=[Step(run="pytest")])},
+        jobs={"build": _extras_job()},
     )
-    # A dict field contributes its *key* to the path (matching the TS walk):
-    # a job under jobs["test"] with steps yields step paths like ["test", "steps"].
-    step_paths = [p for p, m in wf.walk() if isinstance(m, Step)]
-    assert step_paths
-    assert all(p == ["test", "steps"] for p in step_paths)
+    assert [m.uses for m in wf.walk() if isinstance(m, Step)] == [
+        "actions/checkout@v4",
+        "actions/setup-node@v4",
+    ]

@@ -97,7 +97,7 @@ def test_composite_action_dedent_does_not_mutate_caller() -> None:
 def _rename_transform(item: Workflow | Action) -> Workflow | Action:
     """A trivial Transform that also appends a step with an indented run."""
     if isinstance(item, Workflow):
-        for _path, node in item.walk():
+        for node in item.walk():
             if isinstance(node, Job):
                 node.steps.append(Step(run=_TRIPLE_RUN))
     return item
