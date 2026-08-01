@@ -14,7 +14,7 @@ export {
   ResolveError,
   TransportError,
   type HttpClient,
-  type HttpResponse,
+  HttpResponse,
   type RequestOptions,
 } from "./github.js";
 export { UsesRef } from "./uses.js";

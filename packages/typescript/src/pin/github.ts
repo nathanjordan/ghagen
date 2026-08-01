@@ -12,7 +12,15 @@
  */
 
 const API_BASE = "https://api.github.com";
-const API_TIMEOUT_MS = 30_000;
+
+/**
+ * Wall-clock ceiling on a single `HttpClient` request, body read included.
+ *
+ * Part of the transport contract rather than an adapter's private business — a
+ * third-party adapter is expected to honour it, so it is exported and mirrors
+ * the Python port's `API_TIMEOUT_SECONDS` (`pin/github.py`).
+ */
+export const API_TIMEOUT_MS = 30_000;
 
 /**
  * Raised by a transport when a request fails at the network level.
@@ -43,54 +51,89 @@ export interface RequestOptions {
   token?: string;
 }
 
-/** An HTTP response returned by a transport. */
-export interface HttpResponse {
-  /** HTTP status code. */
-  readonly status: number;
-  /** HTTP reason phrase (used in error messages). */
-  readonly statusText: string;
-  /** Parse and return the JSON body. */
-  json(): Promise<unknown>;
+/**
+ * An HTTP response returned by a transport, carrying a body the transport has
+ * already read.
+ *
+ * A class, not a structural interface: an adapter author *constructs* one
+ * rather than implementing `json()`, so every double — including the canned
+ * one — parses the same bytes the real adapter would hand over, and a
+ * malformed 200 is expressible. Field order mirrors Python's `Response`
+ * (`Response(status, body, reason, headers)`).
+ */
+export class HttpResponse {
+  constructor(
+    /** HTTP status code. */
+    readonly status: number,
+    /** The already-read body. Python's peer carries `bytes`; this is a `string`. */
+    readonly body: string,
+    /** HTTP reason phrase (used in error messages). Python calls it `reason`. */
+    readonly statusText: string = "",
+    private readonly headers: Readonly<Record<string, string>> = {},
+  ) {}
+
+  /** Parse and return the JSON body; throws the native decode error. */
+  json(): unknown {
+    return JSON.parse(this.body);
+  }
+
   /** Return a header value by name (case-insensitive), or `null`. */
-  header(name: string): string | null;
-}
-
-/** Transport seam: a single authenticated GET returning an `HttpResponse`. */
-export interface HttpClient {
-  /** GET `url`; reject with `TransportError` on network failure. */
-  get(url: string, options?: RequestOptions): Promise<HttpResponse>;
-}
-
-/** Wraps a native `fetch` `Response` as an `HttpResponse`. */
-class FetchResponse implements HttpResponse {
-  constructor(private readonly raw: Response) {}
-
-  get status(): number {
-    return this.raw.status;
-  }
-
-  get statusText(): string {
-    return this.raw.statusText;
-  }
-
-  json(): Promise<unknown> {
-    return this.raw.json();
-  }
-
   header(name: string): string | null {
-    return this.raw.headers.get(name);
+    const lowered = name.toLowerCase();
+    for (const [key, value] of Object.entries(this.headers)) {
+      if (key.toLowerCase() === lowered) {
+        return value;
+      }
+    }
+    return null;
   }
+}
+
+/**
+ * Transport seam: a single authenticated GET returning an `HttpResponse`.
+ *
+ * The contract every adapter — production or canned — must satisfy, stated
+ * here once rather than re-decided per adapter. It is executable: the
+ * conformance table in `transport-contract.ts` runs it against each of them,
+ * and its Python peer runs the identical table.
+ *
+ * **Deadline.** A `get` settles — resolving or rejecting — within
+ * `API_TIMEOUT_MS`, *including reading the body*. Production adapters take the
+ * deadline as one defaulted constructor argument so the promise is testable
+ * rather than merely stated.
+ *
+ * **Error taxonomy — total.** `get` either resolves with an `HttpResponse` or
+ * rejects with `TransportError`, and nothing else:
+ *
+ * - it resolves for **any** HTTP response it obtains, including 4xx, 5xx and a
+ *   body that is not JSON. The transport never parses and never judges a
+ *   status; `GitHubClient` owns that.
+ * - it rejects with `TransportError` for **every** failure to obtain one —
+ *   refusal, DNS, reset, mid-body abort, truncated body, deadline.
+ * - it never lets the underlying library's error type escape.
+ *
+ * The totality is load-bearing: the pin engine recovers per ref on
+ * `ResolveError` (`pin/engine.ts`), so an error outside the taxonomy turns one
+ * unresolvable ref into an aborted run that writes nothing.
+ *
+ * **The body is read by the transport**, inside its own deadline and its own
+ * failure mapping, so a caller may assume the network is done with once `get`
+ * has resolved.
+ */
+export interface HttpClient {
+  /** GET `url`, resolving with the response or rejecting with `TransportError`. */
+  get(url: string, options?: RequestOptions): Promise<HttpResponse>;
 }
 
 /**
  * Default `HttpClient` backed by the global `fetch`.
  *
- * Holds the raw `fetch` call and header building. HTTP error responses
- * (4xx/5xx) are returned as `HttpResponse` objects rather than thrown, so the
- * client owns all status-based error mapping; genuine network failures reject
- * with `TransportError`.
+ * Holds the raw `fetch` call and header building; the policy it implements is
+ * `HttpClient`'s, not its own.
  */
 export class FetchTransport implements HttpClient {
+  constructor(private readonly timeoutMs: number = API_TIMEOUT_MS) {}
+
   async get(url: string, options: RequestOptions = {}): Promise<HttpResponse> {
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",
@@ -100,16 +143,26 @@ export class FetchTransport implements HttpClient {
       headers["Authorization"] = `Bearer ${options.token}`;
     }
 
-    let response: Response;
+    // Only the I/O sits under the handler — the body read included, which is
+    // what puts a mid-body abort and a truncated payload inside the taxonomy —
+    // and the HttpResponse is constructed after it.
+    let status: number;
+    let statusText: string;
+    let body: string;
+    let responseHeaders: Record<string, string>;
     try {
-      response = await fetch(url, {
+      const response = await fetch(url, {
         headers,
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
+      status = response.status;
+      statusText = response.statusText;
+      responseHeaders = Object.fromEntries(response.headers.entries());
+      body = await response.text();
     } catch (err) {
       throw new TransportError((err as Error).message);
     }
-    return new FetchResponse(response);
+    return new HttpResponse(status, body, statusText, responseHeaders);
   }
 }
 
@@ -231,19 +284,29 @@ export class GitHubClient {
     return resp;
   }
 
+  /**
+   * Parse a response body, mapping malformed JSON onto `ResolveError`.
+   *
+   * The module's documented error contract is `ResolveError`; a malformed 200
+   * must not escape as a raw `SyntaxError`. Peer of Python's `_parse_json`.
+   */
+  private parseJson(resp: HttpResponse, url: string): unknown {
+    try {
+      return resp.json();
+    } catch (err) {
+      throw new ResolveError(
+        `Failed to parse JSON response from ${url}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   /** Fetch and parse JSON, or `null` on 404. */
   private async getJson(url: string): Promise<unknown | null> {
     const resp = await this.fetch(url);
     if (resp.status === 404) {
       return null;
     }
-    try {
-      return await resp.json();
-    } catch (err) {
-      throw new ResolveError(
-        `Failed to parse JSON response from ${url}: ${(err as Error).message}`,
-      );
-    }
+    return this.parseJson(resp, url);
   }
 
   /** Fetch one page: `{ body, next }`, or `null` on 404. */
@@ -252,15 +315,7 @@ export class GitHubClient {
     if (resp.status === 404) {
       return null;
     }
-    let body: unknown;
-    try {
-      body = await resp.json();
-    } catch (err) {
-      throw new ResolveError(
-        `Failed to parse JSON response from ${url}: ${(err as Error).message}`,
-      );
-    }
-    return { body, next: parseNextLink(resp.header("Link")) };
+    return { body: this.parseJson(resp, url), next: parseNextLink(resp.header("Link")) };
   }
 }
 

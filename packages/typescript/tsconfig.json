@@ -23,6 +23,7 @@
     "dist",
     "src/**/*.test.ts",
     "src/integration/test-utils.ts",
+    "src/pin/transport-contract.ts",
     "src/paths.ts"
   ]
 }

@@ -3,64 +3,14 @@ import {
   GitHubClient,
   ResolveError,
   TransportError,
-  type HttpClient,
-  type HttpResponse,
-  type RequestOptions,
   commitSha,
   isAnnotatedTag,
   parseNextLink,
   refUrls,
 } from "./github.js";
+import { FakeTransport, canned, cannedRaw } from "./transport-contract.js";
 const SHA = "a".repeat(40);
 const TAG_SHA = "b".repeat(40);
-
-interface CannedInit {
-  status?: number;
-  body?: unknown;
-  headers?: Record<string, string>;
-}
-
-/** Build a canned `HttpResponse`. */
-function jsonResponse(init: CannedInit): HttpResponse {
-  const headers = new Headers(init.headers ?? {});
-  return {
-    status: init.status ?? 200,
-    statusText: "",
-    json: async () => init.body,
-    header: (name: string) => headers.get(name),
-  };
-}
-
-type Canned = HttpResponse | HttpResponse[] | Error;
-
-/**
- * Canned `HttpClient` keyed by URL substring. Each entry maps a URL substring
- * to a response, a list of responses (consumed in order, for pagination), or
- * an error to throw. Unmatched URLs return a 404. Tokens are recorded.
- */
-class FakeTransport implements HttpClient {
-  readonly calls: string[] = [];
-  readonly tokens: Array<string | undefined> = [];
-
-  constructor(private readonly responses: Record<string, Canned>) {}
-
-  async get(url: string, options: RequestOptions = {}): Promise<HttpResponse> {
-    this.calls.push(url);
-    this.tokens.push(options.token);
-    for (const [pattern, value] of Object.entries(this.responses)) {
-      if (url.includes(pattern)) {
-        if (Array.isArray(value)) {
-          return value.shift()!;
-        }
-        if (value instanceof Error) {
-          throw value;
-        }
-        return value;
-      }
-    }
-    return jsonResponse({ status: 404, body: {} });
-  }
-}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -69,7 +19,7 @@ afterEach(() => {
 describe("GitHubClient.resolveRef()", () => {
   it("returns the SHA from a lightweight tag ref", async () => {
     const transport = new FakeTransport({
-      "tags/v4": jsonResponse({ body: { object: { type: "commit", sha: SHA } } }),
+      "tags/v4": canned({ object: { type: "commit", sha: SHA } }),
     });
     const client = new GitHubClient(transport);
     expect(await client.resolveRef("actions", "checkout", "v4")).toBe(SHA);
@@ -80,7 +30,7 @@ describe("GitHubClient.resolveRef()", () => {
 
   it("falls back to heads/ when tags/ returns 404", async () => {
     const transport = new FakeTransport({
-      "heads/main": jsonResponse({ body: { object: { type: "commit", sha: SHA } } }),
+      "heads/main": canned({ object: { type: "commit", sha: SHA } }),
     });
     const client = new GitHubClient(transport);
     expect(await client.resolveRef("o", "r", "main")).toBe(SHA);
@@ -90,8 +40,8 @@ describe("GitHubClient.resolveRef()", () => {
 
   it("dereferences annotated tags via /git/tags/{sha}", async () => {
     const transport = new FakeTransport({
-      "git/ref/tags/v1": jsonResponse({ body: { object: { type: "tag", sha: TAG_SHA } } }),
-      [`git/tags/${TAG_SHA}`]: jsonResponse({ body: { object: { type: "commit", sha: SHA } } }),
+      "git/ref/tags/v1": canned({ object: { type: "tag", sha: TAG_SHA } }),
+      [`git/tags/${TAG_SHA}`]: canned({ object: { type: "commit", sha: SHA } }),
     });
     const client = new GitHubClient(transport);
     expect(await client.resolveRef("o", "r", "v1")).toBe(SHA);
@@ -99,8 +49,8 @@ describe("GitHubClient.resolveRef()", () => {
 
   it("throws when an annotated tag does not point to a commit", async () => {
     const transport = new FakeTransport({
-      "git/ref/tags/v1": jsonResponse({ body: { object: { type: "tag", sha: TAG_SHA } } }),
-      [`git/tags/${TAG_SHA}`]: jsonResponse({ body: { object: { type: "tree", sha: SHA } } }),
+      "git/ref/tags/v1": canned({ object: { type: "tag", sha: TAG_SHA } }),
+      [`git/tags/${TAG_SHA}`]: canned({ object: { type: "tree", sha: SHA } }),
     });
     const client = new GitHubClient(transport);
     await expect(client.resolveRef("o", "r", "v1")).rejects.toThrow(/does not point to a commit/);
@@ -108,7 +58,7 @@ describe("GitHubClient.resolveRef()", () => {
 
   it("sends the token to the transport", async () => {
     const transport = new FakeTransport({
-      "tags/v1": jsonResponse({ body: { object: { type: "commit", sha: SHA } } }),
+      "tags/v1": canned({ object: { type: "commit", sha: SHA } }),
     });
     const client = new GitHubClient(transport, "abc");
     await client.resolveRef("o", "r", "v1");
@@ -117,7 +67,7 @@ describe("GitHubClient.resolveRef()", () => {
 
   it("throws ResolveError on non-404 errors", async () => {
     const transport = new FakeTransport({
-      "tags/v1": jsonResponse({ status: 500, body: { message: "boom" } }),
+      "tags/v1": canned({ message: "boom" }, { status: 500 }),
     });
     const client = new GitHubClient(transport);
     await expect(client.resolveRef("o", "r", "v1")).rejects.toBeInstanceOf(ResolveError);
@@ -140,7 +90,7 @@ describe("GitHubClient.listTags()", () => {
 
   it("returns stripped tag names from a single page", async () => {
     const transport = new FakeTransport({
-      "git/refs/tags": jsonResponse({ body: refs("v1", "v2", "v3.0.0") }),
+      "git/refs/tags": canned(refs("v1", "v2", "v3.0.0")),
     });
     const client = new GitHubClient(transport);
     expect(await client.listTags("actions", "checkout")).toEqual(["v1", "v2", "v3.0.0"]);
@@ -149,10 +99,8 @@ describe("GitHubClient.listTags()", () => {
   it("paginates via the Link header", async () => {
     const next = "https://api.github.com/repos/o/r/git/refs/tags?page=2";
     const transport = new FakeTransport({
-      "git/refs/tags?page=2": jsonResponse({ body: refs("v3") }),
-      "git/refs/tags": [
-        jsonResponse({ body: refs("v1", "v2"), headers: { Link: `<${next}>; rel="next"` } }),
-      ],
+      "git/refs/tags?page=2": canned(refs("v3")),
+      "git/refs/tags": [canned(refs("v1", "v2"), { headers: { Link: `<${next}>; rel="next"` } })],
     });
     const client = new GitHubClient(transport);
     expect(await client.listTags("o", "r")).toEqual(["v1", "v2", "v3"]);
@@ -166,11 +114,10 @@ describe("GitHubClient.listTags()", () => {
   it("warns and throws ResolveError on a 403 rate limit", async () => {
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const transport = new FakeTransport({
-      "git/refs/tags": jsonResponse({
-        status: 403,
-        body: { message: "rate limited" },
-        headers: { "X-RateLimit-Remaining": "0" },
-      }),
+      "git/refs/tags": canned(
+        { message: "rate limited" },
+        { status: 403, headers: { "X-RateLimit-Remaining": "0" } },
+      ),
     });
     const client = new GitHubClient(transport);
     await expect(client.listTags("actions", "checkout")).rejects.toThrow(/403/);
@@ -179,10 +126,33 @@ describe("GitHubClient.listTags()", () => {
   });
 
   it("sends the token to the transport", async () => {
-    const transport = new FakeTransport({ "git/refs/tags": jsonResponse({ body: [] }) });
+    const transport = new FakeTransport({ "git/refs/tags": canned([]) });
     const client = new GitHubClient(transport, "secret");
     await client.listTags("o", "r");
     expect(transport.tokens[0]).toBe("secret");
+  });
+});
+
+// Peer of Python's TestMalformedJson. Impossible before `HttpResponse` became a
+// class: every hand-written double implemented `json()` by returning an
+// already-parsed value, so a canned body could not fail to parse.
+describe("a malformed 200 surfaces as ResolveError", () => {
+  it("from resolveRef()", async () => {
+    const transport = new FakeTransport({ "tags/v4": cannedRaw("<html>not json</html>") });
+    const client = new GitHubClient(transport);
+    await expect(client.resolveRef("actions", "checkout", "v4")).rejects.toThrow(
+      /Failed to parse JSON response/,
+    );
+  });
+
+  it("from listTags()", async () => {
+    const transport = new FakeTransport({
+      "git/refs/tags": cannedRaw("<html>not json</html>"),
+    });
+    const client = new GitHubClient(transport);
+    await expect(client.listTags("actions", "checkout")).rejects.toThrow(
+      /Failed to parse JSON response/,
+    );
   });
 });
 

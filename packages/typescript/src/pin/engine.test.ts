@@ -13,9 +13,10 @@ import { App } from "../app.js";
 import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
-import { GitHubClient, type HttpClient, type HttpResponse, type RequestOptions } from "./github.js";
+import { GitHubClient, type HttpResponse } from "./github.js";
 import { Lockfile, readLockfile, writeLockfile } from "./lockfile.js";
 import { checkSync, pin, upgrade } from "./engine.js";
+import { FakeTransport, canned } from "./transport-contract.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -51,36 +52,12 @@ function writeLock(root: string, pins: Record<string, string>): void {
   writeLockfile(lf, join(root, ".ghagen.lock.yml"));
 }
 
-function jsonResponse(body: unknown): HttpResponse {
-  return {
-    status: 200,
-    statusText: "",
-    json: async () => body,
-    header: () => null,
-  };
-}
-
 function commit(sha: string): HttpResponse {
-  return jsonResponse({ object: { type: "commit", sha } });
+  return canned({ object: { type: "commit", sha } });
 }
 
 function tags(...names: string[]): HttpResponse {
-  return jsonResponse(names.map((n) => ({ ref: `refs/tags/${n}` })));
-}
-
-/** Canned HttpClient keyed by URL substring (mirrors github.test.ts). */
-class FakeTransport implements HttpClient {
-  readonly calls: string[] = [];
-  constructor(private readonly responses: Record<string, HttpResponse>) {}
-  async get(url: string, _options: RequestOptions = {}): Promise<HttpResponse> {
-    this.calls.push(url);
-    for (const [pattern, value] of Object.entries(this.responses)) {
-      if (url.includes(pattern)) {
-        return value;
-      }
-    }
-    return { status: 404, statusText: "Not Found", json: async () => ({}), header: () => null };
-  }
+  return canned(names.map((n) => ({ ref: `refs/tags/${n}` })));
 }
 
 // ---- checkSync (no client) ----
