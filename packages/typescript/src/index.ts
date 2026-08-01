@@ -203,4 +203,9 @@ export {
   type LockfileStaleEntry,
   renderUpgradeReport,
   type UpgradeFormat,
+  planUpdate,
+  type UpdateAction,
+  type UpdateOutput,
+  type UpdatePlan,
+  type PlanUpdateOptions,
 } from "./pin/index.js";
