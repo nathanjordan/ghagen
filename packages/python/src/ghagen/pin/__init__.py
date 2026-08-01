@@ -17,6 +17,7 @@ from ghagen.pin.github import (
     HttpClient,
     ResolveError,
     Response,
+    TransportError,
     UrllibTransport,
 )
 from ghagen.pin.lockfile import (
@@ -43,6 +44,7 @@ __all__ = [
     "ResolvedPin",
     "Response",
     "SyncReport",
+    "TransportError",
     "UpgradeReport",
     "UrllibTransport",
     "UsesRef",

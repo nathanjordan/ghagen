@@ -7,7 +7,6 @@ network) plus tmp dirs.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -19,6 +18,7 @@ from ghagen.models.workflow import Workflow
 from ghagen.pin.engine import check_sync, pin, upgrade
 from ghagen.pin.github import GitHubClient, Response
 from ghagen.pin.lockfile import Lockfile, PinEntry, read_lockfile, write_lockfile
+from tests.test_pin.transport_contract import FakeTransport, canned
 
 SAMPLE_TIME = datetime(2026, 4, 9, tzinfo=UTC)
 
@@ -49,32 +49,12 @@ def _write_lockfile(root: Path, **pins: str) -> Path:
     return path
 
 
-class FakeTransport:
-    """Canned HttpClient keyed by URL substring (mirrors test_github)."""
-
-    def __init__(self, responses: dict[str, object]) -> None:
-        self._responses = responses
-        self.calls: list[str] = []
-
-    def get(self, url: str, *, token: str | None = None) -> Response:
-        self.calls.append(url)
-        for pattern, value in self._responses.items():
-            if pattern in url:
-                assert isinstance(value, Response)
-                return value
-        return Response(status=404, body=b"{}", reason="Not Found")
-
-
-def _json_response(obj: object) -> Response:
-    return Response(status=200, body=json.dumps(obj).encode(), reason="")
-
-
 def _commit(sha: str) -> Response:
-    return _json_response({"object": {"type": "commit", "sha": sha}})
+    return canned({"object": {"type": "commit", "sha": sha}})
 
 
 def _tags(*names: str) -> Response:
-    return _json_response([{"ref": f"refs/tags/{n}"} for n in names])
+    return canned([{"ref": f"refs/tags/{n}"} for n in names])
 
 
 # -- check_sync (no client) ------------------------------------------------

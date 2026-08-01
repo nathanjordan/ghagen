@@ -7,74 +7,28 @@ The pure helpers are unit-tested directly.
 
 from __future__ import annotations
 
-import json
-import urllib.request
-
 import pytest
 
 from ghagen.pin.github import (
-    _API_TIMEOUT_SECONDS,
     GitHubClient,
     ResolveError,
     Response,
     TransportError,
-    UrllibTransport,
     _commit_sha,
     _is_annotated_tag,
     _parse_next_link,
     _ref_urls,
 )
+from tests.test_pin.transport_contract import FakeTransport, canned, canned_raw
 
 SHA = "a" * 40
 TAG_SHA = "b" * 40
 
 
-def _json_response(
-    obj: object,
-    *,
-    status: int = 200,
-    headers: dict[str, str] | None = None,
-) -> Response:
-    """Build a canned JSON :class:`Response`."""
-    return Response(
-        status=status,
-        body=json.dumps(obj).encode(),
-        reason="",
-        headers=headers or {},
-    )
-
-
-class FakeTransport:
-    """Canned :class:`~ghagen.pin.github.HttpClient` keyed by URL substring.
-
-    Each entry maps a URL *substring* to either a :class:`Response`, a list of
-    responses (consumed in order, for pagination), or an exception to raise.
-    Unmatched URLs return a 404.  Requested tokens are recorded.
-    """
-
-    def __init__(self, responses: dict[str, object]) -> None:
-        self._responses = responses
-        self.calls: list[str] = []
-        self.tokens: list[str | None] = []
-
-    def get(self, url: str, *, token: str | None = None) -> Response:
-        self.calls.append(url)
-        self.tokens.append(token)
-        for pattern, value in self._responses.items():
-            if pattern in url:
-                if isinstance(value, list):
-                    return value.pop(0)
-                if isinstance(value, BaseException):
-                    raise value
-                assert isinstance(value, Response)
-                return value
-        return Response(status=404, body=b"{}", reason="Not Found")
-
-
 class TestResolveRef:
     def test_lightweight_tag(self):
         transport = FakeTransport(
-            {"tags/v4": _json_response({"object": {"sha": SHA, "type": "commit"}})}
+            {"tags/v4": canned({"object": {"sha": SHA, "type": "commit"}})}
         )
         client = GitHubClient(transport)
         assert client.resolve_ref("actions", "checkout", "v4") == SHA
@@ -84,7 +38,7 @@ class TestResolveRef:
 
     def test_falls_back_to_heads(self):
         transport = FakeTransport(
-            {"heads/main": _json_response({"object": {"sha": SHA, "type": "commit"}})}
+            {"heads/main": canned({"object": {"sha": SHA, "type": "commit"}})}
         )
         client = GitHubClient(transport)
         assert client.resolve_ref("actions", "checkout", "main") == SHA
@@ -95,10 +49,8 @@ class TestResolveRef:
     def test_annotated_tag_dereference(self):
         transport = FakeTransport(
             {
-                "git/ref/tags/v4": _json_response(
-                    {"object": {"sha": TAG_SHA, "type": "tag"}}
-                ),
-                f"git/tags/{TAG_SHA}": _json_response(
+                "git/ref/tags/v4": canned({"object": {"sha": TAG_SHA, "type": "tag"}}),
+                f"git/tags/{TAG_SHA}": canned(
                     {"object": {"sha": SHA, "type": "commit"}}
                 ),
             }
@@ -109,12 +61,8 @@ class TestResolveRef:
     def test_annotated_tag_not_a_commit_raises(self):
         transport = FakeTransport(
             {
-                "git/ref/tags/v4": _json_response(
-                    {"object": {"sha": TAG_SHA, "type": "tag"}}
-                ),
-                f"git/tags/{TAG_SHA}": _json_response(
-                    {"object": {"sha": SHA, "type": "tree"}}
-                ),
+                "git/ref/tags/v4": canned({"object": {"sha": TAG_SHA, "type": "tag"}}),
+                f"git/tags/{TAG_SHA}": canned({"object": {"sha": SHA, "type": "tree"}}),
             }
         )
         client = GitHubClient(transport)
@@ -129,7 +77,7 @@ class TestResolveRef:
 
     def test_token_passed_to_transport(self):
         transport = FakeTransport(
-            {"tags/v4": _json_response({"object": {"sha": SHA, "type": "commit"}})}
+            {"tags/v4": canned({"object": {"sha": SHA, "type": "commit"}})}
         )
         client = GitHubClient(transport, token="my-token")
         client.resolve_ref("actions", "checkout", "v4")
@@ -142,7 +90,7 @@ class TestResolveRef:
             client.resolve_ref("actions", "checkout", "v4")
 
     def test_server_error_raises(self):
-        transport = FakeTransport({"tags/v4": _json_response({}, status=500)})
+        transport = FakeTransport({"tags/v4": canned({}, status=500)})
         client = GitHubClient(transport)
         with pytest.raises(ResolveError, match="500"):
             client.resolve_ref("actions", "checkout", "v4")
@@ -154,7 +102,7 @@ class TestListTags:
 
     def test_basic_listing(self):
         transport = FakeTransport(
-            {"git/refs/tags": _json_response(self._refs("v1", "v2", "v3.0.0"))}
+            {"git/refs/tags": canned(self._refs("v1", "v2", "v3.0.0"))}
         )
         client = GitHubClient(transport)
         assert client.list_tags("actions", "checkout") == ["v1", "v2", "v3.0.0"]
@@ -163,11 +111,11 @@ class TestListTags:
         next_url = "https://api.github.com/repos/o/r/git/refs/tags?page=2"
         transport = FakeTransport(
             {
-                "git/refs/tags?page=2": _json_response(self._refs("v3")),
+                "git/refs/tags?page=2": canned(self._refs("v3")),
                 # First page (no ?page=2): served before the more specific match
                 # only if it precedes; use a distinct pattern.
                 "git/refs/tags": [
-                    _json_response(
+                    canned(
                         self._refs("v1", "v2"),
                         headers={"Link": f'<{next_url}>; rel="next"'},
                     ),
@@ -185,7 +133,7 @@ class TestListTags:
     def test_rate_limit_403(self, capsys):
         transport = FakeTransport(
             {
-                "git/refs/tags": _json_response(
+                "git/refs/tags": canned(
                     {"message": "rate limited"},
                     status=403,
                     headers={"X-RateLimit-Remaining": "0"},
@@ -200,7 +148,7 @@ class TestListTags:
         assert "remaining=0" in err
 
     def test_token_passed_to_transport(self):
-        transport = FakeTransport({"git/refs/tags": _json_response([])})
+        transport = FakeTransport({"git/refs/tags": canned([])})
         client = GitHubClient(transport, token="secret")
         client.list_tags("actions", "checkout")
         assert transport.tokens == ["secret"]
@@ -244,57 +192,18 @@ class TestMalformedJson:
     """A malformed 200 must surface as ResolveError, not JSONDecodeError."""
 
     def test_resolve_ref_malformed_body(self):
-        transport = FakeTransport(
-            {"tags/v4": Response(status=200, body=b"<html>not json</html>")}
-        )
+        transport = FakeTransport({"tags/v4": canned_raw(b"<html>not json</html>")})
         client = GitHubClient(transport)
         with pytest.raises(ResolveError, match="Failed to parse JSON response"):
             client.resolve_ref("actions", "checkout", "v4")
 
     def test_list_tags_malformed_body(self):
         transport = FakeTransport(
-            {"git/refs/tags": Response(status=200, body=b"<html>not json</html>")}
+            {"git/refs/tags": canned_raw(b"<html>not json</html>")}
         )
         client = GitHubClient(transport)
         with pytest.raises(ResolveError, match="Failed to parse JSON response"):
             client.list_tags("actions", "checkout")
-
-
-class TestUrllibTransport:
-    """The production adapter's request policy (timeout, failure mapping)."""
-
-    def test_request_carries_a_timeout(self, monkeypatch):
-        captured: dict[str, object] = {}
-
-        class _FakeResp:
-            status = 200
-            reason = "OK"
-            headers = {}
-
-            def read(self) -> bytes:
-                return b"{}"
-
-            def __enter__(self) -> _FakeResp:
-                return self
-
-            def __exit__(self, *exc: object) -> None:
-                return None
-
-        def _fake_urlopen(req, **kwargs):
-            captured.update(kwargs)
-            return _FakeResp()
-
-        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-        UrllibTransport().get("https://api.github.com/x")
-        assert captured["timeout"] == _API_TIMEOUT_SECONDS
-
-    def test_timeout_becomes_transport_error(self, monkeypatch):
-        def _fake_urlopen(req, **kwargs):
-            raise TimeoutError("timed out")
-
-        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-        with pytest.raises(TransportError, match="timed out"):
-            UrllibTransport().get("https://api.github.com/x")
 
 
 class TestResponse:
