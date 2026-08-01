@@ -9,9 +9,12 @@ import typer
 import typer.core
 import typer.main
 
-# `uv.lock` pins typer 0.24.1, which depends on the top-level `click` 8.3.2
-# distribution rather than vendoring it. These are the exception types click
-# raises out of `command.main()` under `standalone_mode=False`.
+# These are the exception types click raises out of `command.main()` under
+# `standalone_mode=False`. `pyproject.toml` declares click directly and caps
+# typer below 0.25, which vendors click and drops the top-level dependency --
+# see docs/adr/0009-click-is-a-declared-dependency.md. Do not switch this to
+# `typer._click`: under an un-vendored typer those are different class objects
+# and the `except` clauses below stop matching.
 from click.exceptions import Abort, ClickException
 from typer import rich_utils
 

@@ -20,7 +20,17 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-dependencies = ["pydantic>=2.6", "ruamel.yaml>=0.18", "typer>=0.12"]
+# `cli/main.py` runs the Typer command with `standalone_mode=False` and handles the
+# click exceptions that escape, so click is a direct dependency and must be declared
+# rather than inherited from typer. typer 0.25 vendors click as `typer._click` and
+# drops the top-level dependency, which breaks those imports -- hence the ceiling.
+# See docs/adr/0009-click-is-a-declared-dependency.md.
+dependencies = [
+  "click>=8.2.1",
+  "pydantic>=2.6",
+  "ruamel.yaml>=0.18",
+  "typer>=0.12,<0.25",
+]
 
 [project.urls]
 Repository = "https://github.com/nathanjordan/ghagen"
