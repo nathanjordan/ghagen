@@ -22,3 +22,6 @@ at the seam, presentation at the edge.
 - `DEFAULT_LOCKFILE_PATH` is single-homed in the config module; `pin/lockfile` re-exports it.
 - Spec 0004 unified root discovery and the TS config file layout; this decision unifies the file
   parse it left split.
+- The exit-code contract is `fixtures/cli-exit-codes.yml`, driven through `main()` by both ports:
+  `0` success, `1` expected failure, `2` usage error. The CLI frameworks render text; `main()`
+  decides the number.

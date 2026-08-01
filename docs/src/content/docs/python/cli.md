@@ -54,7 +54,7 @@ ghagen synth --config workflows/generate.py
 
 ## ghagen check-synced
 
-Verify that generated YAML files match the current Python definitions. Exits with code 0 if all files are up to date, or code 1 if any file is stale.
+Verify that generated YAML files match the current Python definitions. Fails if any file is stale (see [Exit codes](#exit-codes)).
 
 ```bash
 ghagen check-synced
@@ -111,16 +111,9 @@ ghagen deps pin --prune   # Drop lockfile entries no longer referenced
 | `--prune`             | Remove lockfile entries that are no longer referenced by any workflow.                                                             |
 | `--token TOKEN`       | GitHub token used to resolve refs. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`. Unauthenticated requests are limited to 60/hour. |
 
-### Exit codes
-
-| Code | Meaning                                           |
-| ---- | ------------------------------------------------- |
-| `0`  | Lockfile is in sync (or was updated successfully) |
-| `1`  | One or more refs failed to resolve                |
-
 ## ghagen deps check-synced
 
-Verify the lockfile is in sync with the current code. Exits with code 1 if the lockfile is stale. Does not make network calls.
+Verify the lockfile is in sync with the current code. Fails if the lockfile is stale (see [Exit codes](#exit-codes)). Does not make network calls.
 
 ```bash
 ghagen deps check-synced
@@ -132,13 +125,6 @@ ghagen deps check-synced
 | --------------------- | ------------------------------------------------------------------------------ |
 | `--config PATH`, `-c` | Path to the configuration file. Defaults to auto-detection.                    |
 | `--prune`             | Also check for lockfile entries that are no longer referenced by any workflow. |
-
-### Exit codes
-
-| Code | Meaning             |
-| ---- | ------------------- |
-| `0`  | Lockfile is in sync |
-| `1`  | Lockfile is stale   |
 
 ### CI usage
 
@@ -176,13 +162,6 @@ ghagen deps upgrade --check --format json  # Machine-readable JSON report
 | `--mode MODE`         | Detection mode: `versions`, `lockfile`, or `all` (default).                      |
 | `--token TOKEN`       | GitHub token used to query tags. Defaults to `$GITHUB_TOKEN`, then `$GH_TOKEN`.  |
 
-### Exit codes
-
-| Code | Meaning                                                              |
-| ---- | -------------------------------------------------------------------- |
-| `0`  | No updates available, or updates applied successfully                |
-| `1`  | Updates available (`--check`) or one or more updates failed to apply |
-
 ## ghagen init
 
 Scaffold a starter configuration file with a minimal CI workflow.
@@ -208,3 +187,15 @@ ghagen init --outdir workflows
 ```
 
 The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.
+
+## Exit codes
+
+Every command exits with one of three codes. The table is identical in the
+TypeScript port — it is the shared contract in `fixtures/cli-exit-codes.yml`,
+which both ports' `main()` is tested against.
+
+| Code | Meaning                                                                                                                                                                                                    |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The command did what it was asked. Includes both "no updates available" and "updates available" under `deps upgrade --check` — a report is not a failure.                                                  |
+| `1`  | Expected failure: generated files are stale, the lockfile is stale, refs failed to resolve, no config file was found, or the config module raised.                                                         |
+| `2`  | Usage error: unknown command, unknown option, missing option argument, invalid option value, or no arguments at all. Framework-detected and hand-validated usage errors are indistinguishable to a caller. |
