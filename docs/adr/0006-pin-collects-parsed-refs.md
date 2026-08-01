@@ -18,3 +18,10 @@ of "which stage swallowed the unparseable ref" bugs.
 **The Lockfile boundary stays string-keyed** — `uses` strings → SHAs, snake_case keys, identical
 across both ports. Do not "simplify" the Lockfile to store structured refs; the on-disk format is
 cross-language interop surface. Only the in-memory pin flow is typed.
+
+**The boundary fixes values as well as keys.** The on-disk **encoding and accepted decoding** are
+fixed too — double-quoted scalars, UTC whole-second `resolved_at` with an explicit `+00:00` offset,
+and `LockfileError` for anything the reader cannot interpret;
+`fixtures/expected/lockfile_golden.yml` is the oracle both ports assert against. `pin/lockfile.py`
+and `pin/lockfile.ts` state the grammar normatively; neither delegates scalar style or timestamp
+tolerance to its YAML library.
