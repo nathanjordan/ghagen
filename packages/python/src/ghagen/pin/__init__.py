@@ -27,7 +27,15 @@ from ghagen.pin.lockfile import (
     read_lockfile,
     write_lockfile,
 )
-from ghagen.pin.plan import UpdateAction, UpdateOutput, UpdatePlan, plan_update
+from ghagen.pin.plan import (
+    PlanFormat,
+    UpdateAction,
+    UpdateOutput,
+    UpdatePlan,
+    parse_labels,
+    plan_update,
+    render_update_plan,
+)
 from ghagen.pin.render import UpgradeFormat, render_upgrade_report
 from ghagen.pin.sites import UsesSite, iter_uses_sites
 from ghagen.pin.transform import PinTransform
@@ -44,6 +52,7 @@ __all__ = [
     "PinEntry",
     "PinReport",
     "PinTransform",
+    "PlanFormat",
     "ResolveError",
     "ResolvedPin",
     "Response",
@@ -61,9 +70,11 @@ __all__ = [
     "check_sync",
     "collect_uses_refs",
     "iter_uses_sites",
+    "parse_labels",
     "pin",
     "plan_update",
     "read_lockfile",
+    "render_update_plan",
     "render_upgrade_report",
     "upgrade",
     "write_lockfile",

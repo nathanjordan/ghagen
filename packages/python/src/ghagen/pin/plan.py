@@ -15,8 +15,9 @@ rule wrong -- which is exactly what the shipped ``check-deps`` action did.
 
 from __future__ import annotations
 
+import json as json_mod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from datetime import date
@@ -183,3 +184,76 @@ def parse_labels(labels: str) -> tuple[str, ...]:
     the result is observable.
     """
     return tuple(part.strip() for part in labels.split(",") if part.strip())
+
+
+PlanFormat = Literal["json", "github"]
+"""The wire shapes :func:`render_update_plan` can produce."""
+
+
+def render_update_plan(
+    plan: UpdatePlan, *, changed: bool, output_format: PlanFormat = "github"
+) -> str:
+    """Render an :class:`UpdatePlan` as the exact bytes to write.
+
+    Two encodings of one shape, built from a single mapping so a field can
+    never appear in one and not the other.  As in :mod:`ghagen.pin.render`, the
+    result is already terminated as it should be written: the caller writes it
+    verbatim and neither adds nor suppresses a trailing newline.
+
+    ``github`` is the ``key=value`` form appended to ``$GITHUB_OUTPUT``.  It is
+    single-line per field by construction -- every value is a bool, an int, or
+    a string the CLI has already rejected newlines in -- so it needs none of
+    the heredoc-delimiter machinery multiline outputs require.
+
+    Args:
+        plan: The decision to serialize.
+        changed: Whether the run actually wrote to the working tree.  Not a
+            field of the plan: the plan is what to do, this is what happened,
+            and only the caller that did it knows.
+        output_format: One of :data:`PlanFormat`.  An unrecognised value is a
+            programmer error -- the CLI validates ``--format`` before calling.
+
+    Raises:
+        ValueError: If *output_format* is not a known format.
+    """
+    fields = _plan_fields(plan, changed=changed)
+    if output_format == "json":
+        return json_mod.dumps(fields, indent=2) + "\n"
+    if output_format == "github":
+        return "".join(
+            f"{key}={_github_value(value)}\n" for key, value in fields.items()
+        )
+    raise ValueError(f"unknown output format {output_format!r}")
+
+
+def _plan_fields(plan: UpdatePlan, *, changed: bool) -> dict[str, Any]:
+    """The one field list both encodings walk, in one order."""
+    return {
+        "action": plan.action,
+        "total_updates": plan.total_updates,
+        "apply_version_bumps": plan.apply_version_bumps,
+        "refresh_lockfile": plan.refresh_lockfile,
+        "branch": plan.branch,
+        "title": plan.title,
+        "commit_message": plan.commit_message,
+        "labels": list(plan.labels),
+        "body_format": plan.body_format,
+        "changed": changed,
+    }
+
+
+def _github_value(value: Any) -> str:
+    """Scalarize one field for a ``key=value`` line.
+
+    ``true``/``false`` rather than Python's ``True``/``False`` because the
+    consumer is a workflow ``if:`` expression, where the comparison is against
+    a lowercase string literal.  ``None`` becomes empty, which is the only
+    thing a composite output can be when there is no value.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ",".join(value)
+    return str(value)
