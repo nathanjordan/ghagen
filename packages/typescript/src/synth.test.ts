@@ -39,9 +39,7 @@ function renameUses(newRef: string): Transform {
 }
 
 function lockfileWith(uses: string, sha: string): Lockfile {
-  const lf = new Lockfile();
-  lf.merge([[uses, { sha, resolvedAt: new Date() }]]);
-  return lf;
+  return new Lockfile([[uses, { sha, resolvedAt: new Date() }]]);
 }
 
 describe("render()", () => {

@@ -17,7 +17,7 @@ input, and the pins map is private so callers cannot smuggle in invalid state.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, KeysView, Mapping
+from collections.abc import KeysView, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -46,10 +46,10 @@ class PinEntry:
 class Lockfile:
     """In-memory representation of a ``.ghagen.lock.yml`` file.
 
-    The entry map is private: mutate it through :meth:`set`, :meth:`merge`,
-    and :meth:`prune`, and read it through :meth:`get`, iteration, and
-    membership tests. This keeps the invariant that a lockfile only ever
-    holds valid entries.
+    The entry map is private: seed it through the constructor, mutate it
+    through :meth:`set` and :meth:`prune`, and read it through :meth:`get`,
+    :meth:`keys`, ``in`` and ``len()``. This keeps the invariant that a
+    lockfile only ever holds valid entries.
     """
 
     def __init__(self, pins: Mapping[str, PinEntry] | None = None) -> None:
@@ -63,10 +63,6 @@ class Lockfile:
         """Add or replace a single entry."""
         self._pins[uses] = entry
 
-    def merge(self, entries: Mapping[str, PinEntry]) -> None:
-        """Bulk add or replace entries, overwriting existing keys."""
-        self._pins.update(entries)
-
     def prune(self, keep: set[str]) -> int:
         """Remove entries not in *keep*. Return count of removed entries."""
         to_remove = set(self._pins) - keep
@@ -74,19 +70,12 @@ class Lockfile:
             del self._pins[key]
         return len(to_remove)
 
-    def contains(self, uses: str) -> bool:
-        """Return whether *uses* has an entry."""
-        return uses in self._pins
-
     def __contains__(self, uses: object) -> bool:
         return uses in self._pins
 
     def keys(self) -> KeysView[str]:
         """Return a view over the ``uses:`` keys."""
         return self._pins.keys()
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._pins)
 
     def __len__(self) -> int:
         return len(self._pins)

@@ -13,10 +13,10 @@ afterEach(() => {
 });
 
 describe("Lockfile", () => {
-  it("get/set/merge/prune", () => {
+  it("get/set/prune", () => {
     const lf = new Lockfile();
     lf.set("actions/checkout@v4", { sha: "a".repeat(40), resolvedAt: new Date() });
-    lf.merge([["actions/setup-node@v4", { sha: "b".repeat(40), resolvedAt: new Date() }]]);
+    lf.set("actions/setup-node@v4", { sha: "b".repeat(40), resolvedAt: new Date() });
     expect(lf.get("actions/checkout@v4")?.sha).toBe("a".repeat(40));
     expect(lf.size).toBe(2);
     expect(lf.prune(new Set(["actions/checkout@v4"]))).toBe(1);
@@ -31,16 +31,14 @@ describe("Lockfile", () => {
     expect(lf.size).toBe(1);
   });
 
-  it("has and iteration", () => {
-    const lf = new Lockfile();
-    lf.merge([
+  it("has and keys", () => {
+    const lf = new Lockfile([
       ["actions/checkout@v4", { sha: "a".repeat(40), resolvedAt: new Date() }],
       ["actions/setup-node@v4", { sha: "b".repeat(40), resolvedAt: new Date() }],
     ]);
     expect(lf.has("actions/checkout@v4")).toBe(true);
     expect(lf.has("actions/nope@v1")).toBe(false);
     expect(new Set(lf.keys())).toEqual(new Set(["actions/checkout@v4", "actions/setup-node@v4"]));
-    expect(new Set(lf)).toEqual(new Set(["actions/checkout@v4", "actions/setup-node@v4"]));
   });
 });
 
@@ -96,8 +94,7 @@ describe("readLockfile / writeLockfile", () => {
 
   it("round-trips entries with sorted keys and snake_case on disk", () => {
     const path = join(tmp, "lock.yml");
-    const lf = new Lockfile();
-    lf.merge([
+    const lf = new Lockfile([
       [
         "owner/repo-b@v2",
         {
@@ -138,8 +135,7 @@ describe("readLockfile / writeLockfile", () => {
 
   it("read -> write is byte-identical", () => {
     const path1 = join(tmp, "lock1.yml");
-    const lf = new Lockfile();
-    lf.merge([
+    const lf = new Lockfile([
       ["owner/repo-b@v2", { sha: "b".repeat(40), resolvedAt: new Date("2026-04-09T14:30:00Z") }],
       ["owner/repo-a@v1", { sha: "a".repeat(40), resolvedAt: new Date("2026-04-08T00:00:00Z") }],
     ]);

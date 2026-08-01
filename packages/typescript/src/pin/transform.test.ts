@@ -11,8 +11,7 @@ import { toData } from "../emitter/yaml-writer.js";
 const PINNED = "actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac";
 
 function makeLockfile(): Lockfile {
-  const lf = new Lockfile();
-  lf.merge([
+  return new Lockfile([
     [
       "actions/checkout@v4",
       {
@@ -21,7 +20,6 @@ function makeLockfile(): Lockfile {
       },
     ],
   ]);
-  return lf;
 }
 
 describe("pinTransform()", () => {

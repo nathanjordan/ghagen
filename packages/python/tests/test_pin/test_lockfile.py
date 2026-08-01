@@ -58,32 +58,19 @@ class TestLockfile:
         assert lf.get("actions/checkout@v4").sha == SAMPLE_SHA2
         assert len(lf) == 1
 
-    def test_merge(self):
+    def test_constructor_bulk_load(self):
         lf = Lockfile(
             pins={
-                "actions/checkout@v4": PinEntry(sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME)
-            }
-        )
-        lf.merge(
-            {
+                "actions/checkout@v4": PinEntry(
+                    sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME
+                ),
                 "actions/setup-python@v5": PinEntry(
                     sha=SAMPLE_SHA2, resolved_at=SAMPLE_TIME
-                )
+                ),
             }
         )
         assert len(lf) == 2
         assert lf.get("actions/setup-python@v5").sha == SAMPLE_SHA2
-
-    def test_merge_overwrites(self):
-        lf = Lockfile(
-            pins={
-                "actions/checkout@v4": PinEntry(sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME)
-            }
-        )
-        lf.merge(
-            {"actions/checkout@v4": PinEntry(sha=SAMPLE_SHA2, resolved_at=SAMPLE_TIME)}
-        )
-        assert lf.get("actions/checkout@v4").sha == SAMPLE_SHA2
 
     def test_prune(self):
         lf = Lockfile(
@@ -116,12 +103,10 @@ class TestLockfile:
                 "actions/checkout@v4": PinEntry(sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME)
             }
         )
-        assert lf.contains("actions/checkout@v4")
-        assert not lf.contains("actions/setup-python@v5")
         assert "actions/checkout@v4" in lf
         assert "actions/setup-python@v5" not in lf
 
-    def test_iteration_and_keys(self):
+    def test_keys(self):
         lf = Lockfile(
             pins={
                 "actions/checkout@v4": PinEntry(
@@ -133,7 +118,6 @@ class TestLockfile:
             }
         )
         assert set(lf.keys()) == {"actions/checkout@v4", "actions/setup-python@v5"}
-        assert set(iter(lf)) == {"actions/checkout@v4", "actions/setup-python@v5"}
         assert len(lf) == 2
 
 

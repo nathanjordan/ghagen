@@ -121,8 +121,7 @@ describe("App", () => {
     // A user transform rewrites the authored ref (v3, absent from the lockfile)
     // to v4, which is locked. Because pin runs LAST, the injected ref is pinned.
     const sha = "3df4ab11eba7bda6032a0b82a6bb43b11571feac";
-    const lf = new Lockfile();
-    lf.merge([["actions/checkout@v4", { sha, resolvedAt: new Date() }]]);
+    const lf = new Lockfile([["actions/checkout@v4", { sha, resolvedAt: new Date() }]]);
     writeLockfile(lf, join(tmp, ".ghagen.lock.yml"));
 
     const app = new App({

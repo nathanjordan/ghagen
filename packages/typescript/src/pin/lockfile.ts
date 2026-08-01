@@ -44,9 +44,9 @@ export class LockfileError extends Error {
 /**
  * In-memory representation of a `.ghagen.lock.yml` file.
  *
- * The entry map is private: mutate it through `set`, `merge`, and `prune`,
- * and read it through `get`, `has`, `keys`, and `size`. This keeps the
- * invariant that a lockfile only ever holds valid entries.
+ * The entry map is private: seed it through the constructor, mutate it through
+ * `set` and `prune`, and read it through `get`, `has`, `keys`, and `size`. This
+ * keeps the invariant that a lockfile only ever holds valid entries.
  */
 export class Lockfile {
   readonly #pins: Map<string, PinEntry>;
@@ -63,13 +63,6 @@ export class Lockfile {
   /** Add or replace a single entry. */
   set(uses: string, entry: PinEntry): void {
     this.#pins.set(uses, entry);
-  }
-
-  /** Merge new entries, overwriting existing keys. */
-  merge(other: Iterable<readonly [string, PinEntry]>): void {
-    for (const [k, v] of other) {
-      this.#pins.set(k, v);
-    }
   }
 
   /** Remove entries not in *keep*. Returns count of removed entries. */
@@ -91,11 +84,6 @@ export class Lockfile {
 
   /** Iterate over the `uses:` keys. */
   keys(): IterableIterator<string> {
-    return this.#pins.keys();
-  }
-
-  /** Iterate over the keys (a Lockfile iterates its `uses:` strings). */
-  [Symbol.iterator](): IterableIterator<string> {
     return this.#pins.keys();
   }
 
