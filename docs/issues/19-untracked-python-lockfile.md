@@ -31,6 +31,26 @@ guarded by `tests/test_declared_dependencies.py`). **The reproducibility gap is 
 is now honest about _what_ is required; it still does not fix _which versions_ a build gets. Any
 future dependency whose upstream reshapes itself reproduces this exact incident.
 
+## It happened a second time in the same round, on the same dependency
+
+A later worktree (proposal 17's) resolved **click 8.4.2** and arrived with a red baseline. click
+reworded its usage errors in 8.4 — `No such option: --bogus` became `No such option '--bogus'.` —
+and two cases in `tests/test_cli/test_exit_codes.py` asserted the old prose verbatim.
+`click>=8.2.1` has no ceiling, so both wordings are manifest-legal and which one a checkout gets is
+decided by resolution date.
+
+That one was a test defect and is fixed by asserting the error kind and the offending token instead
+of click's punctuation; the suite passes under 8.3.2 and 8.4.2 both, verified with
+`uv run --with 'click==8.4.2'`. **No ceiling was added** — capping a direct dependency to keep a
+string literal alive is the wrong trade, and unlike the `typer<0.25` cap there is no removed API
+behind it.
+
+It is listed here because the _shape_ is the point: two incidents, one round, one dependency, both
+found by an agent losing time to a red baseline rather than by any gate. Both would have been
+impossible with a tracked lockfile, and the second would have been caught the week upstream shipped
+by a scheduled fresh-resolve CI run. That is options 1 and 2 below, and this is the second data
+point for each.
+
 ## Why the obvious fix is a real decision, not a chore
 
 The convention that libraries do not commit lockfiles is genuine — a lockfile in an installed
