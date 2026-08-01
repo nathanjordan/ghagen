@@ -84,6 +84,53 @@ def order_entries(
     return result
 
 
+def collect_fields(model: GhagenModel, *, auto_dedent: bool) -> dict[str, Any]:
+    """Collect a model's emitted fields under their YAML keys.
+
+    The single home for emission *membership*, shared by the ruamel walk
+    (:func:`_model_to_map`) and the plain-data walk
+    (:func:`ghagen.emitter.data._model_to_data`), so the two cannot disagree
+    about which fields exist — the peer of :func:`order_entries`, which is the
+    single home for the order they come out in.
+
+    A field is collected iff all of these hold (the contract stated in
+    ``docs/specs/0001-python-single-pass-serialization.md`` §4):
+
+    1. it is not a meta field (``_META_FIELDS``) — those carry serialization
+       policy, not YAML content;
+    2. it is set (``model_fields_set`` — ``exclude_unset``);
+    3. its value, wrapper and all, is not ``None`` — ``exclude_none`` is checked
+       on the *raw* attribute, before any ``Commented`` / ``Raw`` see-through, so
+       a ``Raw(None)`` survives;
+    4. the key it lands under is ``spec.yaml_keys[field]``, defaulting to the
+       field name.
+
+    When *auto_dedent* is true a :class:`~ghagen.models.step.Step`'s ``run``
+    string is dedented here, at collection — no model mutation, no copy
+    (ADR-0002). This is the sole home of the dedent-at-emit rule for both job
+    steps and composite-action ``runs.steps``.
+
+    Returns the ``{yaml_key: value}`` mapping in Pydantic field-declaration
+    order; :func:`order_entries` decides the emitted order from there.
+    """
+    spec = type(model).SPEC
+    is_step = isinstance(model, Step)
+
+    raw: dict[str, Any] = {}
+    for field_name in type(model).model_fields:
+        if field_name in _META_FIELDS:
+            continue
+        if field_name not in model.model_fields_set:  # exclude_unset
+            continue
+        value = getattr(model, field_name, None)
+        if value is None:  # exclude_none (checked on the raw wrapper)
+            continue
+        if auto_dedent and is_step and field_name == "run" and isinstance(value, str):
+            value = dedent_script(value)
+        raw[spec.yaml_keys.get(field_name, field_name)] = value
+    return raw
+
+
 def is_empty_map(node: Any) -> bool:
     """True when *node* is an empty map — the trigger for ``present_null_when_empty``.
 
@@ -150,39 +197,20 @@ def _to_node(value: Any, *, auto_dedent: bool) -> Any:
 def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> CommentedMap:
     """Serialize *model* to a CommentedMap in a single field walk.
 
-    Walks the model's own fields directly (no ``model_dump``): applies
-    ``exclude_none`` / ``exclude_unset`` semantics, canonical key ordering,
-    harvests per-field comments from ``Commented`` wrappers, merges extras,
-    attaches comments, and runs the ``post_process`` hook. Field → YAML key
-    mapping and emission order both come from the model's
-    :class:`~ghagen.models.spec.ModelSpec`.
-
-    When *auto_dedent* is true, each :class:`~ghagen.models.step.Step`'s ``run``
-    script is dedented at this node-build point — no model mutation, no copy
-    (ADR-0002). This is the sole home of the dedent-at-emit rule for both job
-    steps and composite-action ``runs.steps``.
+    Walks the model's own fields directly (no ``model_dump``): membership and
+    the ``run`` dedent come from :func:`collect_fields`, emission order from
+    :func:`order_entries` — both shared with the plain-data walk. This function
+    owns only what is ruamel-specific from there on: it harvests per-field
+    comments from ``Commented`` wrappers, merges extras, attaches comments, and
+    runs the ``post_process`` hook. Field → YAML key mapping and emission order
+    both come from the model's :class:`~ghagen.models.spec.ModelSpec`.
 
     Does NOT attach the model's OWN comment — that is the container's job
     (:func:`_to_node` for a map value, :func:`_to_seq` for a seq item, and the
     document emitter for the root).
     """
     spec = type(model).SPEC
-    is_step = isinstance(model, Step)
-
-    # Single walk: collect set, non-None fields under their YAML keys.
-    raw: dict[str, Any] = {}
-    for field_name in type(model).model_fields:
-        if field_name in _META_FIELDS:
-            continue
-        if field_name not in model.model_fields_set:  # exclude_unset
-            continue
-        value = getattr(model, field_name, None)
-        if value is None:  # exclude_none (checked on the raw wrapper)
-            continue
-        if auto_dedent and is_step and field_name == "run" and isinstance(value, str):
-            value = dedent_script(value)
-        raw[spec.yaml_keys.get(field_name, field_name)] = value
-
+    raw = collect_fields(model, auto_dedent=auto_dedent)
     present_null = spec.present_null_when_empty
     cm = CommentedMap()
 

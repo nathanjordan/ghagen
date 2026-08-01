@@ -143,6 +143,7 @@ def test_deep_structure_matches_emitted_yaml():
         jobs={
             "build": Job(
                 runs_on="ubuntu-latest",
+                needs=[],  # empty list: the shape a one-sided membership edit hides in
                 defaults=Defaults(
                     run=DefaultsRun(shell=with_comment("bash", "login shell"))
                 ),
