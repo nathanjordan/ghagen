@@ -18,7 +18,7 @@ import { readLockfile, writeLockfile } from "./lockfile.js";
 import { locateUsesRefs } from "./sources.js";
 import { applyUpdates } from "./update.js";
 import type { UsesRef } from "./uses.js";
-import { type BumpSeverity, classifyBump, findLatestTag, parseTag } from "./versions.js";
+import { type BumpSeverity, latestBump } from "./versions.js";
 
 // ---- pin ----
 
@@ -248,21 +248,15 @@ export async function upgrade(
       }
 
       for (const ref of repoRefList) {
-        const latestTag = findLatestTag(ref.ref, tags);
-        if (latestTag === null) {
-          continue;
+        const bump = latestBump(ref.ref, tags);
+        if (bump === null) {
+          continue; // not a version tag, or already the latest
         }
-        const currentParsed = parseTag(ref.ref);
-        const latestParsed = parseTag(latestTag);
-        if (currentParsed === null || latestParsed === null) {
-          continue;
-        }
-        const severity = classifyBump(currentParsed.version, latestParsed.version);
         report.versionBumps.push({
           uses: ref.uses,
           current: ref.ref,
-          latest: latestTag,
-          severity,
+          latest: bump.latest.tag,
+          severity: bump.severity,
           source_files: [...(refLocations.get(ref.uses) ?? [])],
         });
       }

@@ -25,3 +25,9 @@ and `LockfileError` for anything the reader cannot interpret;
 `fixtures/expected/lockfile_golden.yml` is the oracle both ports assert against. `pin/lockfile.py`
 and `pin/lockfile.ts` state the grammar normatively; neither delegates scalar style or timestamp
 tolerance to its YAML library.
+
+**The rule covers tag parsing as well as ref parsing.** `find_latest_tag` used to return a string
+it had already parsed, so `upgrade` re-parsed it behind a `parse(...) is None` guard that could
+never fire — this shape, one level down. `latest_bump` / `latestBump` returns a `Bump` of parsed
+values instead (ADR-0008). Any pin stage that hands a caller a string it has already parsed is
+re-growing the same defect.

@@ -1,0 +1,95 @@
+# The declared tag grammar for `ghagen deps upgrade`. Read by:
+#   - Python (packages/python/tests/test_pin/test_versions.py)
+#   - TypeScript (packages/typescript/src/pin/versions.test.ts)
+# Both suites assert they consumed every key, so a case added for one port
+# cannot silently skip the other.
+#
+# `release` is the canonical release: each segment as an integer, padded to
+# three, trailing zeros beyond index 2 dropped. Ordering is tuple ordering.
+# A segment whose integer VALUE exceeds 999999999999999 is rejected; a
+# zero-padded literal longer than that is not.
+#
+# See docs/adr/0008-ghagen-owns-its-tag-grammar.md: the accept-set and the
+# total order are ghagen's own. No third-party version library may return to
+# this path.
+
+parse:
+  # --- shapes both ports already agree on
+  "v4": { prefix: null, release: [4, 0, 0] }
+  "v4.1": { prefix: null, release: [4, 1, 0] }
+  "1.2.3": { prefix: null, release: [1, 2, 3] }
+  "prefix-v1.0.0": { prefix: prefix, release: [1, 0, 0] }
+  "release/v1.0.0": { prefix: release, release: [1, 0, 0] }
+  "actions-v2.1": { prefix: actions, release: [2, 1, 0] }
+  "v999999999999999.0.0": { prefix: null, release: [999999999999999, 0, 0] } # at the cap
+  "release/v1": null # prefixed + single segment -> branch ref
+  "main": null
+  "latest": null
+  "V1.2.3": null # capital V is not the `v` prefix
+  "v1.2.3-rc1": null
+  "v1.2.3+build": null
+  "v2beta": null
+  "v1.0.0a0": null # real: pypa/gh-action-pypi-publish
+  "v3.0.2-node.24": null # real: actions/deploy-pages
+  "v6-beta": null # real: actions/checkout
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": null # a bare commit SHA is not a tag
+  "": null
+
+  # --- shapes the ports disagree on today (TS red before)
+  "v1.2.3.4": { prefix: null, release: [1, 2, 3, 4] } # arity
+  "v1.2.3.4.5": { prefix: null, release: [1, 2, 3, 4, 5] }
+  "v1.2.3.4.5.6": { prefix: null, release: [1, 2, 3, 4, 5, 6] }
+  "v1.2.3.0": { prefix: null, release: [1, 2, 3] } # trailing zero stripped
+  "v01.02.03": { prefix: null, release: [1, 2, 3] } # leading zeros
+  "v1.2.03": { prefix: null, release: [1, 2, 3] }
+  "prefix-v1.2.3.4": { prefix: prefix, release: [1, 2, 3, 4] } # prefixed + arity
+  "v0000000000000001.0.0": { prefix: null, release: [1, 0, 0] } # 16 chars, value 1: ACCEPTED
+  "v2.04": { prefix: null, release: [2, 4, 0] } # real: fastai/fastpages
+  "2026.07.29.1": { prefix: null, release: [2026, 7, 29, 1] } # real: Homebrew/actions
+  "v3.1.4.1": { prefix: null, release: [3, 1, 4, 1] } # real: super-linter/super-linter
+  "ui/v0.1.32.12": { prefix: ui, release: [0, 1, 32, 12] } # real: diggerhq/digger
+
+  # --- shapes the ports disagree on today (Python red before)
+  "v9999999999999999.0.0": null # value 10^16 - 1: over the cap
+  "v99999999999999999999.0.0": null
+
+compare:
+  # --- TS red before
+  - { current: "v1.2.3", available: ["v1.2.3.4"], latest: "v1.2.3.4", severity: patch }
+  - { current: "v1", available: ["v1.2.3.4", "v1.1"], latest: "v1.2.3.4", severity: minor }
+  - { current: "v1.2.3", available: ["v1.2.4", "v1.3.0.1"], latest: "v1.3.0.1", severity: minor }
+  - { current: "v1.2.3.4", available: ["v1.2.4"], latest: "v1.2.4", severity: patch }
+  - { current: "v2.1.6", available: ["v2.2", "v2.04"], latest: "v2.04", severity: minor } # fastai
+  - {
+      current: "v0.9.0",
+      available: ["v0000000000000001.0.0"],
+      latest: "v0000000000000001.0.0",
+      severity: major,
+    }
+
+  # --- severity: all three values, and both precedence rules
+  - { current: "v1.2.3", available: ["v2.0.0", "v1.5.0"], latest: "v2.0.0", severity: major } # major beats minor
+  - { current: "v1.0.0", available: ["v1.0.1", "v1.1.1"], latest: "v1.1.1", severity: minor } # minor beats patch
+  - { current: "v1.0.0", available: ["v1.0.1"], latest: "v1.0.1", severity: patch }
+
+  # --- prefix filter and mixed lists
+  - { current: "v4", available: ["release-v5", "v4.1"], latest: "v4.1", severity: minor }
+  - {
+      current: "release-v1.0.0",
+      available: ["release-v1.1.0", "release-v2.0.0"],
+      latest: "release-v2.0.0",
+      severity: major,
+    }
+  - {
+      current: "v1.0.0",
+      available: ["v1.0.0", "v2.0.0", "main", "release/v1", "nightly"],
+      latest: "v2.0.0",
+      severity: major,
+    }
+
+  # --- no bump: equal after normalisation, nothing newer, nothing at all, unparseable current
+  - { current: "v1.2.3", available: ["v1.2.03"], latest: null }
+  - { current: "v1.2.3", available: ["v1.2.3.0"], latest: null }
+  - { current: "v1.0.0", available: [], latest: null }
+  - { current: "v3.0.0", available: ["v1.0.0", "v2.0.0"], latest: null }
+  - { current: "main", available: ["v1", "v2"], latest: null }

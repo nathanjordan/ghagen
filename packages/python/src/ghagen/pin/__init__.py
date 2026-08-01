@@ -30,8 +30,10 @@ from ghagen.pin.lockfile import (
 from ghagen.pin.sites import UsesSite, iter_uses_sites
 from ghagen.pin.transform import PinTransform
 from ghagen.pin.uses import UsesRef
+from ghagen.pin.versions import BumpSeverity
 
 __all__ = [
+    "BumpSeverity",
     "GitHubClient",
     "HttpClient",
     "Lockfile",

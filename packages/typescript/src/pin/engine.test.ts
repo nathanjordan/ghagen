@@ -182,6 +182,28 @@ describe("upgrade()", () => {
     expect(readFileSync(source, "utf8")).toContain("actions/checkout@v5");
   });
 
+  // A four-segment tag is a version tag, end to end, in both ports. The shared
+  // grammar (schema/tag-grammar.yml) accepts arity > 3, so v4.1.2.3 is a real
+  // upgrade candidate. This is the source-file mutation guard: before 14,
+  // SemVer rejected the tag here and left the file untouched while Python
+  // rewrote it.
+  it("detects a bump to a divergent-shape tag", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@v4");
+    const source = join(tmp, "wf.ts");
+    writeFileSync(source, 'step({ uses: "actions/checkout@v4" });\n');
+    const client = new GitHubClient(new FakeTransport({ "git/refs/tags": tags("v4", "v4.1.2.3") }));
+
+    const report = await upgrade(app, client, new Set([source]), {
+      mode: "versions",
+      apply: false,
+    });
+
+    expect(report.versionBumps).toHaveLength(1);
+    const bump = report.versionBumps[0]!;
+    expect(bump.latest).toBe("v4.1.2.3");
+    expect(bump.severity).toBe("minor");
+  });
+
   it("detects a stale lockfile entry", async () => {
     const oldSha = "a".repeat(40);
     const newSha = "f".repeat(40);

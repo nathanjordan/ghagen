@@ -1,132 +1,76 @@
-"""Tests for ghagen.pin.versions — version comparison for action tags."""
+"""Tests for ghagen.pin.versions — a driver over the shared tag grammar table.
+
+The accept-set, the canonical release, the total order, the prefix filter and
+the severity classification are declared once in ``schema/tag-grammar.yml``
+and read here *and* by the TypeScript suite
+(``packages/typescript/src/pin/versions.test.ts``). Both ports held to the
+same table means both implement the same grammar — cross-port behaviour
+agreement, structurally.
+
+Each section carries a consumed-every-key guard, mirroring the scope-key
+parity assertion the conformance sweeps already use: a row this driver does
+not run fails a test, so a case added for one port cannot silently skip the
+other.
+"""
 
 from __future__ import annotations
 
-from packaging.version import Version
+from typing import Any
 
-from ghagen.pin.versions import classify_bump, find_latest_tag, parse_tag
+import pytest
+from ghagen_schema.paths import SCHEMA_DIR
+from ruamel.yaml import YAML
+
+from ghagen.pin.versions import latest_bump, parse_tag
+
+TABLE_PATH = SCHEMA_DIR / "tag-grammar.yml"
+
+_TABLE: dict[str, Any] = YAML(typ="safe").load(TABLE_PATH.read_text())
+
+#: (tag, expected) for every row of the shared ``parse`` map.
+_PARSE_CASES: list[tuple[str, dict[str, Any] | None]] = sorted(_TABLE["parse"].items())
+
+#: (index, case) for every row of the shared ``compare`` list.
+_COMPARE_CASES: list[tuple[int, dict[str, Any]]] = list(enumerate(_TABLE["compare"]))
 
 
-class TestParseTag:
-    def test_major_only(self):
-        parsed = parse_tag("v4")
+@pytest.mark.parametrize(
+    "tag,expected", _PARSE_CASES, ids=[tag for tag, _ in _PARSE_CASES]
+)
+def test_parse_grammar(tag: str, expected: dict[str, Any] | None) -> None:
+    """``parse_tag`` accepts exactly the declared shapes, with the declared release."""
+    parsed = parse_tag(tag)
+    if expected is None:
+        assert parsed is None
+    else:
         assert parsed is not None
-        assert parsed.tag == "v4"
-        assert parsed.prefix is None
-        assert parsed.version == Version("4.0.0")
-
-    def test_major_minor(self):
-        parsed = parse_tag("v4.1")
-        assert parsed is not None
-        assert parsed.version == Version("4.1.0")
-
-    def test_full_semver(self):
-        parsed = parse_tag("v4.1.2")
-        assert parsed is not None
-        assert parsed.version == Version("4.1.2")
-
-    def test_no_v_prefix(self):
-        parsed = parse_tag("4.1.2")
-        assert parsed is not None
-        assert parsed.version == Version("4.1.2")
-
-    def test_prefix_dash(self):
-        parsed = parse_tag("prefix-v1.0.0")
-        assert parsed is not None
-        assert parsed.prefix == "prefix"
-        assert parsed.version == Version("1.0.0")
-
-    def test_prefix_slash(self):
-        parsed = parse_tag("prefix/v1.0.0")
-        assert parsed is not None
-        assert parsed.prefix == "prefix"
-        assert parsed.version == Version("1.0.0")
-
-    def test_nonsemver_main(self):
-        assert parse_tag("main") is None
-
-    def test_nonsemver_release_branch(self):
-        """release/v1 looks like a branch ref, not a tag."""
-        assert parse_tag("release/v1") is None
-
-    def test_empty_string(self):
-        assert parse_tag("") is None
-
-    def test_sha_like(self):
-        assert parse_tag("a" * 40) is None
-
-    def test_prefix_with_major_minor(self):
-        parsed = parse_tag("action-v2.1")
-        assert parsed is not None
-        assert parsed.prefix == "action"
-        assert parsed.version == Version("2.1.0")
-
-    def test_prefix_slash_with_full_semver(self):
-        parsed = parse_tag("tools/v3.2.1")
-        assert parsed is not None
-        assert parsed.prefix == "tools"
-        assert parsed.version == Version("3.2.1")
+        assert parsed.tag == tag
+        assert parsed.prefix == expected["prefix"]
+        assert list(parsed.release) == expected["release"]
 
 
-class TestClassifyBump:
-    def test_major(self):
-        assert classify_bump(Version("1.0.0"), Version("2.0.0")) == "major"
-
-    def test_minor(self):
-        assert classify_bump(Version("1.0.0"), Version("1.1.0")) == "minor"
-
-    def test_patch(self):
-        assert classify_bump(Version("1.0.0"), Version("1.0.1")) == "patch"
-
-    def test_major_with_minor_change(self):
-        """Major bump takes precedence even when minor also differs."""
-        assert classify_bump(Version("1.2.3"), Version("2.0.0")) == "major"
-
-    def test_minor_with_patch_change(self):
-        """Minor bump takes precedence even when patch also differs."""
-        assert classify_bump(Version("1.0.0"), Version("1.1.1")) == "minor"
-
-    def test_same_version(self):
-        """Same version classifies as patch (no actual bump)."""
-        assert classify_bump(Version("1.0.0"), Version("1.0.0")) == "patch"
+@pytest.mark.parametrize(
+    "case",
+    [case for _, case in _COMPARE_CASES],
+    ids=[str(i) for i, _ in _COMPARE_CASES],
+)
+def test_compare_grammar(case: dict[str, Any]) -> None:
+    """``latest_bump`` picks the declared winner and classifies it as declared."""
+    bump = latest_bump(case["current"], case["available"])
+    if case["latest"] is None:
+        assert bump is None
+    else:
+        assert bump is not None
+        assert bump.current.tag == case["current"]
+        assert bump.latest.tag == case["latest"]
+        assert bump.severity == case["severity"]
 
 
-class TestFindLatestTag:
-    def test_returns_latest(self):
-        result = find_latest_tag("v1.0.0", ["v1.0.0", "v1.1.0", "v2.0.0"])
-        assert result == "v2.0.0"
+def test_every_parse_row_is_driven() -> None:
+    """Every key of the shared ``parse`` map is a collected case."""
+    assert {tag for tag, _ in _PARSE_CASES} == set(_TABLE["parse"])
 
-    def test_returns_none_when_current_is_latest(self):
-        result = find_latest_tag("v2.0.0", ["v1.0.0", "v1.1.0", "v2.0.0"])
-        assert result is None
 
-    def test_handles_mixed_semver_and_nonsemver(self):
-        tags = ["v1.0.0", "v2.0.0", "main", "release/v1", "nightly"]
-        result = find_latest_tag("v1.0.0", tags)
-        assert result == "v2.0.0"
-
-    def test_returns_none_for_nonsemver_current(self):
-        result = find_latest_tag("main", ["v1.0.0", "v2.0.0"])
-        assert result is None
-
-    def test_preserves_v_prefix(self):
-        result = find_latest_tag("v1", ["v1", "v2", "v3"])
-        assert result == "v3"
-
-    def test_single_segment_tags(self):
-        result = find_latest_tag("v3", ["v1", "v2", "v3", "v4", "v5"])
-        assert result == "v5"
-
-    def test_prefix_filtering(self):
-        """Tags with a different prefix are excluded."""
-        tags = ["action-v1.0.0", "action-v2.0.0", "other-v3.0.0"]
-        result = find_latest_tag("action-v1.0.0", tags)
-        assert result == "action-v2.0.0"
-
-    def test_empty_available_tags(self):
-        result = find_latest_tag("v1.0.0", [])
-        assert result is None
-
-    def test_no_newer_tags(self):
-        result = find_latest_tag("v3.0.0", ["v1.0.0", "v2.0.0"])
-        assert result is None
+def test_every_compare_row_is_driven() -> None:
+    """Every element of the shared ``compare`` list is a collected case."""
+    assert [case for _, case in _COMPARE_CASES] == list(_TABLE["compare"])

@@ -1,85 +1,92 @@
-import { describe, it, expect } from "vitest";
-import { SemVer } from "semver";
-import { classifyBump, findLatestTag, parseTag } from "./versions.js";
+/**
+ * Tests for pin/versions — a driver over the shared tag grammar table.
+ *
+ * The accept-set, the canonical release, the total order, the prefix filter
+ * and the severity classification are declared once in
+ * `schema/tag-grammar.yml` and read here *and* by the Python suite
+ * (`packages/python/tests/test_pin/test_versions.py`). Both ports held to the
+ * same table means both implement the same grammar — cross-port behaviour
+ * agreement, structurally.
+ *
+ * Each section carries a consumed-every-key guard, mirroring the scope-key
+ * parity assertion the conformance sweeps already use: a row this driver does
+ * not run fails a test, so a case added for one port cannot silently skip the
+ * other.
+ */
 
-// Cases ported from packages/python/tests/test_pin/test_versions.py
-// to keep the two implementations in lockstep on tag-parsing behaviour.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { SCHEMA_DIR } from "../paths.js";
+import { latestBump, parseTag } from "./versions.js";
 
-describe("parseTag()", () => {
-  it("parses bare integer (v4 → 4.0.0)", () => {
-    expect(parseTag("v4")?.version.format()).toBe("4.0.0");
-  });
+/** One row of the shared `parse` map: the expected `ParsedTag`, or null. */
+interface ParseRow {
+  readonly prefix: string | null;
+  readonly release: readonly number[];
+}
 
-  it("parses two-part (v4.1 → 4.1.0)", () => {
-    expect(parseTag("v4.1")?.version.format()).toBe("4.1.0");
-  });
+/** One row of the shared `compare` list: inputs plus the expected `Bump`. */
+interface CompareRow {
+  readonly current: string;
+  readonly available: readonly string[];
+  readonly latest: string | null;
+  readonly severity?: "major" | "minor" | "patch";
+}
 
-  it("parses three-part (v4.1.2)", () => {
-    expect(parseTag("v4.1.2")?.version.format()).toBe("4.1.2");
-  });
+interface Table {
+  readonly parse: Record<string, ParseRow | null>;
+  readonly compare: readonly CompareRow[];
+}
 
-  it("parses without v prefix (4.1.2)", () => {
-    expect(parseTag("4.1.2")?.version.format()).toBe("4.1.2");
-  });
+const TABLE_PATH = resolve(SCHEMA_DIR, "tag-grammar.yml");
+const TABLE = parse(readFileSync(TABLE_PATH, "utf8")) as Table;
 
-  it("rejects branch names like main/master", () => {
-    expect(parseTag("main")).toBeNull();
-    expect(parseTag("master")).toBeNull();
-  });
+const PARSE_CASES: readonly (readonly [string, ParseRow | null])[] = Object.entries(
+  TABLE.parse,
+).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
-  it("rejects refs without numbers", () => {
-    expect(parseTag("latest")).toBeNull();
-  });
+const COMPARE_CASES: readonly (readonly [number, CompareRow])[] = TABLE.compare.map(
+  (row, i) => [i, row] as const,
+);
 
-  it("parses prefix-v1.0.0", () => {
-    const p = parseTag("prefix-v1.0.0");
-    expect(p?.prefix).toBe("prefix");
-    expect(p?.version.format()).toBe("1.0.0");
-  });
+describe("parseTag() — the shared tag grammar", () => {
+  for (const [tag, expected] of PARSE_CASES) {
+    it(`parses ${JSON.stringify(tag)}`, () => {
+      const parsed = parseTag(tag);
+      if (expected === null) {
+        expect(parsed).toBeNull();
+      } else {
+        expect(parsed).not.toBeNull();
+        expect(parsed!.tag).toBe(tag);
+        expect(parsed!.prefix).toBe(expected.prefix);
+        expect([...parsed!.release]).toEqual([...expected.release]);
+      }
+    });
+  }
 
-  it("parses prefix/v1.0.0", () => {
-    const p = parseTag("prefix/v1.0.0");
-    expect(p?.prefix).toBe("prefix");
-    expect(p?.version.format()).toBe("1.0.0");
-  });
-
-  it("rejects prefix/v1 (single-segment with prefix is branch-like)", () => {
-    expect(parseTag("release/v1")).toBeNull();
+  it("drives every row of the shared parse map", () => {
+    expect(PARSE_CASES.map(([tag]) => tag).sort()).toEqual(Object.keys(TABLE.parse).sort());
   });
 });
 
-describe("classifyBump()", () => {
-  it("major", () => {
-    expect(classifyBump(new SemVer("4.0.0"), new SemVer("5.0.0"))).toBe("major");
-  });
-  it("minor", () => {
-    expect(classifyBump(new SemVer("4.0.0"), new SemVer("4.1.0"))).toBe("minor");
-  });
-  it("patch", () => {
-    expect(classifyBump(new SemVer("4.1.0"), new SemVer("4.1.1"))).toBe("patch");
-  });
-});
+describe("latestBump() — the shared tag grammar", () => {
+  for (const [i, row] of COMPARE_CASES) {
+    it(`compare row ${i} (${row.current})`, () => {
+      const bump = latestBump(row.current, row.available);
+      if (row.latest === null) {
+        expect(bump).toBeNull();
+      } else {
+        expect(bump).not.toBeNull();
+        expect(bump!.current.tag).toBe(row.current);
+        expect(bump!.latest.tag).toBe(row.latest);
+        expect(bump!.severity).toBe(row.severity);
+      }
+    });
+  }
 
-describe("findLatestTag()", () => {
-  it("finds the newest tag in the same prefix family", () => {
-    expect(findLatestTag("v4", ["v3", "v4", "v4.1", "v5"])).toBe("v5");
-  });
-
-  it("returns null if current is already latest", () => {
-    expect(findLatestTag("v5", ["v3", "v4", "v5"])).toBeNull();
-  });
-
-  it("ignores tags with a different prefix", () => {
-    expect(findLatestTag("v4", ["release-v5", "v4.1"])).toBe("v4.1");
-  });
-
-  it("considers prefixed tags that share the same prefix", () => {
-    expect(findLatestTag("release-v1.0.0", ["release-v1.1.0", "release-v2.0.0"])).toBe(
-      "release-v2.0.0",
-    );
-  });
-
-  it("returns null when current is unparseable", () => {
-    expect(findLatestTag("main", ["v1", "v2"])).toBeNull();
+  it("drives every row of the shared compare list", () => {
+    expect(COMPARE_CASES.map(([, row]) => row)).toEqual([...TABLE.compare]);
   });
 });
