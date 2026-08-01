@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { imageSnapshot } from "./image-snapshot.js";
 import { job } from "./job.js";
-import { isModel } from "./_base.js";
+import { isModel, ModelInputError, withComment } from "./_base.js";
 import { toData, toYaml } from "../emitter/yaml-writer.js";
 import { workflow } from "./workflow.js";
 
@@ -20,6 +20,41 @@ describe("imageSnapshot", () => {
 
   it("omits version when not provided", () => {
     expect(toData(imageSnapshot({ imageName: "img" }))).toEqual({ "image-name": "img" });
+  });
+});
+
+describe("imageSnapshot version grammar", () => {
+  // The grammar lives in IMAGE_SNAPSHOT_SPEC.patterns and is bound back to the
+  // canonical Snapshot by schema/conformance-values.yml. These cases pin the
+  // port-local behaviour; the sweep pins the binding.
+  it.each(["1", "01", "12", "1.2", "12.34", "1*"])("accepts %j", (version) => {
+    expect(imageSnapshot({ imageName: "img", version }).data.version).toBe(version);
+  });
+
+  it.each(["", " 1", "1.", "1.2.3", "1.*", "1.2*", "*", "v1", "latest", "9.9.9"])(
+    "rejects %j",
+    (version) => {
+      expect(() => imageSnapshot({ imageName: "img", version })).toThrow(ModelInputError);
+    },
+  );
+
+  it.each(["1\n", "1.2\n", "1*\n"])("rejects the trailing newline in %j", (version) => {
+    // Python's peer bug: `re.match` anchors only the start and `$` matches
+    // before a trailing newline. `RegExp.test` with `$` has the same hazard
+    // only under `/m`, which this pattern does not carry.
+    expect(() => imageSnapshot({ imageName: "img", version })).toThrow(ModelInputError);
+  });
+
+  it.each(["١", "١.٢"])("rejects the Unicode digits in %j", (version) => {
+    // ECMA-262's `\d` is ASCII-only, so this port was always correct here;
+    // the case exists so the two ports' vector lists are the same list.
+    expect(() => imageSnapshot({ imageName: "img", version })).toThrow(ModelInputError);
+  });
+
+  it("is checked through a Commented wrapper", () => {
+    expect(() =>
+      imageSnapshot({ imageName: "img", version: withComment("1.2.3", "note") }),
+    ).toThrow(ModelInputError);
   });
 });
 

@@ -135,6 +135,35 @@ class GhagenModel(BaseModel):
 
         return instance
 
+    @model_validator(mode="after")
+    def _enforce_spec_patterns(self) -> GhagenModel:
+        """Enforce the value grammars this model's spec declares.
+
+        The peer of TypeScript's ``buildYamlData`` grammar check: one reader
+        per port, in the one place that already consumes the spec at
+        construction. Runs after :meth:`_preserve_commented`'s
+        ``handler(clean)``, so it sees unwrapped values; skips non-``str``
+        values, so ``Raw`` stays the explicit escape hatch.
+
+        ``fullmatch`` rather than ``match``: ``re.match`` anchors only the
+        start and Python's ``$`` matches before a trailing newline, so
+        ``match`` accepted a superset of the schema language. The ``^``/``$``
+        anchors in each pattern are therefore redundant and are kept solely so
+        ``.pattern`` stays byte-identical to the Snapshot's pattern string,
+        which ``schema/conformance-values.yml`` compares.
+        """
+        spec = getattr(type(self), "SPEC", None)
+        if spec is None:
+            return self
+        for field_name, pattern in spec.patterns.items():
+            value = getattr(self, field_name, None)
+            if isinstance(value, str) and not pattern.fullmatch(value):
+                raise ValueError(
+                    f"{field_name} {value!r} must match {pattern.pattern}; "
+                    "wrap the value in Raw(...) to bypass the grammar"
+                )
+        return self
+
     def model_post_init(self, __context: Any) -> None:
         """Capture the construction site's file/line from the call stack."""
         self._source_location = _find_user_frame()

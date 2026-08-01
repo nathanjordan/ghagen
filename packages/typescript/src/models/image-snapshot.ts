@@ -24,11 +24,21 @@ const IMAGE_SNAPSHOT_FIELD_MAP = {
   version: "version",
 } satisfies Record<keyof ImageSnapshotInput, keyof SchemaSnapshotObject>;
 
-/** Serialization spec for {@link ImageSnapshotModel}. */
+/**
+ * Serialization spec for {@link ImageSnapshotModel}.
+ *
+ * `patterns.version` is the mapping-syntax `version` grammar, copied verbatim
+ * from the canonical Snapshot (`schema/workflow_schema.json`,
+ * `definitions.snapshot.oneOf[1].properties.version.pattern`) and bound back to
+ * it by `schema/conformance-values.yml`. No flags: `RegExp.test` is stateful
+ * under `/g`, and `\d` is ASCII-only in ECMA-262 (Python mirrors that with
+ * `re.ASCII`).
+ */
 export const IMAGE_SNAPSHOT_SPEC: ModelSpec = {
   kind: "imageSnapshot",
   fieldMap: IMAGE_SNAPSHOT_FIELD_MAP,
   order: { kind: "explicit", keys: ["image-name", "version"] },
+  patterns: { version: /^\d+(\.\d+|\*)?$/ },
 };
 
 /**

@@ -123,7 +123,12 @@ describe("toData", () => {
           runsOn: "ubuntu-latest",
           defaults: defaults({ run: { shell: withComment("bash", "login shell") } }),
           strategy: strategy({
-            matrix: matrix({ extras: { "python-version": ["3.11", "3.12"] } }),
+            // `matrix_`, not `matrix`: the TS field is named `matrix_`
+            // (`models/job.ts`) and maps to the `matrix` YAML key. The Python
+            // spelling was silently dropped here, so this leg of the document
+            // emitted `strategy: {}` and the round-trip oracle agreed with
+            // itself about nothing.
+            matrix_: matrix({ extras: { "python-version": ["3.11", "3.12"] } }),
           }),
           steps: [
             step({ uses: withEolComment("actions/checkout@v4", "pinned") }),

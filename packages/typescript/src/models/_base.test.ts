@@ -8,6 +8,7 @@ import {
   extractMeta,
   buildYamlData,
   Model,
+  ModelInputError,
 } from "./_base.js";
 import type { ModelSpec } from "./_base.js";
 import { WORKFLOW_SPEC } from "./workflow.js";
@@ -185,14 +186,51 @@ describe("buildYamlData()", () => {
     });
   });
 
-  it("skips undefined values and keys not in the field map", () => {
+  it("skips undefined values", () => {
     const spec = {
       kind: "job",
       fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
       order: [],
     } as unknown as ModelSpec;
-    const data = { runsOn: "ubuntu-latest", timeoutMinutes: undefined, extra: "ignored" };
+    const data = { runsOn: "ubuntu-latest", timeoutMinutes: undefined };
     expect(buildYamlData(spec, data)).toEqual({ "runs-on": "ubuntu-latest" });
+  });
+
+  it("rejects keys not in the field map", () => {
+    // Was "skips ... keys not in the field map": the drop was silent, so a
+    // misspelled input key produced a model missing that YAML key with no
+    // signal. `meta.extras` is the sanctioned channel for unmodeled keys.
+    const spec = {
+      kind: "job",
+      fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
+      order: [],
+    } as unknown as ModelSpec;
+    const data = { runsOn: "ubuntu-latest", extra: "ignored" };
+    expect(() => buildYamlData(spec, data)).toThrow(ModelInputError);
+    expect(() => buildYamlData(spec, data)).toThrow(/extra/);
+  });
+
+  it("passes unknown keys through when the spec declares dynamicKeys", () => {
+    const spec = {
+      kind: "matrix",
+      fieldMap: { include: "include" },
+      order: [],
+      dynamicKeys: true,
+    } as unknown as ModelSpec;
+    expect(buildYamlData(spec, { "node-version": [20, 22] })).toEqual({
+      "node-version": [20, 22],
+    });
+  });
+
+  it("rejects a string value outside the spec's declared grammar", () => {
+    const spec = {
+      kind: "imageSnapshot",
+      fieldMap: { version: "version" },
+      order: [],
+      patterns: { version: /^\d+$/ },
+    } as unknown as ModelSpec;
+    expect(() => buildYamlData(spec, { version: "v1" })).toThrow(ModelInputError);
+    expect(buildYamlData(spec, { version: "12" })).toEqual({ version: "12" });
   });
 
   it("peels and re-applies a Commented wrapper around a wrapped field", () => {

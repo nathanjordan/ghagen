@@ -25,6 +25,7 @@ export {
   isCommented,
   unwrapCommented,
   Model,
+  ModelInputError,
 } from "./models/_base.js";
 // Model kind aliases: a single `Model` class is discriminated by `kind`, so
 // these are type-only narrowings (`Model & { kind: "step" }`), not classes.
@@ -35,6 +36,7 @@ export type {
   Raw,
   ModelKind,
   ModelMeta,
+  ModelInputProblem,
   ModelSpec,
   WrapRule,
   WithMeta,

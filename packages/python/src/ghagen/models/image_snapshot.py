@@ -5,20 +5,21 @@ from __future__ import annotations
 import re
 from typing import ClassVar
 
-from pydantic import field_validator
-
 from ghagen.models._base import GhagenModel
 from ghagen.models.spec import ModelSpec
 
 IMAGE_SNAPSHOT_SPEC = ModelSpec(
     yaml_keys={"image_name": "image-name", "version": "version"},
     order=("image-name", "version"),
+    # Mapping-syntax ``version`` grammar, copied verbatim from the canonical
+    # Snapshot (``definitions.snapshot.oneOf[1].properties.version.pattern``)
+    # and bound back to it by ``schema/conformance-values.yml``: a major
+    # version, optionally a minor version or a ``*`` wildcard. Patch versions
+    # are not supported. ``re.ASCII`` matches ECMA-262's ``\d`` (the JSON
+    # Schema regex dialect); the flag leaves ``.pattern`` byte-identical to
+    # the Snapshot's string.
+    patterns={"version": re.compile(r"^\d+(\.\d+|\*)?$", re.ASCII)},
 )
-
-# Mapping-syntax ``version`` grammar from the workflow schema
-# (``definitions.snapshot``): a major version, optionally a minor version or a
-# ``*`` wildcard. Patch versions are not supported.
-_VERSION_PATTERN = re.compile(r"^\d+(\.\d+|\*)?$")
 
 
 class ImageSnapshot(GhagenModel):
@@ -34,13 +35,3 @@ class ImageSnapshot(GhagenModel):
 
     image_name: str
     version: str | None = None
-
-    @field_validator("version")
-    @classmethod
-    def _validate_version(cls, value: str | None) -> str | None:
-        if value is not None and not _VERSION_PATTERN.match(value):
-            raise ValueError(
-                f"version {value!r} must match {_VERSION_PATTERN.pattern} "
-                "(e.g. '1', '1.2', '1*'); patch versions are not supported"
-            )
-        return value

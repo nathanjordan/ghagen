@@ -307,6 +307,57 @@ export type NodeRunsModel = ModelOf<"nodeRuns">;
  */
 export type Document = WorkflowModel | ActionModel;
 
+// ---- Construction-time input validation ----
+
+/**
+ * Why a factory rejected its input — a discriminated data shape, not a
+ * callback, so callers can branch on `reason` and the shared conformance
+ * sweep can read the grammar back out.
+ *
+ * - `unknownKeys` — input carried keys the model's `fieldMap` does not name
+ *   and the spec does not declare `dynamicKeys`. The peer of Python's
+ *   `extra="forbid"` (`models/_base.py`).
+ * - `pattern` — a string field's value fell outside the grammar its spec
+ *   declares in {@link ModelSpec.patterns}.
+ */
+export type ModelInputProblem =
+  | { readonly reason: "unknownKeys"; readonly keys: readonly string[] }
+  | {
+      readonly reason: "pattern";
+      readonly field: string;
+      readonly value: string;
+      readonly pattern: string;
+    };
+
+function formatModelInputProblem(kind: ModelKind, problem: ModelInputProblem): string {
+  if (problem.reason === "unknownKeys") {
+    return (
+      `${kind}(): unknown input ${problem.keys.length === 1 ? "key" : "keys"} ` +
+      `${problem.keys.map((k) => JSON.stringify(k)).join(", ")}. ` +
+      `Use \`extras\` for unmodeled YAML keys.`
+    );
+  }
+  return (
+    `${kind}(): ${problem.field} ${JSON.stringify(problem.value)} must match ` +
+    `${problem.pattern}. Wrap the value in \`raw()\` to bypass the grammar.`
+  );
+}
+
+/**
+ * Thrown by a factory when its input violates the model's construction-time
+ * contract. The peer of Pydantic's `ValidationError` on the Python side —
+ * parity is of the invariant, not of the exception class.
+ */
+export class ModelInputError extends Error {
+  constructor(
+    readonly kind: ModelKind,
+    readonly problem: ModelInputProblem,
+  ) {
+    super(formatModelInputProblem(kind, problem));
+    this.name = "ModelInputError";
+  }
+}
+
 /**
  * Map camelCase input fields to YAML keys and apply the spec's inline-input
  * auto-wrap rules, returning the resulting `data` record (no Model built).
@@ -315,6 +366,15 @@ export type Document = WorkflowModel | ActionModel;
  * `job()`, and `on()`. A `Commented` wrapper on a field is peeled before
  * wrapping and re-applied after, so `withComment(...)` survives around a
  * plain-object shorthand.
+ *
+ * This is the single input→`data` path in the port, so it is where the two
+ * construction-time invariants live:
+ *
+ * - an input key not named in `fieldMap` throws {@link ModelInputError} unless
+ *   the spec declares `dynamicKeys` (the peer of Python's `extra="forbid"`);
+ * - a string value for a field named in `spec.patterns` must match that
+ *   grammar. `Raw` values are objects, not strings, so the escape hatch stays
+ *   opt-in exactly as it does in Python.
  *
  * When `spec.dynamicKeys` is set, any input key not named in `fieldMap` (after
  * `extractMeta` has removed the meta keys) passes straight through to `data`
@@ -325,7 +385,16 @@ export function buildYamlData(
   data: Record<string, unknown>,
 ): Record<string, unknown> {
   const wrap = spec.wrap ?? {};
+  const patterns = spec.patterns ?? {};
   const yamlData: Record<string, unknown> = {};
+
+  if (!spec.dynamicKeys) {
+    const known = new Set(Object.keys(spec.fieldMap));
+    const unknown = Object.keys(data).filter((key) => !known.has(key));
+    if (unknown.length > 0) {
+      throw new ModelInputError(spec.kind, { reason: "unknownKeys", keys: unknown });
+    }
+  }
 
   for (const [camelKey, yamlKey] of Object.entries(spec.fieldMap)) {
     let value = data[camelKey];
@@ -338,6 +407,18 @@ export function buildYamlData(
     if (isCommented(value)) {
       commented = { comment: value.comment, eolComment: value.eolComment };
       value = value.value;
+    }
+
+    // Value grammar, checked on the peeled value so `withComment(...)` cannot
+    // defeat it and skipped for non-strings so `raw()` stays the escape hatch.
+    const pattern = patterns[camelKey];
+    if (pattern !== undefined && typeof value === "string" && !pattern.test(value)) {
+      throw new ModelInputError(spec.kind, {
+        reason: "pattern",
+        field: camelKey,
+        value,
+        pattern: pattern.source,
+      });
     }
 
     const rule = wrap[camelKey];
