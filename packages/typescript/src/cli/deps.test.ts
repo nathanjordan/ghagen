@@ -14,11 +14,15 @@
  * See docs/specs/0005-typed-engine-report-seam.md Part A.
  */
 
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import type { App } from "../app.js";
 import type { UpgradeReport } from "../pin/index.js";
 
 const upgradeMock = vi.fn<(...args: unknown[]) => Promise<UpgradeReport>>();
+const pinMock = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 const trackUserFilesMock =
   vi.fn<(...args: unknown[]) => Promise<{ app: App; files: Set<string> }>>();
 
@@ -27,6 +31,7 @@ vi.mock("../pin/index.js", async (importOriginal) => {
   return {
     ...actual,
     upgrade: upgradeMock,
+    pin: pinMock,
     trackUserFiles: trackUserFilesMock,
     // Never actually used (upgrade() is mocked), but must be a real
     // constructor: buildGitHubClient() in deps.ts does `new GitHubClient(...)`.
@@ -44,7 +49,7 @@ vi.mock("./_common.js", async (importOriginal) => {
   };
 });
 
-const { depsUpgrade } = await import("./deps.js");
+const { depsUpgrade, depsUpdate } = await import("./deps.js");
 
 function emptyReport(overrides: Partial<UpgradeReport> = {}): UpgradeReport {
   return {
@@ -79,6 +84,7 @@ function captureStderr(): { text(): string; restore(): void } {
 afterEach(() => {
   vi.restoreAllMocks();
   upgradeMock.mockReset();
+  pinMock.mockReset();
   trackUserFilesMock.mockReset();
 });
 
@@ -200,5 +206,299 @@ describe("deps upgrade --format json key set", () => {
       expect(JSON.parse(out.text()), mode).toEqual(expected);
       expect(out.text()).not.toContain("helper_provided");
     }
+  });
+});
+
+// -- deps update -------------------------------------------------------------
+
+/** The field set `--format github` and `--format json` both carry. */
+const PLAN_FIELDS = [
+  "action",
+  "total_updates",
+  "apply_version_bumps",
+  "refresh_lockfile",
+  "branch",
+  "title",
+  "commit_message",
+  "labels",
+  "body_format",
+  "changed",
+].sort();
+
+/** Parse `--format github` back into the mapping a runner would build. */
+function githubOutputs(stdout: string): Record<string, string> {
+  const entries = stdout
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const at = line.indexOf("=");
+      return [line.slice(0, at), line.slice(at + 1)] as const;
+    });
+  return Object.fromEntries(entries);
+}
+
+function bump(): UpgradeReport["versionBumps"][number] {
+  return {
+    uses: "actions/checkout@v4",
+    current: "v4",
+    latest: "v6",
+    severity: "major",
+    source_files: [],
+  };
+}
+
+/** The report a `lockfile: null` project with an outdated ref produces. */
+function bumpOnLocklessProject(): UpgradeReport {
+  return emptyReport({
+    versionBumps: [bump()],
+    checkedVersions: true,
+    // True even though the stage cannot have run: it records what the run was
+    // *asked* for. That is the distinction the shipped action could not make.
+    checkedLockfile: true,
+  });
+}
+
+const UPDATE_DEFAULTS = { token: "fake" } as const;
+
+/**
+ * The automation verb: one sweep, one plan, one answer.
+ *
+ * Decision rules themselves are asserted offline in `src/pin/plan.test.ts`;
+ * body bytes in `src/pin/render.test.ts`. What is here is what is genuinely
+ * CLI — flag validation, stream ownership, the two wire shapes, and the
+ * end-to-end proof that the command does not do the thing the shipped
+ * `check-deps` action's bash did.
+ */
+describe("deps update", () => {
+  /**
+   * H7, end to end: a bump on a `lockfile: null` project must not cascade.
+   *
+   * The shipped action's guard is `lockfile_stale != 0 || version_bumps != 0`,
+   * which fires here — `lockfile_stale` is always `0` under `lockfile: null`
+   * because the stage is skipped, but the bump is real. It then runs
+   * `ghagen deps pin --update`, which exits 1 with "lockfile is disabled",
+   * killing the step under `set -euo pipefail`. `planUpdate` holds the app, so
+   * the command applies the bump and stops.
+   */
+  test("a lockfile-less project never reaches the pin engine", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(
+      emptyReport({ ...bumpOnLocklessProject(), changedFiles: ["ghagen.workflows.ts"] }),
+    );
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, format: "json" });
+    out.restore();
+    err.restore();
+
+    expect(pinMock).not.toHaveBeenCalled();
+    expect(err.text()).not.toContain("lockfile is disabled");
+    const plan = JSON.parse(out.text());
+    expect(plan.refresh_lockfile).toBe(false);
+    expect(plan.apply_version_bumps).toBe(true);
+    expect(plan.action).toBe("create-pr");
+    expect(plan.changed).toBe(true);
+  });
+
+  test("a lockfile-bearing project refreshes through the pin engine", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: ".ghagen.lock.yml" } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+    pinMock.mockResolvedValue({
+      resolved: [],
+      warnings: [],
+      errors: [],
+      pruned: 0,
+      written: true,
+      upToDate: false,
+      lockfilePath: ".ghagen.lock.yml",
+    });
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, format: "json" });
+    out.restore();
+    err.restore();
+
+    expect(pinMock).toHaveBeenCalledTimes(1);
+    const plan = JSON.parse(out.text());
+    expect(plan.refresh_lockfile).toBe(true);
+    expect(plan.changed).toBe(true);
+  });
+
+  /**
+   * `--format github` appends straight to `$GITHUB_OUTPUT`.
+   *
+   * Nothing human may share that stream: the action's plan step is a single
+   * `>> "$GITHUB_OUTPUT"` redirect, so a stray progress line would become a
+   * malformed output entry.
+   */
+  test("--format github is $GITHUB_OUTPUT-shaped and owns stdout", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(
+      emptyReport({
+        ...bumpOnLocklessProject(),
+        warnings: ["failed to list tags for actions/checkout: rate limited"],
+      }),
+    );
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, labels: " a , b ,, c " });
+    out.restore();
+    err.restore();
+
+    const outputs = githubOutputs(out.text());
+    expect(Object.keys(outputs).sort()).toEqual(PLAN_FIELDS);
+    expect(outputs["action"]).toBe("create-pr");
+    expect(outputs["total_updates"]).toBe("1");
+    expect(outputs["refresh_lockfile"]).toBe("false");
+    expect(outputs["apply_version_bumps"]).toBe("true");
+    expect(outputs["changed"]).toBe("false");
+    expect(outputs["labels"]).toBe("a,b,c");
+    expect(outputs["commit_message"]).toBe("update ghagen action dependencies");
+    expect(err.text()).toContain("warning: failed to list tags");
+    expect(out.text()).not.toContain("warning:");
+  });
+
+  test("--format json and --format github carry the same fields", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+
+    const asJson = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "json" });
+    asJson.restore();
+
+    const asGithub = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "github" });
+    asGithub.restore();
+
+    expect(Object.keys(JSON.parse(asJson.text())).sort()).toEqual(PLAN_FIELDS);
+    expect(Object.keys(githubOutputs(asGithub.text())).sort()).toEqual(PLAN_FIELDS);
+  });
+
+  test("--dry-run asks the engine not to apply", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "json" });
+    out.restore();
+
+    expect(upgradeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ apply: false }),
+    );
+    expect(JSON.parse(out.text()).changed).toBe(false);
+  });
+
+  /**
+   * The body is a file path, never an output value.
+   *
+   * Keeping bytes out of `$GITHUB_OUTPUT` sidesteps the multiline delimiter
+   * dance entirely, which is why the plan carries `bodyFormat` rather than a
+   * body.
+   */
+  test("--body-file receives the plan's rendering", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+    const dir = mkdtempSync(join(tmpdir(), "ghagen-update-"));
+    const bodyFile = join(dir, "body.md");
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "json", bodyFile });
+    out.restore();
+
+    expect(JSON.parse(out.text()).body_format).toBe("pr-body");
+    const body = readFileSync(bodyFile, "utf8");
+    expect(body.startsWith("## ghagen dependency update")).toBe(true);
+    expect(body).toContain("actions/checkout@v4");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("no body file is written when there is nothing to raise", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: { lockfilePath: null } as App,
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(emptyReport({ checkedVersions: true, checkedLockfile: true }));
+    const dir = mkdtempSync(join(tmpdir(), "ghagen-update-"));
+    const bodyFile = join(dir, "body.md");
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, format: "json", bodyFile });
+    out.restore();
+
+    const plan = JSON.parse(out.text());
+    expect(plan.action).toBe("none");
+    expect(plan.body_format).toBeNull();
+    expect(existsSync(bodyFile)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+/**
+ * Bad flag values exit 2 with one line — never a stack trace.
+ *
+ * The construct being replaced turned every diagnosable CLI failure into
+ * exit 1 plus a `JSONDecodeError` traceback from the *reader*, because the
+ * detect step ended in `|| true` and the next line parsed the empty file it
+ * was supposed to have written.
+ */
+describe("deps update flag validation", () => {
+  async function expectUsageError(
+    opts: Parameters<typeof depsUpdate>[0],
+    fragment: string,
+  ): Promise<void> {
+    await expect(depsUpdate(opts)).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(fragment),
+    });
+  }
+
+  test("an unknown --mode", async () => {
+    await expectUsageError({ mode: "bogus" as "all" }, "unknown --mode value");
+  });
+
+  test("an unknown --output", async () => {
+    await expectUsageError({ output: "bogus" as "pr" }, "unknown --output value");
+  });
+
+  test("an unknown --format", async () => {
+    await expectUsageError({ format: "yaml" }, "unknown --format value");
+  });
+
+  /**
+   * A newline would forge extra `$GITHUB_OUTPUT` entries.
+   *
+   * `commit-message-prefix` is a workflow-author-supplied action input that
+   * lands verbatim in a `key=value` line, so an embedded newline is an
+   * output-injection vector, not a formatting nit.
+   */
+  test("a newline in a prefix", async () => {
+    await expectUsageError(
+      { commitMessagePrefix: "x\naction=create-pr" },
+      "must not contain a newline",
+    );
   });
 });

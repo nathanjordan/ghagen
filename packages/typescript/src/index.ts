@@ -208,4 +208,6 @@ export {
   type UpdateOutput,
   type UpdatePlan,
   type PlanUpdateOptions,
+  renderUpdatePlan,
+  type PlanFormat,
 } from "./pin/index.js";

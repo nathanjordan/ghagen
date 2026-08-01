@@ -24,6 +24,8 @@ export { renderUpgradeReport, type UpgradeFormat } from "./render.js";
 export {
   planUpdate,
   parseLabels,
+  renderUpdatePlan,
+  type PlanFormat,
   type UpdateAction,
   type UpdateOutput,
   type UpdatePlan,

@@ -173,6 +173,85 @@ export function parseLabels(labels: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+/** The wire shapes {@link renderUpdatePlan} can produce. */
+export type PlanFormat = "json" | "github";
+
+/** One field of a serialized plan, before it is encoded. */
+type PlanValue = string | number | boolean | string[] | null;
+
+/**
+ * Render an {@link UpdatePlan} as the exact bytes to write.
+ *
+ * Two encodings of one shape, built from a single mapping so a field can never
+ * appear in one and not the other. As in `pin/render.ts`, the result is already
+ * terminated as it should be written: the caller writes it verbatim and neither
+ * adds nor suppresses a trailing newline.
+ *
+ * `github` is the `key=value` form appended to `$GITHUB_OUTPUT`. It is
+ * single-line per field by construction — every value is a boolean, a number,
+ * or a string the CLI has already rejected newlines in — so it needs none of
+ * the heredoc-delimiter machinery multiline outputs require.
+ *
+ * Keys are snake_case in both encodings, unlike the camelCase interface: they
+ * are a cross-port wire contract shared byte for byte with the Python
+ * `render_update_plan`, and the composite action's `outputs:` block names them.
+ *
+ * @param plan - The decision to serialize.
+ * @param changed - Whether the run actually wrote to the working tree. Not a
+ *   field of the plan: the plan is what to do, this is what happened, and only
+ *   the caller that did it knows.
+ * @param outputFormat - Positional, matching `renderUpgradeReport`. An
+ *   unrecognised value is a programmer error — the CLI validates `--format`
+ *   before calling.
+ * @throws Error if `outputFormat` is not a known format.
+ */
+export function renderUpdatePlan(
+  plan: UpdatePlan,
+  changed: boolean,
+  outputFormat: PlanFormat = "github",
+): string {
+  const fields = planFields(plan, changed);
+  if (outputFormat === "json") {
+    return `${JSON.stringify(Object.fromEntries(fields), null, 2)}\n`;
+  }
+  if (outputFormat === "github") {
+    return fields.map(([key, value]) => `${key}=${githubValue(value)}\n`).join("");
+  }
+  throw new Error(`unknown output format ${JSON.stringify(outputFormat)}`);
+}
+
+/** The one field list both encodings walk, in one order. */
+function planFields(plan: UpdatePlan, changed: boolean): [string, PlanValue][] {
+  return [
+    ["action", plan.action],
+    ["total_updates", plan.totalUpdates],
+    ["apply_version_bumps", plan.applyVersionBumps],
+    ["refresh_lockfile", plan.refreshLockfile],
+    ["branch", plan.branch],
+    ["title", plan.title],
+    ["commit_message", plan.commitMessage],
+    ["labels", plan.labels],
+    ["body_format", plan.bodyFormat],
+    ["changed", changed],
+  ];
+}
+
+/**
+ * Scalarize one field for a `key=value` line.
+ *
+ * `null` becomes empty, which is the only thing a composite output can be when
+ * there is no value.
+ */
+function githubValue(value: PlanValue): string {
+  if (value === null) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.join(",");
+  }
+  return String(value);
+}
+
 /**
  * `YYYY-MM-DD` in UTC.
  *

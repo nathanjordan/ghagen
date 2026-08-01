@@ -6,6 +6,7 @@
  */
 
 import { Command } from "commander";
+import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { App } from "../app.js";
 import {
@@ -15,6 +16,8 @@ import {
   checkSync,
   upgrade,
   renderUpgradeReport,
+  planUpdate,
+  renderUpdatePlan,
 } from "../pin/index.js";
 import { findConfig, loadApp } from "./_common.js";
 import { CliError } from "./_errors.js";
@@ -193,6 +196,125 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   process.stdout.write(renderUpgradeReport(report, format ?? "text"));
 }
 
+interface UpdateOpts {
+  config?: string;
+  mode?: "versions" | "lockfile" | "all";
+  output?: "pr" | "issue";
+  format?: string;
+  branchPrefix?: string;
+  commitMessagePrefix?: string;
+  labels?: string;
+  bodyFile?: string;
+  dryRun?: boolean;
+  token?: string;
+}
+
+/**
+ * Throw a usage error if any value spans lines.
+ *
+ * These reach `$GITHUB_OUTPUT` as `key=value` lines, so an embedded newline
+ * forges additional outputs — an injection vector, since every one of them is a
+ * workflow-author-supplied action input. Rejecting at the edge is what lets
+ * `renderUpdatePlan` stay single-line per field and skip the heredoc-delimiter
+ * machinery entirely.
+ */
+function rejectNewlines(values: Record<string, string>): void {
+  for (const [name, value] of Object.entries(values)) {
+    if (value.includes("\n") || value.includes("\r")) {
+      throw new CliError(`Error: --${name} must not contain a newline`, 2);
+    }
+  }
+}
+
+/**
+ * Sweep for dependency updates, apply them, and print the resulting plan.
+ *
+ * One command per automation run. It performs every write the update needs —
+ * version bumps in user source, and the lockfile re-resolve when, and only
+ * when, that is the right thing to do — and prints what the caller should
+ * raise. A caller reads the plan and acts on it; it never reconstructs a
+ * decision from `deps upgrade --format json`, which cannot answer the lockfile
+ * question because the payload does not carry `app.lockfilePath`.
+ *
+ * Stdout carries the plan and nothing else, so `--format github` can be a bare
+ * `>> "$GITHUB_OUTPUT"` redirect. Warnings and progress go to stderr.
+ */
+async function depsUpdate(opts: UpdateOpts): Promise<void> {
+  const mode = opts.mode ?? "all";
+  if (mode !== "versions" && mode !== "lockfile" && mode !== "all") {
+    throw new CliError(`Error: unknown --mode value '${mode}' (valid: versions, lockfile, all)`, 2);
+  }
+  const output = opts.output ?? "pr";
+  if (output !== "pr" && output !== "issue") {
+    throw new CliError(`Error: unknown --output value '${output}' (valid: pr, issue)`, 2);
+  }
+  const format = opts.format ?? "github";
+  if (format !== "github" && format !== "json") {
+    throw new CliError(`Error: unknown --format value '${format}' (valid: github, json)`, 2);
+  }
+
+  const branchPrefix = opts.branchPrefix ?? "ghagen-update/";
+  const commitMessagePrefix = opts.commitMessagePrefix ?? "";
+  const labels = opts.labels ?? "";
+  rejectNewlines({
+    "branch-prefix": branchPrefix,
+    "commit-message-prefix": commitMessagePrefix,
+    labels,
+  });
+
+  const configPath = findConfig(opts.config);
+  const { app, files: userFiles } = await trackUserFiles(configPath);
+  const client = buildGitHubClient(opts.token);
+
+  const report = await upgrade(app, client, userFiles, { mode, apply: !opts.dryRun });
+  for (const w of report.warnings) {
+    process.stderr.write(`warning: ${w}\n`);
+  }
+
+  const plan = planUpdate(app, report, {
+    output,
+    branchPrefix,
+    commitMessagePrefix,
+    labels,
+    // Read here, at the edge, and injected: `planUpdate` has no clock, for the
+    // reason ADR-0002 gives about construction-time globals.
+    today: new Date(),
+  });
+
+  let changed = report.changedFiles.length > 0;
+  for (const f of report.changedFiles) {
+    process.stderr.write(`  modified ${f}\n`);
+  }
+
+  if (plan.refreshLockfile && !opts.dryRun) {
+    // Reached only when the app *has* a lockfile — the plan decided that,
+    // holding the App, which is why no `ensureLockfilePath` guard (and no
+    // exit 1) is possible here.
+    const pinReport = await pin(app, client, { update: true, prune: true });
+    for (const w of pinReport.warnings) {
+      process.stderr.write(`warning: ${w}\n`);
+    }
+    for (const e of pinReport.errors) {
+      process.stderr.write(`error: ${e}\n`);
+    }
+    if (pinReport.errors.length > 0) {
+      // Do not print a plan telling the caller to raise a PR for a tree whose
+      // lockfile refresh failed.
+      throw new CliError(`${pinReport.errors.length} ref(s) failed to resolve.`, 1);
+    }
+    if (pinReport.written) {
+      process.stderr.write(`  modified ${pinReport.lockfilePath}\n`);
+      changed = true;
+    }
+  }
+
+  if (opts.bodyFile !== undefined && plan.bodyFormat !== null) {
+    writeFileSync(opts.bodyFile, renderUpgradeReport(report, plan.bodyFormat), "utf8");
+  }
+
+  process.stdout.write(renderUpdatePlan(plan, changed, format));
+}
+
 /** Build the `deps` sub-command for mounting on the top-level CLI. */
 export function buildDepsCommand(): Command {
   const deps = new Command("deps").description("Manage action dependencies.").showHelpAfterError();
@@ -226,8 +348,23 @@ export function buildDepsCommand(): Command {
     .option("--token <token>", "GitHub token (default: $GITHUB_TOKEN)")
     .action(async (opts: UpgradeOpts) => depsUpgrade(opts));
 
+  deps
+    .command("update")
+    .description("Sweep for dependency updates, apply them, and print the plan.")
+    .option("-c, --config <path>", "Path to config file")
+    .option("--mode <mode>", "Detection mode: versions, lockfile, or all", "all")
+    .option("--output <output>", "What to raise when there is something: pr or issue", "pr")
+    .option("--format <format>", "Plan format: github ($GITHUB_OUTPUT key=value) or json", "github")
+    .option("--branch-prefix <prefix>", "Prefix for the dated PR branch", "ghagen-update/")
+    .option("--commit-message-prefix <prefix>", "Prefix for the commit subject", "")
+    .option("--labels <labels>", "Comma-separated labels for the PR or issue", "")
+    .option("--body-file <path>", "Write the PR/issue body to this path")
+    .option("--dry-run", "Decide everything, write nothing")
+    .option("--token <token>", "GitHub token (default: $GITHUB_TOKEN)")
+    .action(async (opts: UpdateOpts) => depsUpdate(opts));
+
   return deps;
 }
 
 /** Public re-exports useful for testing. */
-export { depsPin, depsCheckSynced, depsUpgrade };
+export { depsPin, depsCheckSynced, depsUpgrade, depsUpdate };
