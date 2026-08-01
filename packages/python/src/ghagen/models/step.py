@@ -25,19 +25,6 @@ STEP_SPEC = ModelSpec(
         "continue_on_error": "continue-on-error",
         "timeout_minutes": "timeout-minutes",
     },
-    order=(
-        "id",
-        "name",
-        "if",
-        "uses",
-        "run",
-        "with",
-        "env",
-        "shell",
-        "working-directory",
-        "continue-on-error",
-        "timeout-minutes",
-    ),
 )
 
 

@@ -62,22 +62,17 @@ def test_unwrap_raw_passthrough():
 # --- order_entries: canonical key ordering ---
 
 
-def test_order_entries_explicit():
-    spec = ModelSpec(yaml_keys={}, order=("a", "b", "c"))
-    entries = order_entries({"c": 3, "a": 1, "b": 2}, {}, spec)
-    assert [k for k, _ in entries] == ["a", "b", "c"]
-
-
-def test_order_entries_explicit_remaining_insertion_order():
-    # Keys absent from the explicit order follow in insertion order, then extras.
-    spec = ModelSpec(yaml_keys={}, order=("a",))
+def test_order_entries_explicit_keeps_collection_order_then_extras():
+    # "explicit" no longer re-sorts anything: collect_fields already built `raw`
+    # in spec.yaml_keys declaration order, so order_entries only appends extras.
+    spec = ModelSpec(yaml_keys={})
     entries = order_entries({"z": 26, "a": 1, "m": 13}, {"x-extra": 0}, spec)
-    assert [k for k, _ in entries] == ["a", "z", "m", "x-extra"]
+    assert [k for k, _ in entries] == ["z", "a", "m", "x-extra"]
 
 
 def test_order_entries_alphabetical_interleaves_extras():
-    # order=None sorts every key, extras included.
-    spec = ModelSpec(yaml_keys={}, order=None)
+    # "alphabetical" sorts every key, extras included.
+    spec = ModelSpec(yaml_keys={}, order="alphabetical")
     entries = order_entries({"push": 1, "workflow_run": 2}, {"merge_group": 3}, spec)
     assert [k for k, _ in entries] == ["merge_group", "push", "workflow_run"]
 

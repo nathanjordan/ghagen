@@ -17,14 +17,6 @@ PUSH_TRIGGER_SPEC = ModelSpec(
         "paths": "paths",
         "paths_ignore": "paths-ignore",
     },
-    order=(
-        "branches",
-        "branches-ignore",
-        "tags",
-        "tags-ignore",
-        "paths",
-        "paths-ignore",
-    ),
 )
 
 PR_TRIGGER_SPEC = ModelSpec(
@@ -37,20 +29,10 @@ PR_TRIGGER_SPEC = ModelSpec(
         "paths_ignore": "paths-ignore",
         "types": "types",
     },
-    order=(
-        "branches",
-        "branches-ignore",
-        "tags",
-        "tags-ignore",
-        "paths",
-        "paths-ignore",
-        "types",
-    ),
 )
 
 SCHEDULE_TRIGGER_SPEC = ModelSpec(
     yaml_keys={"cron": "cron", "timezone": "timezone"},
-    order=("cron", "timezone"),
 )
 
 WORKFLOW_DISPATCH_INPUT_SPEC = ModelSpec(
@@ -63,19 +45,10 @@ WORKFLOW_DISPATCH_INPUT_SPEC = ModelSpec(
         # The schema spells this one in camelCase, unlike its five siblings.
         "deprecation_message": "deprecationMessage",
     },
-    order=(
-        "description",
-        "required",
-        "default",
-        "type",
-        "options",
-        "deprecationMessage",
-    ),
 )
 
 WORKFLOW_DISPATCH_SPEC = ModelSpec(
     yaml_keys={"inputs": "inputs"},
-    order=("inputs",),
 )
 
 WORKFLOW_CALL_INPUT_SPEC = ModelSpec(
@@ -85,26 +58,22 @@ WORKFLOW_CALL_INPUT_SPEC = ModelSpec(
         "default": "default",
         "type": "type",
     },
-    order=("description", "required", "default", "type"),
 )
 
 WORKFLOW_CALL_OUTPUT_SPEC = ModelSpec(
     yaml_keys={"description": "description", "value": "value"},
-    order=("description", "value"),
 )
 
 WORKFLOW_CALL_SECRET_SPEC = ModelSpec(
     yaml_keys={"description": "description", "required": "required"},
-    order=("description", "required"),
 )
 
 WORKFLOW_CALL_SPEC = ModelSpec(
     yaml_keys={"inputs": "inputs", "outputs": "outputs", "secrets": "secrets"},
-    order=("inputs", "outputs", "secrets"),
 )
 
-# ``On`` has no canonical trigger order: ``order=None`` selects alphabetical
-# emission (extras interleave). An empty ``workflow_dispatch`` emits as a bare
+# ``On`` has no canonical trigger order: ``order="alphabetical"`` sorts every
+# key at emit time (extras interleave). An empty ``workflow_dispatch`` emits as a bare
 # ``workflow_dispatch:`` key via ``present_null_when_empty`` — the declared rule
 # that replaces the old model-layer ``Raw(None)`` smuggle.
 ON_SPEC = ModelSpec(
@@ -145,7 +114,7 @@ ON_SPEC = ModelSpec(
         "status": "status",
         "watch": "watch",
     },
-    order=None,
+    order="alphabetical",
     present_null_when_empty=frozenset({"workflow_dispatch"}),
 )
 

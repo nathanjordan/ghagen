@@ -28,24 +28,6 @@ PERMISSIONS_SPEC = ModelSpec(
         "security_events": "security-events",
         "statuses": "statuses",
     },
-    order=(
-        "actions",
-        "artifact-metadata",
-        "attestations",
-        "checks",
-        "contents",
-        "deployments",
-        "discussions",
-        "id-token",
-        "issues",
-        "models",
-        "packages",
-        "pages",
-        "pull-requests",
-        "repository-projects",
-        "security-events",
-        "statuses",
-    ),
 )
 
 

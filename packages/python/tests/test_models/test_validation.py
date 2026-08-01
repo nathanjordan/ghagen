@@ -119,7 +119,6 @@ class TestDeclaredGrammars:
     class _Patterned(GhagenModel):
         SPEC: ClassVar[ModelSpec] = ModelSpec(
             yaml_keys={"version": "version"},
-            order=("version",),
             patterns={"version": re.compile(r"^\d+$", re.ASCII)},
         )
 

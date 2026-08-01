@@ -16,7 +16,6 @@ CONTAINER_SPEC = ModelSpec(
         "volumes": "volumes",
         "options": "options",
     },
-    order=("image", "credentials", "env", "ports", "volumes", "options"),
 )
 
 

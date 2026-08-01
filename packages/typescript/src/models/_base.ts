@@ -388,6 +388,17 @@ export class ModelInputError extends Error {
  * When `spec.dynamicKeys` is set, any input key not named in `fieldMap` (after
  * `extractMeta` has removed the meta keys) passes straight through to `data`
  * instead of being dropped — the declared path for dynamic axes (`matrix()`).
+ *
+ * The loop iterates `Object.entries(spec.fieldMap)`, so `data`'s insertion
+ * order is the **`fieldMap` declaration order**, whatever order the caller
+ * supplied the input keys in — and under the default `explicit`
+ * {@link OrderMode} that is exactly the emitted key order (`orderedEntries`
+ * returns `Object.entries(data)` unchanged). The field map is therefore the one
+ * place emission order is stated; there is no `order` array beside it to drift.
+ * `OrdinaryOwnPropertyKeys` would list integer-like string keys first, ahead of
+ * creation order, so a `fieldMap` value must not be a decimal integer string —
+ * a constraint Python's `dict` does not have. No field map in either port has
+ * one (asserted by `spec.test.ts`).
  */
 export function buildYamlData(
   spec: ModelSpec,

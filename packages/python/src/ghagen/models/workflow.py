@@ -24,16 +24,6 @@ WORKFLOW_SPEC = ModelSpec(
         "concurrency": "concurrency",
         "jobs": "jobs",
     },
-    order=(
-        "name",
-        "run-name",
-        "on",
-        "permissions",
-        "env",
-        "defaults",
-        "concurrency",
-        "jobs",
-    ),
 )
 
 

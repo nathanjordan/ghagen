@@ -32,20 +32,22 @@ const CONTAINER_FIELD_MAP = {
   options: "options",
 } satisfies Record<keyof ContainerInput, keyof SchemaContainer>;
 
-const CONTAINER_ORDER = ["image", "credentials", "env", "ports", "volumes", "options"];
-
-/** Serialization spec for {@link ContainerModel}. */
+/**
+ * Serialization spec for {@link ContainerModel}.
+ *
+ * Shares `CONTAINER_FIELD_MAP` with {@link SERVICE_SPEC}, so the two emit the
+ * same keys in the same sequence by construction — the field map *is* the
+ * emission order. `container.test.ts` pins that sharing by identity.
+ */
 export const CONTAINER_SPEC: ModelSpec = {
   kind: "container",
   fieldMap: CONTAINER_FIELD_MAP,
-  order: { kind: "explicit", keys: CONTAINER_ORDER },
 };
 
 /** Serialization spec for {@link ServiceModel} (identical shape, distinct kind). */
 export const SERVICE_SPEC: ModelSpec = {
   kind: "service",
   fieldMap: CONTAINER_FIELD_MAP,
-  order: { kind: "explicit", keys: CONTAINER_ORDER },
 };
 
 /**

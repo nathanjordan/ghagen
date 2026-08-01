@@ -57,10 +57,6 @@ export const WORKFLOW_SPEC: ModelSpec = {
     concurrency: "concurrency",
     jobs: "jobs",
   } satisfies Record<keyof WorkflowInput, keyof SchemaWorkflow>,
-  order: {
-    kind: "explicit",
-    keys: ["name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"],
-  },
   wrap: {
     on: { factory: on, mode: "model" },
     permissions: { factory: permissions, mode: "objectModel" },

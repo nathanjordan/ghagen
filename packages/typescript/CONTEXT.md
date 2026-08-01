@@ -47,11 +47,16 @@ inline-input wrap map, and per-field emission rules (present-null-when-empty, dy
 passthrough) — declared next to the factory, consumed by the Emitter and
 factories. The single home for the emitted-key fact (`fieldMap`, type-checked with `satisfies`
 against the generated schema types); every factory _is_ `defineFactory(SPEC)` — there is one
-construction body in the port, and a factory declaration carries no code.
+construction body in the port, and a factory declaration carries no code. Its `fieldMap`
+**declaration order is the emission order** — there is no second list beside it.
 _Avoid_: field map, key-order table.
 
 **OrderMode**:
-A ModelSpec's emission-order rule — an explicit key list, or alphabetical (extras interleaved).
+A ModelSpec's emission-order rule. Two cases, no third and no placement modifier (ADR-0011):
+`"explicit"` (the default — emit in `fieldMap` declaration order, then extras) or `"alphabetical"`
+(sort every key, extras interleaved). A bare string union, not a tagged one: `explicit` used to
+carry a `keys` array naming the sequence a second time, restating `Object.values(fieldMap)` in
+every spec.
 
 **CommentNode**:
 The Emitter's public, backend-neutral representation of a value plus its attached block/EOL
@@ -217,6 +222,11 @@ framework renders the text, `main()` decides the number.
   (the name `Response` is taken by the platform global), carrying `string` here and `bytes` there,
   matching each stdlib. `TransportError` and `ResolveError` are the only two error types crossing
   the pin/network boundary, and the engine's per-ref recovery depends on that totality.
+- A `fieldMap` **value** may not be a decimal-integer string. `OrdinaryOwnPropertyKeys` lists
+  array-index keys ahead of creation order, so such a key would jump to the front of `data`
+  whatever position the map declares — and Python's `dict`, which has no such rule, would not
+  follow. This is the only place the two ports' key-order guarantees are not the same rule;
+  `spec.test.ts` asserts no field map has one.
 
 ## Example dialogue
 

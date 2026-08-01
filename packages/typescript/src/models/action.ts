@@ -163,28 +163,24 @@ export const ACTION_INPUT_SPEC: ModelSpec = {
     default: "default",
     deprecationMessage: "deprecationMessage",
   },
-  order: { kind: "explicit", keys: ["description", "required", "default", "deprecationMessage"] },
 };
 
 /** Serialization spec for {@link ActionOutputModel}. */
 export const ACTION_OUTPUT_SPEC: ModelSpec = {
   kind: "actionOutput",
   fieldMap: { description: "description", value: "value" },
-  order: { kind: "explicit", keys: ["description", "value"] },
 };
 
 /** Serialization spec for {@link BrandingModel}. */
 export const BRANDING_SPEC: ModelSpec = {
   kind: "branding",
   fieldMap: { icon: "icon", color: "color" },
-  order: { kind: "explicit", keys: ["icon", "color"] },
 };
 
 /** Serialization spec for {@link CompositeRunsModel}. */
 export const COMPOSITE_RUNS_SPEC: ModelSpec = {
   kind: "compositeRuns",
   fieldMap: { using: "using", steps: "steps" },
-  order: { kind: "explicit", keys: ["using", "steps"] },
 };
 
 /** Serialization spec for {@link DockerRunsModel}. */
@@ -201,20 +197,6 @@ export const DOCKER_RUNS_SPEC: ModelSpec = {
     postEntrypoint: "post-entrypoint",
     postIf: "post-if",
   },
-  order: {
-    kind: "explicit",
-    keys: [
-      "using",
-      "image",
-      "env",
-      "args",
-      "pre-entrypoint",
-      "pre-if",
-      "entrypoint",
-      "post-entrypoint",
-      "post-if",
-    ],
-  },
 };
 
 /** Serialization spec for {@link NodeRunsModel}. */
@@ -228,7 +210,6 @@ export const NODE_RUNS_SPEC: ModelSpec = {
     preIf: "pre-if",
     postIf: "post-if",
   },
-  order: { kind: "explicit", keys: ["using", "main", "pre", "post", "pre-if", "post-if"] },
 };
 
 /** Serialization spec for {@link ActionModel}. */
@@ -243,10 +224,6 @@ export const ACTION_SPEC: ModelSpec = {
     outputs: "outputs",
     runs: "runs",
   } satisfies Record<string, keyof SchemaAction>,
-  order: {
-    kind: "explicit",
-    keys: ["name", "description", "author", "branding", "inputs", "outputs", "runs"],
-  },
 };
 
 // ---------------------------------------------------------------------------

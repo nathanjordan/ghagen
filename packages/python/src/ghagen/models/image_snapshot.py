@@ -10,7 +10,6 @@ from ghagen.models.spec import ModelSpec
 
 IMAGE_SNAPSHOT_SPEC = ModelSpec(
     yaml_keys={"image_name": "image-name", "version": "version"},
-    order=("image-name", "version"),
     # Mapping-syntax ``version`` grammar, copied verbatim from the canonical
     # Snapshot (``definitions.snapshot.oneOf[1].properties.version.pattern``)
     # and bound back to it by ``schema/conformance-values.yml``: a major

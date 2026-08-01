@@ -45,7 +45,7 @@ def test_boolean_workflow_dispatch_not_present_null():
 
 
 def test_on_emits_alphabetically_interleaving_extras():
-    """order=None sorts all keys; a dynamic extra event interleaves."""
+    """order="alphabetical" sorts all keys; a dynamic extra event interleaves."""
     data = to_data(
         On(
             workflow_run={"types": ["completed"]},

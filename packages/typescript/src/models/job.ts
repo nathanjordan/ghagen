@@ -53,13 +53,12 @@ export interface MatrixInput {
  * `fieldMap` names only the static keys; `dynamicKeys` declares that any other
  * input key (a user-defined axis like `"node-version"`) passes straight through
  * to `data`, so the factory routes through {@link defineFactory} like every other.
- * The explicit `order` places `include`/`exclude` first; dynamic axes follow in
- * insertion order.
+ * `fieldMap` declaration order places `include`/`exclude` first; dynamic axes
+ * follow in insertion order.
  */
 export const MATRIX_SPEC: ModelSpec = {
   kind: "matrix",
   fieldMap: { include: "include", exclude: "exclude" },
-  order: { kind: "explicit", keys: ["include", "exclude"] },
   dynamicKeys: true,
 };
 
@@ -98,7 +97,6 @@ export interface StrategyInput {
 export const STRATEGY_SPEC: ModelSpec = {
   kind: "strategy",
   fieldMap: { matrix_: "matrix", failFast: "fail-fast", maxParallel: "max-parallel" },
-  order: { kind: "explicit", keys: ["matrix", "fail-fast", "max-parallel"] },
   wrap: { matrix_: { factory: matrix, mode: "model" } },
 };
 
@@ -142,7 +140,6 @@ export const CONCURRENCY_SPEC: ModelSpec = {
     group: "group",
     cancelInProgress: "cancel-in-progress",
   } satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>,
-  order: { kind: "explicit", keys: ["group", "cancel-in-progress"] },
 };
 
 /**
@@ -191,7 +188,6 @@ export interface DefaultsInput {
 export const DEFAULTS_RUN_SPEC: ModelSpec = {
   kind: "defaultsRun",
   fieldMap: { shell: "shell", workingDirectory: "working-directory" },
-  order: { kind: "explicit", keys: ["shell", "working-directory"] },
 };
 
 /**
@@ -211,7 +207,6 @@ const defaultsRun = defineFactory<DefaultsRunModel, DefaultsRunInput>(DEFAULTS_R
 export const DEFAULTS_SPEC: ModelSpec = {
   kind: "defaults",
   fieldMap: { run: "run" },
-  order: { kind: "explicit", keys: ["run"] },
   wrap: { run: { factory: defaultsRun, mode: "objectModel" } },
 };
 
@@ -258,7 +253,6 @@ export const ENVIRONMENT_SPEC: ModelSpec = {
     url: "url",
     deployment: "deployment",
   } satisfies Record<keyof EnvironmentInput, keyof SchemaEnvironment>,
-  order: { kind: "explicit", keys: ["name", "url", "deployment"] },
 };
 
 /**
@@ -349,31 +343,6 @@ export const JOB_SPEC: ModelSpec = {
     uses: "uses",
     with_: "with",
     secrets: "secrets",
-  },
-  order: {
-    kind: "explicit",
-    keys: [
-      "name",
-      "runs-on",
-      "needs",
-      "if",
-      "permissions",
-      "environment",
-      "strategy",
-      "env",
-      "defaults",
-      "steps",
-      "outputs",
-      "timeout-minutes",
-      "continue-on-error",
-      "concurrency",
-      "services",
-      "container",
-      "snapshot",
-      "uses",
-      "with",
-      "secrets",
-    ],
   },
   wrap: {
     permissions: { factory: permissions, mode: "objectModel" },

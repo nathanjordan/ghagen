@@ -64,6 +64,18 @@ def _scan_for_models(value: Any) -> Iterator[GhagenModel]:
             yield from _scan_for_models(item)
 
 
+# Fields carrying serialization policy rather than YAML content; structurally
+# excluded from output. Declared immediately below, each with ``exclude=True``.
+#
+# This lives here, at the declaration site, rather than in the emitter: nothing
+# in the emitter reads it any more (``collect_fields`` iterates
+# ``spec.yaml_keys``, in which a meta field cannot appear), and a
+# serialization-policy constant with no emitter consumer had no business sitting
+# in ``emitter/nodes.py``. The import direction is unchanged — ``emitter``
+# imports ``models``, never the reverse (ADR-0001 amendment).
+_META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
+
+
 class GhagenModel(BaseModel):
     """Base model for all ghagen types.
 
@@ -97,6 +109,8 @@ class GhagenModel(BaseModel):
     # Every concrete model sets this next to its class definition.
     SPEC: ClassVar[ModelSpec]
 
+    # The four ``_META_FIELDS`` below. They carry serialization *policy* rather
+    # than YAML content, which is why each declares ``exclude=True``.
     extras: dict[str, Any] = Field(default_factory=dict, exclude=True)
     post_process: Callable[[CommentedMap], None] | None = Field(None, exclude=True)
     comment: str | None = Field(None, exclude=True)

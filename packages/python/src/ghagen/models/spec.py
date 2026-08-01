@@ -13,6 +13,23 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Literal
+
+OrderMode = Literal["explicit", "alphabetical"]
+"""How a model's emitted keys are ordered. Two cases, no third (ADR-0011).
+
+- ``"explicit"`` (the default): the ``yaml_keys`` mapping's **declaration
+  order** is the emission order — a ``dict`` literal inserts in source order and
+  ``dict`` has preserved insertion order since Python 3.7 (the project floor is
+  3.11). Extras follow, in insertion order.
+- ``"alphabetical"``: every key, extras included, is sorted at emit time.
+
+``"explicit"`` used to carry a ``tuple`` naming the sequence a second time;
+every spec restated ``tuple(yaml_keys.values())`` verbatim and only *set*
+equality was tested, so a key could be declared in one position and emitted in
+another with the whole suite green. Deleting the payload removed the second list
+rather than tightening the test over it.
+"""
 
 
 @dataclass(frozen=True)
@@ -21,17 +38,18 @@ class ModelSpec:
 
     Attributes:
         yaml_keys: Maps each content field name to its emitted YAML key. This is
-            the single authority for the field -> emitted-key fact; models carry
-            no Pydantic ``serialization_alias`` (a field whose key equals its
-            name maps to itself).
-        order: The emission ordering mode. A ``tuple`` is *explicit*: the listed
-            YAML keys come first in that order, then any remaining keys (and
-            extras) in insertion order. ``None`` is *alphabetical*: every key,
-            extras included, is sorted at emit time — used by
-            :class:`~ghagen.models.trigger.On`, whose trigger keys have no
-            canonical order. This is the declarative peer of TypeScript's
-            ``OrderMode`` (explicit key list vs alphabetical); the sort lives in
-            the Emitter, identically for both ports.
+            the single authority for the field -> emitted-key fact *and* for the
+            emission sequence: its declaration order is the order keys come out
+            in, so reordering it reorders the emitted YAML. Models carry no
+            Pydantic ``serialization_alias`` (a field whose key equals its name
+            maps to itself).
+        order: The emission ordering mode — see :data:`OrderMode`. ``"explicit"``
+            (the default) emits ``yaml_keys`` in its own declaration order, then
+            extras in insertion order. ``"alphabetical"`` sorts every key, extras
+            included, at emit time — used by :class:`~ghagen.models.trigger.On`,
+            whose trigger keys have no canonical order. The peer of TypeScript's
+            ``OrderMode``; the sort lives in the Emitter, identically for both
+            ports.
         present_null_when_empty: YAML keys whose value, when it resolves to an
             empty map (an empty sub-model or ``{}``), is emitted as a bare null
             key (``key:``) instead of ``key: {}``. The declarative replacement
@@ -49,6 +67,6 @@ class ModelSpec:
     """
 
     yaml_keys: Mapping[str, str]
-    order: tuple[str, ...] | None = field(default_factory=tuple)
+    order: OrderMode = "explicit"
     present_null_when_empty: frozenset[str] = frozenset()
     patterns: Mapping[str, re.Pattern[str]] = field(default_factory=dict)

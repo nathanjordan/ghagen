@@ -24,29 +24,37 @@ export interface WrapRule {
 }
 
 /**
- * How a model's emitted keys are ordered.
+ * How a model's emitted keys are ordered. Two cases, no third (ADR-0011).
  *
- * - `explicit` — the listed `keys` come first, in that order; any remaining
- *   keys (dynamic passthroughs, extras) follow in insertion order.
+ * - `explicit` (the default) — the `fieldMap`'s **declaration order** is the
+ *   emission order; dynamic passthroughs and extras follow, in insertion order.
+ *   Nothing restates the key sequence, so nothing can disagree with it.
  * - `alphabetical` — every key, including extras, is sorted at emit time. This
  *   is the declarative replacement for the old "empty order" signal, which the
  *   two Emitters disagreed on (Python sorted; TS kept insertion order).
  *
- * The sort now lives in the Emitter, in one place, identically for both ports.
+ * The sort lives in the Emitter, in one place, identically for both ports.
+ * `explicit` used to carry a `keys` array naming the sequence a second time;
+ * every spec restated `Object.values(fieldMap)` verbatim and only *set*
+ * equality was tested, so a key could be declared in one position and emitted
+ * in another with the whole suite green. Deleting the payload removed the
+ * second list rather than tightening the test over it.
  */
-export type OrderMode =
-  | { readonly kind: "explicit"; readonly keys: readonly string[] }
-  | { readonly kind: "alphabetical" };
+export type OrderMode = "explicit" | "alphabetical";
 
 /**
  * Per-model serialization spec.
  *
  * The single home for one model type's serialization surface: its
- * discriminant `kind`, the camelCase-input → YAML-key `fieldMap`, the canonical
- * emission `order`, and the optional inline-input auto-`wrap` map. Declared next
- * to the factory and read by both the factory (field mapping + wrapping) and the
- * Emitter (`modelToYamlMap` key ordering). Replaces the old per-factory
- * `*_FIELD_MAP` constants and `emitter/key-order.ts` tables.
+ * discriminant `kind`, the camelCase-input → YAML-key `fieldMap`, and the
+ * optional inline-input auto-`wrap` map. Declared next to the factory and read
+ * by both the factory (field mapping + wrapping) and the Emitter
+ * (`modelToYamlMap` key ordering). Replaces the old per-factory `*_FIELD_MAP`
+ * constants and `emitter/key-order.ts` tables.
+ *
+ * The `fieldMap`'s declaration order **is** the emission order — reordering it
+ * reorders the emitted YAML. That is the one cost of there being a single list:
+ * the sequence a maintainer reads is the sequence that ships.
  *
  * Every gap that factories once filled by hand is now declarable here: the
  * ordering {@link OrderMode}, dynamic-key passthrough, and the
@@ -56,10 +64,14 @@ export type OrderMode =
 export interface ModelSpec {
   /** Discriminant assigned to every Model built from this spec. */
   readonly kind: ModelKind;
-  /** Maps camelCase input field names to their emitted YAML keys. */
+  /**
+   * Maps camelCase input field names to their emitted YAML keys. Its
+   * declaration order is the emission order under the default
+   * `explicit` {@link OrderMode}.
+   */
   readonly fieldMap: Readonly<Record<string, string>>;
-  /** How emitted keys are ordered — see {@link OrderMode}. */
-  readonly order: OrderMode;
+  /** How emitted keys are ordered — see {@link OrderMode}. Defaults to `"explicit"`. */
+  readonly order?: OrderMode;
   /** Optional inline-input auto-wrap rules, keyed by camelCase field name. */
   readonly wrap?: Readonly<Record<string, WrapRule>>;
   /**

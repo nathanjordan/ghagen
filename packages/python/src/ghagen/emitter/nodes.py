@@ -25,10 +25,6 @@ from ghagen.models._base import GhagenModel
 from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 
-# Fields carrying serialization policy rather than YAML content; structurally
-# excluded from output (they declare ``exclude=True`` on ``GhagenModel``).
-_META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
-
 
 def unwrap_raw(value: Any) -> Any:
     """Recursively unwrap ``Raw`` instances to their inner values.
@@ -60,28 +56,20 @@ def order_entries(
     (:func:`_model_to_map`) and the plain-data walk
     (:func:`ghagen.emitter.data._model_to_data`), so the two cannot disagree.
 
-    - ``spec.order is None`` (*alphabetical*): every key — ``raw`` and ``extras``
-      alike — is sorted, so a dynamic extra event interleaves with the typed
-      fields rather than being force-appended.
-    - otherwise (*explicit*): the listed keys come first in that order, then the
-      remaining ``raw`` keys in insertion order, then ``extras`` in insertion
-      order.
+    - ``"alphabetical"``: every key — ``raw`` and ``extras`` alike — is sorted,
+      so a dynamic extra event interleaves with the typed fields rather than
+      being force-appended.
+    - ``"explicit"`` (the default): ``raw`` is emitted as it stands, then
+      ``extras``. :func:`collect_fields` builds ``raw`` by iterating
+      ``spec.yaml_keys``, so "as it stands" *is* the spec's declaration order —
+      there is no second key list to re-derive it from, and therefore none to
+      disagree with it.
     """
-    if spec.order is None:
+    if spec.order == "alphabetical":
         merged = {**raw, **extras}
         return [(key, merged[key]) for key in sorted(merged)]
 
-    result: list[tuple[str, Any]] = []
-    seen: set[str] = set()
-    for key in spec.order:
-        if key in raw:
-            result.append((key, raw[key]))
-            seen.add(key)
-    for key, value in raw.items():
-        if key not in seen:
-            result.append((key, value))
-    result.extend(extras.items())
-    return result
+    return [*raw.items(), *extras.items()]
 
 
 def collect_fields(model: GhagenModel, *, auto_dedent: bool) -> dict[str, Any]:
@@ -93,33 +81,43 @@ def collect_fields(model: GhagenModel, *, auto_dedent: bool) -> dict[str, Any]:
     about which fields exist — the peer of :func:`order_entries`, which is the
     single home for the order they come out in.
 
+    The loop iterates ``spec.yaml_keys``, not ``model_fields``, so the spec is
+    the single declaration of *which* fields are emitted and *in what order*.
+    That drops two rules the ``model_fields`` loop needed and neither of which
+    could fire any more:
+
+    - a ``_META_FIELDS`` skip. A meta field can never appear in ``yaml_keys`` —
+      ``test_spec_covers_exactly_the_content_fields`` asserts
+      ``set(SPEC.yaml_keys) == set(model_fields) - _META_FIELDS`` for every
+      model — so the guard was unreachable, not merely unused.
+    - a ``.get(field_name, field_name)`` fallback for a field missing from
+      ``yaml_keys``. Unreachable by the same guarantee; the lookup is now total.
+
     A field is collected iff all of these hold (the contract stated in
     ``docs/specs/0001-python-single-pass-serialization.md`` §4):
 
-    1. it is not a meta field (``_META_FIELDS``) — those carry serialization
-       policy, not YAML content;
+    1. it is named in ``spec.yaml_keys`` — the spec, not the Pydantic class, is
+       the emission surface;
     2. it is set (``model_fields_set`` — ``exclude_unset``);
     3. its value, wrapper and all, is not ``None`` — ``exclude_none`` is checked
        on the *raw* attribute, before any ``Commented`` / ``Raw`` see-through, so
        a ``Raw(None)`` survives;
-    4. the key it lands under is ``spec.yaml_keys[field]``, defaulting to the
-       field name.
+    4. the key it lands under is ``spec.yaml_keys[field]``.
 
     When *auto_dedent* is true a :class:`~ghagen.models.step.Step`'s ``run``
     string is dedented here, at collection — no model mutation, no copy
     (ADR-0002). This is the sole home of the dedent-at-emit rule for both job
     steps and composite-action ``runs.steps``.
 
-    Returns the ``{yaml_key: value}`` mapping in Pydantic field-declaration
-    order; :func:`order_entries` decides the emitted order from there.
+    Returns the ``{yaml_key: value}`` mapping in ``spec.yaml_keys`` declaration
+    order, which under the default ``"explicit"`` :data:`~ghagen.models.spec.OrderMode`
+    is the emitted order; :func:`order_entries` folds in ``extras`` from there.
     """
     spec = type(model).SPEC
     is_step = isinstance(model, Step)
 
     raw: dict[str, Any] = {}
-    for field_name in type(model).model_fields:
-        if field_name in _META_FIELDS:
-            continue
+    for field_name, yaml_key in spec.yaml_keys.items():
         if field_name not in model.model_fields_set:  # exclude_unset
             continue
         value = getattr(model, field_name, None)
@@ -127,7 +125,7 @@ def collect_fields(model: GhagenModel, *, auto_dedent: bool) -> dict[str, Any]:
             continue
         if auto_dedent and is_step and field_name == "run" and isinstance(value, str):
             value = dedent_script(value)
-        raw[spec.yaml_keys.get(field_name, field_name)] = value
+        raw[yaml_key] = value
     return raw
 
 

@@ -72,27 +72,6 @@ export const PERMISSIONS_SPEC: ModelSpec = {
     securityEvents: "security-events",
     statuses: "statuses",
   } satisfies Record<keyof PermissionsInput, keyof SchemaPermissions>,
-  order: {
-    kind: "explicit",
-    keys: [
-      "actions",
-      "artifact-metadata",
-      "attestations",
-      "checks",
-      "contents",
-      "deployments",
-      "discussions",
-      "id-token",
-      "issues",
-      "models",
-      "packages",
-      "pages",
-      "pull-requests",
-      "repository-projects",
-      "security-events",
-      "statuses",
-    ],
-  },
 };
 
 /**

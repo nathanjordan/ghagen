@@ -37,7 +37,6 @@ const IMAGE_SNAPSHOT_FIELD_MAP = {
 export const IMAGE_SNAPSHOT_SPEC: ModelSpec = {
   kind: "imageSnapshot",
   fieldMap: IMAGE_SNAPSHOT_FIELD_MAP,
-  order: { kind: "explicit", keys: ["image-name", "version"] },
   patterns: { version: /^\d+(\.\d+|\*)?$/ },
 };
 

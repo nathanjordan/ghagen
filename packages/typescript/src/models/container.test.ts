@@ -51,10 +51,16 @@ describe("service", () => {
 
 describe("container/service key order", () => {
   it("both share the container key order (distinct kinds)", () => {
+    // The two specs differ only in `kind`; they share one `fieldMap` *object*,
+    // and since a fieldMap's declaration order is the emission order, sharing
+    // the object is what makes the two kinds emit the same keys in the same
+    // sequence. This used to compare `spec.order`, which stopped being a
+    // payload — comparing the two `"explicit"` strings would have passed for
+    // every pair of specs in the port.
     const c = container({ image: "node:20" });
     const s = service({ image: "node:20" });
     expect(c.kind).toBe("container");
     expect(s.kind).toBe("service");
-    expect(c.spec.order).toEqual(s.spec.order);
+    expect(c.spec.fieldMap).toBe(s.spec.fieldMap);
   });
 });

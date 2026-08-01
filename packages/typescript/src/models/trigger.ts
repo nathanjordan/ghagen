@@ -44,10 +44,6 @@ export const PUSH_TRIGGER_SPEC: ModelSpec = {
     paths: "paths",
     pathsIgnore: "paths-ignore",
   },
-  order: {
-    kind: "explicit",
-    keys: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore"],
-  },
 };
 
 /**
@@ -101,10 +97,6 @@ export const PR_TRIGGER_SPEC: ModelSpec = {
     pathsIgnore: "paths-ignore",
     types: "types",
   },
-  order: {
-    kind: "explicit",
-    keys: ["branches", "branches-ignore", "tags", "tags-ignore", "paths", "paths-ignore", "types"],
-  },
 };
 
 /**
@@ -139,7 +131,6 @@ export interface ScheduleTriggerInput {
 export const SCHEDULE_TRIGGER_SPEC: ModelSpec = {
   kind: "scheduleTrigger",
   fieldMap: { cron: "cron", timezone: "timezone" },
-  order: { kind: "explicit", keys: ["cron", "timezone"] },
 };
 
 /**
@@ -212,10 +203,6 @@ export const WORKFLOW_DISPATCH_INPUT_SPEC: ModelSpec = {
     options: "options",
     deprecationMessage: "deprecationMessage",
   },
-  order: {
-    kind: "explicit",
-    keys: ["description", "required", "default", "type", "options", "deprecationMessage"],
-  },
 };
 
 /** Wrap one `workflow_dispatch` input def into an ordered model. */
@@ -228,7 +215,6 @@ const workflowDispatchInputDef = defineFactory<
 export const WORKFLOW_DISPATCH_SPEC: ModelSpec = {
   kind: "workflowDispatch",
   fieldMap: { inputs: "inputs" },
-  order: { kind: "explicit", keys: ["inputs"] },
   wrap: { inputs: { factory: workflowDispatchInputDef, mode: "map" } },
 };
 
@@ -324,21 +310,18 @@ export const WORKFLOW_CALL_INPUT_SPEC: ModelSpec = {
     default: "default",
     type: "type",
   },
-  order: { kind: "explicit", keys: ["description", "required", "default", "type"] },
 };
 
 /** Serialization spec for a single `workflow_call` output definition. */
 export const WORKFLOW_CALL_OUTPUT_SPEC: ModelSpec = {
   kind: "workflowCallOutput",
   fieldMap: { description: "description", value: "value" },
-  order: { kind: "explicit", keys: ["description", "value"] },
 };
 
 /** Serialization spec for a single `workflow_call` secret definition. */
 export const WORKFLOW_CALL_SECRET_SPEC: ModelSpec = {
   kind: "workflowCallSecret",
   fieldMap: { description: "description", required: "required" },
-  order: { kind: "explicit", keys: ["description", "required"] },
 };
 
 /** Wrap one `workflow_call` input def into an ordered model. */
@@ -360,7 +343,6 @@ const workflowCallSecretDef = defineFactory<WorkflowCallSecretModel, WorkflowCal
 export const WORKFLOW_CALL_SPEC: ModelSpec = {
   kind: "workflowCall",
   fieldMap: { inputs: "inputs", outputs: "outputs", secrets: "secrets" },
-  order: { kind: "explicit", keys: ["inputs", "outputs", "secrets"] },
   wrap: {
     inputs: { factory: workflowCallInputDef, mode: "map" },
     outputs: { factory: workflowCallOutputDef, mode: "map" },
@@ -475,9 +457,10 @@ export interface OnInput {
 /**
  * Serialization spec for {@link OnModel}.
  *
- * `order` is `alphabetical`: the Emitter sorts every key (typed triggers and
- * dynamic extra events alike) at emit time, matching Python's alphabetical
- * trigger emission — the sort lives in one place, not in this factory. The
+ * `order` is `alphabetical` — the one spec in the port that is not the default
+ * `explicit`: the Emitter sorts every key (typed triggers and dynamic extra
+ * events alike) at emit time, matching Python's alphabetical trigger emission.
+ * The sort lives in one place, not in this factory. The
  * typed trigger fields carry auto-wrap rules; the plain-object event fields
  * pass through untouched. `presentNullWhenEmpty` renders an empty
  * `workflow_dispatch` as a bare `workflow_dispatch:` key.
@@ -521,7 +504,7 @@ export const ON_SPEC: ModelSpec = {
     watch: "watch",
     workflowRun: "workflow_run",
   },
-  order: { kind: "alphabetical" },
+  order: "alphabetical",
   presentNullWhenEmpty: ["workflow_dispatch"],
   wrap: {
     push: { factory: pushTrigger, mode: "model" },

@@ -16,7 +16,6 @@ from ghagen.models.step import Step
 
 MATRIX_SPEC = ModelSpec(
     yaml_keys={"include": "include", "exclude": "exclude"},
-    order=("include", "exclude"),
 )
 
 STRATEGY_SPEC = ModelSpec(
@@ -25,24 +24,20 @@ STRATEGY_SPEC = ModelSpec(
         "fail_fast": "fail-fast",
         "max_parallel": "max-parallel",
     },
-    order=("matrix", "fail-fast", "max-parallel"),
 )
 
 ENVIRONMENT_SPEC = ModelSpec(
     yaml_keys={"name": "name", "url": "url", "deployment": "deployment"},
-    order=("name", "url", "deployment"),
 )
 
 CONCURRENCY_SPEC = ModelSpec(
     yaml_keys={"group": "group", "cancel_in_progress": "cancel-in-progress"},
-    order=("group", "cancel-in-progress"),
 )
 
-DEFAULTS_SPEC = ModelSpec(yaml_keys={"run": "run"}, order=("run",))
+DEFAULTS_SPEC = ModelSpec(yaml_keys={"run": "run"})
 
 DEFAULTS_RUN_SPEC = ModelSpec(
     yaml_keys={"shell": "shell", "working_directory": "working-directory"},
-    order=("shell", "working-directory"),
 )
 
 JOB_SPEC = ModelSpec(
@@ -68,28 +63,6 @@ JOB_SPEC = ModelSpec(
         "with_": "with",
         "secrets": "secrets",
     },
-    order=(
-        "name",
-        "runs-on",
-        "needs",
-        "if",
-        "permissions",
-        "environment",
-        "strategy",
-        "env",
-        "defaults",
-        "steps",
-        "outputs",
-        "timeout-minutes",
-        "continue-on-error",
-        "concurrency",
-        "services",
-        "container",
-        "snapshot",
-        "uses",
-        "with",
-        "secrets",
-    ),
 )
 
 

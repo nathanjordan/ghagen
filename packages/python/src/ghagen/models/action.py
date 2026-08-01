@@ -32,22 +32,18 @@ ACTION_INPUT_SPEC = ModelSpec(
         "default": "default",
         "deprecation_message": "deprecationMessage",
     },
-    order=("description", "required", "default", "deprecationMessage"),
 )
 
 ACTION_OUTPUT_SPEC = ModelSpec(
     yaml_keys={"description": "description", "value": "value"},
-    order=("description", "value"),
 )
 
 BRANDING_SPEC = ModelSpec(
     yaml_keys={"icon": "icon", "color": "color"},
-    order=("icon", "color"),
 )
 
 COMPOSITE_RUNS_SPEC = ModelSpec(
     yaml_keys={"using": "using", "steps": "steps"},
-    order=("using", "steps"),
 )
 
 DOCKER_RUNS_SPEC = ModelSpec(
@@ -62,17 +58,6 @@ DOCKER_RUNS_SPEC = ModelSpec(
         "post_entrypoint": "post-entrypoint",
         "post_if": "post-if",
     },
-    order=(
-        "using",
-        "image",
-        "env",
-        "args",
-        "pre-entrypoint",
-        "pre-if",
-        "entrypoint",
-        "post-entrypoint",
-        "post-if",
-    ),
 )
 
 NODE_RUNS_SPEC = ModelSpec(
@@ -84,7 +69,6 @@ NODE_RUNS_SPEC = ModelSpec(
         "pre_if": "pre-if",
         "post_if": "post-if",
     },
-    order=("using", "main", "pre", "post", "pre-if", "post-if"),
 )
 
 ACTION_SPEC = ModelSpec(
@@ -97,7 +81,6 @@ ACTION_SPEC = ModelSpec(
         "outputs": "outputs",
         "runs": "runs",
     },
-    order=("name", "description", "author", "branding", "inputs", "outputs", "runs"),
 )
 
 

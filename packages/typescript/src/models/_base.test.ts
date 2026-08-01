@@ -91,7 +91,7 @@ describe("Model class", () => {
     expect(m.meta).toEqual(meta);
   });
 
-  it("carries its spec (kind + key order)", () => {
+  it("carries its spec", () => {
     const m = new Model(WORKFLOW_SPEC, {}, {});
     expect(m.spec).toBe(WORKFLOW_SPEC);
   });
@@ -181,7 +181,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "job",
       fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
-      order: [],
     } as unknown as ModelSpec;
     const data = { runsOn: "ubuntu-latest", timeoutMinutes: 10 };
     expect(buildYamlData(spec, data)).toEqual({
@@ -194,7 +193,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "job",
       fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
-      order: [],
     } as unknown as ModelSpec;
     const data = { runsOn: "ubuntu-latest", timeoutMinutes: undefined };
     expect(buildYamlData(spec, data)).toEqual({ "runs-on": "ubuntu-latest" });
@@ -207,7 +205,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "job",
       fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
-      order: [],
     } as unknown as ModelSpec;
     const data = { runsOn: "ubuntu-latest", extra: "ignored" };
     expect(() => buildYamlData(spec, data)).toThrow(ModelInputError);
@@ -218,7 +215,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "matrix",
       fieldMap: { include: "include" },
-      order: [],
       dynamicKeys: true,
     } as unknown as ModelSpec;
     expect(buildYamlData(spec, { "node-version": [20, 22] })).toEqual({
@@ -230,7 +226,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "imageSnapshot",
       fieldMap: { version: "version" },
-      order: [],
       patterns: { version: /^\d+$/ },
     } as unknown as ModelSpec;
     expect(() => buildYamlData(spec, { version: "v1" })).toThrow(ModelInputError);
@@ -241,7 +236,6 @@ describe("buildYamlData()", () => {
     const spec = {
       kind: "job",
       fieldMap: { env: "env" },
-      order: [],
     } as unknown as ModelSpec;
     const data = { env: withComment({ CI: "true" }, "environment") };
     const out = buildYamlData(spec, data);
@@ -262,7 +256,6 @@ describe("defineFactory()", () => {
   const DEMO_SPEC = {
     kind: "job",
     fieldMap: { runsOn: "runs-on", timeoutMinutes: "timeout-minutes" },
-    order: { kind: "explicit", keys: ["runs-on", "timeout-minutes"] },
   } as unknown as ModelSpec;
 
   it("splits meta off the input and maps the rest through the spec fieldMap", () => {
@@ -283,7 +276,6 @@ describe("defineFactory()", () => {
     const outerSpec = {
       kind: "workflow",
       fieldMap: { nested: "nested" },
-      order: { kind: "explicit", keys: ["nested"] },
       wrap: { nested: { mode: "model", factory: inner } },
     } as unknown as ModelSpec;
     const outer = defineFactory<Model, { nested?: DemoInput }>(outerSpec);
@@ -295,7 +287,6 @@ describe("defineFactory()", () => {
     const dynSpec = {
       kind: "matrix",
       fieldMap: { include: "include" },
-      order: { kind: "explicit", keys: ["include"] },
       dynamicKeys: true,
     } as unknown as ModelSpec;
     const dyn = defineFactory<Model, Record<string, unknown>>(dynSpec);
@@ -314,7 +305,6 @@ describe("defineFactory()", () => {
     const patSpec = {
       kind: "imageSnapshot",
       fieldMap: { version: "version" },
-      order: { kind: "explicit", keys: ["version"] },
       patterns: { version: /^\d+$/ },
     } as unknown as ModelSpec;
     const snap = defineFactory<Model, { version?: string }>(patSpec);

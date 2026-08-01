@@ -16,17 +16,17 @@ import { step } from "../models/step.js";
 // helpers
 // ---------------------------------------------------------------------------
 
-/** Build a bare Model with an ad-hoc spec for testing serialization in isolation. */
-function simpleModel(
-  data: Record<string, unknown> = {},
-  meta: Record<string, unknown> = {},
-  order: readonly string[] = [],
-) {
-  const spec = {
-    kind: "step",
-    fieldMap: {},
-    order: { kind: "explicit", keys: order },
-  } as unknown as ModelSpec;
+/**
+ * Build a bare Model with an ad-hoc spec for testing serialization in isolation.
+ *
+ * The constructor is called directly, so *data* bypasses `buildYamlData` and is
+ * emitted in the order written here. The helper used to take a third `order`
+ * argument naming that same sequence a third time (after the literal and after
+ * the spec); under the two-case {@link OrderMode} an `explicit` spec emits
+ * `data` as it stands, so the argument is gone and the literal is the order.
+ */
+function simpleModel(data: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) {
+  const spec = { kind: "step", fieldMap: {} } as unknown as ModelSpec;
   return new Model(spec, data, meta as ModelMeta);
 }
 
@@ -98,20 +98,20 @@ describe("toYaml()", () => {
 // key ordering (observed via the public toData surface)
 // ---------------------------------------------------------------------------
 describe("key ordering", () => {
-  it("orders keys according to keyOrder, then remaining in insertion order", () => {
-    const m = new Model(
-      JOB_SPEC,
-      { steps: [], name: "build", "runs-on": "ubuntu-latest", env: {} },
-      {},
-    );
+  it("emits a job's keys in JOB_SPEC.fieldMap order, not input order", () => {
+    // Built through `job()` rather than `new Model(JOB_SPEC, {...})`: the
+    // normalisation under test is `buildYamlData` walking `spec.fieldMap`, and
+    // the constructor bypasses it, so the old form was asserting only that the
+    // literal it was handed had already been written in the right order.
+    const m = job({ steps: [], env: {}, runsOn: "ubuntu-latest", name: "build" });
     const keys = Object.keys(toData(m) as Record<string, unknown>);
-    // JOB_KEY_ORDER puts name, runs-on, ... env, ... steps
-    expect(keys.indexOf("name")).toBeLessThan(keys.indexOf("runs-on"));
-    expect(keys.indexOf("runs-on")).toBeLessThan(keys.indexOf("steps"));
+    expect(keys).toEqual(Object.values(JOB_SPEC.fieldMap).filter((k) => keys.includes(k)));
+    // The input above is in reverse, so an unnormalised pass-through fails here.
+    expect(keys).toEqual(["name", "runs-on", "env", "steps"]);
   });
 
   it("merges extras after schema fields", () => {
-    const m = simpleModel({ name: "ci" }, { extras: { "x-custom": true } }, ["name"]);
+    const m = simpleModel({ name: "ci" }, { extras: { "x-custom": true } });
     const keys = Object.keys(toData(m) as Record<string, unknown>);
     expect(keys).toEqual(["name", "x-custom"]);
   });
@@ -165,10 +165,7 @@ describe("comments", () => {
     // and whether or not a neighbour carries one. On `main` TypeScript emitted
     // one column for a collection value (the regex refused to widen after a
     // `:`) and Python emitted one column whenever a neighbour was commented.
-    const scalar = simpleModel({ name: "ci", on: withEolComment("push", "trigger") }, {}, [
-      "name",
-      "on",
-    ]);
+    const scalar = simpleModel({ name: "ci", on: withEolComment("push", "trigger") });
     expect(toYaml(scalar, { header: null })).toContain("on: push  # trigger\n");
 
     const scalarWithNeighbour = simpleModel(
@@ -338,8 +335,8 @@ describe("value conversion", () => {
   });
 
   it("nested model produces a recursive YAMLMap", () => {
-    const inner = simpleModel({ image: "node:20" }, {}, ["image"]);
-    const outer = simpleModel({ container: inner }, {}, ["container"]);
+    const inner = simpleModel({ image: "node:20" });
+    const outer = simpleModel({ container: inner });
     const yaml = toYaml(outer, { header: null });
     expect(yaml).toContain("container:");
     expect(yaml).toContain("  image: node:20");

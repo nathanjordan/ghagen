@@ -182,41 +182,24 @@ function toYamlValue(value: unknown): unknown {
  *
  * The single home for both Emitter passes ({@link modelToYamlMap} and
  * {@link modelToData}), so the YAML nodes and the observed data cannot disagree
- * on ordering. `alphabetical` sorts every key (extras included); `explicit`
- * places the ordered keys first, then the rest, with extras appended last.
+ * on ordering. `alphabetical` sorts every key, extras included; `explicit` — the
+ * default — emits `data` as it stands, then extras.
+ *
+ * "As it stands" *is* the spec's declaration order: `buildYamlData` populates
+ * `data` by iterating `Object.entries(spec.fieldMap)`, and the dynamic-key
+ * passthrough appends after that. There is no second key list to re-derive the
+ * sequence from, and therefore none to disagree with it.
  */
 function orderedEntries(model: Model): [string, unknown][] {
   const data = model.data;
   const extras = model.meta.extras ?? {};
-  const dataKeys = Object.keys(data);
-  const extrasKeys = Object.keys(extras);
-  const valueOf = (key: string): unknown => (key in data ? data[key] : extras[key]);
 
-  if (model.spec.order.kind === "alphabetical") {
-    const allKeys = [...new Set([...dataKeys, ...extrasKeys])].sort();
-    return allKeys.map((key) => [key, valueOf(key)]);
+  if (model.spec.order === "alphabetical") {
+    const allKeys = [...new Set([...Object.keys(data), ...Object.keys(extras)])].sort();
+    return allKeys.map((key) => [key, key in data ? data[key] : extras[key]]);
   }
 
-  const orderKeys = model.spec.order.keys;
-  const entries: [string, unknown][] = orderExplicit(dataKeys, orderKeys).map((key) => [
-    key,
-    data[key],
-  ]);
-  for (const key of extrasKeys) {
-    entries.push([key, extras[key]]);
-  }
-  return entries;
-}
-
-/**
- * Order keys by an explicit key list: named keys first (in that order), then
- * the remaining keys in their original insertion order.
- */
-function orderExplicit(keys: string[], keyOrder: readonly string[]): string[] {
-  const orderSet = new Set(keyOrder);
-  const ordered = keyOrder.filter((key) => keys.includes(key));
-  const remaining = keys.filter((key) => !orderSet.has(key));
-  return [...ordered, ...remaining];
+  return [...Object.entries(data), ...Object.entries(extras)];
 }
 
 /**

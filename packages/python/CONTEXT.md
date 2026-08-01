@@ -44,11 +44,15 @@ end — the backend never sees them.
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, and
 per-field emission rules (present-null-when-empty) — declared next to the model, consumed by the
-Emitter. The single home for the emitted-key fact: models carry no `serialization_alias`.
+Emitter. The single home for the emitted-key fact: models carry no `serialization_alias`. Its
+`yaml_keys` **declaration order is the emission order** — there is no second list beside it.
 _Avoid_: field map, key-order table.
 
 **OrderMode**:
-A ModelSpec's emission-order rule — an explicit key list, or alphabetical (extras interleaved).
+A ModelSpec's emission-order rule. Two cases, no third and no placement modifier (ADR-0011):
+`explicit` (the default — emit in `yaml_keys` declaration order, then extras) or `alphabetical`
+(sort every key, extras interleaved). Carries no payload: `explicit` used to name the key sequence
+a second time, restating `tuple(yaml_keys.values())` in every spec.
 
 **CommentNode**:
 The Emitter's public, backend-neutral representation of a value plus its attached block/EOL
