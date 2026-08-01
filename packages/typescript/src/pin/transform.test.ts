@@ -55,6 +55,22 @@ describe("pinTransform()", () => {
     expect(() => transform(cloned)).toThrow(PinError);
   });
 
+  // `ghagen pin` is not a command -- pinning is `ghagen deps pin`. Both ports
+  // must name the same, existing remedy.
+  it("names the real command in the remedy", () => {
+    const wf = workflow({
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ uses: "unknown/repo@v1" })],
+        }),
+      },
+    });
+    const cloned = cloneModel(wf);
+    const transform = pinTransform(makeLockfile());
+    expect(() => transform(cloned)).toThrow("Run `ghagen deps pin` to resolve it.");
+  });
+
   it("leaves a hand-pinned SHA untouched (never throws PinError)", () => {
     const sha = "d".repeat(40);
     const wf = workflow({

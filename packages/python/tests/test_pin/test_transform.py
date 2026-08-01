@@ -141,6 +141,28 @@ class TestPinTransform:
         with pytest.raises(PinError, match="No lockfile entry"):
             transform(wf)
 
+    def test_missing_entry_names_the_real_command(self):
+        """The remedy must name a command that exists.
+
+        `ghagen pin` is not a command -- pinning is `ghagen deps pin`. The
+        TypeScript peer already says so; this pins both ports to the same
+        remedy text.
+        """
+        lf = _lockfile()
+        wf = Workflow(
+            on=On(push=PushTrigger()),
+            jobs={
+                "build": Job(
+                    runs_on="ubuntu-latest",
+                    steps=[Step(uses="actions/checkout@v4")],
+                )
+            },
+        )
+        transform = PinTransform(lf)
+        with pytest.raises(PinError) as excinfo:
+            transform(wf)
+        assert "Run `ghagen deps pin` to resolve it." in str(excinfo.value)
+
     def test_skips_run_steps(self):
         lf = _lockfile()
         wf = Workflow(

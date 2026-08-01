@@ -44,7 +44,7 @@ class PinTransform:
             if entry is None:
                 raise PinError(
                     f"No lockfile entry for '{site.uses}'. "
-                    "Run `ghagen pin` to resolve it."
+                    "Run `ghagen deps pin` to resolve it."
                 )
             site.replace(site.ref.with_sha(entry.sha))
         return item
