@@ -46,10 +46,31 @@ from ghagen.models.action import (
     DockerRuns,
     NodeRuns,
 )
+from ghagen.models.container import Container
 from ghagen.models.image_snapshot import IMAGE_SNAPSHOT_SPEC, ImageSnapshot
-from ghagen.models.job import Job
+from ghagen.models.job import (
+    Concurrency,
+    Defaults,
+    DefaultsRun,
+    Environment,
+    Job,
+    Strategy,
+)
+from ghagen.models.permissions import Permissions
 from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
+from ghagen.models.trigger import (
+    On,
+    PRTrigger,
+    PushTrigger,
+    ScheduleTrigger,
+    WorkflowCallInput,
+    WorkflowCallOutput,
+    WorkflowCallSecret,
+    WorkflowCallTrigger,
+    WorkflowDispatchInput,
+    WorkflowDispatchTrigger,
+)
 from ghagen.models.workflow import Workflow
 
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
@@ -89,6 +110,27 @@ _MODELS: dict[str, dict[str, type[GhagenModel]]] = {
         # reusable-workflow-call-job shapes.
         "job": Job,
         "step": Step,
+        # --- the on: sub-tree ---
+        "on": On,
+        "pushTrigger": PushTrigger,
+        # One model covers both `pull_request` and `pull_request_target`.
+        "prTrigger": PRTrigger,
+        "scheduleTrigger": ScheduleTrigger,
+        "workflowDispatch": WorkflowDispatchTrigger,
+        "workflowDispatchInput": WorkflowDispatchInput,
+        "workflowCall": WorkflowCallTrigger,
+        "workflowCallInput": WorkflowCallInput,
+        "workflowCallOutput": WorkflowCallOutput,
+        "workflowCallSecret": WorkflowCallSecret,
+        # --- job sub-shapes ---
+        "permissions": Permissions,
+        "container": Container,
+        "strategy": Strategy,
+        "concurrency": Concurrency,
+        "defaults": Defaults,
+        "defaultsRun": DefaultsRun,
+        "environment": Environment,
+        "imageSnapshot": ImageSnapshot,
     },
     "action_schema.json": {
         "action": Action,

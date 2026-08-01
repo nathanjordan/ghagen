@@ -83,6 +83,11 @@ The committed canonical copy of an upstream JSON schema from SchemaStore.
 **Drift**:
 Divergence between the committed schema Snapshot and the current upstream schema.
 
+**Scope**:
+A named node in a Snapshot (`schema/conformance-scopes.yml`) that both ports must bind to a
+covering model, and whose declared property set that model must emit in full. A path segment may
+be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
+
 ## Relationships
 
 - A **Document** is a **Workflow** or an **Action**.
@@ -107,6 +112,10 @@ Divergence between the committed schema Snapshot and the current upstream schema
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.
+- The model registry is `GhagenModel.__subclasses__()` reflection, which only sees modules that have
+  been imported. `tests/test_models/test_spec.py` walks `ghagen.models` with `pkgutil` and imports
+  every module before reflecting, so a new model module is covered on creation rather than on the
+  day someone remembers to add an import.
 
 ## Example dialogue
 

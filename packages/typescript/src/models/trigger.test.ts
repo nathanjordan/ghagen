@@ -71,6 +71,17 @@ describe("workflowDispatch", () => {
     expect((toData(t) as Record<string, unknown>).inputs).toBeDefined();
     expect(t.kind).toBe("workflowDispatch");
   });
+
+  it("emits deprecationMessage on an input def", () => {
+    // Modelled for *action* inputs in both ports but not for workflow_dispatch
+    // inputs — the action side is swept, which is why it never drifted. The
+    // Snapshot spells this key camelCase, unlike its five siblings.
+    const t = workflowDispatch({
+      inputs: { env: { description: "Environment", deprecationMessage: "use `target`" } },
+    });
+    const inputs = (toData(t) as Record<string, Record<string, unknown>>).inputs;
+    expect(inputs.env.deprecationMessage).toBe("use `target`");
+  });
 });
 
 describe("workflowCall", () => {
@@ -85,6 +96,35 @@ describe("workflowCall", () => {
     expect(data.outputs).toBeDefined();
     expect(data.secrets).toBeDefined();
     expect(t.kind).toBe("workflowCall");
+  });
+
+  // Python models each workflow_call sub-map entry as its own model with its
+  // own spec, so it emits in canonical key order. TypeScript had no spec for
+  // any of the three, so the values reached the Emitter as plain objects and
+  // emitted in the author's insertion order — the same program produced three
+  // different YAML orderings across the ports. Python is the reference order.
+  it("emits input defs in canonical key order, not insertion order", () => {
+    const t = workflowCall({
+      inputs: { version: { type: "string", description: "Version", required: true } },
+    });
+    const inputs = (toData(t) as Record<string, Record<string, unknown>>).inputs;
+    expect(Object.keys(inputs.version)).toEqual(["description", "required", "type"]);
+  });
+
+  it("emits output defs in canonical key order, not insertion order", () => {
+    const t = workflowCall({
+      outputs: { result: { value: "${{ jobs.build.outputs.result }}", description: "Result" } },
+    });
+    const outputs = (toData(t) as Record<string, Record<string, unknown>>).outputs;
+    expect(Object.keys(outputs.result)).toEqual(["description", "value"]);
+  });
+
+  it("emits secret defs in canonical key order, not insertion order", () => {
+    const t = workflowCall({
+      secrets: { token: { required: true, description: "API token" } },
+    });
+    const secrets = (toData(t) as Record<string, Record<string, unknown>>).secrets;
+    expect(Object.keys(secrets.token)).toEqual(["description", "required"]);
   });
 });
 
@@ -133,6 +173,19 @@ describe("on", () => {
     const data = toData(on({ delete_: null })) as Record<string, unknown>;
     expect(data).toHaveProperty("delete");
     expect(data).not.toHaveProperty("delete_");
+  });
+
+  it("emits pullRequestReview and pullRequestReviewComment", () => {
+    // Two schema-declared events neither port modelled: `on({ pullRequestReview:
+    // {} })` was TS2561 before, and `On(pull_request_review={})` raised.
+    const data = toData(
+      on({
+        pullRequestReview: { types: ["submitted"] },
+        pullRequestReviewComment: { types: ["created"] },
+      }),
+    ) as Record<string, unknown>;
+    expect(data.pull_request_review).toEqual({ types: ["submitted"] });
+    expect(data.pull_request_review_comment).toEqual({ types: ["created"] });
   });
 
   it("maps issueComment to issue_comment", () => {

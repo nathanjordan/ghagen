@@ -56,6 +56,27 @@ const SPECS: Record<string, Record<string, ModelSpec>> = {
     // reusable-workflow-call-job shapes.
     job: SPECS_BY_KIND.job,
     step: SPECS_BY_KIND.step,
+    // --- the on: sub-tree ---
+    on: SPECS_BY_KIND.on,
+    pushTrigger: SPECS_BY_KIND.pushTrigger,
+    // One spec covers both `pull_request` and `pull_request_target`.
+    prTrigger: SPECS_BY_KIND.prTrigger,
+    scheduleTrigger: SPECS_BY_KIND.scheduleTrigger,
+    workflowDispatch: SPECS_BY_KIND.workflowDispatch,
+    workflowDispatchInput: SPECS_BY_KIND.workflowDispatchInput,
+    workflowCall: SPECS_BY_KIND.workflowCall,
+    workflowCallInput: SPECS_BY_KIND.workflowCallInput,
+    workflowCallOutput: SPECS_BY_KIND.workflowCallOutput,
+    workflowCallSecret: SPECS_BY_KIND.workflowCallSecret,
+    // --- job sub-shapes ---
+    permissions: SPECS_BY_KIND.permissions,
+    container: SPECS_BY_KIND.container,
+    strategy: SPECS_BY_KIND.strategy,
+    concurrency: SPECS_BY_KIND.concurrency,
+    defaults: SPECS_BY_KIND.defaults,
+    defaultsRun: SPECS_BY_KIND.defaultsRun,
+    environment: SPECS_BY_KIND.environment,
+    imageSnapshot: SPECS_BY_KIND.imageSnapshot,
   },
   "action_schema.json": {
     action: SPECS_BY_KIND.action,

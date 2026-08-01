@@ -25,12 +25,15 @@ permissions = Permissions(
 | Parameter             | Type                                  | Default | Description                                                                          |
 | --------------------- | ------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
 | `actions`             | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `actions` scope.                                                  |
+| `artifact_metadata`   | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `artifact-metadata` scope. Serialized as `artifact-metadata`.     |
+| `attestations`        | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `attestations` scope.                                             |
 | `checks`              | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `checks` scope.                                                   |
 | `contents`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `contents` scope.                                                 |
 | `deployments`         | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `deployments` scope.                                              |
 | `discussions`         | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `discussions` scope.                                              |
 | `id_token`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `id-token` scope. Serialized as `id-token`.                       |
 | `issues`              | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `issues` scope.                                                   |
+| `models`              | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `models` scope. GitHub accepts only `read` or `none` here.        |
 | `packages`            | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `packages` scope.                                                 |
 | `pages`               | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `pages` scope.                                                    |
 | `pull_requests`       | `PermissionLevel \| Raw[str] \| None` | `None`  | Permission for the `pull-requests` scope. Serialized as `pull-requests`.             |

@@ -31,14 +31,27 @@ PR_TRIGGER_SPEC = ModelSpec(
     yaml_keys={
         "branches": "branches",
         "branches_ignore": "branches-ignore",
+        "tags": "tags",
+        "tags_ignore": "tags-ignore",
         "paths": "paths",
         "paths_ignore": "paths-ignore",
         "types": "types",
     },
-    order=("branches", "branches-ignore", "paths", "paths-ignore", "types"),
+    order=(
+        "branches",
+        "branches-ignore",
+        "tags",
+        "tags-ignore",
+        "paths",
+        "paths-ignore",
+        "types",
+    ),
 )
 
-SCHEDULE_TRIGGER_SPEC = ModelSpec(yaml_keys={"cron": "cron"}, order=("cron",))
+SCHEDULE_TRIGGER_SPEC = ModelSpec(
+    yaml_keys={"cron": "cron", "timezone": "timezone"},
+    order=("cron", "timezone"),
+)
 
 WORKFLOW_DISPATCH_INPUT_SPEC = ModelSpec(
     yaml_keys={
@@ -47,8 +60,17 @@ WORKFLOW_DISPATCH_INPUT_SPEC = ModelSpec(
         "default": "default",
         "type": "type",
         "options": "options",
+        # The schema spells this one in camelCase, unlike its five siblings.
+        "deprecation_message": "deprecationMessage",
     },
-    order=("description", "required", "default", "type", "options"),
+    order=(
+        "description",
+        "required",
+        "default",
+        "type",
+        "options",
+        "deprecationMessage",
+    ),
 )
 
 WORKFLOW_DISPATCH_SPEC = ModelSpec(
@@ -105,6 +127,14 @@ ON_SPEC = ModelSpec(
         "deployment_status": "deployment_status",
         "check_run": "check_run",
         "check_suite": "check_suite",
+        "branch_protection_rule": "branch_protection_rule",
+        "discussion": "discussion",
+        "discussion_comment": "discussion_comment",
+        "gollum": "gollum",
+        "merge_group": "merge_group",
+        "pull_request_review": "pull_request_review",
+        "pull_request_review_comment": "pull_request_review_comment",
+        "repository_dispatch": "repository_dispatch",
         "label": "label",
         "milestone": "milestone",
         "project": "project",
@@ -140,6 +170,8 @@ class PRTrigger(GhagenModel):
 
     branches: list[str] | None = None
     branches_ignore: list[str] | None = None
+    tags: list[str] | None = None
+    tags_ignore: list[str] | None = None
     paths: list[str] | None = None
     paths_ignore: list[str] | None = None
     types: list[str] | None = None
@@ -151,6 +183,7 @@ class ScheduleTrigger(GhagenModel):
     SPEC: ClassVar[ModelSpec] = SCHEDULE_TRIGGER_SPEC
 
     cron: str
+    timezone: str | None = None
 
 
 class WorkflowDispatchInput(GhagenModel):
@@ -171,6 +204,9 @@ class WorkflowDispatchInput(GhagenModel):
         | None
     ) = None
     options: list[str] | None = None
+    # Emitted as `deprecationMessage` — the Snapshot spells this key in
+    # camelCase while its five siblings are lowercase.
+    deprecation_message: str | None = None
 
 
 class WorkflowDispatchTrigger(GhagenModel):
@@ -250,6 +286,14 @@ class On(GhagenModel):
     deployment_status: OrRaw[dict[str, Any]] | None = None
     check_run: OrRaw[dict[str, Any]] | None = None
     check_suite: OrRaw[dict[str, Any]] | None = None
+    branch_protection_rule: OrRaw[dict[str, Any]] | None = None
+    discussion: OrRaw[dict[str, Any]] | None = None
+    discussion_comment: OrRaw[dict[str, Any]] | None = None
+    gollum: OrRaw[dict[str, Any]] | None = None
+    merge_group: OrRaw[dict[str, Any]] | None = None
+    pull_request_review: OrRaw[dict[str, Any]] | None = None
+    pull_request_review_comment: OrRaw[dict[str, Any]] | None = None
+    repository_dispatch: OrRaw[dict[str, Any]] | None = None
     label: OrRaw[dict[str, Any]] | None = None
     milestone: OrRaw[dict[str, Any]] | None = None
     project: OrRaw[dict[str, Any]] | None = None

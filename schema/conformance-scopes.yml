@@ -10,7 +10,10 @@
 #
 # A path is a list of keys to walk into the loaded schema before reading
 # `properties` (an empty list means the schema root). A scope may name several
-# paths whose unioned property set the mapped model must cover.
+# paths whose unioned property set the mapped model must cover. A path segment
+# may be an integer, which indexes a list -- the `on:` event map and the object
+# form of `snapshot` are `oneOf` alternatives and cannot be named any other way
+# short of restructuring the upstream snapshot.
 #
 # Read by:
 #   - Python (packages/python/tests/test_schema/test_conformance.py)
@@ -26,6 +29,49 @@ workflow_schema.json:
     - [definitions, reusableWorkflowCallJob]
   step:
     - [definitions, step]
+
+  # --- the on: sub-tree ---
+  # `properties.on` is a three-way oneOf; index 2 is the event-map alternative.
+  on:
+    - [properties, on, oneOf, 2]
+  pushTrigger:
+    - [properties, on, oneOf, 2, properties, push, oneOf, 1, allOf, 0]
+  prTrigger:
+    - [properties, on, oneOf, 2, properties, pull_request, oneOf, 1, allOf, 0]
+    - [properties, on, oneOf, 2, properties, pull_request_target, oneOf, 1, allOf, 0]
+  scheduleTrigger:
+    - [properties, on, oneOf, 2, properties, schedule, items]
+  workflowDispatch:
+    - [properties, on, oneOf, 2, properties, workflow_dispatch]
+  workflowDispatchInput:
+    - [definitions, workflowDispatchInput]
+  workflowCall:
+    - [properties, on, oneOf, 2, properties, workflow_call]
+  workflowCallInput:
+    - [properties, on, oneOf, 2, properties, workflow_call, properties, inputs]
+  workflowCallOutput:
+    - [properties, on, oneOf, 2, properties, workflow_call, properties, outputs]
+  workflowCallSecret:
+    - [properties, on, oneOf, 2, properties, workflow_call, properties, secrets]
+
+  # --- job sub-shapes ---
+  permissions:
+    - [definitions, permissions-event]
+  container:
+    - [definitions, container]
+  strategy:
+    - [definitions, normalJob, properties, strategy]
+  concurrency:
+    - [definitions, concurrency]
+  defaults:
+    - [definitions, defaults]
+  defaultsRun:
+    - [definitions, defaults, properties, run]
+  environment:
+    - [definitions, environment]
+  # `snapshot` is a two-way oneOf; index 1 is the mapping (object) form.
+  imageSnapshot:
+    - [definitions, snapshot, oneOf, 1]
 
 action_schema.json:
   action:

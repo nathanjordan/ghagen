@@ -259,4 +259,13 @@ describe("environment", () => {
     expect(toData(e)).toEqual({ name: "production", url: "https://example.com" });
     expect(e.kind).toBe("environment");
   });
+
+  it("emits deployment after name and url", () => {
+    // `deployment: false` uses the environment's secrets and variables without
+    // creating a deployment record; wait timers and reviewers still apply.
+    const e = environment({ name: "production", deployment: false });
+    const data = toData(e) as Record<string, unknown>;
+    expect(Object.keys(data)).toEqual(["name", "deployment"]);
+    expect(data.deployment).toBe(false);
+  });
 });
