@@ -81,9 +81,7 @@ describe("renderUpgradeReport() golden fixtures", () => {
   });
 
   test("pr-body matches the shared golden fixture", () => {
-    expect(renderUpgradeReport(fullReport(), "pr-body")).toEqual(
-      loadFixture("upgrade_pr_body.md"),
-    );
+    expect(renderUpgradeReport(fullReport(), "pr-body")).toEqual(loadFixture("upgrade_pr_body.md"));
   });
 
   test("issue-body matches the shared golden fixture", () => {

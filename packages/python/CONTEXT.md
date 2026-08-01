@@ -105,6 +105,13 @@ A version tag strictly newer than the current one, with the same prefix, plus it
 (major/minor/patch). `pin/versions` is the sole authority on both; the engine consumes Bumps and
 never compares versions itself. Equal versions produce no Bump.
 
+**Upgrade report**:
+What one `upgrade` run was **asked to check** and what it found — the **Bumps**, the stale lockfile
+entries, and a flag per stage recording what the run's mode asked for. The flags are set before the
+engine's no-refs early return, so every run carries them, and the rendered output's shape follows
+them rather than following what the run happened to find. "Asked for" is not "ran": the lockfile
+flag stays true when no lockfile is configured and the stage is skipped.
+
 ### Schema
 
 **Snapshot**:
@@ -151,6 +158,15 @@ framework renders the text, `main()` decides the number.
   `standalone_mode=False`, so the exit code is ghagen's decision rather than the framework's, and
   Typer's error rendering is reproduced explicitly. The synthesis pipeline is `synth.render()`; pin
   runs last (ADR-0005).
+- The upgrade path is three layers with one direction of dependency: `pin/engine` produces an
+  **Upgrade report** and never formats; `pin/render` turns that report into a string and never
+  writes, exits, or touches the network (`render_upgrade_report(report, output_format=...)` — one
+  function over all four formats, `text` the default); `cli/deps` owns stream selection and exit
+  codes only, and writes the returned string verbatim. The report's `checked_versions` /
+  `checked_lockfile` flags exist so the renderer never has to re-derive `--mode`, which is what
+  makes the `--format json` key set identical for empty and non-empty runs (ADR-0007;
+  `docs/specs/0005-typed-engine-report-seam.md` §2.2). All four formats are byte-compared against
+  shared goldens in `fixtures/expected/` by both ports.
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.

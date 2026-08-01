@@ -110,15 +110,28 @@ Derived verbatim from `VersionBump` / `LockfileStaleEntry` and the serializers:
 
 Invariants (all already true in code; the tests below freeze them):
 
-- `severity ∈ {"major","minor","patch"}` (the `Severity`/`BumpSeverity` literal).
+- `severity ∈ {"major","minor","patch"}` (the `BumpSeverity` literal — the
+  `Severity` alias was removed in proposal 14).
 - `source_files` is **omitted** when empty; a list of strings otherwise.
-- `version_bumps` is present only when `mode ∈ {versions, all}`; `lockfile_stale`
-  only when `mode ∈ {lockfile, all}` (deps.py:210-217 / deps.ts:196-201).
+- `version_bumps` is present exactly when `report.checked_versions` /
+  `report.checkedVersions`; `lockfile_stale` exactly when
+  `report.checked_lockfile` / `report.checkedLockfile`. Those flags are pure
+  functions of `mode` set by `upgrade()` itself, so the key set is
+  `mode ∈ {versions, all}` → `version_bumps`, `mode ∈ {lockfile, all}` →
+  `lockfile_stale`.
 - **No `helper_provided`, ever.**
-- Edge case to lock down: the "everything up to date" early return
-  (deps.py:196-206 / deps.ts:180-189) emits _both_ keys as `[]` regardless of
-  `mode`. Tests must assert this exactly (or the code is changed to honor `mode`
-  in the empty case too — pick one and pin it).
+- The empty case obeys the same rule as any other. **Amended by proposal 17**:
+  the "everything up to date" early return in the two CLI commands used to emit
+  _both_ keys as `[]` regardless of `mode`, which made the key set depend on
+  data the caller cannot predict. The carve-out is gone — the invariant above
+  now holds unconditionally, `mode versions` on an empty report emits exactly
+  `{"version_bumps": []}`, and the engine sets `checked_versions` /
+  `checked_lockfile` **before** its own no-refs early return so a project with
+  no pinnable refs renders the same key set as any other.
+- "Asked for" is not "ran": `checked_lockfile` stays true when the app has no
+  lockfile configured and the lockfile stage is skipped. A consumer that must
+  distinguish "no lockfile configured" from "checked, nothing stale" has to
+  consult the app, not the payload.
 
 ### 2.3 Where it is asserted
 
@@ -138,10 +151,18 @@ Reuse that pattern for the JSON seam:
 2. **Per-port serializer test.** In each port, construct an `UpgradeReport` with
    the same fixed data and assert the rendered `--json` string parses to the
    fixture JSON:
-   - Python `tests/test_cli/test_deps.py`: build the report, call the
-     serializer path, `assert json.loads(out) == json.loads(fixture_text)`.
-   - TypeScript new `src/cli/deps.test.ts`: same against `loadFixture(
-"upgrade_report.json")`.
+   - Python `tests/test_pin/test_render.py`: build the report, call
+     `render_upgrade_report(report, output_format="json")`,
+     `assert json.loads(out) == json.loads(fixture_text)`.
+   - TypeScript `src/pin/render.test.ts`: same, against
+     `loadFixture("upgrade_report.json")`.
+     (**Amended by proposal 17**: these assertions were originally written in
+     `tests/test_cli/test_deps.py` / `src/cli/deps.test.ts` because there was
+     no renderer seam to call. There is one now — `pin/render` — so they are
+     asserted on the pure function, and the CLI tests keep only the routing
+     and end-to-end payload-shape facts that are genuinely CLI. The text
+     format got its first shared golden at the same time,
+     `fixtures/expected/upgrade_text.txt`.)
      Because both ports assert against the **same** file, they are parity-checked
      transitively — the exact mechanism the YAML snapshots already use, so no new
      test infrastructure is required.
