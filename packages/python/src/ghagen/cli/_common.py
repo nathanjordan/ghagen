@@ -47,8 +47,11 @@ def _find_config(config: str | None) -> Path:
 def _load_app(config_path: Path) -> App:
     """Dynamically import the config file and extract the App instance.
 
-    The import happens here (so ``pin.track_user_files``'s ``sys.modules``
-    snapshot observes it); the module -> App *policy* lives in
+    The config's parent directory is on ``sys.path`` for the duration of the
+    import *and* of App resolution — a helper imported lazily inside
+    ``create_app()`` must still resolve (ADR-0004) — and is removed again
+    afterwards, so loading a config does not permanently widen the host
+    process's module search path. The module -> App *policy* lives in
     :func:`ghagen.config.resolve_app`, whose error value is rendered below.
     """
     spec = importlib.util.spec_from_file_location("ghagen_config", config_path)
@@ -56,15 +59,27 @@ def _load_app(config_path: Path) -> App:
         typer.echo(f"Error: cannot load {config_path}", err=True)
         raise typer.Exit(1)
 
-    # Add parent dir to sys.path so relative imports work
+    # Add parent dir to sys.path so relative imports work, scoped to the window
+    # below. The window must span BOTH statements: ``resolve_app`` invokes
+    # ``create_app()``, and a helper imported lazily in there resolves through
+    # this entry (ADR-0004).
     parent = str(config_path.parent.resolve())
-    if parent not in sys.path:
+    inserted = parent not in sys.path
+    if inserted:
         sys.path.insert(0, parent)
 
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+        app, error = resolve_app(module, config_path)
+    finally:
+        # Remove by index after checking identity, and only if this call did
+        # the inserting.
+        if inserted and sys.path and sys.path[0] == parent:
+            del sys.path[0]
 
-    app, error = resolve_app(module, config_path)
+    # The typer.Exit path sits outside the try, so the entry is already gone by
+    # the time the CLI renders the error.
     if error is not None:
         typer.echo(f"Error: {error.message}", err=True)
         raise typer.Exit(1)

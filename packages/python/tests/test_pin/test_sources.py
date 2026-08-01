@@ -125,6 +125,52 @@ class TestTrackUserFiles:
         finally:
             sys.modules.pop("lazy_helper", None)
 
+    def test_sys_path_insertion_is_scoped_to_the_import(self, tmp_path: Path):
+        """``track_user_files`` leaves ``sys.path`` exactly as it found it.
+
+        Both halves matter. The config's sibling helper must still resolve
+        *during* the call (asserting only restoration would also pass if the
+        insertion were simply deleted), and the entry must be gone afterwards
+        — otherwise every config load permanently prepends its directory to the
+        host process's module search path, shadowing later unrelated imports.
+        """
+        helper = tmp_path / "scoped_helper.py"
+        helper.write_text('CHECKOUT = "actions/checkout@v4"\n')
+
+        config = tmp_path / "scoped_cfg.py"
+        config.write_text(
+            "import scoped_helper\n"
+            "from ghagen.app import App\n"
+            "_ = scoped_helper.CHECKOUT\n"
+            "app = App(lockfile=None)\n"
+        )
+
+        parent = str(tmp_path.resolve())
+        before = list(sys.path)
+        assert parent not in before
+
+        try:
+            _app, user_files = track_user_files(config)
+            # The insertion was load-bearing during the import.
+            assert helper.resolve() in user_files
+        finally:
+            sys.modules.pop("scoped_helper", None)
+
+        assert sys.path == before
+
+    def test_sys_path_entry_the_caller_owns_is_left_alone(self, tmp_path: Path):
+        """Idempotency: only an entry this call inserted is removed."""
+        config = tmp_path / "owned_cfg.py"
+        config.write_text("from ghagen.app import App\napp = App(lockfile=None)\n")
+
+        parent = str(tmp_path.resolve())
+        sys.path.insert(0, parent)
+        try:
+            track_user_files(config)
+            assert parent in sys.path
+        finally:
+            sys.path.remove(parent)
+
     def test_excludes_ghagen_internals(self, tmp_path: Path):
         """Modules from the ghagen package itself should not appear."""
         config = tmp_path / "my_config.py"

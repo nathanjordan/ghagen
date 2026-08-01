@@ -48,9 +48,13 @@ def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {config_path}")
 
-    # Add parent dir to sys.path so the config's relative imports resolve.
+    # Add parent dir to sys.path so the config's relative imports resolve. The
+    # entry is scoped to the import window below: leaving it in place would
+    # permanently prepend this directory to the host process's module search
+    # path, shadowing every later unrelated import of a colliding name.
     parent = str(config_path.parent.resolve())
-    if parent not in sys.path:
+    inserted = parent not in sys.path
+    if inserted:
         sys.path.insert(0, parent)
 
     module = importlib.util.module_from_spec(spec)
@@ -59,10 +63,18 @@ def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
     # inside ``create_app()`` (rather than at config import time) is only added
     # to ``sys.modules`` when ``resolve_app`` invokes the factory. Snapshotting
     # ``after`` before that call would miss such helpers, silently leaving their
-    # ``uses:`` refs un-rewritten (ADR-0004's defended failure mode).
+    # ``uses:`` refs un-rewritten (ADR-0004's defended failure mode). The
+    # ``sys.path`` window closes after ``resolve_app`` for the same reason.
     before = set(sys.modules.keys())
-    spec.loader.exec_module(module)
-    app, error = resolve_app(module, config_path)
+    try:
+        spec.loader.exec_module(module)
+        app, error = resolve_app(module, config_path)
+    finally:
+        # Remove by index after checking identity, and only if this call did
+        # the inserting: a config that inserts its own copy of the same string
+        # during import must not be silently robbed of it.
+        if inserted and sys.path and sys.path[0] == parent:
+            del sys.path[0]
     after = set(sys.modules.keys())
 
     if error is not None:
