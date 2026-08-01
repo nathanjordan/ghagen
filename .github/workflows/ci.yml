@@ -175,4 +175,17 @@ jobs:
       uses: ./check-synth
       with:
         source: .
+    - id: check-deps
+      name: Test check-deps action (offline)
+      uses: ./check-deps
+      with:
+        source: .
+        dry-run: 'true'
+        config: fixtures/actions/all_pinned/ghagen_workflows.py
+    - name: Assert plan
+      run: |-
+        set -euo pipefail
+        [ "${{ steps.check-deps.outputs.action }}" = "none" ]
+        [ "${{ steps.check-deps.outputs.total_updates }}" = "0" ]
+        [ "${{ steps.check-deps.outputs.changed }}" = "false" ]
     timeout-minutes: 10

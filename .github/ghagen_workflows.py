@@ -5,6 +5,7 @@ from __future__ import annotations
 from ghagen import (
     Action,
     ActionInput,
+    ActionOutput,
     App,
     Branding,
     CompositeRuns,
@@ -174,6 +175,33 @@ def _ci_workflow() -> Workflow:
                         uses="./check-synth",
                         with_={"source": "."},
                     ),
+                    # The hermetic half of the check-deps exercise
+                    # docs/issues/05 asks for. It lives in this job rather than
+                    # a new one because every per-PR job in this repository is
+                    # tokenless, and this one is too: the fixture's refs are all
+                    # SHAs, so `collect_uses_refs` returns nothing and
+                    # `upgrade()` returns before either detection stage -- zero
+                    # HTTP requests, structurally. `source: .` is what makes it
+                    # exercise this commit rather than the last PyPI release.
+                    Step(
+                        name="Test check-deps action (offline)",
+                        id="check-deps",
+                        uses="./check-deps",
+                        with_={
+                            "source": ".",
+                            "dry-run": "true",
+                            "config": "fixtures/actions/all_pinned/ghagen_workflows.py",
+                        },
+                    ),
+                    Step(
+                        name="Assert plan",
+                        run="""
+                            set -euo pipefail
+                            [ "${{ steps.check-deps.outputs.action }}" = "none" ]
+                            [ "${{ steps.check-deps.outputs.total_updates }}" = "0" ]
+                            [ "${{ steps.check-deps.outputs.changed }}" = "false" ]
+                        """,
+                    ),
                 ],
             ),
         },
@@ -256,6 +284,96 @@ def _schema_drift_workflow() -> Workflow:
                             fi
                         """,
                         env={"GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
+                    ),
+                ],
+            ),
+        },
+    )
+
+
+def _check_deps_smoke_workflow() -> Workflow:
+    """Weekly networked smoke of the shipped ``check-deps`` action.
+
+    The half of the ``docs/issues/05`` exercise that has to talk to GitHub, kept
+    off pull requests on purpose. Every per-PR job in this repository is
+    hermetic and tokenless; the only workflows here allowed to call GitHub with
+    a token are ``schedule``/``workflow_dispatch`` ones, and this is modelled on
+    ``_schema_drift_workflow`` for exactly that reason. The offline half runs on
+    every PR inside CI's ``test-action`` job.
+
+    Both cases run with ``dry-run: 'true'``, so ``git push`` and ``gh pr create``
+    stay unexercised -- after this rewrite they are about fifteen lines of pure
+    I/O rather than a hundred and twelve lines of I/O and decisions.
+
+    The fixture pins ``actions/checkout@v1``, so a newer tag exists for as long
+    as that repository does and case 1's ``create-pr`` assertion is not
+    time-dependent. Residual upstream dependency, stated rather than hidden: if
+    ``actions/checkout`` were deleted or its tags rewritten this job goes red --
+    on a schedule, not on anyone's pull request, which is the right blast radius
+    for an assertion about someone else's repository.
+    """
+    return Workflow(
+        name="check-deps Smoke",
+        on=On(
+            schedule=[ScheduleTrigger(cron="0 10 * * 1")],
+            workflow_dispatch=WorkflowDispatchTrigger(),
+        ),
+        # Read-only: dry-run raises nothing, so nothing here needs write.
+        permissions=Permissions(contents=PermissionLevel.READ),
+        jobs={
+            "smoke": Job(
+                name="Smoke check-deps against a lockfile-less fixture",
+                runs_on="ubuntu-latest",
+                timeout_minutes=10,
+                steps=[
+                    Step(name="Checkout", uses="actions/checkout@v6"),
+                    # H7 and H7b, observed on the real shipped artifact. The
+                    # fixture is `App(lockfile=None)` with an outdated ref, so
+                    # `lockfile_stale` is necessarily empty while a bump is
+                    # real -- the exact combination under which the old shell
+                    # guard fired `ghagen deps pin --update` on a project where
+                    # that command exits 1.
+                    Step(
+                        name="Versions mode on a lockfile-less project",
+                        id="versions",
+                        uses="./check-deps",
+                        with_={
+                            "source": ".",
+                            "dry-run": "true",
+                            "mode": "versions",
+                            "config": (
+                                "fixtures/actions/lockfile_none/ghagen_workflows.py"
+                            ),
+                        },
+                    ),
+                    Step(
+                        name="Assert no lockfile cascade",
+                        run="""
+                            set -euo pipefail
+                            [ "${{ steps.versions.outputs.refresh_lockfile }}" = "false" ]
+                            [ "${{ steps.versions.outputs.action }}" = "create-pr" ]
+                        """,
+                    ),
+                    Step(
+                        name="Issue output on the same fixture",
+                        id="issue",
+                        uses="./check-deps",
+                        with_={
+                            "source": ".",
+                            "dry-run": "true",
+                            "output": "issue",
+                            "config": (
+                                "fixtures/actions/lockfile_none/ghagen_workflows.py"
+                            ),
+                        },
+                    ),
+                    Step(
+                        name="Assert issue plan",
+                        run="""
+                            set -euo pipefail
+                            [ "${{ steps.issue.outputs.action }}" = "create-issue" ]
+                            [ -z "${{ steps.issue.outputs.branch }}" ]
+                        """,
                     ),
                 ],
             ),
@@ -615,13 +733,22 @@ def _ghagen_check_action() -> Action:
 
 
 def _ghagen_update_action() -> Action:
-    """ghagen's own composite action wrapping ``ghagen deps upgrade``.
+    """ghagen's own composite action wrapping ``ghagen deps update``.
 
     Dogfooding: replaces the hand-written ``check-deps/action.yml`` so it is
-    generated, pinned, and drift-checked exactly like ``check-synth``. The
-    PR/issue-body builders use ``python3 - <<'PY'`` heredocs (same mechanism as
-    ``_release_workflow``'s homebrew-bump step), which ``auto_dedent`` and the
-    ``<<'PY'`` sentinel keep intact.
+    generated, pinned, and drift-checked exactly like ``check-synth``.
+
+    Two run blocks, zero decisions. The first runs ``ghagen deps update``,
+    which sweeps once, does every write the update needs, and appends its plan
+    to ``$GITHUB_OUTPUT``. The second does git and ``gh`` and nothing else.
+
+    What used to be here -- a ``python3 -c`` reader for ghagen's own JSON, a
+    reconstruction of the lockfile-refresh rule from that JSON, a label-parsing
+    loop written twice -- is gone. The lockfile rule in particular could never
+    be right here: the payload deliberately does not carry ``app.lockfile_path``,
+    so the guard fired ``ghagen deps pin --update`` on ``lockfile=None``
+    projects, where that command exits 1. ``pin/plan`` holds the ``App`` and
+    answers it once.
     """
     return Action(
         name="ghagen Update",
@@ -676,6 +803,63 @@ def _ghagen_update_action() -> Action:
                 required=False,
                 default="",
             ),
+            # Exact mirror of check-synth's `source` (:576-583 above). Without
+            # it a CI job writing `uses: ./check-deps` gets the action
+            # definition from the working tree but `pip install ghagen` from
+            # PyPI -- so it exercises the last published release and a
+            # regression introduced in the same PR passes. That is what kept
+            # docs/issues/05 unactionable rather than merely unaddressed.
+            "source": ActionInput(
+                description=(
+                    "Local source path to install from (for testing). "
+                    "Leave empty to install from PyPI."
+                ),
+                required=False,
+                default="",
+            ),
+            "dry-run": ActionInput(
+                description=(
+                    "Plan only: no source edits, no lockfile write, "
+                    "no git, no gh"
+                ),
+                required=False,
+                default="false",
+            ),
+        },
+        # Per-step `steps.<id>.outputs.*` are invisible outside a composite
+        # action, so without this block no caller -- including a CI job -- can
+        # assert anything about what the action decided. Named exhaustively:
+        # this is the surface a tag-pinned consumer reads.
+        outputs={
+            "action": ActionOutput(
+                description="none | create-pr | create-issue",
+                value="${{ steps.plan.outputs.action }}",
+            ),
+            "total_updates": ActionOutput(
+                description="Version bumps plus stale lockfile entries",
+                value="${{ steps.plan.outputs.total_updates }}",
+            ),
+            "refresh_lockfile": ActionOutput(
+                description=(
+                    "Whether the lockfile was re-resolved "
+                    "(always false when lockfile=None)"
+                ),
+                value="${{ steps.plan.outputs.refresh_lockfile }}",
+            ),
+            "branch": ActionOutput(
+                description="The dated branch, or empty unless action is create-pr",
+                value="${{ steps.plan.outputs.branch }}",
+            ),
+            "title": ActionOutput(
+                description="The PR or issue title",
+                value="${{ steps.plan.outputs.title }}",
+            ),
+            "changed": ActionOutput(
+                description=(
+                    "Whether anything was written (always false under dry-run)"
+                ),
+                value="${{ steps.plan.outputs.changed }}",
+            ),
         },
         runs=CompositeRuns(
             steps=[
@@ -686,7 +870,9 @@ def _ghagen_update_action() -> Action:
                 Step(
                     name="Install ghagen",
                     run="""
-                        if [ -n "${{ inputs.ghagen-version }}" ]; then
+                        if [ -n "${{ inputs.source }}" ]; then
+                          pip install "${{ inputs.source }}"
+                        elif [ -n "${{ inputs.ghagen-version }}" ]; then
                           pip install "ghagen==${{ inputs.ghagen-version }}"
                         else
                           pip install ghagen
@@ -694,42 +880,40 @@ def _ghagen_update_action() -> Action:
                     """,
                     shell="bash",
                 ),
+                # One sweep, one plan, one append. No `|| true`: the CLI's exit
+                # code is the step's, and its one-line diagnostic is the log.
+                # The previous shape ended the detect command in `|| true` and
+                # then parsed the file it was supposed to have written, so any
+                # CLI failure surfaced as exit 1 plus a JSONDecodeError
+                # traceback from the reader instead.
                 Step(
-                    name="Detect outdated dependencies",
-                    id="detect",
+                    name="Plan dependency updates",
+                    id="plan",
                     env={"GITHUB_TOKEN": "${{ inputs.token }}"},
                     run="""
                         set -euo pipefail
 
-                        JSON_FILE=$(mktemp)
-                        ghagen deps upgrade --check --format json --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$JSON_FILE" || true
-
-                        VERSION_BUMPS=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('version_bumps',[])))")
-                        LOCKFILE_STALE=$(python3 -c "import json; d=json.load(open('$JSON_FILE')); print(len(d.get('lockfile_stale',[])))")
-
-                        echo "version_bumps=$VERSION_BUMPS" >> "$GITHUB_OUTPUT"
-                        echo "lockfile_stale=$LOCKFILE_STALE" >> "$GITHUB_OUTPUT"
-
-                        TOTAL=$((VERSION_BUMPS + LOCKFILE_STALE))
-                        echo "total_updates=$TOTAL" >> "$GITHUB_OUTPUT"
-
-                        if [ "$TOTAL" -eq 0 ]; then
-                          echo "No dependency updates found."
-                        else
-                          echo "Found $VERSION_BUMPS version bump(s) and $LOCKFILE_STALE stale lockfile entry/entries."
-                        fi
+                        ghagen deps update \\
+                          --config "${{ inputs.config }}" \\
+                          --mode "${{ inputs.mode }}" \\
+                          --output "${{ inputs.output }}" \\
+                          --labels "${{ inputs.labels }}" \\
+                          --branch-prefix "${{ inputs.branch-prefix }}" \\
+                          --commit-message-prefix "${{ inputs.commit-message-prefix }}" \\
+                          --body-file "$RUNNER_TEMP/ghagen-body.md" \\
+                          ${{ inputs.dry-run == 'true' && '--dry-run' || '' }} \\
+                          --format github >> "$GITHUB_OUTPUT"
                     """,
                     shell="bash",
                 ),
+                # git and `gh`, and nothing else. Every value it uses was
+                # decided by `pin/plan` and handed over as a step output.
                 Step(
-                    name="Exit early if no updates",
-                    if_="steps.detect.outputs.total_updates == '0'",
-                    run='echo "Everything is up to date."',
-                    shell="bash",
-                ),
-                Step(
-                    name="Create PR",
-                    if_="steps.detect.outputs.total_updates != '0' && inputs.output == 'pr'",
+                    name="Raise PR or issue",
+                    if_=(
+                        "steps.plan.outputs.action != 'none' "
+                        "&& inputs.dry-run != 'true'"
+                    ),
                     env={
                         "GITHUB_TOKEN": "${{ inputs.token }}",
                         "GH_TOKEN": "${{ inputs.token }}",
@@ -737,99 +921,75 @@ def _ghagen_update_action() -> Action:
                     run=r"""
                         set -euo pipefail
 
-                        BRANCH="${{ inputs.branch-prefix }}$(date +%Y%m%d)"
-                        PREFIX="${{ inputs.commit-message-prefix }}"
+                        BODY_FILE="$RUNNER_TEMP/ghagen-body.md"
 
-                        # Build label args as an array to avoid eval
+                        # Already split and trimmed by the CLI; this only turns
+                        # a comma-separated string into argv without eval.
                         LABEL_ARGS=()
-                        if [ -n "${{ inputs.labels }}" ]; then
-                          IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
+                        if [ -n "${{ steps.plan.outputs.labels }}" ]; then
+                          IFS=',' read -ra LABELS <<< "${{ steps.plan.outputs.labels }}"
                           for label in "${LABELS[@]}"; do
-                            trimmed=$(echo "$label" | xargs)
-                            LABEL_ARGS+=(--label "$trimmed")
+                            LABEL_ARGS+=(--label "$label")
                           done
                         fi
 
-                        # Check if branch/PR already exists
-                        EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-                        if [ -n "$EXISTING_PR" ]; then
-                          echo "PR #$EXISTING_PR already exists for branch $BRANCH. Skipping."
-                          exit 0
-                        fi
+                        case "${{ steps.plan.outputs.action }}" in
+                          create-pr)
+                            BRANCH="${{ steps.plan.outputs.branch }}"
 
-                        # Render the PR body before applying updates, so the report
-                        # reflects the pending changes rather than the post-apply state.
-                        BODY_FILE=$(mktemp)
-                        ghagen deps upgrade --check --format pr-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
+                            # Dedupe on the thing `git push` will actually
+                            # collide with -- the branch -- not on open PRs,
+                            # which misses a same-day branch whose PR was
+                            # closed. Distinguishes absent (2) from failed
+                            # (anything else) rather than swallowing both;
+                            # `--force-with-lease` is deliberately not used,
+                            # since actions/checkout fetches a single ref so
+                            # there is no remote-tracking ref to lease against.
+                            set +e
+                            git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null
+                            LS=$?
+                            set -e
+                            case "$LS" in
+                              0) echo "Branch $BRANCH already exists; skipping."; exit 0 ;;
+                              2) : ;;
+                              *) echo "::error::git ls-remote failed ($LS)"; exit "$LS" ;;
+                            esac
 
-                        git config user.name "github-actions[bot]"
-                        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                        git checkout -b "$BRANCH"
+                            if [ "${{ steps.plan.outputs.changed }}" != "true" ]; then
+                              echo "No file changes after applying updates."
+                              exit 0
+                            fi
 
-                        # Apply version bumps if any
-                        if [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-                          ghagen deps upgrade --mode versions --config "${{ inputs.config }}"
-                        fi
+                            git config user.name "github-actions[bot]"
+                            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                            git checkout -b "$BRANCH"
+                            git add -A
+                            git commit -m "${{ steps.plan.outputs.commit_message }}"
+                            git push -u origin "$BRANCH"
 
-                        # Refresh lockfile
-                        if [ "${{ steps.detect.outputs.lockfile_stale }}" != "0" ] || [ "${{ steps.detect.outputs.version_bumps }}" != "0" ]; then
-                          ghagen deps pin --config "${{ inputs.config }}" --update
-                        fi
+                            gh pr create \
+                              --title "${{ steps.plan.outputs.title }}" \
+                              --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                            ;;
+                          create-issue)
+                            # No `|| echo ""`: an API failure here used to read
+                            # as "no existing issue" and open a duplicate.
+                            # `// empty` because `.[0].number` on an empty list
+                            # prints the string "null", which is not empty and
+                            # would skip forever.
+                            EXISTING=$(gh issue list \
+                              --search "${{ steps.plan.outputs.title }} in:title" \
+                              --state open --json number --jq '.[0].number // empty')
+                            if [ -n "$EXISTING" ]; then
+                              echo "Issue #$EXISTING already exists. Skipping."
+                              exit 0
+                            fi
 
-                        # Check if there are actual changes
-                        if git diff --quiet && git diff --cached --quiet; then
-                          echo "No file changes after applying updates."
-                          rm -f "$BODY_FILE"
-                          exit 0
-                        fi
-
-                        # Build commit message
-                        COMMIT_MSG="update ghagen action dependencies"
-                        if [ -n "$PREFIX" ]; then
-                          COMMIT_MSG="${PREFIX} ${COMMIT_MSG}"
-                        fi
-
-                        git add -A
-                        git commit -m "$COMMIT_MSG"
-                        git push -u origin "$BRANCH"
-
-                        gh pr create --title "$COMMIT_MSG" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
-                        rm -f "$BODY_FILE"
-                    """,
-                    shell="bash",
-                ),
-                Step(
-                    name="Create issue",
-                    if_="steps.detect.outputs.total_updates != '0' && inputs.output == 'issue'",
-                    env={"GH_TOKEN": "${{ inputs.token }}"},
-                    run=r"""
-                        set -euo pipefail
-
-                        TITLE="ghagen dependency updates available ($(date +%Y-%m-%d))"
-
-                        # Build label args as an array
-                        LABEL_ARGS=()
-                        if [ -n "${{ inputs.labels }}" ]; then
-                          IFS=',' read -ra LABELS <<< "${{ inputs.labels }}"
-                          for label in "${LABELS[@]}"; do
-                            trimmed=$(echo "$label" | xargs)
-                            LABEL_ARGS+=(--label "$trimmed")
-                          done
-                        fi
-
-                        # Check if issue already exists
-                        EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
-                        if [ -n "$EXISTING" ]; then
-                          echo "Issue #$EXISTING already exists. Skipping."
-                          exit 0
-                        fi
-
-                        # Render the issue body from the upgrade report
-                        BODY_FILE=$(mktemp)
-                        ghagen deps upgrade --check --format issue-body --mode "${{ inputs.mode }}" --config "${{ inputs.config }}" > "$BODY_FILE"
-
-                        gh issue create --title "$TITLE" --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
-                        rm -f "$BODY_FILE"
+                            gh issue create \
+                              --title "${{ steps.plan.outputs.title }}" \
+                              --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                            ;;
+                        esac
                     """,
                     shell="bash",
                 ),
@@ -843,6 +1003,7 @@ def create_app() -> App:
     app = App()
     app.add_workflow(_ci_workflow(), "ci.yml")
     app.add_workflow(_schema_drift_workflow(), "schema-drift.yml")
+    app.add_workflow(_check_deps_smoke_workflow(), "check-deps-smoke.yml")
     app.add_workflow(_release_workflow(), "release.yml")
     app.add_workflow(_docs_workflow(), "docs.yml")
     app.add_action(_ghagen_check_action(), dir="check-synth")
