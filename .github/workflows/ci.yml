@@ -39,13 +39,28 @@ jobs:
     - name: Install TS deps
       run: npm ci
       working-directory: packages/typescript
-    - name: Install docs deps
-      run: npm ci
-      working-directory: docs
     - name: Lint
       run: scripts/lint.sh ts
     - name: Format check
       run: scripts/fmt.sh ts
+    timeout-minutes: 10
+  lint-docs:
+    name: Lint (docs)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
+      with:
+        node-version: '24'
+    - name: Install docs deps
+      run: npm ci
+      working-directory: docs
+    - name: Lint
+      run: scripts/lint.sh docs
+    - name: Format check
+      run: scripts/fmt.sh docs
     timeout-minutes: 10
   lint-meta:
     name: Lint (meta)
@@ -66,14 +81,8 @@ jobs:
       working-directory: packages/typescript
     - name: actionlint
       uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca  # v1.7.12
-    - name: ghagen deps check-synced
-      run: uv run ghagen deps check-synced
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Schema types up to date
-      run: uv run python -m ghagen_schema check
-      env:
-        PYTHONPATH: scripts
+    - name: Meta lint
+      run: scripts/lint.sh meta
     timeout-minutes: 10
   typecheck-py:
     name: Type check (Python)
