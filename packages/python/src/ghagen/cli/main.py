@@ -8,12 +8,12 @@ from pathlib import Path
 import typer
 import typer.core
 import typer.main
-from typer import rich_utils
 
-# Typer 0.27 vendors click as `typer._click` and does not depend on the
-# top-level `click` distribution at all, so this is the only import path for
-# the exception types click raises out of `command.main()`.
-from typer._click.exceptions import Abort, ClickException
+# `uv.lock` pins typer 0.24.1, which depends on the top-level `click` 8.3.2
+# distribution rather than vendoring it. These are the exception types click
+# raises out of `command.main()` under `standalone_mode=False`.
+from click.exceptions import Abort, ClickException
+from typer import rich_utils
 
 from ghagen.cli._common import _find_config, _load_app
 from ghagen.cli.deps import deps_app
