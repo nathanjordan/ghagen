@@ -1,0 +1,38 @@
+# The one exit-code contract. Both ports drive this through main().
+#
+#   0  success
+#   1  expected failure (stale files, unresolved refs, config not found)
+#   2  usage error (unknown command/option, missing or invalid option value)
+#
+# Rows are project-independent: none of them loads a user config module, so the
+# driver only has to chdir into an empty directory.
+- id: help
+  argv: ["--help"]
+  exit: 0
+- id: no-args
+  argv: []
+  exit: 2
+- id: subapp-no-subcommand
+  argv: ["deps"]
+  exit: 2
+- id: unknown-command
+  argv: ["bogus-command"]
+  exit: 2
+- id: unknown-option
+  argv: ["synth", "--bogus"]
+  exit: 2
+- id: missing-option-argument
+  argv: ["init", "--outdir"]
+  exit: 2
+- id: bad-format-value
+  argv: ["deps", "upgrade", "--format", "bogus"]
+  exit: 2
+- id: bad-mode-value
+  argv: ["deps", "upgrade", "--mode", "bogus"]
+  exit: 2
+- id: config-not-found-discovery
+  argv: ["synth"]
+  exit: 1
+- id: config-not-found-flag
+  argv: ["synth", "--config", "does-not-exist.py"]
+  exit: 1

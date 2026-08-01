@@ -3,7 +3,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { findConfig, loadApp } from "./_common.js";
 import { CliError } from "./_errors.js";
 import { buildDepsCommand } from "./deps.js";
@@ -121,13 +121,46 @@ function buildCli(): Command {
   return program;
 }
 
-/** Run the CLI. Returns the exit code. */
+/** Exit code for a usage error, per `fixtures/cli-exit-codes.yml`. */
+const EXIT_USAGE = 2;
+
+/**
+ * Hand every command in the tree back to {@link main} instead of `process.exit`.
+ *
+ * A root-only `program.exitOverride()` reaches nothing: commander stores
+ * `_exitCallback` per-`Command` and never looks it up through the parent chain.
+ * `.command()` children copy it from the parent at *creation* time
+ * (`copyInheritedSettings`), and `.addCommand()` children -- which is how the
+ * `deps` subtree is mounted -- never copy it at all. So the trap has to be
+ * applied to the already-built tree, node by node.
+ */
+function trapExits(cmd: Command): void {
+  cmd.exitOverride();
+  for (const sub of cmd.commands) {
+    trapExits(sub);
+  }
+}
+
+/**
+ * Run the CLI. Returns the exit code, for every argv -- `0` success, `1`
+ * expected failure, `2` usage error (`fixtures/cli-exit-codes.yml`).
+ *
+ * The frameworks render the text; this function decides the number.
+ */
 export async function main(argv: readonly string[]): Promise<number> {
   const program = buildCli();
+  trapExits(program);
   try {
     await program.parseAsync(argv as string[], { from: "user" });
     return 0;
   } catch (err) {
+    // CommanderError must be tested before CliError: both extend Error.
+    if (err instanceof CommanderError) {
+      // commander has already written the help/error text; only the code is
+      // ours. `exitCode` is the discriminator, not `code`: `commander.help`
+      // carries 0 for an explicit `help` command and 1 for the no-args path.
+      return err.exitCode === 0 ? 0 : EXIT_USAGE;
+    }
     if (err instanceof CliError) {
       if (err.message) {
         process.stderr.write(`${err.message}\n`);
@@ -139,7 +172,12 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 }
 
-// Entry point when invoked directly via the bin shim.
+// Entry point when invoked directly via the bin shim. `process.exitCode` rather
+// than `process.exit()`: the latter does not wait for pending async writes, so a
+// large piped payload (`ghagen deps upgrade --check --format json | jq`) can be
+// truncated where a `> file` redirect would not.
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
-  main(process.argv.slice(2)).then((code) => process.exit(code));
+  main(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+  });
 }
