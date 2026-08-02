@@ -7,13 +7,17 @@ The pure helpers are unit-tested directly.
 
 from __future__ import annotations
 
+import urllib.request
+
 import pytest
 
 from ghagen.pin.github import (
+    API_TIMEOUT_SECONDS,
     GitHubClient,
     ResolveError,
     Response,
     TransportError,
+    UrllibTransport,
     _commit_sha,
     _is_annotated_tag,
     _parse_next_link,
@@ -204,6 +208,62 @@ class TestMalformedJson:
         client = GitHubClient(transport)
         with pytest.raises(ResolveError, match="Failed to parse JSON response"):
             client.list_tags("actions", "checkout")
+
+
+class _StubHTTPResponse:
+    """The smallest thing ``UrllibTransport.get`` will accept from ``urlopen``."""
+
+    status = 200
+    reason = "OK"
+    headers: dict[str, str] = {}
+
+    def read(self, *args: object) -> bytes:
+        return b"{}"
+
+    def read1(self, *args: object) -> bytes:
+        return b""
+
+    def __enter__(self) -> _StubHTTPResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+class TestDefaultDeadline:
+    """The production adapter's *default* deadline, which nothing else observes.
+
+    The conformance table always builds the adapter with an explicit deadline
+    (``loopback_adapter``'s ``build``), so deleting the default would leave the
+    whole suite green while shipping a transport that can hang forever.  These
+    tests observe the value the default-constructed adapter actually hands to
+    the underlying I/O call.
+    """
+
+    def _captured_timeout(self, monkeypatch, transport: UrllibTransport) -> object:
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(req: object, **kwargs: object) -> _StubHTTPResponse:
+            captured["timeout"] = kwargs.get("timeout")
+            return _StubHTTPResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        transport.get("http://origin.test/contract")
+        return captured["timeout"]
+
+    def test_default_constructed_adapter_uses_the_declared_deadline(self, monkeypatch):
+        assert (
+            self._captured_timeout(monkeypatch, UrllibTransport()) == API_TIMEOUT_SECONDS
+        )
+
+    def test_explicit_deadline_overrides_the_default(self, monkeypatch):
+        # Pins API_TIMEOUT_SECONDS as the *default argument* rather than a
+        # constant hardcoded into the request.
+        assert self._captured_timeout(monkeypatch, UrllibTransport(timeout=1.5)) == 1.5
+
+    def test_declared_deadline_matches_the_typescript_port(self):
+        # `API_TIMEOUT_MS = 30_000` in packages/typescript/src/pin/github.ts.
+        assert API_TIMEOUT_SECONDS == 30.0
 
 
 class TestResponse:

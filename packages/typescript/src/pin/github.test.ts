@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  API_TIMEOUT_MS,
+  FetchTransport,
   GitHubClient,
   ResolveError,
   TransportError,
@@ -8,7 +10,7 @@ import {
   parseNextLink,
   refUrls,
 } from "./github.js";
-import { FakeTransport, canned, cannedRaw } from "./transport-contract.js";
+import { FakeTransport, LoopbackOrigin, canned, cannedRaw } from "./transport-contract.js";
 const SHA = "a".repeat(40);
 const TAG_SHA = "b".repeat(40);
 
@@ -153,6 +155,47 @@ describe("a malformed 200 surfaces as ResolveError", () => {
     await expect(client.listTags("actions", "checkout")).rejects.toThrow(
       /Failed to parse JSON response/,
     );
+  });
+});
+
+/**
+ * The production adapter's *default* deadline, which nothing else observes.
+ *
+ * The conformance table always builds the adapter with an explicit deadline
+ * (`loopbackAdapter`'s `build`), so deleting the default — or dropping the
+ * `signal` from the `fetch` call altogether — would leave the whole suite green
+ * while shipping a transport that can hang forever. These tests observe the
+ * deadline the default-constructed adapter actually arms.
+ *
+ * Peer of Python's `TestDefaultDeadline`.
+ */
+describe("FetchTransport's default deadline", () => {
+  /** Run one GET against a loopback origin, returning the armed deadlines. */
+  async function armedDeadlines(transport: FetchTransport): Promise<number[]> {
+    const spy = vi.spyOn(AbortSignal, "timeout");
+    const origin = new LoopbackOrigin((socket) => {
+      socket.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}");
+    });
+    await origin.start();
+    try {
+      await transport.get(origin.url);
+    } finally {
+      await origin.stop();
+    }
+    return spy.mock.calls.map(([ms]) => ms);
+  }
+
+  it("arms the declared deadline when constructed with no argument", async () => {
+    expect(await armedDeadlines(new FetchTransport())).toEqual([API_TIMEOUT_MS]);
+  });
+
+  it("arms an explicit deadline instead, so the constant is the default", async () => {
+    expect(await armedDeadlines(new FetchTransport(1_500))).toEqual([1_500]);
+  });
+
+  it("declares the same deadline as the Python port", () => {
+    // `API_TIMEOUT_SECONDS = 30.0` in packages/python/src/ghagen/pin/github.py.
+    expect(API_TIMEOUT_MS).toBe(30_000);
   });
 });
 
