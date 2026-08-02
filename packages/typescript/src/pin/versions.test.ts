@@ -8,10 +8,12 @@
  * same table means both implement the same grammar — cross-port behaviour
  * agreement, structurally.
  *
- * Each section carries a consumed-every-key guard, mirroring the scope-key
+ * Each section carries a consumed-every-row guard, mirroring the scope-key
  * parity assertion the conformance sweeps already use: a row this driver does
- * not run fails a test, so a case added for one port cannot silently skip the
- * other.
+ * not *execute* fails a test, so a case added for one port cannot silently
+ * skip the other. The guards compare the ids the test bodies recorded against
+ * the file read fresh from disk — never two views of the same in-memory
+ * object, which is a comparison that cannot fail.
  */
 
 import { readFileSync } from "node:fs";
@@ -51,9 +53,28 @@ const COMPARE_CASES: readonly (readonly [number, CompareRow])[] = TABLE.compare.
   (row, i) => [i, row] as const,
 );
 
+/**
+ * Row ids the drivers below actually ran, recorded by the test bodies.
+ *
+ * The guards at the end of each block compare these against the table read
+ * fresh from disk. Comparing the collected-cases list against `TABLE` instead
+ * would be a tautology — both sides come from the same object, so a driver
+ * that is handed every row and quietly declines to check some of them (an
+ * early `return`, a body that ignores its argument, a case list that was
+ * sliced) still looks complete. Only what a body executed counts as driven.
+ */
+const drivenParse = new Set<string>();
+const drivenCompare = new Set<number>();
+
+/** The table as it is on disk right now, read independently of `TABLE`. */
+function tableOnDisk(): Table {
+  return parse(readFileSync(TABLE_PATH, "utf8")) as Table;
+}
+
 describe("parseTag() — the shared tag grammar", () => {
   for (const [tag, expected] of PARSE_CASES) {
     it(`parses ${JSON.stringify(tag)}`, () => {
+      drivenParse.add(tag);
       const parsed = parseTag(tag);
       if (expected === null) {
         expect(parsed).toBeNull();
@@ -66,14 +87,17 @@ describe("parseTag() — the shared tag grammar", () => {
     });
   }
 
-  it("drives every row of the shared parse map", () => {
-    expect(PARSE_CASES.map(([tag]) => tag).sort()).toEqual(Object.keys(TABLE.parse).sort());
+  // Registered last, so it runs after the drivers above; it is meaningful
+  // only in a whole-file run.
+  it("checks every row of the shared parse map", () => {
+    expect([...drivenParse].sort()).toEqual(Object.keys(tableOnDisk().parse).sort());
   });
 });
 
 describe("latestBump() — the shared tag grammar", () => {
   for (const [i, row] of COMPARE_CASES) {
     it(`compare row ${i} (${row.current})`, () => {
+      drivenCompare.add(i);
       const bump = latestBump(row.current, row.available);
       if (row.latest === null) {
         expect(bump).toBeNull();
@@ -86,7 +110,9 @@ describe("latestBump() — the shared tag grammar", () => {
     });
   }
 
-  it("drives every row of the shared compare list", () => {
-    expect(COMPARE_CASES.map(([, row]) => row)).toEqual([...TABLE.compare]);
+  it("checks every row of the shared compare list", () => {
+    expect([...drivenCompare].sort((a, b) => a - b)).toEqual(
+      tableOnDisk().compare.map((_, i) => i),
+    );
   });
 });

@@ -220,9 +220,9 @@ describe("a shape-malformed 200 surfaces as ResolveError", () => {
       // `TestMalformedShape.test_message_shape_matches_the_typescript_port`.
       const url = "https://api.github.com/repos/actions/checkout/git/ref/tags/v4";
       const transport = new FakeTransport({ "git/ref/tags/v4": canned(body) });
-      await expect(new GitHubClient(transport).resolveRef("actions", "checkout", "v4")).rejects.toThrow(
-        `Unexpected response shape from ${url}: ${detail}`,
-      );
+      await expect(
+        new GitHubClient(transport).resolveRef("actions", "checkout", "v4"),
+      ).rejects.toThrow(`Unexpected response shape from ${url}: ${detail}`);
     });
   }
 
