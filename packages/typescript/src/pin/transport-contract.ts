@@ -9,10 +9,11 @@
  * Two builders construct canned responses: `canned()` encodes a JSON value,
  * `cannedRaw()` takes a body verbatim (a malformed 200, a truncated payload).
  *
- * Rows 8-11 put the adapter in front of a **raw socket**, not a
+ * Rows 8-12 put the adapter in front of a **raw socket**, not a
  * request-handling server: `node:http`'s `createServer` always frames a
  * well-formed response, so it cannot express "peer closes without answering"
- * (row 9) or "declared `Content-Length: 100`, delivered 5 bytes" (row 11).
+ * (row 9), "declared `Content-Length: 100`, delivered 5 bytes" (row 11), or
+ * "trickle a byte at a time forever" (row 12).
  *
  * Test-only; excluded from the build in `tsconfig.json` beside
  * `src/integration/test-utils.ts`.
@@ -151,12 +152,13 @@ export const RESPONSE_CASES: readonly ResponseCase[] = [
   new ResponseCase("no-token", 200, "OK", "{}"),
 ];
 
-/** Rows 8-11 — a canned double satisfies these by construction, so it skips them. */
+/** Rows 8-12 — a canned double satisfies these by construction, so it skips them. */
 export const FAILURE_CASES: readonly string[] = [
   "connection-refused",
   "abrupt-close",
   "stall-mid-body",
   "truncated-body",
+  "dribble-body",
 ];
 
 export const ALL_CASES: ReadonlyArray<ResponseCase | string> = [
@@ -173,6 +175,16 @@ export function caseId(testCase: ResponseCase | string): string {
 
 /** A head that promises 100 bytes and is followed by 5, used by rows 10 and 11. */
 const UNDERDELIVERED = "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n12345";
+
+/**
+ * Row 12's shape: one body byte every `DRIBBLE_INTERVAL_MS` for 10s.
+ *
+ * The interval must exceed `FAILURE_DEADLINE_MS / 2` so that a *per-socket*
+ * timeout of one deadline never fires — which is exactly what makes the row
+ * distinguish a wall-clock deadline from a per-operation one.
+ */
+const DRIBBLE_INTERVAL_MS = 200;
+const DRIBBLE_LENGTH = 50;
 
 type Handler = (socket: Socket) => void;
 
@@ -254,6 +266,28 @@ const FAILURE_HANDLERS: Record<string, Handler | null> = {
   "truncated-body": (socket) => {
     socket.write(UNDERDELIVERED);
     socket.end();
+  },
+  /**
+   * Row 12 — send one body byte every 200ms for 10s.
+   *
+   * The row rows 10 and 11 cannot express. A *stalled* peer is caught by a
+   * per-socket-operation timeout too, because no operation completes; a peer
+   * that keeps trickling resets that timeout forever, so only an adapter
+   * honouring a genuine **wall-clock** deadline aborts. `AbortSignal.timeout`
+   * is one; `urlopen(timeout=)` alone is not.
+   */
+  "dribble-body": (socket) => {
+    socket.write(`HTTP/1.1 200 OK\r\nContent-Length: ${DRIBBLE_LENGTH}\r\n\r\n`);
+    let sent = 0;
+    const timer = setInterval(() => {
+      if (sent++ >= DRIBBLE_LENGTH || socket.destroyed) {
+        clearInterval(timer);
+        return;
+      }
+      socket.write("x");
+    }, DRIBBLE_INTERVAL_MS);
+    timer.unref();
+    socket.on("close", () => clearInterval(timer));
   },
 };
 

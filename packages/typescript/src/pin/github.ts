@@ -97,10 +97,27 @@ export class HttpResponse {
  * conformance table in `transport-contract.ts` runs it against each of them,
  * and its Python peer runs the identical table.
  *
- * **Deadline.** A `get` settles — resolving or rejecting — within
- * `API_TIMEOUT_MS`, *including reading the body*. Production adapters take the
- * deadline as one defaulted constructor argument so the promise is testable
- * rather than merely stated.
+ * **Deadline — wall clock, not per operation.** A `get` settles — resolving or
+ * rejecting — within `API_TIMEOUT_MS` measured on the wall clock from the
+ * moment it is called, *including reading the body*. The distinction is the
+ * whole point: a per-socket-operation timeout is reset by every byte that
+ * arrives, so a peer trickling one byte per interval holds the call open
+ * indefinitely while never exceeding it. Row 12 of the conformance table
+ * (`dribble-body`) is that peer, and it is what an adapter must survive.
+ *
+ * One phase is excluded, in both ports' wording though not in this port's
+ * fact: the response **head**. Python's `UrllibTransport` delegates
+ * connect-and-read-headers to `urlopen`, which admits only a per-operation
+ * timeout, so an origin that trickles *header* bytes is bounded per operation
+ * there; `AbortSignal.timeout` covers it here. The guarantee stated is the
+ * intersection — wall-clock from the first body byte, per-operation before it
+ * — so that the interface promises only what both ports deliver. This port
+ * exceeds it; see `UrllibTransport._read_within` in `pin/github.py`.
+ *
+ * Production adapters take the deadline as one defaulted constructor argument
+ * so the promise is testable rather than merely stated, and the default itself
+ * is pinned by a test (`FetchTransport's default deadline` and its Python
+ * peer) because the table always supplies an explicit one.
  *
  * **Error taxonomy — total.** `get` either resolves with an `HttpResponse` or
  * rejects with `TransportError`, and nothing else:
