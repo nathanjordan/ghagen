@@ -840,8 +840,11 @@ def _ghagen_update_action() -> Action:
                 value="${{ steps.plan.outputs.total_updates }}",
             ),
             "refresh_lockfile": ActionOutput(
+                # A decision, not an outcome: `pin/plan` documents every
+                # `UpdatePlan` field as what to do, and this one reads `true`
+                # under `--dry-run` with nothing re-resolved.
                 description=(
-                    "Whether the lockfile was re-resolved "
+                    "Whether the lockfile is to be re-resolved "
                     "(always false when lockfile=None)"
                 ),
                 value="${{ steps.plan.outputs.refresh_lockfile }}",
@@ -925,6 +928,15 @@ def _ghagen_update_action() -> Action:
 
                         # Already split and trimmed by the CLI; this only turns
                         # a comma-separated string into argv without eval.
+                        #
+                        # Every expansion below is `${LABEL_ARGS[@]+...}`, not a
+                        # bare `"${LABEL_ARGS[@]}"`: under `set -u` an empty
+                        # array is an unbound variable on bash 3.2, and the
+                        # action's own default is `labels: ''`, so the default
+                        # configuration is the one that trips it. Modern bash
+                        # (4.4+, which the ubuntu runners have) tolerates the
+                        # bare form, so this is correct-anyway hardening rather
+                        # than a fix for the hosted runners.
                         LABEL_ARGS=()
                         if [ -n "${{ steps.plan.outputs.labels }}" ]; then
                           IFS=',' read -ra LABELS <<< "${{ steps.plan.outputs.labels }}"
@@ -949,27 +961,64 @@ def _ghagen_update_action() -> Action:
                             git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null
                             LS=$?
                             set -e
+                            BRANCH_EXISTS=0
                             case "$LS" in
-                              0) echo "Branch $BRANCH already exists; skipping."; exit 0 ;;
+                              0) BRANCH_EXISTS=1 ;;
                               2) : ;;
                               *) echo "::error::git ls-remote failed ($LS)"; exit "$LS" ;;
                             esac
 
-                            if [ "${{ steps.plan.outputs.changed }}" != "true" ]; then
-                              echo "No file changes after applying updates."
-                              exit 0
+                            if [ "$BRANCH_EXISTS" = 1 ]; then
+                              # A branch on the remote is not evidence the work
+                              # landed. A run that pushed and then failed to open
+                              # the PR -- `gh pr create` denied by the org's
+                              # "Allow GitHub Actions to create and approve pull
+                              # requests" setting, or by a missing
+                              # `pull-requests: write` -- leaves exactly this
+                              # state. Skipping on the branch alone then reports
+                              # success on every retry until the dated name rolls
+                              # over at midnight UTC, which is a regression from
+                              # the PR-based dedupe this replaced. Dedupe on the
+                              # branch for the push, but on the PR for the skip:
+                              # the PR is the thing the caller wants to exist.
+                              EXISTING_PR=$(gh pr list --head "$BRANCH" \
+                                --state all --json number --jq '.[0].number // empty')
+                              if [ -n "$EXISTING_PR" ]; then
+                                echo "PR #$EXISTING_PR already exists for $BRANCH; skipping."
+                                exit 0
+                              fi
+                              echo "Branch $BRANCH exists with no PR; opening one against it."
+                            else
+                              if [ "${{ steps.plan.outputs.changed }}" != "true" ]; then
+                                echo "No file changes after applying updates."
+                                exit 0
+                              fi
+
+                              git config user.name "github-actions[bot]"
+                              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                              git checkout -b "$BRANCH"
+                              # Not a bare `git add -A`: loading the config module
+                              # writes `__pycache__` beside it, and the tree
+                              # `ghagen init` scaffolds ships no `.gitignore`, so
+                              # a consumer repo without one gets a committed
+                              # `.pyc` in its dependency-update PR. A pathspec
+                              # exclusion rather than adding only the CLI's
+                              # reported paths: those are printed on the plan
+                              # step's stderr, which no later step can address,
+                              # and the plan's outputs carry `changed` as a bool
+                              # and no file list.
+                              git add -A -- ':!**/__pycache__'
+                              git commit -m "${{ steps.plan.outputs.commit_message }}"
+                              git push -u origin "$BRANCH"
                             fi
 
-                            git config user.name "github-actions[bot]"
-                            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                            git checkout -b "$BRANCH"
-                            git add -A
-                            git commit -m "${{ steps.plan.outputs.commit_message }}"
-                            git push -u origin "$BRANCH"
-
+                            # `--head` is required on the recovery path, where
+                            # the branch was pushed by an earlier run and this
+                            # checkout is not on it.
                             gh pr create \
                               --title "${{ steps.plan.outputs.title }}" \
-                              --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                              --head "$BRANCH" \
+                              --body-file "$BODY_FILE" ${LABEL_ARGS[@]+"${LABEL_ARGS[@]}"}
                             ;;
                           create-issue)
                             # No `|| echo ""`: an API failure here used to read
@@ -987,7 +1036,7 @@ def _ghagen_update_action() -> Action:
 
                             gh issue create \
                               --title "${{ steps.plan.outputs.title }}" \
-                              --body-file "$BODY_FILE" "${LABEL_ARGS[@]}"
+                              --body-file "$BODY_FILE" ${LABEL_ARGS[@]+"${LABEL_ARGS[@]}"}
                             ;;
                         esac
                     """,
