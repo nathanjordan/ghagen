@@ -13,6 +13,7 @@ they can be unit-tested directly.
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import json
 import re
@@ -220,7 +221,9 @@ class UrllibTransport:
                 # The clamp above turns "the deadline ran out mid-read" into a
                 # bare socket timeout; name it, since the two are diagnosed
                 # very differently.
-                raise (self._expired() if time.monotonic() >= deadline else exc) from exc
+                raise (
+                    self._expired() if time.monotonic() >= deadline else exc
+                ) from exc
             if not chunk:
                 body = b"".join(chunks)
                 _reject_short_body(resp, body)
@@ -399,10 +402,9 @@ def _clamp_socket_timeout(resp: Any, seconds: float) -> None:
     sock = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
     if sock is None:
         return
-    try:
+    # Already closed, or not a socket after all.
+    with contextlib.suppress(OSError):
         sock.settimeout(seconds)
-    except OSError:  # already closed, or not a socket after all
-        pass
 
 
 # -- response-shape validation ---------------------------------------------

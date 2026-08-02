@@ -259,7 +259,10 @@ class TestMalformedShape:
     @pytest.mark.parametrize(
         "body,detail",
         [
-            ({"object": {"type": "commit", "sha": 1}}, "'object.sha' must be a string, got number"),
+            (
+                {"object": {"type": "commit", "sha": 1}},
+                "'object.sha' must be a string, got number",
+            ),
             ({"object": None}, "'object' must be an object, got null"),
             ([], "expected an object, got array"),
         ],
@@ -333,7 +336,8 @@ class TestDefaultDeadline:
 
     def test_default_constructed_adapter_uses_the_declared_deadline(self, monkeypatch):
         assert (
-            self._captured_timeout(monkeypatch, UrllibTransport()) == API_TIMEOUT_SECONDS
+            self._captured_timeout(monkeypatch, UrllibTransport())
+            == API_TIMEOUT_SECONDS
         )
 
     def test_explicit_deadline_overrides_the_default(self, monkeypatch):

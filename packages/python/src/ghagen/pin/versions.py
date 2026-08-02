@@ -21,10 +21,27 @@ from typing import Literal
 # optional ``v`` and a numeric version.
 #   group 1 = prefix (including delimiter), or None
 #   group 2 = the version digits (e.g. "4", "4.1", "4.1.2", "4.1.2.3")
+#
+# ADR-0008 writes this grammar as ``^(?:(.+)[/-])?v?(\d+(?:\.\d+)*)$`` and
+# means one accept-set for both ports.  Written with those metacharacters it is
+# not one accept-set, because ``\d``, ``.`` and ``$`` each denote something
+# wider in Python than in JavaScript, and every difference lets Python accept a
+# ref TypeScript rejects — which is the damaging direction, since an accepted
+# ref is a bump and a bump rewrites the user's workflow files.  So the classes
+# below are spelled out to the narrower, JavaScript reading:
+#
+#   ``\d``  JavaScript: exactly [0-9].  Python: every Unicode decimal digit, so
+#           the Arabic-indic ``v١.٢.٤`` parsed as 1.2.4 here and nowhere else.
+#   ``.``   JavaScript excludes all four line terminators (\n, \r and the
+#           two Unicode line/paragraph separators); Python excludes only
+#           \n, so a carriage return could sit inside a prefix here.
+#   ``$``   JavaScript anchors at the end of the string; Python's ``$`` also
+#           matches just before a trailing \n.  ``fullmatch`` is the anchoring
+#           that has no such exemption (equivalent to \A...\Z).
+_NOT_LINE_TERMINATOR = r"[^\n\r\u2028\u2029]"
 _TAG_RE = re.compile(
-    r"^(?:(.+)[/-])?"  # optional prefix + delimiter
-    r"v?(\d+(?:\.\d+)*)"  # version digits
-    r"$"
+    rf"(?:({_NOT_LINE_TERMINATOR}+)[/-])?"  # optional prefix + delimiter
+    r"v?([0-9]+(?:\.[0-9]+)*)"  # version digits
 )
 
 #: Largest value a release segment may hold (10**15 - 1).
@@ -35,6 +52,10 @@ _TAG_RE = re.compile(
 #: both ports can hold a release in a plain integer array — JS numbers are
 #: exact below 2**53, and 999_999_999_999_999 < 9_007_199_254_740_991.
 _MAX_SEGMENT = 999_999_999_999_999
+
+#: Digits in :data:`_MAX_SEGMENT` — the length test that stands in for the
+#: value test when the literal is too long to convert at all.
+_MAX_SEGMENT_DIGITS = len(str(_MAX_SEGMENT))
 
 BumpSeverity = Literal["major", "minor", "patch"]
 """Severity of a version bump."""
@@ -69,6 +90,27 @@ class Bump:
     severity: BumpSeverity
 
 
+def _segment_value(literal: str) -> int | None:
+    """The value of one release segment, or ``None`` when it exceeds the cap.
+
+    The cap is on the value, so leading zeros are stripped before the test —
+    ``0000000000000001`` is 16 characters but the value 1, and is accepted.
+
+    The length test comes *before* ``int()`` on purpose.  CPython refuses to
+    build an integer from a decimal string longer than
+    ``sys.get_int_max_str_digits()`` (4300 by default) and raises
+    ``ValueError``; a 5000-digit segment therefore used to escape this module
+    as an exception rather than as "not a version tag".  Anything longer than
+    :data:`_MAX_SEGMENT_DIGITS` is over the cap by construction, so the test
+    that avoids the conversion is the same test the cap already demands.
+    """
+    digits = literal.lstrip("0")
+    if len(digits) > _MAX_SEGMENT_DIGITS:
+        return None
+    value = int(digits) if digits else 0
+    return value if value <= _MAX_SEGMENT else None
+
+
 def parse_tag(tag: str) -> ParsedTag | None:
     """Parse a GitHub Action tag into a :class:`ParsedTag`, or ``None``.
 
@@ -86,7 +128,9 @@ def parse_tag(tag: str) -> ParsedTag | None:
     Returns ``None`` for refs that are not version tags (e.g. ``main``,
     ``release/v1``, ``v1.2.3-rc1``).
     """
-    m = _TAG_RE.match(tag)
+    # ``fullmatch``, not ``match``: ``$`` would also match just before a
+    # trailing newline, and a git ref name cannot contain a newline at all.
+    m = _TAG_RE.fullmatch(tag)
     if m is None:
         return None
 
@@ -99,9 +143,12 @@ def parse_tag(tag: str) -> ParsedTag | None:
     if prefix is not None and len(segments) < 2:
         return None
 
-    release = [int(s) for s in segments]
-    if any(value > _MAX_SEGMENT for value in release):
-        return None
+    release: list[int] = []
+    for literal in segments:
+        value = _segment_value(literal)
+        if value is None:
+            return None
+        release.append(value)
 
     # Pad to three so ``v4`` -> (4, 0, 0), then strip trailing zeros beyond
     # the third so ``v1.2.3.0`` compares equal to ``v1.2.3``.
