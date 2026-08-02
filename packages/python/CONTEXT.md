@@ -8,6 +8,14 @@ Shares its domain vocabulary with the [TypeScript](../typescript/CONTEXT.md) por
 
 ### Models
 
+**App**:
+The user's whole generation surface — every **Document** to be generated, the output directory, and
+the optional lockfile path. Built by the user's config module and returned to the CLI by the config
+loader; `synth()` is the one call that turns an App into files on disk. The App, not the Document, is
+what the pin subsystem and the `deps` family operate over, and `app.lockfile_path is None` is a
+supported configuration that several decisions turn on (see **UpdatePlan**).
+_Avoid_: project, workspace, root config.
+
 **Document**:
 A Workflow or Action — the unit that maps 1:1 to a generated YAML file, and the only thing that may
 be serialized to a file.
@@ -45,7 +53,9 @@ end — the backend never sees them.
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, and
 per-field emission rules (present-null-when-empty) — declared next to the model, consumed by the
 Emitter. The single home for the emitted-key fact: models carry no `serialization_alias`. Its
-`yaml_keys` **declaration order is the emission order** — there is no second list beside it.
+`yaml_keys` **declaration order is the emission order** — there is no second list beside it. Its
+`patterns` map binds a *value grammar* to a field, checked at construction on the unwrapped value so
+that `Raw(...)` stays the deliberate escape hatch and `with_comment(...)` is not one.
 _Avoid_: field map, key-order table.
 
 **OrderMode**:

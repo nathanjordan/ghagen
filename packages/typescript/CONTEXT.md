@@ -8,6 +8,14 @@ serialized to YAML. Shares its domain vocabulary with the [Python](../python/CON
 
 ### Models
 
+**App**:
+The user's whole generation surface — every **Document** to be generated, the output directory, and
+the optional lockfile path. Built by the user's config module and returned to the CLI by the config
+loader; `synth()` is the one call that turns an App into files on disk. The App, not the Document, is
+what the pin subsystem and the `deps` family operate over, and a null lockfile path is a supported
+configuration that several decisions turn on (see **UpdatePlan**).
+_Avoid_: project, workspace, root config.
+
 **Document**:
 A Workflow or Action — the unit that maps 1:1 to a generated YAML file, and the only thing that may
 be serialized to a file.
@@ -48,7 +56,9 @@ passthrough) — declared next to the factory, consumed by the Emitter and
 factories. The single home for the emitted-key fact (`fieldMap`, type-checked with `satisfies`
 against the generated schema types); every factory _is_ `defineFactory(SPEC)` — there is one
 construction body in the port, and a factory declaration carries no code. Its `fieldMap`
-**declaration order is the emission order** — there is no second list beside it.
+**declaration order is the emission order** — there is no second list beside it. Its `patterns` map
+binds a *value grammar* to a field, checked in `buildYamlData` on the peeled value so that `raw()`
+stays the deliberate escape hatch and `withComment(...)` is not one.
 _Avoid_: field map, key-order table.
 
 **OrderMode**:

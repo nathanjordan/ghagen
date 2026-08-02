@@ -59,3 +59,18 @@ So the two ports are not asymmetric after all: **neither** type-checks its tests
 pass, and note the shapes differ — TypeScript needs entries removed from an `exclude` list that
 keeps growing, Python needs `packages/python/tests` added to `include` (expect a first run to be
 noisy: pytest fixtures and `monkeypatch` shims are written without annotations throughout).
+
+## A third measurement, and a known first failure
+
+The whole-branch review of round 2 found a concrete `TS2554` waiting in the excluded set:
+`packages/typescript/src/emitter/yaml-writer.test.ts:171,178,185` each pass a **third argument to a
+two-parameter function**. It is accepted today only because the file is excluded. Two consequences,
+and the second is the worse one:
+
+1. Whoever turns the exclude off gets these three failures immediately — expect them, they are not
+   collateral from the config change.
+2. Because the third argument is ignored, those three tests now depend on **insertion order** for the
+   behaviour they meant to pin explicitly. They pass for a reason other than the one they state.
+
+That is the argument for doing this sooner rather than later: an unchecked test file does not merely
+fail to catch type errors, it silently changes what the test asserts.
