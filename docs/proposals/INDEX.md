@@ -62,6 +62,34 @@ Declines recorded as ADRs so round 3 does not re-suggest them: **ADR-0010** (the
 **ADR-0011** (`extrasPlacement`), **ADR-0012** (composite actions publish their decision — an action
 that only sequences steps needs no `outputs:`, one that _decides_ something must publish it).
 
-Deferred work: `docs/issues/08`–`29`. Issues 23–29 come from the whole-branch review rather than from
+### Whole-branch review and the fix pass
+
+Five independent reviewers swept the merged branch. Their confirmed criticals were fixed on-branch
+by four worktree-isolated agents with disjoint allowlists, each defect shown red before green:
+
+- **The shipped action could report success having done nothing.** `deps update` never called
+  `app.synth()`, so every PR it opened failed the consumer's own `check-synced`; and the new
+  branch-based dedupe returned 0 for the rest of the day if a run pushed a branch and then died
+  before `gh pr create` — a _silent_ regression from the PR-based dedupe it replaced. Dedupe is now
+  on the branch for the push and on the PR for the skip. `--mode versions` also produced a tree
+  `ghagen synth` could not build (`PinError`): a bump now carries the lockfile refresh with it
+  whichever stage found it.
+- **Two ports, one grammar, two accept-sets.** Python's tag regex used `\d`, `.` and `$`, each
+  wider there than in JavaScript, so `v١.٢.٤` was a version tag in one port and not the other —
+  and the wider side is the one that _rewrites the user's files_. **ADR-0008's own regex text was
+  the root cause** and is amended: it stated one regex as the authority for both ports without
+  naming a dialect.
+- **Deep-but-unenforced, again, in the tests themselves.** Cross-port field _order_ was bound
+  nowhere — permuting a `fieldMap` left 803/847 green while the emitted bytes moved. The
+  tautological guards were worse than absent, since they read as coverage. Three new shared tables
+  answer this class: `schema/key-order.yml` (30 kinds), `schema/comment-geometry.yml`, and
+  `reject_commented` vectors in `schema/conformance-values.yml`.
+- **`with_comment()` was an unintended escape hatch in Python only** — the grammar check ran after
+  the wrapper was re-attached, saw a non-`str`, and skipped. Notably, a reviewer read the
+  docstring, which asserts the opposite ordering, and marked the code sound without executing it.
+
+Gate: **913 pytest / 965 vitest** (round-1 baseline 548/514; pre-review round 2 803/847).
+
+Deferred work: `docs/issues/08`–`30`. Issues 23–29 come from the whole-branch review rather than from
 a proposal's allowlist boundary — the review's confirmed criticals were fixed on-branch and the rest
 filed there.
