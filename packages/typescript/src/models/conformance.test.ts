@@ -21,7 +21,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SCHEMA_DIR } from "../paths.js";
-import type { ModelSpec } from "./_base.js";
+import { withComment, type ModelSpec } from "./_base.js";
 import { imageSnapshot } from "./image-snapshot.js";
 import { SPECS_BY_KIND } from "./registry.js";
 
@@ -220,12 +220,20 @@ interface ValueEntry {
   readonly path: SchemaPath;
   readonly accept: readonly string[];
   readonly reject: readonly string[];
+  /** Values that must still be refused when wrapped in `withComment(...)`. */
+  readonly reject_commented: readonly string[];
 }
 
 interface ValueBinding {
   readonly spec: ModelSpec;
   /** Construct the model with `value` in the bound field. Throws on reject. */
   readonly construct: (value: string) => unknown;
+  /**
+   * Construct with `withComment(value, …)` in the bound field. A comment
+   * wrapper is presentation, not content, so it must not change what the
+   * grammar accepts — the `reject_commented` vectors bind that in both ports.
+   */
+  readonly constructCommented: (value: string) => unknown;
 }
 
 // snapshot filename -> `<kind>.<field>` -> this port's spec + constructor. The
@@ -236,6 +244,8 @@ const VALUE_BINDINGS: Record<string, Record<string, ValueBinding>> = {
     "imageSnapshot.version": {
       spec: SPECS_BY_KIND.imageSnapshot,
       construct: (version) => imageSnapshot({ imageName: "img", version }),
+      constructCommented: (version) =>
+        imageSnapshot({ imageName: "img", version: withComment(version, "note") }),
     },
   },
 };
@@ -287,6 +297,25 @@ describe("schema value-grammar sweep", () => {
           expect(
             () => binding.construct(value),
             `${key} accepted ${JSON.stringify(value)}`,
+          ).toThrow();
+        }
+      });
+
+      it(`${snapshot}:${key} holds the grammar under a comment wrapper`, () => {
+        // A comment wrapper changes presentation, never what the grammar
+        // accepts. `buildYamlData` peels the wrapper before testing the
+        // pattern; Python's `_enforce_spec_patterns` peels it too (it used not
+        // to, and every one of these vectors constructed successfully there).
+        for (const value of entry.accept) {
+          expect(
+            () => binding.constructCommented(value),
+            `${key} rejected commented ${JSON.stringify(value)}`,
+          ).not.toThrow();
+        }
+        for (const value of entry.reject_commented) {
+          expect(
+            () => binding.constructCommented(value),
+            `${key} accepted commented ${JSON.stringify(value)}`,
           ).toThrow();
         }
       });

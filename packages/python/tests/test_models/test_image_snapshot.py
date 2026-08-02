@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from ghagen import ImageSnapshot, Job
+from ghagen import ImageSnapshot, Job, with_comment, with_eol_comment
 from ghagen.emitter import to_data
 
 
@@ -66,6 +66,29 @@ def test_version_pattern_rejects_unicode_digits(version: str):
     """
     with pytest.raises(ValidationError):
         ImageSnapshot(image_name="img", version=version)
+
+
+@pytest.mark.parametrize("version", ["NOT-A-VERSION", "1.2.3", "v1", "1\n", "١"])
+def test_version_pattern_survives_a_comment_wrapper(version: str):
+    """``with_comment`` must not defeat the value grammar.
+
+    ``_preserve_commented`` is a ``mode="wrap"`` validator that re-attaches the
+    ``Commented`` wrapper *after* ``handler(clean)`` returns, so a
+    ``mode="after"`` grammar check sees the wrapper, not the string. The
+    TypeScript peer peels the wrapper before testing the pattern
+    (``buildYamlData``); this pins the same behaviour here.
+    """
+    with pytest.raises(ValidationError):
+        ImageSnapshot(image_name="img", version=with_comment(version, "note"))
+    with pytest.raises(ValidationError):
+        ImageSnapshot(image_name="img", version=with_eol_comment(version, "note"))
+
+
+def test_comment_wrapper_survives_a_grammar_valid_value():
+    """Peeling for the grammar check must not drop the wrapper itself."""
+    snap = ImageSnapshot(image_name="img", version=with_comment("1.2", "note"))
+    assert snap.version.value == "1.2"
+    assert snap.version.comment == "note"
 
 
 def test_string_syntax_on_job():

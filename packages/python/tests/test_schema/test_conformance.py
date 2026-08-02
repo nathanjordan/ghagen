@@ -36,6 +36,7 @@ from ghagen_schema.paths import SCHEMA_DIR
 from pydantic import ValidationError
 from ruamel.yaml import YAML
 
+from ghagen import with_comment
 from ghagen.models._base import GhagenModel
 from ghagen.models.action import (
     Action,
@@ -270,13 +271,24 @@ def test_scope_set_matches_shared_table() -> None:
 
 
 class ValueBinding:
-    """One declared value grammar: this port's spec plus a constructor."""
+    """One declared value grammar: this port's spec plus two constructors.
+
+    ``construct`` passes the vector bare; ``construct_commented`` passes it
+    wrapped in :func:`~ghagen.with_comment`. Two constructors rather than one
+    because a comment wrapper reaches the grammar check by a different route in
+    each port, and the shared table's ``reject_commented`` vectors are what bind
+    both routes to the same answer.
+    """
 
     def __init__(
-        self, spec: ModelSpec, construct: Callable[[str], GhagenModel]
+        self,
+        spec: ModelSpec,
+        construct: Callable[[str], GhagenModel],
+        construct_commented: Callable[[str], GhagenModel],
     ) -> None:
         self.spec = spec
         self.construct = construct
+        self.construct_commented = construct_commented
 
 
 # snapshot filename -> "<kind>.<field>" -> binding. The key format is exactly a
@@ -288,6 +300,9 @@ _VALUE_BINDINGS: dict[str, dict[str, ValueBinding]] = {
         "imageSnapshot.version": ValueBinding(
             IMAGE_SNAPSHOT_SPEC,
             lambda version: ImageSnapshot(image_name="img", version=version),
+            lambda version: ImageSnapshot(
+                image_name="img", version=with_comment(version, "note")
+            ),
         ),
     },
 }
@@ -348,6 +363,29 @@ def test_value_vectors(snapshot: str, key: str) -> None:
     for value in entry["reject"]:
         with pytest.raises(ValidationError):
             construct(value)
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_vectors_under_a_comment_wrapper(snapshot: str, key: str) -> None:
+    """A comment wrapper changes presentation, never what the grammar accepts.
+
+    ``accept`` vectors still construct and ``reject_commented`` vectors still
+    raise when the value arrives wrapped in :func:`~ghagen.with_comment`. This
+    port peels the wrapper in ``GhagenModel._enforce_spec_patterns``; the
+    TypeScript port peels it in ``buildYamlData``. Before the peel was added
+    here, every ``reject_commented`` vector constructed successfully.
+    """
+    entry = _VALUES[snapshot][key]
+    binding = _VALUE_BINDINGS[snapshot][key]
+    for value in entry["accept"]:
+        binding.construct_commented(value)  # must not raise
+    for value in entry["reject_commented"]:
+        with pytest.raises(ValidationError):
+            binding.construct_commented(value)
 
 
 def test_value_key_set_matches_shared_table() -> None:

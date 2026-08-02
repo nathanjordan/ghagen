@@ -18,18 +18,28 @@
 #             Snapshot.
 #   accept  - values every port must construct successfully.
 #   reject  - values every port must refuse at construction.
+#   reject_commented
+#           - values every port must refuse when they arrive wrapped in
+#             `with_comment(...)` / `withComment(...)`. A comment wrapper is
+#             presentation, not content, so it must not change what the grammar
+#             accepts. Split out from `reject` rather than folded into it
+#             because it exercises a different code path in each port and only
+#             one port ever had it right (TypeScript peels the wrapper in
+#             `buildYamlData` before testing; Python's `mode="after"` validator
+#             saw the re-attached `Commented` and skipped the check entirely).
 #
-# Each sweep binds each key to its own port's spec + a constructor, then asserts
-# three things:
+# Each sweep binds each key to its own port's spec + two constructors — bare and
+# comment-wrapped — then asserts three things:
 #
 #   1. Pattern identity - the port's pattern source string equals the schema's
 #      pattern string at `path`. (The TypeScript half also asserts `.flags` is
 #      empty: `RegExp.test` is stateful under `/g`.)
-#   2. Vectors - every `accept` constructs, every `reject` raises. This is what
-#      pattern identity cannot see: both dialect bugs this table was written for
-#      (`re.match` accepting a trailing newline, and Python's Unicode-aware
-#      `\d`) leave `.pattern` byte-identical and are only visible to executed
-#      vectors.
+#   2. Vectors - every `accept` constructs, every `reject` raises, and every
+#      `reject_commented` raises through the comment-wrapping constructor. This
+#      is what pattern identity cannot see: all three bugs this table was
+#      written for (`re.match` accepting a trailing newline, Python's
+#      Unicode-aware `\d`, and `with_comment` defeating the grammar) leave
+#      `.pattern` byte-identical and are only visible to executed vectors.
 #   3. Key-set parity - both sweeps assert their bound key set equals this
 #      file's, so a grammar enforced in one port and not the other fails a test.
 #
@@ -62,3 +72,11 @@ workflow_schema.json:
       # the fix, and it leaves `.pattern` byte-identical.
       - "١"
       - "١.٢"
+    # A comment wrapper must not buy a value past the grammar. One vector from
+    # each of the three reject classes above, so a port that peels only some
+    # values (or none) fails here.
+    reject_commented:
+      - "v1"
+      - "1.2.3"
+      - "1\n"
+      - "١"

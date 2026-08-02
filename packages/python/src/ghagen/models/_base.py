@@ -10,7 +10,7 @@ from typing import Any, ClassVar, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from ruamel.yaml.comments import CommentedMap
 
-from ghagen._commented import Commented
+from ghagen._commented import Commented, unwrap_commented
 from ghagen._package_paths import is_internal_frame
 from ghagen._raw import Raw
 from ghagen.emitter.header import DEFAULT, HeaderInput
@@ -155,9 +155,18 @@ class GhagenModel(BaseModel):
 
         The peer of TypeScript's ``buildYamlData`` grammar check: one reader
         per port, in the one place that already consumes the spec at
-        construction. Runs after :meth:`_preserve_commented`'s
-        ``handler(clean)``, so it sees unwrapped values; skips non-``str``
-        values, so ``Raw`` stays the explicit escape hatch.
+        construction.
+
+        The grammar is checked on the value with any ``Commented`` wrapper
+        **peeled off**, so ``with_comment(...)`` cannot defeat it — the same
+        rule ``buildYamlData`` states. This validator is ``mode="after"``,
+        which runs *after* :meth:`_preserve_commented` (``mode="wrap"``) has
+        re-attached the wrapper via ``object.__setattr__``, so the attribute
+        read below yields the ``Commented``, not the string. Reading
+        ``handler(clean)``'s unwrapped value here is not possible; peeling is.
+
+        Non-``str`` values are skipped after peeling, so ``Raw`` stays the
+        explicit escape hatch — bare or wrapped in a comment.
 
         ``fullmatch`` rather than ``match``: ``re.match`` anchors only the
         start and Python's ``$`` matches before a trailing newline, so
@@ -170,7 +179,7 @@ class GhagenModel(BaseModel):
         if spec is None:
             return self
         for field_name, pattern in spec.patterns.items():
-            value = getattr(self, field_name, None)
+            value = unwrap_commented(getattr(self, field_name, None))
             if isinstance(value, str) and not pattern.fullmatch(value):
                 raise ValueError(
                     f"{field_name} {value!r} must match {pattern.pattern}; "

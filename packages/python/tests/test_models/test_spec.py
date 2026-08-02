@@ -15,16 +15,20 @@ from __future__ import annotations
 import enum
 import importlib
 import pkgutil
+import re
 import types
 from collections.abc import Iterator
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Any, ClassVar, Literal, Union, get_args, get_origin
 
+import pytest
 from pydantic import ValidationError
 from ruamel.yaml.comments import CommentedMap
 
 import ghagen.models
+from ghagen import Raw, with_comment, with_eol_comment
 from ghagen.emitter.data import to_data
 from ghagen.models._base import _META_FIELDS, Document, GhagenModel
+from ghagen.models.spec import ModelSpec
 from ghagen.models.trigger import On
 
 
@@ -223,3 +227,42 @@ def test_only_on_uses_alphabetical_order() -> None:
     """``On`` is the sole model that emits alphabetically."""
     alpha = {m.__name__ for m in _all_model_classes() if m.SPEC.order == "alphabetical"}
     assert alpha == {On.__name__}, f"unexpected alphabetical-order models: {alpha}"
+
+
+# --- the value-grammar escape hatch, on a synthetic patterned model ---
+#
+# No shipped model declares both a ``patterns`` entry and an ``OrRaw`` annotation
+# on the same field, so the "non-``str`` values skip the grammar" half of the
+# contract has no natural home among them. A synthetic model states it directly.
+
+
+class _Patterned(GhagenModel):
+    """A model whose one patterned field also accepts the ``Raw`` escape hatch."""
+
+    SPEC: ClassVar[ModelSpec] = ModelSpec(
+        yaml_keys={"value": "value"},
+        patterns={"value": re.compile(r"^\d+$", re.ASCII)},
+    )
+
+    value: str | Raw[str] | None = None
+
+
+def test_grammar_rejects_a_non_matching_string() -> None:
+    with pytest.raises(ValidationError):
+        _Patterned(value="nope")
+
+
+def test_grammar_rejects_a_non_matching_string_under_a_comment_wrapper() -> None:
+    """``with_comment`` must not defeat the grammar (the TypeScript peel rule)."""
+    with pytest.raises(ValidationError):
+        _Patterned(value=with_comment("nope", "note"))
+    with pytest.raises(ValidationError):
+        _Patterned(value=with_eol_comment("nope", "note"))
+
+
+def test_raw_bypasses_the_grammar() -> None:
+    """``Raw`` is not a ``str``, so the grammar skips it — bare or wrapped."""
+    assert _Patterned(value=Raw("nope")).value.value == "nope"
+    wrapped = _Patterned(value=with_comment(Raw("nope"), "note"))
+    assert wrapped.value.value.value == "nope"
+    assert wrapped.value.comment == "note"
