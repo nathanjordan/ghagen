@@ -7,13 +7,17 @@ The pure helpers are unit-tested directly.
 
 from __future__ import annotations
 
+import urllib.request
+
 import pytest
 
 from ghagen.pin.github import (
+    API_TIMEOUT_SECONDS,
     GitHubClient,
     ResolveError,
     Response,
     TransportError,
+    UrllibTransport,
     _commit_sha,
     _is_annotated_tag,
     _parse_next_link,
@@ -204,6 +208,146 @@ class TestMalformedJson:
         client = GitHubClient(transport)
         with pytest.raises(ResolveError, match="Failed to parse JSON response"):
             client.list_tags("actions", "checkout")
+
+
+class TestMalformedShape:
+    """A 200 that parses but has the wrong *shape* must also be ResolveError.
+
+    ``TestMalformedJson`` covers a body that is not JSON.  This covers a body
+    that is JSON and is not what the GitHub API documents — the case that used
+    to leave ``resolve_ref`` raising a bare ``KeyError`` and ``list_tags`` a
+    bare ``AttributeError``.  Both are outside the module's documented error
+    contract, and the engine recovers per ref on :class:`ResolveError` alone
+    (``pin/engine.py``), so either one turned a single unusable response into
+    an aborted run that wrote nothing.
+    """
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param({"unexpected": "shape"}, id="no-object-key"),
+            pytest.param({"object": "not-a-mapping"}, id="object-not-a-mapping"),
+            pytest.param({"object": None}, id="object-null"),
+            pytest.param({"object": {"type": "commit"}}, id="no-sha-key"),
+            pytest.param({"object": {"type": "commit", "sha": None}}, id="sha-null"),
+            pytest.param({"object": {"type": "commit", "sha": 12345}}, id="sha-number"),
+            pytest.param([], id="body-is-a-list"),
+            pytest.param("a string", id="body-is-a-string"),
+        ],
+    )
+    def test_resolve_ref_rejects_malformed_shape(self, body):
+        transport = FakeTransport({"git/ref/tags/v4": canned(body)})
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Unexpected response shape"):
+            client.resolve_ref("actions", "checkout", "v4")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param({"unexpected": "shape"}, id="not-a-list"),
+            pytest.param(["refs/tags/v1"], id="list-of-strings"),
+            pytest.param([{"ref": 12345}], id="ref-not-a-string"),
+            pytest.param([None], id="list-of-nulls"),
+        ],
+    )
+    def test_list_tags_rejects_malformed_shape(self, body):
+        transport = FakeTransport({"git/refs/tags": canned(body)})
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Unexpected response shape"):
+            client.list_tags("actions", "checkout")
+
+    @pytest.mark.parametrize(
+        "body,detail",
+        [
+            (
+                {"object": {"type": "commit", "sha": 1}},
+                "'object.sha' must be a string, got number",
+            ),
+            ({"object": None}, "'object' must be an object, got null"),
+            ([], "expected an object, got array"),
+        ],
+    )
+    def test_message_shape_matches_the_typescript_port(self, body, detail):
+        # The exact text its TypeScript peer asserts, character for character;
+        # see `a shape-malformed 200 surfaces as ResolveError` there.
+        url = "https://api.github.com/repos/actions/checkout/git/ref/tags/v4"
+        transport = FakeTransport({"git/ref/tags/v4": canned(body)})
+        with pytest.raises(ResolveError) as excinfo:
+            GitHubClient(transport).resolve_ref("actions", "checkout", "v4")
+        assert str(excinfo.value) == f"Unexpected response shape from {url}: {detail}"
+
+    def test_dereference_tag_rejects_malformed_shape(self):
+        transport = FakeTransport({f"git/tags/{TAG_SHA}": canned({"nope": 1})})
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="does not point to a commit"):
+            client.dereference_tag("actions", "checkout", TAG_SHA)
+
+    def test_a_repo_with_no_tags_is_still_an_empty_list(self):
+        # The 404 path must keep meaning "no tags"; only a *malformed* 200 is
+        # the error.  Without this, tightening list_tags could turn every
+        # tagless repo into a failed run.
+        assert GitHubClient(FakeTransport({})).list_tags("o", "r") == []
+
+    def test_an_empty_page_is_still_an_empty_list(self):
+        transport = FakeTransport({"git/refs/tags": canned([])})
+        assert GitHubClient(transport).list_tags("o", "r") == []
+
+
+class _StubHTTPResponse:
+    """The smallest thing ``UrllibTransport.get`` will accept from ``urlopen``."""
+
+    status = 200
+    reason = "OK"
+    headers: dict[str, str] = {}
+
+    def read(self, *args: object) -> bytes:
+        return b"{}"
+
+    def read1(self, *args: object) -> bytes:
+        return b""
+
+    def __enter__(self) -> _StubHTTPResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+class TestDefaultDeadline:
+    """The production adapter's *default* deadline, which nothing else observes.
+
+    The conformance table always builds the adapter with an explicit deadline
+    (``loopback_adapter``'s ``build``), so deleting the default would leave the
+    whole suite green while shipping a transport that can hang forever.  These
+    tests observe the value the default-constructed adapter actually hands to
+    the underlying I/O call.
+    """
+
+    def _captured_timeout(self, monkeypatch, transport: UrllibTransport) -> object:
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(req: object, **kwargs: object) -> _StubHTTPResponse:
+            captured["timeout"] = kwargs.get("timeout")
+            return _StubHTTPResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        transport.get("http://origin.test/contract")
+        return captured["timeout"]
+
+    def test_default_constructed_adapter_uses_the_declared_deadline(self, monkeypatch):
+        assert (
+            self._captured_timeout(monkeypatch, UrllibTransport())
+            == API_TIMEOUT_SECONDS
+        )
+
+    def test_explicit_deadline_overrides_the_default(self, monkeypatch):
+        # Pins API_TIMEOUT_SECONDS as the *default argument* rather than a
+        # constant hardcoded into the request.
+        assert self._captured_timeout(monkeypatch, UrllibTransport(timeout=1.5)) == 1.5
+
+    def test_declared_deadline_matches_the_typescript_port(self):
+        # `API_TIMEOUT_MS = 30_000` in packages/typescript/src/pin/github.ts.
+        assert API_TIMEOUT_SECONDS == 30.0
 
 
 class TestResponse:

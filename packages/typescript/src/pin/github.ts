@@ -97,10 +97,27 @@ export class HttpResponse {
  * conformance table in `transport-contract.ts` runs it against each of them,
  * and its Python peer runs the identical table.
  *
- * **Deadline.** A `get` settles — resolving or rejecting — within
- * `API_TIMEOUT_MS`, *including reading the body*. Production adapters take the
- * deadline as one defaulted constructor argument so the promise is testable
- * rather than merely stated.
+ * **Deadline — wall clock, not per operation.** A `get` settles — resolving or
+ * rejecting — within `API_TIMEOUT_MS` measured on the wall clock from the
+ * moment it is called, *including reading the body*. The distinction is the
+ * whole point: a per-socket-operation timeout is reset by every byte that
+ * arrives, so a peer trickling one byte per interval holds the call open
+ * indefinitely while never exceeding it. Row 12 of the conformance table
+ * (`dribble-body`) is that peer, and it is what an adapter must survive.
+ *
+ * One phase is excluded, in both ports' wording though not in this port's
+ * fact: the response **head**. Python's `UrllibTransport` delegates
+ * connect-and-read-headers to `urlopen`, which admits only a per-operation
+ * timeout, so an origin that trickles *header* bytes is bounded per operation
+ * there; `AbortSignal.timeout` covers it here. The guarantee stated is the
+ * intersection — wall-clock from the first body byte, per-operation before it
+ * — so that the interface promises only what both ports deliver. This port
+ * exceeds it; see `UrllibTransport._read_within` in `pin/github.py`.
+ *
+ * Production adapters take the deadline as one defaulted constructor argument
+ * so the promise is testable rather than merely stated, and the default itself
+ * is pinned by a test (`FetchTransport's default deadline` and its Python
+ * peer) because the table always supplies an explicit one.
  *
  * **Error taxonomy — total.** `get` either resolves with an `HttpResponse` or
  * rejects with `TransportError`, and nothing else:
@@ -187,6 +204,9 @@ export class GitHubClient {
    *
    * Tries `tags/{ref}` first, then `heads/{ref}`. Annotated tags are
    * dereferenced to their underlying commit.
+   *
+   * @throws {ResolveError} If the ref cannot be resolved, or the API answers
+   * 200 with a body that is not the documented shape.
    */
   async resolveRef(owner: string, repo: string, ref: string): Promise<string> {
     for (const url of refUrls(owner, repo, ref)) {
@@ -194,8 +214,8 @@ export class GitHubClient {
       if (data === null) {
         continue; // 404 for this prefix — try the next.
       }
-      const obj = (data as { object: { type: string; sha: string } }).object;
-      let sha = obj.sha;
+      const obj = refObject(data, url);
+      let sha = requireSha(obj, url);
       if (isAnnotatedTag(obj)) {
         sha = await this.dereferenceTag(owner, repo, sha);
       }
@@ -208,11 +228,18 @@ export class GitHubClient {
     );
   }
 
-  /** Dereference an annotated tag object to its underlying commit SHA. */
+  /**
+   * Dereference an annotated tag object to its underlying commit SHA.
+   *
+   * @throws {ResolveError} If the tag does not point to a commit — which
+   * includes a 200 whose body is not the documented shape, since such a body
+   * evidences no commit either.
+   */
   async dereferenceTag(owner: string, repo: string, tagSha: string): Promise<string> {
     const url = `${API_BASE}/repos/${owner}/${repo}/git/tags/${tagSha}`;
     const data = await this.getJson(url);
-    const obj = (data as { object?: { type?: string; sha?: string } } | null)?.object ?? {};
+    const member = isJsonObject(data) ? data["object"] : undefined;
+    const obj = isJsonObject(member) ? (member as { type?: string; sha?: string }) : {};
     const sha = commitSha(obj);
     if (sha !== null) {
       return sha;
@@ -229,6 +256,14 @@ export class GitHubClient {
    *
    * Returns tag names with the `refs/tags/` prefix stripped, or an empty list
    * when the repo has no tags (the API returns 404).
+   *
+   * "No tags" is the 404 alone. A 200 whose body is not an array of ref
+   * objects throws rather than degrading to `[]`: an empty list here is
+   * indistinguishable from a genuinely tagless repo, and it would suppress
+   * every available update for that repo without a word.
+   *
+   * @throws {ResolveError} On non-404 API errors (e.g. rate limiting), or a
+   * 200 whose body is not the documented shape.
    */
   async listTags(owner: string, repo: string): Promise<string[]> {
     let url: string | null = `${API_BASE}/repos/${owner}/${repo}/git/refs/tags`;
@@ -238,17 +273,8 @@ export class GitHubClient {
       if (page === null) {
         return []; // 404 — no tags.
       }
-      const { body, next } = page;
-      if (!Array.isArray(body)) {
-        break;
-      }
-      for (const ref of body as Array<{ ref?: string }>) {
-        const fullRef = ref.ref ?? "";
-        if (fullRef.startsWith("refs/tags/")) {
-          tags.push(fullRef.slice("refs/tags/".length));
-        }
-      }
-      url = next;
+      tags.push(...refNames(page.body, url));
+      url = page.next;
     }
     return tags;
   }
@@ -317,6 +343,78 @@ export class GitHubClient {
     }
     return { body: this.parseJson(resp, url), next: parseNextLink(resp.header("Link")) };
   }
+}
+
+// -- response-shape validation ---------------------------------------------
+//
+// A 200 that parses as JSON has still told us nothing until its *shape* is
+// checked. Skipping the check does not avoid the failure, it relocates it: to
+// an `undefined` returned where the signature promises `string`, which reaches
+// the lockfile as an unquoted `sha: null` this same package then refuses to
+// read back, or to a `[]` from `listTags` that reads as "this repo has no
+// tags". Both ports throw from here, with the same message shape.
+
+/** Whether `value` is a JSON object (not null, not an array). */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Name `value`'s JSON type the way both ports name it in messages. */
+function jsonType(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  const primitive = typeof value;
+  return primitive === "object" ? "object" : primitive;
+}
+
+/** The one message shape for a well-formed-JSON, wrong-shape 200. */
+function shapeError(url: string, detail: string): ResolveError {
+  return new ResolveError(`Unexpected response shape from ${url}: ${detail}`);
+}
+
+/** The `object` member of a ref response, or `ResolveError`. */
+function refObject(data: unknown, url: string): { type?: string; sha?: unknown } {
+  if (!isJsonObject(data)) {
+    throw shapeError(url, `expected an object, got ${jsonType(data)}`);
+  }
+  const obj = data["object"];
+  if (!isJsonObject(obj)) {
+    throw shapeError(url, `'object' must be an object, got ${jsonType(obj)}`);
+  }
+  return obj;
+}
+
+/** `object.sha` as a string, or `ResolveError`. */
+function requireSha(obj: { sha?: unknown }, url: string): string {
+  if (typeof obj.sha !== "string") {
+    throw shapeError(url, `'object.sha' must be a string, got ${jsonType(obj.sha)}`);
+  }
+  return obj.sha;
+}
+
+/** Tag names from one page of `git/refs/tags`, `refs/tags/` stripped. */
+function refNames(data: unknown, url: string): string[] {
+  if (!Array.isArray(data)) {
+    throw shapeError(url, `expected an array, got ${jsonType(data)}`);
+  }
+  const names: string[] = [];
+  for (const [index, entry] of data.entries()) {
+    if (!isJsonObject(entry)) {
+      throw shapeError(url, `[${index}] must be an object, got ${jsonType(entry)}`);
+    }
+    const fullRef = entry["ref"];
+    if (typeof fullRef !== "string") {
+      throw shapeError(url, `[${index}].ref must be a string, got ${jsonType(fullRef)}`);
+    }
+    if (fullRef.startsWith("refs/tags/")) {
+      names.push(fullRef.slice("refs/tags/".length));
+    }
+  }
+  return names;
 }
 
 // -- pure helpers (unit-testable without a transport) ----------------------

@@ -8,13 +8,13 @@ drift into a shape the real adapter is unable to produce.
 Two builders construct canned responses: :func:`canned` encodes a JSON value,
 :func:`canned_raw` takes a body verbatim (a malformed 200, a truncated payload).
 
-Rows 8-11 put the adapter in front of a **raw socket**, not a request-handling
+Rows 8-12 put the adapter in front of a **raw socket**, not a request-handling
 server: ``http.server`` always frames a well-formed response, so it cannot
-express "peer closes without answering" (row 9) or "declared
-``Content-Length: 100``, delivered 5 bytes" (row 11).  Each scenario gets its
-own listening socket and its own daemon thread — a scenario whose handler
-deliberately never returns (row 10) would otherwise block a shared accept loop
-and deadlock the next one.
+express "peer closes without answering" (row 9), "declared
+``Content-Length: 100``, delivered 5 bytes" (row 11), or "trickle a byte at a
+time forever" (row 12).  Each scenario gets its own listening socket and its
+own daemon thread — a scenario whose handler deliberately never returns (row
+10) would otherwise block a shared accept loop and deadlock the next one.
 """
 
 from __future__ import annotations
@@ -197,8 +197,9 @@ FAILURE_CASES: tuple[str, ...] = (
     "abrupt-close",
     "stall-mid-body",
     "truncated-body",
+    "dribble-body",
 )
-"""Rows 8-11 — a canned double satisfies these by construction, so it skips them."""
+"""Rows 8-12 — a canned double satisfies these by construction, so it skips them."""
 
 ALL_CASES: tuple[ResponseCase | str, ...] = (*RESPONSE_CASES, *FAILURE_CASES)
 
@@ -225,6 +226,14 @@ def _read_request(conn: socket.socket) -> bytes:
 # A head that promises 100 bytes and is followed by 5, used by rows 10 and 11.
 _UNDERDELIVERED_HEAD = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n"
 _UNDERDELIVERED_BODY = b"12345"
+
+# Row 12's shape: one body byte every _DRIBBLE_INTERVAL for _DRIBBLE_SECONDS.
+# The interval must exceed FAILURE_DEADLINE_SECONDS/2 so that a *per-socket*
+# timeout of one deadline never fires — which is exactly what makes the row
+# distinguish a wall-clock deadline from a per-operation one.
+_DRIBBLE_INTERVAL = 0.2
+_DRIBBLE_SECONDS = 10.0
+_DRIBBLE_LENGTH = int(_DRIBBLE_SECONDS / _DRIBBLE_INTERVAL)
 
 
 class LoopbackOrigin:
@@ -313,6 +322,22 @@ def _truncated_body(conn: socket.socket, _stop: threading.Event) -> None:
     conn.sendall(_UNDERDELIVERED_HEAD + _UNDERDELIVERED_BODY)
 
 
+def _dribble_body(conn: socket.socket, stop: threading.Event) -> None:
+    """Row 12 — send one body byte every 200ms for 10s.
+
+    The row rows 10 and 11 cannot express.  A *stalled* peer is caught by a
+    per-socket-operation timeout too, because no operation completes; a peer
+    that keeps trickling resets that timeout forever, so only an adapter
+    honouring a genuine **wall-clock** deadline aborts.  ``AbortSignal.timeout``
+    is one; ``urlopen(timeout=)`` alone is not.
+    """
+    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n" % _DRIBBLE_LENGTH)
+    for _ in range(_DRIBBLE_LENGTH):
+        if stop.wait(_DRIBBLE_INTERVAL):
+            return
+        conn.sendall(b"x")
+
+
 _FAILURE_HANDLERS: dict[
     str, Callable[[socket.socket, threading.Event], None] | None
 ] = {
@@ -320,6 +345,7 @@ _FAILURE_HANDLERS: dict[
     "abrupt-close": _abrupt_close,
     "stall-mid-body": _stall_mid_body,
     "truncated-body": _truncated_body,
+    "dribble-body": _dribble_body,
 }
 
 
