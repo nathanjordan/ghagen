@@ -21,13 +21,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SCHEMA_DIR } from "../paths.js";
-import { withComment, type ModelSpec } from "./_base.js";
+import { withComment, type ModelKind, type ModelSpec } from "./_base.js";
 import { imageSnapshot } from "./image-snapshot.js";
 import { SPECS_BY_KIND } from "./registry.js";
 
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
 const SCOPES_PATH = resolve(SCHEMA_DIR, "conformance-scopes.yml");
 const VALUES_PATH = resolve(SCHEMA_DIR, "conformance-values.yml");
+const KEY_ORDER_PATH = resolve(SCHEMA_DIR, "key-order.yml");
 
 /**
  * A JSON path into a loaded schema: the keys to walk before reading props.
@@ -206,6 +207,58 @@ describe("schema conformance sweep", () => {
       ).toEqual(Object.keys(shared[snapshot]).sort());
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// Key-order sweep. The scope table above covers *which properties* a model
+// exposes, as a SET -- `modelPropertyNames` returns a `Set`, so it never sees
+// the sequence. Every order guard in either port is intra-port and compares a
+// spec's emitted sequence to its own field map, which passes by construction.
+// Permuting `DEFAULTS_RUN_SPEC.fieldMap` against `DefaultsRun.yaml_keys`
+// therefore changed this port's emitted YAML with both suites entirely green.
+//
+// The shared table is schema/key-order.yml, read identically by the Python
+// sweep; only the kind -> spec binding stays here. Together with
+// `spec.test.ts`'s "emitted key sequence equals fieldMap declaration order",
+// the chain is closed in both ports: shared table == fieldMap == emitted.
+// ---------------------------------------------------------------------------
+
+interface KeyOrderEntry {
+  readonly order: "explicit" | "alphabetical";
+  readonly keys: readonly string[];
+}
+
+function loadKeyOrder(): Record<string, KeyOrderEntry> {
+  return parse(readFileSync(KEY_ORDER_PATH, "utf8")) as Record<string, KeyOrderEntry>;
+}
+
+describe("cross-port key order", () => {
+  const table = loadKeyOrder();
+
+  it("model-kind set matches the shared key-order table", () => {
+    // Mirrored by the Python guard of the same name. The table covers all 30
+    // kinds -- two more than the conformance scope table, which has no scope
+    // for `matrix` or `service`.
+    expect(Object.keys(SPECS_BY_KIND).sort()).toEqual(Object.keys(table).sort());
+  });
+
+  for (const [kind, entry] of Object.entries(table)) {
+    it(`${kind} matches the shared key sequence`, () => {
+      const spec = SPECS_BY_KIND[kind as ModelKind] as ModelSpec | undefined;
+      expect(spec, `no spec bound to kind ${kind}`).toBeDefined();
+      if (spec === undefined) {
+        return;
+      }
+      expect(spec.order ?? "explicit", `${kind} OrderMode`).toBe(entry.order);
+      // `alphabetical` leaves declaration order unread -- the Emitter sorts at
+      // emit time -- so the table states the SORTED sequence for `on` and the
+      // declared list is sorted to meet it. Asserting the raw declaration for
+      // `on` would bind a sequence nothing observes.
+      const declared = Object.values(spec.fieldMap);
+      const emitted = entry.order === "alphabetical" ? [...declared].sort() : declared;
+      expect(emitted, `${kind} key sequence`).toEqual([...entry.keys]);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
