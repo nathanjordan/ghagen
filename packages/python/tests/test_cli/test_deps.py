@@ -24,6 +24,7 @@ format dispatch lived inside ``deps_upgrade``, whose parameters are all Typer
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -728,6 +729,39 @@ class TestDepsUpdate:
         assert plan["action"] == "none"
         assert plan["body_format"] is None
         assert not body.exists()
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_a_chatty_config_module_cannot_reach_the_plan_stream(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """Loading the config *executes* it, and it does not own stdout.
+
+        The action's plan step is a bare ``>> "$GITHUB_OUTPUT"`` redirect, so
+        every byte this command writes to stdout is parsed as ``key=value``.
+        The config module is arbitrary user Python that runs before the plan is
+        printed: a ``print()`` with no ``=`` fails the step outright, and one
+        *with* an ``=`` -- ``print("action=create-pr")`` -- forges an
+        action-level output that the workflow then acts on.  The line is not
+        suppressed, only re-routed: a config that prints is doing so on
+        purpose, and the operator should still see it.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(
+            'print("action=create-issue")\nprint("loading workflows...")\n'
+            + _LOCKFILE_NONE_CONFIG
+        )
+
+        result = runner.invoke(app, ["deps", "update", "--format", "github"])
+
+        assert result.exit_code == 0, result.output
+        lines = [ln for ln in result.stdout.splitlines() if ln]
+        assert all(re.match(r"^[a-z_]+=", ln) for ln in lines), lines
+        # Exactly one `action=`: the plan's own, and it is a PR, not the issue
+        # the config module tried to forge.
+        assert [ln for ln in lines if ln.startswith("action=")] == ["action=create-pr"]
+        assert "loading workflows..." in result.stderr
 
 
 class TestDepsUpdateFlagValidation:

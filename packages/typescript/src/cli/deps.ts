@@ -41,6 +41,35 @@ function buildGitHubClient(tokenFlag?: string): GitHubClient {
   return new GitHubClient(undefined, token);
 }
 
+/**
+ * Run `fn` with anything written to stdout re-routed to stderr.
+ *
+ * Wrapped around every config load, because loading a config **executes** it:
+ * it is arbitrary user TypeScript, and whatever it logs lands on stdout ahead
+ * of everything the command writes there. That is fatal for `deps update`,
+ * whose `--format github` payload the `check-deps` action appends to
+ * `$GITHUB_OUTPUT` through a bare `>>` redirect — every line is parsed as
+ * `key=value`. A logged line without an `=` fails the step; a line *with* one,
+ * say `console.log("action=create-pr")`, forges an action-level output the
+ * workflow then acts on. `deps upgrade --format json` has the same exposure
+ * with a JSON document instead.
+ *
+ * Re-routed, never suppressed: a config that logs is doing so deliberately and
+ * the operator should still see it. The replacement forwards through a fresh
+ * `process.stderr.write` lookup on every call rather than a bound reference,
+ * so a caller (or a test harness) that swaps the stream still receives it.
+ */
+async function withConfigOutputOnStderr<T>(fn: () => Promise<T>): Promise<T> {
+  const original = process.stdout.write;
+  process.stdout.write = ((...args: Parameters<typeof process.stderr.write>) =>
+    process.stderr.write(...args)) as typeof process.stdout.write;
+  try {
+    return await fn();
+  } finally {
+    process.stdout.write = original;
+  }
+}
+
 function ensureLockfilePath(app: App): string {
   if (app.lockfilePath === null) {
     throw new CliError("Error: lockfile is disabled (lockfile: null on App)");
@@ -64,7 +93,7 @@ interface PinOpts {
  */
 async function depsPin(opts: PinOpts): Promise<void> {
   const configPath = findConfig(opts.config);
-  const app = await loadApp(configPath);
+  const app = await withConfigOutputOnStderr(() => loadApp(configPath));
   ensureLockfilePath(app); // validate before doing any work
 
   const client = buildGitHubClient(opts.token);
@@ -112,7 +141,7 @@ interface CheckSyncedOpts {
  */
 async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const configPath = findConfig(opts.config);
-  const app = await loadApp(configPath);
+  const app = await withConfigOutputOnStderr(() => loadApp(configPath));
   ensureLockfilePath(app); // validate before doing any work
 
   const report = checkSync(app, { prune: opts.prune });
@@ -173,7 +202,9 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const apply = !opts.check;
 
   const configPath = findConfig(opts.config);
-  const { app, files: userFiles } = await trackUserFiles(configPath);
+  const { app, files: userFiles } = await withConfigOutputOnStderr(() =>
+    trackUserFiles(configPath),
+  );
 
   const client = buildGitHubClient(opts.token);
 
@@ -263,7 +294,7 @@ async function depsUpdate(opts: UpdateOpts): Promise<void> {
   });
 
   const configPath = findConfig(opts.config);
-  let { app, files: userFiles } = await trackUserFiles(configPath);
+  let { app, files: userFiles } = await withConfigOutputOnStderr(() => trackUserFiles(configPath));
   const client = buildGitHubClient(opts.token);
 
   const report = await upgrade(app, client, userFiles, { mode, apply: !opts.dryRun });
@@ -278,7 +309,7 @@ async function depsUpdate(opts: UpdateOpts): Promise<void> {
   // Re-read. (`changedFiles` is empty unless the bumps were actually applied,
   // so this never fires under `--dry-run`.)
   if (report.changedFiles.length > 0) {
-    app = await loadApp(configPath);
+    app = await withConfigOutputOnStderr(() => loadApp(configPath));
   }
 
   const plan = planUpdate(app, report, {

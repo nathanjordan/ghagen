@@ -7,9 +7,11 @@ typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import os
 import sys
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,6 +21,8 @@ import typer
 from ghagen.cli._common import _find_config, _load_app
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from ghagen.app import App
     from ghagen.pin.github import GitHubClient
 
@@ -26,6 +30,28 @@ deps_app = typer.Typer(
     help="Manage action dependencies.",
     no_args_is_help=True,
 )
+
+
+@contextmanager
+def _config_output_on_stderr() -> Iterator[None]:
+    """Route anything the *config module* prints to stderr for the duration.
+
+    Loading a config **executes** it: it is arbitrary user Python, and whatever
+    it prints lands on stdout ahead of everything this command writes there.
+    That is fatal for ``deps update``, whose ``--format github`` payload the
+    action appends to ``$GITHUB_OUTPUT`` through a bare ``>>`` redirect --
+    every line is parsed as ``key=value``.  A printed line without an ``=``
+    fails the step; a line *with* one, say ``print("action=create-pr")``,
+    forges an action-level output the workflow then acts on.  ``deps upgrade
+    --format json`` has the same exposure with a JSON document instead.
+
+    Re-routed, never suppressed: a config that prints is doing so deliberately
+    and the operator should still see it.  ``sys.stderr`` is looked up on entry
+    rather than at import so a test harness (or a caller) that has replaced the
+    stream still receives the output.
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
 
 
 def _ensure_lockfile_path(app: App) -> Path:
@@ -75,7 +101,8 @@ def deps_pin(
     from ghagen.pin.engine import pin as pin_engine
 
     config_path = _find_config(config)
-    ghagen_app = _load_app(config_path)
+    with _config_output_on_stderr():
+        ghagen_app = _load_app(config_path)
     _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
     client = _github_client(token)
@@ -115,7 +142,8 @@ def deps_check_synced(
     from ghagen.pin.engine import check_sync
 
     config_path = _find_config(config)
-    ghagen_app = _load_app(config_path)
+    with _config_output_on_stderr():
+        ghagen_app = _load_app(config_path)
     _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
     report = check_sync(ghagen_app, prune=prune)
@@ -186,7 +214,8 @@ def deps_upgrade(
     config_path = _find_config(config)
 
     # Load the app while tracking the user source files it imported.
-    ghagen_app, user_files = track_user_files(config_path)
+    with _config_output_on_stderr():
+        ghagen_app, user_files = track_user_files(config_path)
 
     client = _github_client(token)
 
@@ -326,7 +355,8 @@ def deps_update(
     previous_dont_write_bytecode = sys.dont_write_bytecode
     sys.dont_write_bytecode = True
     try:
-        ghagen_app, user_files = track_user_files(config_path)
+        with _config_output_on_stderr():
+            ghagen_app, user_files = track_user_files(config_path)
 
         report = upgrade_engine(
             ghagen_app,
@@ -352,7 +382,8 @@ def deps_update(
             for changed_file in report.changed_files:
                 cached = importlib.util.cache_from_source(str(changed_file))
                 Path(cached).unlink(missing_ok=True)
-            ghagen_app = _load_app(config_path)
+            with _config_output_on_stderr():
+                ghagen_app = _load_app(config_path)
     finally:
         sys.dont_write_bytecode = previous_dont_write_bytecode
 

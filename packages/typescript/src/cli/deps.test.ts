@@ -389,6 +389,37 @@ describe("deps update", () => {
     expect(out.text()).not.toContain("warning:");
   });
 
+  /**
+   * Loading the config *executes* it, and it does not own stdout.
+   *
+   * Same stream, one step earlier. The config is arbitrary user TypeScript
+   * that runs before the plan is printed, so a `console.log` with no `=` fails
+   * the action's `>> "$GITHUB_OUTPUT"` step outright, and one *with* an `=` —
+   * `console.log("action=create-issue")` — forges an action-level output the
+   * workflow then acts on. Re-routed, not suppressed.
+   */
+  test("a chatty config module cannot reach the plan stream", async () => {
+    trackUserFilesMock.mockImplementation(async () => {
+      process.stdout.write("action=create-issue\n");
+      process.stdout.write("loading workflows...\n");
+      return { app: fakeApp({ lockfilePath: null }), files: new Set<string>() };
+    });
+    upgradeMock.mockResolvedValue(emptyReport(bumpOnLocklessProject()));
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true });
+    out.restore();
+    err.restore();
+
+    const lines = out.text().split("\n").filter(Boolean);
+    expect(lines.every((line) => /^[a-z_]+=/.test(line))).toBe(true);
+    // Exactly one `action=`: the plan's own, and it is a PR, not the issue the
+    // config module tried to forge.
+    expect(lines.filter((line) => line.startsWith("action="))).toEqual(["action=create-pr"]);
+    expect(err.text()).toContain("loading workflows...");
+  });
+
   test("--format json and --format github carry the same fields", async () => {
     trackUserFilesMock.mockResolvedValue({
       app: fakeApp({ lockfilePath: null }),
