@@ -119,6 +119,11 @@ def test_comments(snapshot: Snapshot):
         on=with_eol_comment(
             On(
                 push=PushTrigger(branches=["main"]),
+                # An otherwise-empty sub-model carrying only its own comment.
+                # `present_null_when_empty` discards the map; the comment folds
+                # onto the bare key rather than vanishing with it. Bound here so
+                # the two ports cannot resolve it differently.
+                workflow_dispatch=WorkflowDispatchTrigger(comment="Run it by hand too"),
             ),
             "trigger configuration",
         ),

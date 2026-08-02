@@ -4,6 +4,8 @@ on:  # trigger configuration
   push:
     branches:
     - main
+  # Run it by hand too
+  workflow_dispatch:
 jobs:
   lint:
     # Run linters before tests

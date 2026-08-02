@@ -6,6 +6,7 @@ import { raw, withComment, withEolComment } from "../models/_base.js";
 import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
+import { workflowDispatch } from "../models/trigger.js";
 import {
   action,
   actionInputDef,
@@ -36,7 +37,17 @@ describe("snapshot tests", () => {
   it("comments.yml", () => {
     const w = workflow({
       name: withComment("Commented Workflow", "The name shown in the GitHub UI"),
-      on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
+      on: withEolComment(
+        {
+          push: { branches: ["main"] },
+          // An otherwise-empty sub-model carrying only its own comment.
+          // `presentNullWhenEmpty` discards the map; the comment folds onto the
+          // bare key rather than vanishing with it. Bound here so the two ports
+          // cannot resolve it differently.
+          workflowDispatch: workflowDispatch({ comment: "Run it by hand too" }),
+        },
+        "trigger configuration",
+      ),
       jobs: {
         lint: job({
           // A model comment and a field comment on the SAME key: the model's

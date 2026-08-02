@@ -82,8 +82,9 @@ function modelToYamlMap(model: Model): YAMLMap {
     if (presentNull.has(key) && isEmptyMapValue(value)) {
       const pair = new Pair(new Scalar(key), nullScalar());
       map.items.push(pair);
-      if (isCommented(value)) {
-        attachFieldComment(pair, value.comment, value.eolComment);
+      const { comment, eolComment } = presentNullComments(value);
+      if (comment !== undefined || eolComment !== undefined) {
+        attachFieldComment(pair, comment, eolComment);
       }
       continue;
     }
@@ -221,6 +222,37 @@ function isEmptyMapValue(value: unknown): boolean {
   return typeof v === "object" && Object.keys(v).length === 0;
 }
 
+/** Join the defined comment payloads with newlines, or `undefined`. */
+function joinComments(...parts: (string | undefined)[]): string | undefined {
+  const present = parts.filter((p): p is string => p !== undefined);
+  return present.length > 0 ? present.join("\n") : undefined;
+}
+
+/**
+ * The comments a present-null entry carries: the field's own, then the
+ * discarded sub-model's.
+ *
+ * A present-null collapse throws the sub-model away. When that sub-model
+ * carried its OWN comment, the comment would have rendered inside the map,
+ * below the key; the map is gone, so it renders below the field's comment on
+ * the key that replaced it. Dropping it instead — which both ports used to
+ * do — silently deleted the only content the user wrote, since an otherwise
+ * empty commented sub-model is nothing but its comment. Peer of Python's
+ * `emit_entries`.
+ */
+function presentNullComments(value: unknown): {
+  comment: string | undefined;
+  eolComment: string | undefined;
+} {
+  const wrapper = isCommented(value) ? value : undefined;
+  const inner = unwrapCommented(value);
+  const sub = inner instanceof Model ? inner.meta : undefined;
+  return {
+    comment: joinComments(wrapper?.comment, sub?.comment),
+    eolComment: joinComments(wrapper?.eolComment, sub?.eolComment),
+  };
+}
+
 /** A null scalar that emits as a bare `key:` (empty source), matching ruamel. */
 function nullScalar(): Scalar {
   const scalar = new Scalar(null);
@@ -299,16 +331,23 @@ function modelToData(
         ? dedentScript(value)
         : value;
     const emptyPresentNull = presentNull.has(key) && isEmptyMapValue(field);
-    if (isCommented(field)) {
-      const inner = emptyPresentNull ? null : valueToData(field.value, comments, autoDedent);
-      // A commented present-null map keeps its comment on the bare `key:`
-      // (mirrors Python's CommentNode(None, comment=...)).
+    if (emptyPresentNull) {
+      // The collapse discards the sub-model, so its own comment folds onto the
+      // bare `key:` below the field's — the same resolution `modelToYamlMap`
+      // makes, so the two passes cannot disagree about it.
+      const { comment, eolComment } = presentNullComments(field);
+      result[key] =
+        comments && (comment !== undefined || eolComment !== undefined)
+          ? commentNode(null, comment, eolComment)
+          : null;
+    } else if (isCommented(field)) {
+      const inner = valueToData(field.value, comments, autoDedent);
       result[key] =
         comments && (field.comment !== undefined || field.eolComment !== undefined)
           ? commentNode(inner, field.comment, field.eolComment)
           : inner;
     } else {
-      result[key] = emptyPresentNull ? null : valueToData(field, comments, autoDedent);
+      result[key] = valueToData(field, comments, autoDedent);
     }
   }
   return result;

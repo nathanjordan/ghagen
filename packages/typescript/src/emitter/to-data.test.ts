@@ -4,7 +4,7 @@ import { toData, toYaml } from "./yaml-writer.js";
 import { step } from "../models/step.js";
 import { job, defaults, strategy, matrix } from "../models/job.js";
 import { workflow } from "../models/workflow.js";
-import { on } from "../models/trigger.js";
+import { on, workflowDispatch } from "../models/trigger.js";
 import { raw, withComment, withEolComment } from "../models/_base.js";
 
 // `toData` is THE supported observation surface for model behaviour (proposal
@@ -90,6 +90,38 @@ describe("toData", () => {
     const j = job({ runsOn: "ubuntu-latest", steps: [step({ run: "pytest", comment: "run it" })] });
     const data = toData(j, { comments: true }) as Record<string, unknown>;
     expect(data["steps"]).toEqual([{ value: { run: "pytest" }, comment: "run it" }]);
+  });
+
+  // The comment is the only content the user wrote, so dropping it deletes
+  // everything. Both ports dropped it: the comment sat on the empty map, which
+  // `presentNullWhenEmpty` then replaced with null, discarding map and comment
+  // together. Peer of Python's
+  // `test_present_null_model_comment_survives_into_emitted_yaml`.
+  it("keeps a discarded present-null sub-model's own comment", () => {
+    const wf = workflow({
+      name: "CI",
+      on: on({ workflowDispatch: workflowDispatch({ comment: "dispatch note" }) }),
+      jobs: {},
+    });
+    expect(toYaml(wf, { header: null })).toContain("# dispatch note\n  workflow_dispatch:\n");
+  });
+
+  // ...and `toData` must agree, or the observation surface reports a structure
+  // the emitter does not produce.
+  it("reports that comment on the present-null key in toData too", () => {
+    const wf = workflow({
+      name: "CI",
+      on: on({ workflowDispatch: workflowDispatch({ comment: "dispatch note" }) }),
+      jobs: {},
+    });
+    const onData = (toData(wf, { comments: true }) as Record<string, unknown>)["on"] as Record<
+      string,
+      unknown
+    >;
+    expect(onData["workflow_dispatch"]).toMatchObject({
+      value: null,
+      comment: "dispatch note",
+    });
   });
 
   it("agrees with toYaml on top-level key order", () => {
