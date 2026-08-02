@@ -25,7 +25,7 @@ from typing import Any
 
 from ghagen._commented import is_commented
 from ghagen._raw import Raw
-from ghagen.emitter.nodes import collect_fields, is_empty_map, order_entries
+from ghagen.emitter.nodes import emit_entries
 from ghagen.models._base import GhagenModel
 
 
@@ -89,42 +89,31 @@ def _model_to_data(
 ) -> dict[str, Any]:
     """Walk a model's fields to a plain dict — the peer of ``_model_to_map``.
 
-    Shares its ``exclude_none`` / ``exclude_unset`` semantics, YAML-key mapping
-    and (when *auto_dedent*) Step ``run`` dedent with the ruamel walk by calling
-    the same :func:`~ghagen.emitter.nodes.collect_fields`, and its canonical key
-    ordering and extras merge by calling the same
-    :func:`~ghagen.emitter.nodes.order_entries` — but produces plain data and
-    does NOT run ``post_process``. A model's OWN comment is not represented
-    here; it is a container-placement concern, surfaced by
-    :func:`_value_to_data` when a model appears as a value.
-    """
-    spec = type(model).SPEC
-    raw = collect_fields(model, auto_dedent=auto_dedent)
-    present_null = spec.present_null_when_empty
+    Both passes consume the same :func:`~ghagen.emitter.nodes.emit_entries`, so
+    membership (``exclude_none`` / ``exclude_unset``), YAML-key mapping, the
+    Step ``run`` dedent, canonical ordering, the extras merge, comment
+    harvesting, and the ``present_null_when_empty`` decision are all resolved
+    once, upstream of either rendering. This function owns only the plain-data
+    rendering from there, and does NOT run ``post_process``.
 
+    A model's OWN comment is not represented here; it is a container-placement
+    concern, surfaced by :func:`_value_to_data` when a model appears as a value.
+    The one exception is a present-null entry, whose model is discarded —
+    ``emit_entries`` folds its comment onto the entry, matching the ruamel walk.
+    """
     result: dict[str, Any] = {}
-    for key, value in order_entries(raw, model.extras, spec):
-        if is_commented(value):
-            inner = _value_to_data(
-                value.value, auto_dedent=auto_dedent, comments=comments
+    for entry in emit_entries(model, auto_dedent=auto_dedent):
+        value = (
+            None
+            if entry.present_null
+            else _value_to_data(entry.value, auto_dedent=auto_dedent, comments=comments)
+        )
+        if comments and (entry.comment is not None or entry.eol_comment is not None):
+            result[entry.key] = CommentNode(
+                value, comment=entry.comment, eol_comment=entry.eol_comment
             )
-            if key in present_null and is_empty_map(inner):
-                inner = None
-            if comments and (
-                value.comment is not None or value.eol_comment is not None
-            ):
-                result[key] = CommentNode(
-                    inner, comment=value.comment, eol_comment=value.eol_comment
-                )
-            else:
-                result[key] = inner
         else:
-            data_value = _value_to_data(
-                value, auto_dedent=auto_dedent, comments=comments
-            )
-            if key in present_null and is_empty_map(data_value):
-                data_value = None
-            result[key] = data_value
+            result[entry.key] = value
     return result
 
 

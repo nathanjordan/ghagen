@@ -1,0 +1,46 @@
+# Shared comment-geometry table for both ports' emitters.
+#
+# How far a `#` sits from the thing it annotates, and what happens when a
+# payload cannot sit at end of line at all. Both ports state these facts; until
+# now each stated them SEPARATELY -- `comment-geometry.test.ts` asserted the
+# TypeScript `EOL_GUTTER` is 2 and `test_comment_geometry.py` asserted the
+# Python one is 2, with nothing between the two assertions. Two mirrors are not
+# a binding: changing one constant leaves the other port's test green, and the
+# comment column silently diverges. This file is the single oracle both read.
+#
+# Parity here is of the stated RULE, not of the implementation. ruamel.yaml
+# resolves comment columns absolutely, at dump time, from tokens already on the
+# tree, so the Python port owns two node-tree passes where TypeScript owns two
+# string renderers. `render_eol_comment` / `renderEolComment` is the one
+# function both ports have with the same signature and the same contract, so it
+# is what the vectors below bind.
+#
+# Read by:
+#   - Python (packages/python/tests/test_emitter/test_comment_geometry.py)
+#   - TypeScript (packages/typescript/src/emitter/comment-geometry.test.ts)
+
+# Columns between the end of a line's content and the `#` of its EOL comment.
+# Two, which is ruamel.yaml's own default and therefore both ports'.
+eol_gutter: 2
+
+# `payload` -> the string the renderer returns, or null when the payload cannot
+# sit at end of line (a newline would make the emitted YAML unparseable, so the
+# caller places it as a block comment instead).
+#
+# The backend contributes the last column in BOTH ports -- ruamel's emitter
+# writes one space before a column-0 EOL token, and `yaml`'s `lineComment`
+# prepends one space when the line does not already end in one -- so a rendered
+# payload carries `eol_gutter - 1` leading spaces, not `eol_gutter`.
+eol_comment:
+  - payload: "x"
+    rendered: " # x"
+  # A payload that already carries its own `#` passes through un-prefixed. That
+  # is ruamel's `yaml_add_eol_comment` contract, and it makes the renderer
+  # idempotent over its own output, which the Python gutter pass relies on.
+  - payload: "# already"
+    rendered: " # already"
+  # A `#` inside the payload is content, not a second comment marker.
+  - payload: "see issue # 42"
+    rendered: " # see issue # 42"
+  - payload: "line one\nline two"
+    rendered: null

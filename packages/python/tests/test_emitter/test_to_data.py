@@ -21,6 +21,7 @@ from ghagen import (
     Step,
     Strategy,
     Workflow,
+    WorkflowDispatchTrigger,
     with_comment,
     with_eol_comment,
 )
@@ -111,6 +112,53 @@ def test_nested_model_own_comment_surfaced_with_comments_true():
     job = Job(runs_on="ubuntu-latest", steps=[Step(run="pytest", comment="run it")])
     data = to_data(job, comments=True)
     assert data["steps"] == [CommentNode({"run": "pytest"}, comment="run it")]
+
+
+def test_present_null_fires_when_the_empty_model_carries_its_own_comment():
+    """A model comment must not change the *structure* ``to_data`` reports.
+
+    ``present_null_when_empty`` tested emptiness on the already-converted value,
+    and a commented model converts to a ``CommentNode``, which is not a ``dict``
+    — so the rule silently stopped firing and ``to_data(comments=True)``
+    reported ``{}`` where ``to_data()`` and ``emit`` both report null.
+    """
+    on = On(workflow_dispatch=WorkflowDispatchTrigger(comment="dispatch note"))
+    assert to_data(on) == {"workflow_dispatch": None}
+    assert to_data(on, comments=True) == {
+        "workflow_dispatch": CommentNode(None, comment="dispatch note")
+    }
+
+
+def test_present_null_fires_when_the_empty_model_carries_an_eol_comment():
+    on = On(workflow_dispatch=WorkflowDispatchTrigger(eol_comment="dispatch note"))
+    assert to_data(on) == {"workflow_dispatch": None}
+    assert to_data(on, comments=True) == {
+        "workflow_dispatch": CommentNode(None, eol_comment="dispatch note")
+    }
+
+
+def test_present_null_keeps_a_field_comment_on_the_nulled_key():
+    """The already-working half: a ``Commented`` wrapper at the field position."""
+    on = On(workflow_dispatch=with_comment(WorkflowDispatchTrigger(), "field note"))
+    assert to_data(on) == {"workflow_dispatch": None}
+    assert to_data(on, comments=True) == {
+        "workflow_dispatch": CommentNode(None, comment="field note")
+    }
+
+
+def test_present_null_model_comment_survives_into_emitted_yaml():
+    """The comment is the only content the user wrote; it must not vanish.
+
+    Both ports dropped it: the comment was attached to the empty map, which
+    ``present_null_when_empty`` then replaced with null, discarding the map and
+    the comment with it.
+    """
+    wf = Workflow(
+        name="CI",
+        on=On(workflow_dispatch=WorkflowDispatchTrigger(comment="dispatch note")),
+        jobs={},
+    )
+    assert "# dispatch note\n  workflow_dispatch:\n" in wf.to_yaml(header=None)
 
 
 def test_non_model_raises_type_error():

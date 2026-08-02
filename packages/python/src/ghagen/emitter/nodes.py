@@ -13,6 +13,7 @@ Recursion never leaves the emitter: models carry only data plus their
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -129,14 +130,111 @@ def collect_fields(model: GhagenModel, *, auto_dedent: bool) -> dict[str, Any]:
     return raw
 
 
-def is_empty_map(node: Any) -> bool:
-    """True when *node* is an empty map — the trigger for ``present_null_when_empty``.
+def resolves_to_empty_map(value: Any) -> bool:
+    """True when *value* emits as an empty map.
 
-    Booleans, non-empty maps, and non-map scalars are not empty maps. Both a
-    ruamel ``CommentedMap`` and a plain ``dict`` (used by the data walk) are
-    ``dict`` subclasses, so one check serves both Emitter passes.
+    The ``present_null_when_empty`` trigger.
+    Answered on the **model value**, before either pass converts it, so the two
+    passes cannot disagree about it. The previous shape asked the question of
+    the already-converted node, once per pass, and the two conversions do not
+    produce the same thing for the same input: the ruamel walk yields a
+    ``CommentedMap`` (a ``dict``) for a commented sub-model while the data walk
+    yields a ``CommentNode`` (not a ``dict``), so the rule fired in one pass and
+    silently did not in the other. See :func:`emit_entries`.
+
+    A ``GhagenModel`` is empty iff it emits no entries at all — the same
+    :func:`collect_fields` / :func:`order_entries` membership every other part
+    of the Emitter uses, so "empty" means exactly "would emit ``{}``".
+    *auto_dedent* cannot change membership, so it is not a parameter.
+
+    Booleans, lists, ``Raw`` values, and non-empty maps are not empty maps. This
+    is the peer of TypeScript's ``isEmptyMapValue``.
     """
-    return isinstance(node, dict) and len(node) == 0
+    value = unwrap_commented(value)
+    if isinstance(value, GhagenModel):
+        spec = type(value).SPEC
+        fields = collect_fields(value, auto_dedent=False)
+        return not order_entries(fields, value.extras, spec)
+    if isinstance(value, Raw):
+        return False
+    return isinstance(value, dict) and len(value) == 0
+
+
+@dataclass(frozen=True)
+class Entry:
+    """One resolved emitted entry: a key, its value, and the comments on it.
+
+    The Emitter's two passes (:func:`_model_to_map` and
+    :func:`ghagen.emitter.data._model_to_data`) both consume these, so
+    membership, order, comment harvesting, and the ``present_null_when_empty``
+    decision are each resolved once rather than restated per pass. The passes
+    differ only in what they *render*.
+
+    Attributes:
+        key: The emitted YAML key.
+        value: The field value with any field-position ``Commented`` wrapper
+            peeled off (its comments are in ``comment`` / ``eol_comment``).
+            Meaningless when ``present_null`` is set — the value emits as null.
+        comment: Block comment to place before ``key``, or ``None``.
+        eol_comment: End-of-line comment to place after the value, or ``None``.
+        present_null: The value resolves to an empty map on a key the spec lists
+            in ``present_null_when_empty``, so it emits as a bare ``key:``.
+    """
+
+    key: str
+    value: Any
+    comment: str | None
+    eol_comment: str | None
+    present_null: bool
+
+
+def _join(*parts: str | None) -> str | None:
+    """Join the non-``None`` comment payloads with newlines, or ``None``."""
+    present = [p for p in parts if p is not None]
+    return "\n".join(present) if present else None
+
+
+def emit_entries(model: GhagenModel, *, auto_dedent: bool) -> list[Entry]:
+    """Resolve every emitted entry of *model* — the Emitter's one entry resolver.
+
+    Composes :func:`collect_fields` (membership) and :func:`order_entries`
+    (order), then makes the two per-entry decisions that were previously
+    duplicated in each pass and had drifted apart:
+
+    - **Comment harvesting.** A field-position ``Commented`` wrapper is peeled
+      and its payloads moved onto the entry.
+    - **``present_null_when_empty``.** Decided by :func:`resolves_to_empty_map`
+      on the *unconverted* value, so it cannot depend on which pass is asking.
+
+    When a present-null collapse discards a sub-model that carried its OWN
+    comment, that comment is folded onto the entry rather than dropped. It would
+    have rendered inside the map, below the key; the map is gone, so it renders
+    below the field's own comment on the key that replaced it. Dropping it
+    instead — which both ports used to do — silently deleted the only content
+    the user wrote, since an otherwise-empty commented sub-model is nothing but
+    its comment.
+    """
+    spec = type(model).SPEC
+    raw = collect_fields(model, auto_dedent=auto_dedent)
+    entries: list[Entry] = []
+
+    for key, value in order_entries(raw, model.extras, spec):
+        comment: str | None = None
+        eol_comment: str | None = None
+        if is_commented(value):
+            comment, eol_comment = value.comment, value.eol_comment
+            value = unwrap_commented(value)
+
+        present_null = key in spec.present_null_when_empty and resolves_to_empty_map(
+            value
+        )
+        if present_null and isinstance(value, GhagenModel):
+            comment = _join(comment, value.comment)
+            eol_comment = _join(eol_comment, value.eol_comment)
+
+        entries.append(Entry(key, value, comment, eol_comment, present_null))
+
+    return entries
 
 
 def _to_seq(items: list[Any], *, auto_dedent: bool) -> CommentedSeq:
@@ -205,29 +303,28 @@ def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> Commented
 
     Does NOT attach the model's OWN comment — that is the container's job
     (:func:`_to_node` for a map value, :func:`_to_seq` for a seq item, and the
-    document emitter for the root).
+    document emitter for the root). The one exception is a present-null entry,
+    whose map is discarded: :func:`emit_entries` folds that map's own comment
+    onto the entry so it survives onto the bare key.
     """
-    spec = type(model).SPEC
-    raw = collect_fields(model, auto_dedent=auto_dedent)
-    present_null = spec.present_null_when_empty
     cm = CommentedMap()
 
-    # Emit each field, attaching any Commented-wrapper comment inline at the
-    # point of emission (no collect-then-reattach two-pass). The comment
-    # module owns the actual placement. A ``present_null_when_empty`` field whose
-    # value resolves to an empty map emits as a bare ``key:`` (null).
-    for key, value in order_entries(raw, model.extras, spec):
-        if is_commented(value):
-            node = _to_node(unwrap_commented(value), auto_dedent=auto_dedent)
-            if key in present_null and is_empty_map(node):
-                node = None
-            cm[key] = node
-            attach(cm, key, comment=value.comment, eol_comment=value.eol_comment)
-        else:
-            node = _to_node(value, auto_dedent=auto_dedent)
-            if key in present_null and is_empty_map(node):
-                node = None
-            cm[key] = node
+    # Render each resolved entry, attaching its comments inline at the point of
+    # emission (no collect-then-reattach two-pass). The comment module owns the
+    # actual placement. A present-null entry emits as a bare ``key:`` (null).
+    for entry in emit_entries(model, auto_dedent=auto_dedent):
+        cm[entry.key] = (
+            None
+            if entry.present_null
+            else _to_node(entry.value, auto_dedent=auto_dedent)
+        )
+        if entry.comment is not None or entry.eol_comment is not None:
+            attach(
+                cm,
+                entry.key,
+                comment=entry.comment,
+                eol_comment=entry.eol_comment,
+            )
 
     if model.post_process is not None:
         model.post_process(cm)

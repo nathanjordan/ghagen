@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, ClassVar, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 from ruamel.yaml.comments import CommentedMap
 
-from ghagen._commented import Commented
+from ghagen._commented import Commented, unwrap_commented
 from ghagen._package_paths import is_internal_frame
 from ghagen._raw import Raw
 from ghagen.emitter.header import DEFAULT, HeaderInput
@@ -74,6 +82,28 @@ def _scan_for_models(value: Any) -> Iterator[GhagenModel]:
 # in ``emitter/nodes.py``. The import direction is unchanged — ``emitter``
 # imports ``models``, never the reverse (ADR-0001 amendment).
 _META_FIELDS = frozenset({"extras", "post_process", "comment", "eol_comment"})
+
+# A decimal-integer string key — one JavaScript enumerates ahead of insertion
+# order. ``OrdinaryOwnPropertyKeys`` lists array-index-like keys first, in
+# ascending numeric order, then the rest in creation order, so a YAML key of
+# ``"2"`` jumps to the front of the TypeScript port's record no matter where it
+# was written, while this port's ``dict`` leaves it where it was put. The same
+# input would emit different YAML in the two ports, so ghagen rejects such keys
+# rather than trying to preserve them.
+#
+# Equivalent to TypeScript's ``String(Number.parseInt(key, 10)) === key``, the
+# shape the ``fieldMap`` guard has always used: ``"0"``, ``"1"``, ``"-1"``
+# match; ``"01"``, ``"-0"``, ``"1.0"``, ``"+1"`` do not. ``"-1"`` is not in fact
+# an array index, so rejecting it is marginally over-strict — deliberately kept,
+# so one rule covers the declared keys and the user-supplied ones alike.
+#
+# The peer of ``isIntegerLikeKey`` in ``models/_base.ts``.
+_INTEGER_LIKE_KEY = re.compile(r"(0|-?[1-9][0-9]*)", re.ASCII)
+
+
+def _integer_like_key(key: str) -> bool:
+    """True when *key* is a decimal-integer string. See ``_INTEGER_LIKE_KEY``."""
+    return _INTEGER_LIKE_KEY.fullmatch(key) is not None
 
 
 class GhagenModel(BaseModel):
@@ -149,15 +179,48 @@ class GhagenModel(BaseModel):
 
         return instance
 
+    @field_validator("extras")
+    @classmethod
+    def _reject_integer_like_extras_keys(cls, extras: dict[str, Any]) -> dict[str, Any]:
+        """Reject decimal-integer ``extras`` keys — see ``_INTEGER_LIKE_KEY``.
+
+        ``extras`` is the channel through which a *user-chosen* YAML key reaches
+        the emitted map (dynamic axes on ``Matrix`` included), so it carries the
+        same constraint the emitted key order already imposes on
+        ``yaml_keys``' values. This port could hold such a key in place; the
+        TypeScript port cannot, so accepting it here would make the two ports
+        disagree about what is legal and about what the result emits as. The
+        peer check is ``rejectIntegerLikeKeys`` in ``models/_base.ts``.
+        """
+        bad = [key for key in extras if isinstance(key, str) and _integer_like_key(key)]
+        if bad:
+            raise ValueError(
+                f"integer-like YAML {'key' if len(bad) == 1 else 'keys'} "
+                f"{', '.join(repr(k) for k in bad)}. A decimal-integer key "
+                "cannot hold its position in JavaScript object key order, so "
+                "the two ports would emit different YAML. Prefix it "
+                '(e.g. "v2") or place the value under a named parent key.'
+            )
+        return extras
+
     @model_validator(mode="after")
     def _enforce_spec_patterns(self) -> GhagenModel:
         """Enforce the value grammars this model's spec declares.
 
         The peer of TypeScript's ``buildYamlData`` grammar check: one reader
         per port, in the one place that already consumes the spec at
-        construction. Runs after :meth:`_preserve_commented`'s
-        ``handler(clean)``, so it sees unwrapped values; skips non-``str``
-        values, so ``Raw`` stays the explicit escape hatch.
+        construction.
+
+        The grammar is checked on the value with any ``Commented`` wrapper
+        **peeled off**, so ``with_comment(...)`` cannot defeat it — the same
+        rule ``buildYamlData`` states. This validator is ``mode="after"``,
+        which runs *after* :meth:`_preserve_commented` (``mode="wrap"``) has
+        re-attached the wrapper via ``object.__setattr__``, so the attribute
+        read below yields the ``Commented``, not the string. Reading
+        ``handler(clean)``'s unwrapped value here is not possible; peeling is.
+
+        Non-``str`` values are skipped after peeling, so ``Raw`` stays the
+        explicit escape hatch — bare or wrapped in a comment.
 
         ``fullmatch`` rather than ``match``: ``re.match`` anchors only the
         start and Python's ``$`` matches before a trailing newline, so
@@ -170,7 +233,7 @@ class GhagenModel(BaseModel):
         if spec is None:
             return self
         for field_name, pattern in spec.patterns.items():
-            value = getattr(self, field_name, None)
+            value = unwrap_commented(getattr(self, field_name, None))
             if isinstance(value, str) and not pattern.fullmatch(value):
                 raise ValueError(
                     f"{field_name} {value!r} must match {pattern.pattern}; "

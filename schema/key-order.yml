@@ -1,0 +1,333 @@
+# Shared cross-port key-order table for the hand-written ghagen models.
+#
+# The one fact neither port could state about the other: the SEQUENCE of keys a
+# model emits. Every existing guard is intra-port -- `spec.test.ts` compares a
+# spec's emitted sequence to its own `fieldMap`, `test_spec.py` compares a
+# spec's emitted sequence to its own `yaml_keys`, and each passes by
+# construction because the sequence and its oracle are the same list. The only
+# cross-port model table before this one, the conformance sweep, compared
+# property NAMES as sets and never the order. Permuting one port's field map
+# therefore changed its emitted YAML with both suites green.
+#
+# This file is that missing oracle. Each entry names a model kind and states:
+#
+#   order: `explicit` or `alphabetical` -- the spec's OrderMode.
+#   keys:  the exact sequence of YAML keys the model emits, top to bottom.
+#
+# `on` is the sole `alphabetical` spec, and for it declaration order is UNREAD:
+# the Emitter sorts every key at emit time, so permuting `On.yaml_keys` /
+# `ON_SPEC.fieldMap` changes nothing observable and an order table over the
+# declaration would be vacuous. Its `keys` below are therefore in EMITTED
+# (sorted) order, like every other entry -- what the table binds is always what
+# comes out, never what was written. The `order` field is bound too, so a spec
+# that silently switched modes fails here rather than passing an order check
+# that no longer means anything.
+#
+# Read by:
+#   - Python (packages/python/tests/test_schema/test_conformance.py)
+#   - TypeScript (packages/typescript/src/models/conformance.test.ts)
+#
+# Both sweeps also assert their model-kind set equals this file's key set, so a
+# model added to one port and not the other fails a test instead of drifting.
+
+step:
+  order: explicit
+  keys:
+    - id
+    - name
+    - if
+    - uses
+    - run
+    - with
+    - env
+    - shell
+    - working-directory
+    - continue-on-error
+    - timeout-minutes
+
+job:
+  order: explicit
+  keys:
+    - name
+    - runs-on
+    - needs
+    - if
+    - permissions
+    - environment
+    - strategy
+    - env
+    - defaults
+    - steps
+    - outputs
+    - timeout-minutes
+    - continue-on-error
+    - concurrency
+    - services
+    - container
+    - snapshot
+    - uses
+    - with
+    - secrets
+
+workflow:
+  order: explicit
+  keys:
+    - name
+    - run-name
+    - on
+    - permissions
+    - env
+    - defaults
+    - concurrency
+    - jobs
+
+action:
+  order: explicit
+  keys:
+    - name
+    - description
+    - author
+    - branding
+    - inputs
+    - outputs
+    - runs
+
+on:
+  order: alphabetical
+  keys:
+    - branch_protection_rule
+    - check_run
+    - check_suite
+    - create
+    - delete
+    - deployment
+    - deployment_status
+    - discussion
+    - discussion_comment
+    - fork
+    - gollum
+    - issue_comment
+    - issues
+    - label
+    - merge_group
+    - milestone
+    - page_build
+    - project
+    - project_card
+    - project_column
+    - public
+    - pull_request
+    - pull_request_review
+    - pull_request_review_comment
+    - pull_request_target
+    - push
+    - registry_package
+    - release
+    - repository_dispatch
+    - schedule
+    - status
+    - watch
+    - workflow_call
+    - workflow_dispatch
+    - workflow_run
+
+pushTrigger:
+  order: explicit
+  keys:
+    - branches
+    - branches-ignore
+    - tags
+    - tags-ignore
+    - paths
+    - paths-ignore
+
+prTrigger:
+  order: explicit
+  keys:
+    - branches
+    - branches-ignore
+    - tags
+    - tags-ignore
+    - paths
+    - paths-ignore
+    - types
+
+scheduleTrigger:
+  order: explicit
+  keys:
+    - cron
+    - timezone
+
+workflowDispatch:
+  order: explicit
+  keys:
+    - inputs
+
+workflowDispatchInput:
+  order: explicit
+  keys:
+    - description
+    - required
+    - default
+    - type
+    - options
+    - deprecationMessage
+
+workflowCall:
+  order: explicit
+  keys:
+    - inputs
+    - outputs
+    - secrets
+
+workflowCallInput:
+  order: explicit
+  keys:
+    - description
+    - required
+    - default
+    - type
+
+workflowCallOutput:
+  order: explicit
+  keys:
+    - description
+    - value
+
+workflowCallSecret:
+  order: explicit
+  keys:
+    - description
+    - required
+
+permissions:
+  order: explicit
+  keys:
+    - actions
+    - artifact-metadata
+    - attestations
+    - checks
+    - contents
+    - deployments
+    - discussions
+    - id-token
+    - issues
+    - models
+    - packages
+    - pages
+    - pull-requests
+    - repository-projects
+    - security-events
+    - statuses
+
+strategy:
+  order: explicit
+  keys:
+    - matrix
+    - fail-fast
+    - max-parallel
+
+matrix:
+  order: explicit
+  keys:
+    - include
+    - exclude
+
+concurrency:
+  order: explicit
+  keys:
+    - group
+    - cancel-in-progress
+
+defaults:
+  order: explicit
+  keys:
+    - run
+
+defaultsRun:
+  order: explicit
+  keys:
+    - shell
+    - working-directory
+
+environment:
+  order: explicit
+  keys:
+    - name
+    - url
+    - deployment
+
+container:
+  order: explicit
+  keys:
+    - image
+    - credentials
+    - env
+    - ports
+    - volumes
+    - options
+
+service:
+  order: explicit
+  keys:
+    - image
+    - credentials
+    - env
+    - ports
+    - volumes
+    - options
+
+imageSnapshot:
+  order: explicit
+  keys:
+    - image-name
+    - version
+
+actionInput:
+  order: explicit
+  keys:
+    - description
+    - required
+    - default
+    - deprecationMessage
+
+actionOutput:
+  order: explicit
+  keys:
+    - description
+    - value
+
+branding:
+  order: explicit
+  keys:
+    - icon
+    - color
+
+compositeRuns:
+  order: explicit
+  keys:
+    - using
+    - steps
+
+dockerRuns:
+  order: explicit
+  keys:
+    - using
+    - image
+    - env
+    - args
+    - pre-entrypoint
+    - pre-if
+    - entrypoint
+    - post-entrypoint
+    - post-if
+
+nodeRuns:
+  order: explicit
+  keys:
+    - using
+    - main
+    - pre
+    - post
+    - pre-if
+    - post-if

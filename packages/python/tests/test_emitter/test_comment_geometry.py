@@ -2,10 +2,21 @@
 
 The two node-tree passes are driven directly on hand-built ruamel nodes — the
 first direct coverage either has had; until now the block-column pass was only
-exercised indirectly through ``dump_yaml``. ``EOL_GUTTER``'s value is pinned
-here, once, so the byte oracles elsewhere can stay literal.
+exercised indirectly through ``dump_yaml``.
+
+``EOL_GUTTER`` and the ``render_eol_comment`` vectors are NOT pinned here as
+literals. They come from ``schema/comment-geometry.yml``, which the TypeScript
+peer (``emitter/comment-geometry.test.ts``) reads too. A literal in each port is
+two mirrors, not a binding: changing one port's renderer and its own literal
+together leaves the other port green and the emitted comment column silently
+divergent. One oracle, two readers.
 """
 
+from typing import Any
+
+import pytest
+from ghagen_schema.paths import SCHEMA_DIR
+from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from ghagen.emitter.comment_geometry import (
@@ -16,34 +27,44 @@ from ghagen.emitter.comment_geometry import (
     render_eol_comment,
 )
 
+COMMENT_GEOMETRY_PATH = SCHEMA_DIR / "comment-geometry.yml"
 
-def test_eol_gutter_is_two():
+
+def _load_geometry() -> dict[str, Any]:
+    return YAML(typ="safe").load(COMMENT_GEOMETRY_PATH.read_text(encoding="utf-8"))
+
+
+def test_eol_gutter_matches_the_shared_table():
     """Two columns, which is ruamel's own default and the TypeScript port's."""
-    assert EOL_GUTTER == 2
+    assert _load_geometry()["eol_gutter"] == EOL_GUTTER
 
 
 # --- render_eol_comment ---
 
 
+@pytest.mark.parametrize(
+    "vector",
+    _load_geometry()["eol_comment"],
+    ids=[repr(v["payload"]) for v in _load_geometry()["eol_comment"]],
+)
+def test_render_eol_comment_matches_the_shared_vectors(vector: dict[str, Any]):
+    """The one function both ports share by signature and by contract.
+
+    Covers the gutter, the ``#`` pass-through that keeps the Python gutter pass
+    idempotent over its own output, an inner ``#`` (content, not a marker), and
+    the newline payload that cannot sit at end of line at all.
+    """
+    assert render_eol_comment(vector["payload"]) == vector["rendered"]
+
+
 def test_render_eol_comment_contributes_gutter_minus_one():
     """ruamel's emitter writes the last column itself, so the token carries one."""
     assert render_eol_comment("x") == " " * (EOL_GUTTER - 1) + "# x"
-    assert render_eol_comment("x") == " # x"
 
 
-def test_render_eol_comment_rejects_a_multiline_payload():
-    """A newline cannot sit at end of line — ruamel would emit invalid YAML."""
-    assert render_eol_comment("line one\nline two") is None
-
-
-def test_render_eol_comment_passes_through_an_existing_hash():
-    """The ``yaml_add_eol_comment`` contract; makes the pass idempotent."""
-    assert render_eol_comment("# already") == " # already"
+def test_render_eol_comment_is_idempotent_over_its_own_output():
+    """What the ``#`` pass-through in the shared table buys the gutter pass."""
     assert render_eol_comment(render_eol_comment("x").strip(" ")) == " # x"
-
-
-def test_render_eol_comment_leaves_an_inner_hash_alone():
-    assert render_eol_comment("see issue # 42") == " # see issue # 42"
 
 
 # --- _apply_pre_comment_columns ---

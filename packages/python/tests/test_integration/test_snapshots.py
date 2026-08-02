@@ -124,7 +124,9 @@ def test_comments(snapshot: Snapshot):
         ),
         jobs={
             "lint": Job(
-                name="Lint",
+                # A model comment and a field comment on the SAME key: the
+                # model's own comment comes first (see attach_model_comment).
+                name=with_comment("Lint", "Shown in the checks list"),
                 runs_on="ubuntu-latest",
                 comment="Run linters before tests",
                 steps=[

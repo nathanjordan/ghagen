@@ -39,7 +39,9 @@ describe("snapshot tests", () => {
       on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
       jobs: {
         lint: job({
-          name: "Lint",
+          // A model comment and a field comment on the SAME key: the model's
+          // own comment comes first (see attachModelComment).
+          name: withComment("Lint", "Shown in the checks list"),
           runsOn: "ubuntu-latest",
           comment: "Run linters before tests",
           steps: [

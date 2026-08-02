@@ -36,6 +36,7 @@ from ghagen_schema.paths import SCHEMA_DIR
 from pydantic import ValidationError
 from ruamel.yaml import YAML
 
+from ghagen import with_comment
 from ghagen.models._base import GhagenModel
 from ghagen.models.action import (
     Action,
@@ -46,7 +47,7 @@ from ghagen.models.action import (
     DockerRuns,
     NodeRuns,
 )
-from ghagen.models.container import Container
+from ghagen.models.container import Container, Service
 from ghagen.models.image_snapshot import IMAGE_SNAPSHOT_SPEC, ImageSnapshot
 from ghagen.models.job import (
     Concurrency,
@@ -54,6 +55,7 @@ from ghagen.models.job import (
     DefaultsRun,
     Environment,
     Job,
+    Matrix,
     Strategy,
 )
 from ghagen.models.permissions import Permissions
@@ -76,6 +78,7 @@ from ghagen.models.workflow import Workflow
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
 SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"
 VALUES_PATH = SCHEMA_DIR / "conformance-values.yml"
+KEY_ORDER_PATH = SCHEMA_DIR / "key-order.yml"
 
 # A JSON path into a loaded schema: the keys to walk before reading properties.
 # Integer segments index into a list -- ten of the workflow scopes name a
@@ -261,6 +264,98 @@ def test_scope_set_matches_shared_table() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Key-order sweep. The scope table above covers *which properties* a model
+# exposes, as a SET -- ``_model_property_names`` returns a ``set``, so it never
+# sees the sequence. Every order guard in either port is intra-port and compares
+# a spec's emitted sequence to its own key map, which passes by construction.
+# Permuting ``DEFAULTS_RUN_SPEC.fieldMap`` against ``DefaultsRun.yaml_keys``
+# therefore changed the TypeScript port's emitted YAML with both suites green.
+#
+# The shared table is schema/key-order.yml, read identically by the TypeScript
+# sweep; only the kind -> model binding stays here. Together with
+# ``test_spec.py``'s "emitted key sequence equals yaml_keys declaration order",
+# the chain is closed in both ports: shared table == yaml_keys == emitted.
+# ---------------------------------------------------------------------------
+
+# Shared model-kind name -> this port's model class. The kind names are the
+# TypeScript port's ``ModelKind`` discriminants, which the conformance scope
+# table already uses; this port has no ``kind`` field, and the class names are
+# not a mechanical transform of them (``WorkflowDispatchTrigger`` is
+# ``workflowDispatch``), so the binding is written out.
+_KINDS: dict[str, type[GhagenModel]] = {
+    "step": Step,
+    "job": Job,
+    "workflow": Workflow,
+    "action": Action,
+    "on": On,
+    "pushTrigger": PushTrigger,
+    "prTrigger": PRTrigger,
+    "scheduleTrigger": ScheduleTrigger,
+    "workflowDispatch": WorkflowDispatchTrigger,
+    "workflowDispatchInput": WorkflowDispatchInput,
+    "workflowCall": WorkflowCallTrigger,
+    "workflowCallInput": WorkflowCallInput,
+    "workflowCallOutput": WorkflowCallOutput,
+    "workflowCallSecret": WorkflowCallSecret,
+    "permissions": Permissions,
+    "strategy": Strategy,
+    "matrix": Matrix,
+    "concurrency": Concurrency,
+    "defaults": Defaults,
+    "defaultsRun": DefaultsRun,
+    "environment": Environment,
+    "container": Container,
+    "service": Service,
+    "imageSnapshot": ImageSnapshot,
+    "actionInput": ActionInput,
+    "actionOutput": ActionOutput,
+    "branding": Branding,
+    "compositeRuns": CompositeRuns,
+    "dockerRuns": DockerRuns,
+    "nodeRuns": NodeRuns,
+}
+
+
+def _load_key_order() -> dict[str, dict[str, Any]]:
+    """Load the shared key-order table: model kind -> {order, keys}."""
+    return YAML(typ="safe").load(KEY_ORDER_PATH.read_text())
+
+
+def test_model_kind_set_matches_shared_key_order_table() -> None:
+    """Mirrored by the TypeScript guard of the same name.
+
+    The table covers all 30 kinds -- two more than the conformance scope table,
+    which has no scope for ``matrix`` or ``service``.
+    """
+    table = _load_key_order()
+    assert set(_KINDS) == set(table), (
+        f"model kinds diverge from {KEY_ORDER_PATH.name}: port has "
+        f"{sorted(_KINDS)}, shared table has {sorted(table)}."
+    )
+
+
+@pytest.mark.parametrize(
+    "kind", sorted(_load_key_order()), ids=sorted(_load_key_order())
+)
+def test_key_sequence_matches_shared_table(kind: str) -> None:
+    table = _load_key_order()[kind]
+    model = _KINDS[kind]
+    assert model.SPEC.order == table["order"], (
+        f"{kind}: port declares order={model.SPEC.order!r}, shared table says "
+        f"{table['order']!r}."
+    )
+    # ``alphabetical`` leaves declaration order unread -- the Emitter sorts at
+    # emit time -- so the table states the SORTED sequence for ``on`` and the
+    # declared list is sorted to meet it. Asserting the raw declaration for
+    # ``on`` would bind a sequence nothing observes.
+    declared = list(model.SPEC.yaml_keys.values())
+    emitted = sorted(declared) if table["order"] == "alphabetical" else declared
+    assert emitted == list(table["keys"]), (
+        f"{kind}: emitted key sequence {emitted} != shared table {table['keys']}."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Value-grammar sweep. The scope table above covers *which properties* a model
 # exposes; this covers *which values* a field accepts. The shared table is
 # schema/conformance-values.yml, read identically by the TypeScript sweep
@@ -270,13 +365,24 @@ def test_scope_set_matches_shared_table() -> None:
 
 
 class ValueBinding:
-    """One declared value grammar: this port's spec plus a constructor."""
+    """One declared value grammar: this port's spec plus two constructors.
+
+    ``construct`` passes the vector bare; ``construct_commented`` passes it
+    wrapped in :func:`~ghagen.with_comment`. Two constructors rather than one
+    because a comment wrapper reaches the grammar check by a different route in
+    each port, and the shared table's ``reject_commented`` vectors are what bind
+    both routes to the same answer.
+    """
 
     def __init__(
-        self, spec: ModelSpec, construct: Callable[[str], GhagenModel]
+        self,
+        spec: ModelSpec,
+        construct: Callable[[str], GhagenModel],
+        construct_commented: Callable[[str], GhagenModel],
     ) -> None:
         self.spec = spec
         self.construct = construct
+        self.construct_commented = construct_commented
 
 
 # snapshot filename -> "<kind>.<field>" -> binding. The key format is exactly a
@@ -288,6 +394,9 @@ _VALUE_BINDINGS: dict[str, dict[str, ValueBinding]] = {
         "imageSnapshot.version": ValueBinding(
             IMAGE_SNAPSHOT_SPEC,
             lambda version: ImageSnapshot(image_name="img", version=version),
+            lambda version: ImageSnapshot(
+                image_name="img", version=with_comment(version, "note")
+            ),
         ),
     },
 }
@@ -348,6 +457,29 @@ def test_value_vectors(snapshot: str, key: str) -> None:
     for value in entry["reject"]:
         with pytest.raises(ValidationError):
             construct(value)
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_vectors_under_a_comment_wrapper(snapshot: str, key: str) -> None:
+    """A comment wrapper changes presentation, never what the grammar accepts.
+
+    ``accept`` vectors still construct and ``reject_commented`` vectors still
+    raise when the value arrives wrapped in :func:`~ghagen.with_comment`. This
+    port peels the wrapper in ``GhagenModel._enforce_spec_patterns``; the
+    TypeScript port peels it in ``buildYamlData``. Before the peel was added
+    here, every ``reject_commented`` vector constructed successfully.
+    """
+    entry = _VALUES[snapshot][key]
+    binding = _VALUE_BINDINGS[snapshot][key]
+    for value in entry["accept"]:
+        binding.construct_commented(value)  # must not raise
+    for value in entry["reject_commented"]:
+        with pytest.raises(ValidationError):
+            binding.construct_commented(value)
 
 
 def test_value_key_set_matches_shared_table() -> None:
