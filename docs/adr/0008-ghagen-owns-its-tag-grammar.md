@@ -1,6 +1,8 @@
 # ghagen owns its tag grammar
 
-**Status:** accepted (2026-07-31)
+**Status:** accepted (2026-07-31); regex text amended 2026-08-02 — the original spelling was
+dialect-ambiguous and Python's port had taken the wider reading in all three places. The decision is
+unchanged; what changed is that the accept-set is now stated in a way only one dialect can read.
 
 The accept-set and the total order on version tags are ghagen's own. They are declared in
 `schema/tag-grammar.yml` and implemented in `pin/versions.py` / `pin/versions.ts`, which hold the
@@ -8,10 +10,33 @@ tag regex, the prefix rule, the canonical-release rule, the segment cap, the ord
 filter and the severity classification. **No third-party version library may be reintroduced on
 the compare path in either port.**
 
-A ref is a version tag iff it matches `^(?:(.+)[/-])?v?(\d+(?:\.\d+)*)$`, has at least two numeric
-segments when a prefix is present, and has every segment's **integer value** at most
-`999999999999999`. Its canonical release is the segments as integers, padded to three, with
-trailing zeros beyond index 2 dropped; ordering is element-wise then by length.
+A ref is a version tag iff it matches `\A(?:([^\n\r\u2028\u2029]+)[/-])?v?([0-9]+(?:\.[0-9]+)*)\z`,
+has at least two numeric segments when a prefix is present, and has every segment's **integer
+value** at most `999999999999999`. Its canonical release is the segments as integers, padded to
+three, with trailing zeros beyond index 2 dropped; ordering is element-wise then by length.
+
+**The regex is written in one dialect on purpose, and it is not the obvious one.** This ADR
+originally stated it as `^(?:(.+)[/-])?v?(\d+(?:\.\d+)*)$` — which does not denote a single
+accept-set, because three of those metacharacters mean something wider in Python than in
+JavaScript, and Python's port took every wider reading:
+
+| Written | Python read it as                                  | JavaScript read it as         |
+| ------- | -------------------------------------------------- | ----------------------------- |
+| `\d`    | any Unicode decimal digit — `v١.٢.٤`, `v१.२.३`     | `[0-9]` only                  |
+| `.`     | any character but `\n` — a prefix may contain `\r` | any but `\n \r \u2028 \u2029` |
+| `$`     | end, **or** before a trailing `\n`                 | end                           |
+
+Every divergence ran in the damaging direction: Python accepted a ref TypeScript rejected, which is
+a bump, which is a rewrite of the user's workflow files. So the **narrower JavaScript reading is
+the declared one** in all three cases, and the ADR now spells the classes out rather than relying on
+a dialect the reader has to guess. The distinguishing rows are pinned in `schema/tag-grammar.yml`.
+
+Consequently the two ports do **not** carry the same regex source text, and that is correct: the
+JavaScript reading is the declared one, so `versions.ts` keeps `/^(?:(.+)[/-])?v?(\d+(?:\.\d+)*)$/`
+unchanged — in its own dialect that literal already denotes the narrow accept-set — while
+`versions.py` spells every class out (`[0-9]`, `[^\n\r\u2028\u2029]`, `fullmatch` in place of `$`)
+to reach the same set. Same accept-set, different source text. `\A`/`\z` above say "end of string,
+no trailing-newline exemption" in a way neither dialect can read two ways.
 
 ## Why
 

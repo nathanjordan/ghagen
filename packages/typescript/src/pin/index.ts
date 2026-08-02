@@ -9,6 +9,7 @@ export {
   writeLockfile,
 } from "./lockfile.js";
 export {
+  API_TIMEOUT_MS,
   GitHubClient,
   FetchTransport,
   ResolveError,

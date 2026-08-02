@@ -178,6 +178,7 @@ export {
   writeLockfile,
   ResolveError,
   GitHubClient,
+  API_TIMEOUT_MS,
   FetchTransport,
   TransportError,
   type HttpClient,

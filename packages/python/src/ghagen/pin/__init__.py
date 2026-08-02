@@ -13,6 +13,7 @@ from ghagen.pin.engine import (
     upgrade,
 )
 from ghagen.pin.github import (
+    API_TIMEOUT_SECONDS,
     GitHubClient,
     HttpClient,
     ResolveError,
@@ -43,6 +44,7 @@ from ghagen.pin.uses import UsesRef
 from ghagen.pin.versions import BumpSeverity
 
 __all__ = [
+    "API_TIMEOUT_SECONDS",
     "BumpSeverity",
     "GitHubClient",
     "HttpClient",

@@ -275,18 +275,18 @@ snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
 interface, because the field names are a cross-port wire contract shared byte
 for byte with the Python port.
 
-| Field                 | Meaning                                                                     |
-| --------------------- | --------------------------------------------------------------------------- |
-| `action`              | `none`, `create-pr`, or `create-issue`.                                     |
-| `total_updates`       | Version bumps plus stale lockfile entries.                                  |
-| `apply_version_bumps` | Whether newer tags are to be written back into user source.                 |
+| Field                 | Meaning                                                                          |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `action`              | `none`, `create-pr`, or `create-issue`.                                          |
+| `total_updates`       | Version bumps plus stale lockfile entries.                                       |
+| `apply_version_bumps` | Whether newer tags are to be written back into user source.                      |
 | `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile: null`. |
-| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                  |
-| `title`               | The PR or issue title.                                                      |
-| `commit_message`      | The commit subject, prefix already applied.                                 |
-| `labels`              | Comma-separated under `github`, an array under `json`.                      |
-| `body_format`         | Which `pin/render` format the body is in; empty when there is no body.      |
-| `changed`             | Whether anything was written. Always `false` under `--dry-run`.             |
+| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                       |
+| `title`               | The PR or issue title.                                                           |
+| `commit_message`      | The commit subject, prefix already applied.                                      |
+| `labels`              | Comma-separated under `github`, an array under `json`.                           |
+| `body_format`         | Which `pin/render` format the body is in; empty when there is no body.           |
+| `changed`             | Whether anything was written. Always `false` under `--dry-run`.                  |
 
 Every field except `changed` is a **decision, not an outcome** — what the run
 determined should happen, which under `--dry-run` is exactly what did not. Only

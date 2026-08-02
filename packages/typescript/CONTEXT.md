@@ -57,7 +57,7 @@ factories. The single home for the emitted-key fact (`fieldMap`, type-checked wi
 against the generated schema types); every factory _is_ `defineFactory(SPEC)` — there is one
 construction body in the port, and a factory declaration carries no code. Its `fieldMap`
 **declaration order is the emission order** — there is no second list beside it. Its `patterns` map
-binds a *value grammar* to a field, checked in `buildYamlData` on the peeled value so that `raw()`
+binds a _value grammar_ to a field, checked in `buildYamlData` on the peeled value so that `raw()`
 stays the deliberate escape hatch and `withComment(...)` is not one.
 _Avoid_: field map, key-order table.
 
