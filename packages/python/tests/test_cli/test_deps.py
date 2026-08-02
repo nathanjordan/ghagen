@@ -276,6 +276,38 @@ class TestUpgradeApply:
         assert "actions/checkout@v7" in config_content
         assert "actions/setup-python@v7" in config_content
 
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_check_flag_does_not_modify_source_files(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--check`` is read-only, asserted on disk.
+
+        The only test in either port that observes the CLI's ``apply = not
+        check`` wiring.  ``test_pin/test_engine.py`` passes ``apply=False``
+        explicitly and so can never see it, and this assertion was deleted by
+        proposal 17 without being rehomed -- after which mutating the CLI to
+        ``apply = True`` left the whole suite green.  On-disk rather than an
+        ``apply=False`` call assertion, because what a user is promised is that
+        their files are untouched, not that an argument had a value.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        _setup_upgrade_project(tmp_path)
+        before = (tmp_path / "ghagen_config.py").read_text()
+
+        result = runner.invoke(
+            app, ["deps", "upgrade", "--mode", "versions", "--check"]
+        )
+        assert result.exit_code == 0, result.output
+
+        # The upgrade really was available -- otherwise this asserts nothing.
+        assert "actions/checkout@v4" in result.stdout
+        assert "v7" in result.stdout
+        assert (tmp_path / "ghagen_config.py").read_text() == before
+        assert "actions/checkout@v4" in before
+        assert "actions/setup-python@v5" in before
+
 
 class TestUpgradeTokenHandling:
     """Tests for token resolution (flag > $GITHUB_TOKEN > $GH_TOKEN)."""
@@ -626,6 +658,36 @@ class TestDepsUpdate:
 
         result = runner.invoke(
             app,
+            ["deps", "update", "--body-file", str(body), "--format", "json"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["body_format"] == "pr-body"
+        assert body.read_text().startswith("## ghagen dependency update")
+        assert "actions/checkout@v4" in body.read_text()
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    def test_dry_run_writes_no_body_file(
+        self, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--dry-run`` writes nothing, and the body file is a write.
+
+        This previously asserted the opposite -- that the body file *is*
+        written under ``--dry-run`` -- while both ``cli.md`` pages documented
+        "no source edits, no lockfile write, no body file".  The two sibling
+        effects were guarded and this one was not, so the contract was true of
+        two thirds of itself.  "Write nothing" is the stronger contract, so the
+        write moved under the guard rather than the sentence out of the docs.
+        The plan still *decides* a ``body_format``: a decision is not a write.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        (tmp_path / "ghagen_config.py").write_text(_LOCKFILE_NONE_CONFIG)
+        body = tmp_path / "body.md"
+
+        result = runner.invoke(
+            app,
             [
                 "deps",
                 "update",
@@ -639,8 +701,7 @@ class TestDepsUpdate:
 
         assert result.exit_code == 0, result.output
         assert json.loads(result.stdout)["body_format"] == "pr-body"
-        assert body.read_text().startswith("## ghagen dependency update")
-        assert "actions/checkout@v4" in body.read_text()
+        assert not body.exists()
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
@@ -717,3 +778,135 @@ class TestDepsUpdateFlagValidation:
         )
         assert result.exit_code == 2
         assert "must not contain a newline" in result.stderr
+
+
+# -- deps update: the tree it leaves behind -----------------------------------
+
+_LOCKFILE_UPDATE_CONFIG = """\
+from ghagen import App, Job, On, PushTrigger, Step, Workflow
+
+app = App()
+ci = Workflow(
+    name="CI",
+    on=On(push=PushTrigger(branches=["main"])),
+    jobs={"test": Job(
+        runs_on="ubuntu-latest",
+        steps=[Step(uses="actions/checkout@v4")],
+    )},
+)
+app.add_workflow(ci, "ci.yml")
+"""
+
+
+def _mock_resolve_ref(owner: str, repo: str, ref: str) -> str:
+    """A deterministic fake SHA per ref, so pinning is offline and stable."""
+    import hashlib
+
+    return hashlib.sha1(f"{owner}/{repo}@{ref}".encode()).hexdigest()
+
+
+def _setup_lockfile_project(tmp_path: Path) -> Path:
+    """A project with a lockfile, already synthed and in sync.
+
+    The state a consumer repo is actually in when the shipped action runs:
+    source, lockfile and generated workflows all agree.
+    """
+    config = tmp_path / "ghagen_config.py"
+    config.write_text(_LOCKFILE_UPDATE_CONFIG)
+    (tmp_path / ".ghagen.lock.yml").write_text(_LOCKFILE)
+    assert runner.invoke(app, ["synth"]).exit_code == 0
+    assert runner.invoke(app, ["check-synced"]).exit_code == 0
+    return config
+
+
+class TestDepsUpdateLeavesASynthesizableTree:
+    """``deps update`` performs *every* write the update needs.
+
+    Its whole reason to exist is that a caller reads the plan and raises a PR
+    without re-deriving anything.  A PR whose generated workflows still carry
+    the pre-update SHAs fails the consumer repo's own ``check-synced`` gate,
+    and a tree whose lockfile has no entry for the tag the run just wrote does
+    not synth at all.  Both are this command's job, not the caller's.
+    """
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
+    def test_update_regenerates_the_workflows_it_invalidated(
+        self, mock_resolve, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """The generated YAML must not be left carrying the old SHAs.
+
+        ``deps update`` rewrites the ``uses:`` in user source and re-resolves
+        the lockfile, both of which are inputs to synthesis.  Without a synth
+        the committed ``.github/workflows/*.yml`` still pin the pre-update
+        SHAs, so every PR the shipped action opens is red by construction on
+        the repository's own ``check-synced``.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        _setup_lockfile_project(tmp_path)
+
+        result = runner.invoke(app, ["deps", "update", "--format", "json"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["changed"] is True
+
+        synced = runner.invoke(app, ["check-synced"])
+        assert synced.exit_code == 0, synced.output
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
+    def test_versions_mode_still_leaves_a_lockfile_entry_for_the_new_tag(
+        self, mock_resolve, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--mode versions`` is a documented input; it must not break synth.
+
+        A new version tag needs a lockfile entry whichever stage found it.
+        Gating the refresh on ``checked_lockfile`` meant ``--mode versions``
+        wrote ``actions/checkout@v7`` into user source and left a lockfile that
+        only knows ``@v4``, so the very next ``ghagen synth`` raised
+        ``PinError: No lockfile entry``.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        config = _setup_lockfile_project(tmp_path)
+
+        result = runner.invoke(
+            app, ["deps", "update", "--mode", "versions", "--format", "json"]
+        )
+        assert result.exit_code == 0, result.output
+        assert "actions/checkout@v7" in config.read_text()
+
+        assert json.loads(result.stdout)["refresh_lockfile"] is True
+        assert "actions/checkout@v7" in (tmp_path / ".ghagen.lock.yml").read_text()
+
+        synthed = runner.invoke(app, ["synth"])
+        assert synthed.exit_code == 0, synthed.output
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
+    def test_dry_run_synthesizes_nothing(
+        self, mock_resolve, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--dry-run`` decides everything and writes nothing -- including YAML."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        config = _setup_lockfile_project(tmp_path)
+        workflow = tmp_path / ".github" / "workflows" / "ci.yml"
+        before = (
+            config.read_text(),
+            (tmp_path / ".ghagen.lock.yml").read_text(),
+            workflow.read_text(),
+        )
+
+        result = runner.invoke(app, ["deps", "update", "--dry-run", "--format", "json"])
+
+        assert result.exit_code == 0, result.output
+        assert (
+            config.read_text(),
+            (tmp_path / ".ghagen.lock.yml").read_text(),
+            workflow.read_text(),
+        ) == before
+        assert json.loads(result.stdout)["changed"] is False

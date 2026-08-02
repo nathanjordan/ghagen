@@ -99,19 +99,34 @@ describe("planUpdate with the lockfile disabled", () => {
 
 /** The cascade is correct when there *is* a lockfile to refresh. */
 describe("planUpdate with a lockfile present", () => {
-  // H7b — `--mode versions` must not rewrite the lockfile. This is the
-  // assertion that fails if a future edit re-derives the predicate from
-  // `mode` instead of reading `checkedLockfile`: an empty `lockfileStale`
-  // cannot distinguish "ran, found nothing" from "was not asked for", and the
-  // cascade clause fires on version bumps alone.
-  test("a stage that was not asked for never refreshes", () => {
+  // The inverse of what this used to assert, and the reason it changed.
+  //
+  // `--mode versions` skips the lockfile stage but still rewrites `@v4` to
+  // `@v7` in user source. Declining to refresh there leaves a lockfile that
+  // only knows `@v4` against source that says `@v7`, and the very next
+  // `ghagen synth` raises `PinError: No lockfile entry`. `mode` is a
+  // documented `check-deps` input with `versions` among its values, so that
+  // tree is reachable by any consumer: the bump has to carry the refresh with
+  // it, whichever stage found it.
+  test("a bump refreshes even when the lockfile stage was skipped", () => {
     const p = plan(
       app(".ghagen.lock.yml"),
       report({ versionBumps: [bump()], checkedVersions: true, checkedLockfile: false }),
     );
 
-    expect(p.refreshLockfile).toBe(false);
+    expect(p.refreshLockfile).toBe(true);
     expect(p.applyVersionBumps).toBe(true);
+  });
+
+  // The companion that keeps `checkedLockfile` load-bearing. With no bump to
+  // cascade, an unexamined lockfile is still not a reason to re-resolve — an
+  // empty `lockfileStale` cannot distinguish "ran, found nothing" from "was
+  // not asked for", so dropping the flag from the predicate would fail here.
+  test("a skipped lockfile stage alone never refreshes", () => {
+    const p = plan(app(".ghagen.lock.yml"), report({ checkedVersions: true }));
+
+    expect(p.refreshLockfile).toBe(false);
+    expect(p.applyVersionBumps).toBe(false);
   });
 
   test("a version bump cascades when the stage ran", () => {

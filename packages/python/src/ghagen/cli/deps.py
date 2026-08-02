@@ -7,7 +7,9 @@ typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -309,16 +311,51 @@ def deps_update(
     )
 
     config_path = _find_config(config)
-    ghagen_app, user_files = track_user_files(config_path)
     client = _github_client(token)
 
-    report = upgrade_engine(
-        ghagen_app,
-        client,
-        user_files,
-        mode=mode,  # type: ignore[arg-type]
-        apply=not dry_run,
-    )
+    # Loading a config module writes `__pycache__` beside it, and importlib's
+    # cache-validity check is (source mtime in whole seconds, source size).  A
+    # version-tag bump -- `@v4` -> `@v7` -- changes neither, and it lands in
+    # the same second as the load that wrote the cache, so the cache ends up
+    # stamped with an mtime that still matches the *rewritten* source.  Every
+    # later load in that tree then executes the pre-bump bytecode: the reload
+    # below, the synth below, `ghagen synth`, and the consumer's own
+    # `check-synced`.  Not writing the cache is the fix.  It also keeps
+    # `git add` clean on the tree `ghagen init` scaffolds, which ships no
+    # `.gitignore`.
+    previous_dont_write_bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        ghagen_app, user_files = track_user_files(config_path)
+
+        report = upgrade_engine(
+            ghagen_app,
+            client,
+            user_files,
+            mode=mode,  # type: ignore[arg-type]
+            apply=not dry_run,
+        )
+
+        # `apply_updates` rewrote the source *files*.  The App in hand was
+        # built before that and still describes the pre-bump refs, so both the
+        # lockfile re-resolve and the synth below would work from the old tree
+        # -- re-pinning `@v4` and regenerating `@v4` YAML while the source now
+        # says `@v7`.  Re-read.  (`changed_files` is empty unless the bumps
+        # were actually applied, so this never fires under `--dry-run`.)
+        if report.changed_files:
+            # Suppressing new caches is not enough: a cache written by an
+            # *earlier* process -- the consumer's last `ghagen synth` -- is
+            # still on disk, and after the rewrite it still looks valid,
+            # because neither the mtime second nor the size moved.  Reloading
+            # would replay the pre-bump bytecode.  Drop the cache for each
+            # file actually rewritten; `_load_app` then has to read source.
+            for changed_file in report.changed_files:
+                cached = importlib.util.cache_from_source(str(changed_file))
+                Path(cached).unlink(missing_ok=True)
+            ghagen_app = _load_app(config_path)
+    finally:
+        sys.dont_write_bytecode = previous_dont_write_bytecode
+
     for warning in report.warnings:
         typer.echo(f"warning: {warning}", err=True)
 
@@ -356,7 +393,24 @@ def deps_update(
             typer.echo(f"  modified {pin_report.lockfile_path}", err=True)
             changed = True
 
-    if body_file is not None and plan.body_format is not None:
+    if changed and not dry_run:
+        # The version bumps and the re-resolved lockfile are both *inputs* to
+        # synthesis, so every write above leaves the generated workflows
+        # stale.  This command exists so a caller can raise a PR without
+        # re-deriving anything; a PR whose `.github/workflows/*.yml` still
+        # carry the pre-update SHAs is red by construction on the consumer
+        # repo's own `check-synced` gate -- the gate this project ships.
+        synthesized = ghagen_app.synth()
+        for path in synthesized:
+            typer.echo(f"  modified {path}", err=True)
+        changed = bool(synthesized) or changed
+
+    if body_file is not None and plan.body_format is not None and not dry_run:
+        # `--dry-run` writes nothing, and the body file is a write like any
+        # other.  The two sibling effects -- source edits and the lockfile --
+        # were already guarded; this one was not, so the documented contract
+        # ("no source edits, no lockfile write, no body file") was true of two
+        # thirds of itself.
         Path(body_file).write_text(
             render_upgrade_report(report, output_format=plan.body_format)
         )
