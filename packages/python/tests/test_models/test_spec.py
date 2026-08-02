@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from ruamel.yaml.comments import CommentedMap
 
 import ghagen.models
-from ghagen import Raw, with_comment, with_eol_comment
+from ghagen import Matrix, Raw, Step, with_comment, with_eol_comment
 from ghagen.emitter.data import to_data
 from ghagen.models._base import _META_FIELDS, Document, GhagenModel
 from ghagen.models.spec import ModelSpec
@@ -266,3 +266,32 @@ def test_raw_bypasses_the_grammar() -> None:
     wrapped = _Patterned(value=with_comment(Raw("nope"), "note"))
     assert wrapped.value.value.value == "nope"
     assert wrapped.value.comment == "note"
+
+
+# --- integer-like YAML keys: rejected wherever a user key can reach the map ---
+#
+# JavaScript's ``OrdinaryOwnPropertyKeys`` enumerates decimal-integer string
+# keys FIRST, ahead of insertion order. The TypeScript port therefore cannot
+# hold a key like ``"2"`` in its declared position, while Python's ``dict``
+# can — so the two ports emit different YAML for the same input. The guard on
+# ``yaml_keys`` values covers only the keys ghagen itself declares; ``extras``
+# is the channel through which a *user* key reaches the same map, so it needs
+# the same rule. Python must reject them too, or the ports disagree about what
+# is legal.
+
+
+@pytest.mark.parametrize("key", ["0", "1", "2", "42", "-1", "-42"])
+def test_extras_rejects_an_integer_like_key(key: str) -> None:
+    with pytest.raises(ValidationError):
+        Step(run="x", extras={key: 1})
+
+
+@pytest.mark.parametrize("key", ["01", "-0", "1.0", "+1", "1a", "a1", "", "١"])
+def test_extras_accepts_a_key_that_is_not_a_decimal_integer(key: str) -> None:
+    assert to_data(Step(run="x", extras={key: 1}))[key] == 1
+
+
+def test_extras_rejects_an_integer_like_key_on_a_dynamic_key_model() -> None:
+    """``Matrix`` reaches its dynamic axes through ``extras`` in this port."""
+    with pytest.raises(ValidationError):
+        Matrix(extras={"2": ["a"]})

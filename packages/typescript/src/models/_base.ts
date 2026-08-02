@@ -328,9 +328,13 @@ export type Document = WorkflowModel | ActionModel;
  *   `extra="forbid"` (`models/_base.py`).
  * - `pattern` — a string field's value fell outside the grammar its spec
  *   declares in {@link ModelSpec.patterns}.
+ * - `integerKey` — a user-supplied YAML key (dynamic key or `extras` key) is a
+ *   decimal-integer string, which this port cannot keep in its declared
+ *   position. See {@link isIntegerLikeKey}.
  */
 export type ModelInputProblem =
   | { readonly reason: "unknownKeys"; readonly keys: readonly string[] }
+  | { readonly reason: "integerKey"; readonly keys: readonly string[] }
   | {
       readonly reason: "pattern";
       readonly field: string;
@@ -346,10 +350,50 @@ function formatModelInputProblem(kind: ModelKind, problem: ModelInputProblem): s
       `Use \`extras\` for unmodeled YAML keys.`
     );
   }
+  if (problem.reason === "integerKey") {
+    return (
+      `${kind}(): integer-like YAML ${problem.keys.length === 1 ? "key" : "keys"} ` +
+      `${problem.keys.map((k) => JSON.stringify(k)).join(", ")}. ` +
+      `A decimal-integer key cannot hold its position in JavaScript object ` +
+      `key order, so the two ports would emit different YAML. Prefix it ` +
+      `(e.g. "v2") or place the value under a named parent key.`
+    );
+  }
   return (
     `${kind}(): ${problem.field} ${JSON.stringify(problem.value)} must match ` +
     `${problem.pattern}. Wrap the value in \`raw()\` to bypass the grammar.`
   );
+}
+
+/**
+ * A decimal-integer string key — one JavaScript enumerates ahead of insertion
+ * order.
+ *
+ * `OrdinaryOwnPropertyKeys` lists array-index-like keys first, in ascending
+ * numeric order, then the remaining string keys in creation order. A YAML key
+ * of `"2"` therefore jumps to the front of `data` (and of `toData`'s result
+ * record) no matter where it was written, while Python's `dict` leaves it
+ * where it was put — so the same input emits different YAML in the two ports.
+ * ghagen rejects such keys rather than trying to preserve them.
+ *
+ * Equivalent to `String(Number.parseInt(key, 10)) === key`, which is the shape
+ * the `fieldMap` guard in `spec.test.ts` has always used: `"0"`, `"1"`, `"-1"`
+ * match; `"01"`, `"-0"`, `"1.0"`, `"+1"` do not. `"-1"` is not in fact an
+ * array index, so rejecting it is marginally over-strict — deliberately kept,
+ * so that one regex covers the declared keys and the user-supplied ones alike.
+ *
+ * The peer of `_integer_like_key` in `models/_base.py`.
+ */
+export function isIntegerLikeKey(key: string): boolean {
+  return /^(0|-?[1-9][0-9]*)$/.test(key);
+}
+
+/** Throw when any of *keys* is integer-like. */
+function rejectIntegerLikeKeys(kind: ModelKind, keys: readonly string[]): void {
+  const bad = keys.filter(isIntegerLikeKey);
+  if (bad.length > 0) {
+    throw new ModelInputError(kind, { reason: "integerKey", keys: bad });
+  }
 }
 
 /**
@@ -396,9 +440,12 @@ export class ModelInputError extends Error {
  * returns `Object.entries(data)` unchanged). The field map is therefore the one
  * place emission order is stated; there is no `order` array beside it to drift.
  * `OrdinaryOwnPropertyKeys` would list integer-like string keys first, ahead of
- * creation order, so a `fieldMap` value must not be a decimal integer string —
- * a constraint Python's `dict` does not have. No field map in either port has
- * one (asserted by `spec.test.ts`).
+ * creation order, so no emitted YAML key may be a decimal integer string — a
+ * constraint Python's `dict` does not have. That covers all three ways a key
+ * reaches the record: `fieldMap` values (no field map in either port has one,
+ * asserted by `spec.test.ts`), the dynamic-key passthrough below, and the
+ * `extras` merge ({@link buildModel}). The latter two are user-supplied, so
+ * they are rejected at construction — see {@link isIntegerLikeKey}.
  */
 export function buildYamlData(
   spec: ModelSpec,
@@ -463,8 +510,11 @@ export function buildYamlData(
   // the common `buildModel` path.
   if (spec.dynamicKeys) {
     const mapped = new Set(Object.keys(spec.fieldMap));
-    for (const [key, value] of Object.entries(data)) {
-      if (!mapped.has(key) && value !== undefined) {
+    const dynamic = Object.keys(data).filter((key) => !mapped.has(key));
+    rejectIntegerLikeKeys(spec.kind, dynamic);
+    for (const key of dynamic) {
+      const value = data[key];
+      if (value !== undefined) {
         yamlData[key] = value;
       }
     }
@@ -476,12 +526,19 @@ export function buildYamlData(
 /**
  * Build a Model of the spec's kind from raw camelCase input — the common
  * factory path. Thin wrapper over {@link buildYamlData}.
+ *
+ * `extras` is the second channel by which a user-chosen YAML key reaches the
+ * emitted map, so it is checked for integer-like keys here, on the same rule
+ * {@link buildYamlData} applies to dynamic keys.
  */
 export function buildModel<M extends Model = Model>(
   spec: ModelSpec,
   data: Record<string, unknown>,
   meta: ModelMeta,
 ): M {
+  if (meta.extras !== undefined) {
+    rejectIntegerLikeKeys(spec.kind, Object.keys(meta.extras));
+  }
   return new Model(spec, buildYamlData(spec, data), meta) as M;
 }
 

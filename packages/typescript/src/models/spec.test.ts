@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { ALL_SPECS, SPECS_BY_KIND } from "./registry.js";
-import { Model, buildModel } from "./_base.js";
+import { Model, ModelInputError, buildModel } from "./_base.js";
 import type { ModelSpec } from "./_base.js";
+import { matrix } from "./job.js";
+import { step } from "./step.js";
 import { toData } from "../emitter/yaml-writer.js";
 
 describe("ModelSpec self-consistency", () => {
@@ -69,6 +71,39 @@ describe("ModelSpec self-consistency", () => {
   it("only the `on` spec uses alphabetical order", () => {
     const alpha = ALL_SPECS.filter((s) => s.order === "alphabetical").map((s) => s.kind);
     expect(alpha).toEqual(["on"]);
+  });
+});
+
+// The guard above covers the keys ghagen itself declares. The two channels
+// through which a *user* key reaches the same record — the `dynamicKeys`
+// passthrough and the `extras` merge — were wide open, so `matrix({ "2": … })`
+// and `step({ extras: { "2": … } })` both produced a key that
+// `OrdinaryOwnPropertyKeys` hoists to the front. That reordered `toData`
+// against `toYaml` within this port AND against Python, whose `dict` keeps the
+// key where it was put. `buildYamlData` now rejects them at construction.
+describe("integer-like keys are rejected outside fieldMap too", () => {
+  const INTEGERS = ["0", "1", "2", "42", "-1", "-42"];
+  // `String(Number.parseInt(k, 10)) === k` is false for every one of these, so
+  // the rule stays exactly as strict as the fieldMap guard already was.
+  const NOT_INTEGERS = ["01", "-0", "1.0", "+1", "1a", "a1", "", "١"];
+
+  it.each(INTEGERS)("rejects %o as a dynamic key", (key) => {
+    expect(() => matrix({ [key]: ["a"] })).toThrow(ModelInputError);
+  });
+
+  it.each(INTEGERS)("rejects %o as an extras key", (key) => {
+    expect(() => step({ run: "x", extras: { [key]: 1 } })).toThrow(ModelInputError);
+  });
+
+  it.each(NOT_INTEGERS)("accepts %o as a dynamic key", (key) => {
+    expect(Object.keys(toData(matrix({ [key]: ["a"] })) as Record<string, unknown>)).toEqual([key]);
+  });
+
+  it.each(NOT_INTEGERS)("accepts %o as an extras key", (key) => {
+    expect(Object.keys(toData(step({ run: "x", extras: { [key]: 1 } })) as object)).toEqual([
+      "run",
+      key,
+    ]);
   });
 });
 
