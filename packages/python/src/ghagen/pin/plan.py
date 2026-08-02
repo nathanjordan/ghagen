@@ -128,16 +128,20 @@ def plan_update(
     # fact the report already encodes structurally.
     apply_version_bumps = bool(report.version_bumps)
 
-    refresh_lockfile = (
-        # The fact the payload drops: `deps pin` exits 1 on a project with no
-        # lockfile, so a cascade into it is not "harmless extra work".
-        app.lockfile_path is not None
-        # Read, never re-derived from `--mode`.  Load-bearing only in this
-        # rule: an empty `lockfile_stale` cannot distinguish "the stage ran
-        # and found nothing" from "the stage was not asked for", and the
-        # cascade clause below fires on version bumps alone.
-        and report.checked_lockfile
-        and (bool(report.lockfile_stale) or apply_version_bumps)
+    refresh_lockfile = app.lockfile_path is not None and (
+        # A new version tag needs a lockfile entry whichever stage found it.
+        # This clause is deliberately *not* gated on `checked_lockfile`:
+        # `--mode versions` skips the lockfile stage, but it still rewrites
+        # `@v4` to `@v7` in user source, and a lockfile that only knows `@v4`
+        # makes the very next `ghagen synth` raise `PinError: No lockfile
+        # entry`.  `mode` is a documented action input with `versions` among
+        # its values, so that tree is reachable by any consumer.
+        apply_version_bumps
+        # Read, never re-derived from `--mode`.  Load-bearing only here: an
+        # empty `lockfile_stale` cannot distinguish "the stage ran and found
+        # nothing" from "the stage was not asked for", so without this the
+        # rule could not tell a clean lockfile from an unexamined one.
+        or (report.checked_lockfile and bool(report.lockfile_stale))
     )
 
     if total_updates == 0:

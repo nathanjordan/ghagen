@@ -7,7 +7,11 @@ typed report.  All orchestration lives in :mod:`ghagen.pin.engine`.
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
 import os
+import sys
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,6 +21,8 @@ import typer
 from ghagen.cli._common import _find_config, _load_app
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from ghagen.app import App
     from ghagen.pin.github import GitHubClient
 
@@ -24,6 +30,28 @@ deps_app = typer.Typer(
     help="Manage action dependencies.",
     no_args_is_help=True,
 )
+
+
+@contextmanager
+def _config_output_on_stderr() -> Iterator[None]:
+    """Route anything the *config module* prints to stderr for the duration.
+
+    Loading a config **executes** it: it is arbitrary user Python, and whatever
+    it prints lands on stdout ahead of everything this command writes there.
+    That is fatal for ``deps update``, whose ``--format github`` payload the
+    action appends to ``$GITHUB_OUTPUT`` through a bare ``>>`` redirect --
+    every line is parsed as ``key=value``.  A printed line without an ``=``
+    fails the step; a line *with* one, say ``print("action=create-pr")``,
+    forges an action-level output the workflow then acts on.  ``deps upgrade
+    --format json`` has the same exposure with a JSON document instead.
+
+    Re-routed, never suppressed: a config that prints is doing so deliberately
+    and the operator should still see it.  ``sys.stderr`` is looked up on entry
+    rather than at import so a test harness (or a caller) that has replaced the
+    stream still receives the output.
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
 
 
 def _ensure_lockfile_path(app: App) -> Path:
@@ -73,7 +101,8 @@ def deps_pin(
     from ghagen.pin.engine import pin as pin_engine
 
     config_path = _find_config(config)
-    ghagen_app = _load_app(config_path)
+    with _config_output_on_stderr():
+        ghagen_app = _load_app(config_path)
     _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
     client = _github_client(token)
@@ -113,7 +142,8 @@ def deps_check_synced(
     from ghagen.pin.engine import check_sync
 
     config_path = _find_config(config)
-    ghagen_app = _load_app(config_path)
+    with _config_output_on_stderr():
+        ghagen_app = _load_app(config_path)
     _ensure_lockfile_path(ghagen_app)  # validate before doing any work
 
     report = check_sync(ghagen_app, prune=prune)
@@ -184,7 +214,8 @@ def deps_upgrade(
     config_path = _find_config(config)
 
     # Load the app while tracking the user source files it imported.
-    ghagen_app, user_files = track_user_files(config_path)
+    with _config_output_on_stderr():
+        ghagen_app, user_files = track_user_files(config_path)
 
     client = _github_client(token)
 
@@ -309,16 +340,53 @@ def deps_update(
     )
 
     config_path = _find_config(config)
-    ghagen_app, user_files = track_user_files(config_path)
     client = _github_client(token)
 
-    report = upgrade_engine(
-        ghagen_app,
-        client,
-        user_files,
-        mode=mode,  # type: ignore[arg-type]
-        apply=not dry_run,
-    )
+    # Loading a config module writes `__pycache__` beside it, and importlib's
+    # cache-validity check is (source mtime in whole seconds, source size).  A
+    # version-tag bump -- `@v4` -> `@v7` -- changes neither, and it lands in
+    # the same second as the load that wrote the cache, so the cache ends up
+    # stamped with an mtime that still matches the *rewritten* source.  Every
+    # later load in that tree then executes the pre-bump bytecode: the reload
+    # below, the synth below, `ghagen synth`, and the consumer's own
+    # `check-synced`.  Not writing the cache is the fix.  It also keeps
+    # `git add` clean on the tree `ghagen init` scaffolds, which ships no
+    # `.gitignore`.
+    previous_dont_write_bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        with _config_output_on_stderr():
+            ghagen_app, user_files = track_user_files(config_path)
+
+        report = upgrade_engine(
+            ghagen_app,
+            client,
+            user_files,
+            mode=mode,  # type: ignore[arg-type]
+            apply=not dry_run,
+        )
+
+        # `apply_updates` rewrote the source *files*.  The App in hand was
+        # built before that and still describes the pre-bump refs, so both the
+        # lockfile re-resolve and the synth below would work from the old tree
+        # -- re-pinning `@v4` and regenerating `@v4` YAML while the source now
+        # says `@v7`.  Re-read.  (`changed_files` is empty unless the bumps
+        # were actually applied, so this never fires under `--dry-run`.)
+        if report.changed_files:
+            # Suppressing new caches is not enough: a cache written by an
+            # *earlier* process -- the consumer's last `ghagen synth` -- is
+            # still on disk, and after the rewrite it still looks valid,
+            # because neither the mtime second nor the size moved.  Reloading
+            # would replay the pre-bump bytecode.  Drop the cache for each
+            # file actually rewritten; `_load_app` then has to read source.
+            for changed_file in report.changed_files:
+                cached = importlib.util.cache_from_source(str(changed_file))
+                Path(cached).unlink(missing_ok=True)
+            with _config_output_on_stderr():
+                ghagen_app = _load_app(config_path)
+    finally:
+        sys.dont_write_bytecode = previous_dont_write_bytecode
+
     for warning in report.warnings:
         typer.echo(f"warning: {warning}", err=True)
 
@@ -356,7 +424,24 @@ def deps_update(
             typer.echo(f"  modified {pin_report.lockfile_path}", err=True)
             changed = True
 
-    if body_file is not None and plan.body_format is not None:
+    if changed and not dry_run:
+        # The version bumps and the re-resolved lockfile are both *inputs* to
+        # synthesis, so every write above leaves the generated workflows
+        # stale.  This command exists so a caller can raise a PR without
+        # re-deriving anything; a PR whose `.github/workflows/*.yml` still
+        # carry the pre-update SHAs is red by construction on the consumer
+        # repo's own `check-synced` gate -- the gate this project ships.
+        synthesized = ghagen_app.synth()
+        for path in synthesized:
+            typer.echo(f"  modified {path}", err=True)
+        changed = bool(synthesized) or changed
+
+    if body_file is not None and plan.body_format is not None and not dry_run:
+        # `--dry-run` writes nothing, and the body file is a write like any
+        # other.  The two sibling effects -- source edits and the lockfile --
+        # were already guarded; this one was not, so the documented contract
+        # ("no source edits, no lockfile write, no body file") was true of two
+        # thirds of itself.
         Path(body_file).write_text(
             render_upgrade_report(report, output_format=plan.body_format)
         )

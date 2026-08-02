@@ -125,12 +125,19 @@ export function planUpdate(
     // The fact the payload drops: `deps pin` exits 1 on a project with no
     // lockfile, so a cascade into it is not "harmless extra work".
     app.lockfilePath !== null &&
-    // Read, never re-derived from `--mode`. Load-bearing only in this rule: an
-    // empty `lockfileStale` cannot distinguish "the stage ran and found
-    // nothing" from "the stage was not asked for", and the cascade clause
-    // below fires on version bumps alone.
-    report.checkedLockfile &&
-    (report.lockfileStale.length > 0 || applyVersionBumps);
+    // A new version tag needs a lockfile entry whichever stage found it. This
+    // clause is deliberately *not* gated on `checkedLockfile`: `--mode
+    // versions` skips the lockfile stage, but it still rewrites `@v4` to `@v7`
+    // in user source, and a lockfile that only knows `@v4` makes the very next
+    // `ghagen synth` raise `PinError: No lockfile entry`. `mode` is a
+    // documented action input with `versions` among its values, so that tree
+    // is reachable by any consumer.
+    (applyVersionBumps ||
+      // Read, never re-derived from `--mode`. Load-bearing only here: an empty
+      // `lockfileStale` cannot distinguish "the stage ran and found nothing"
+      // from "the stage was not asked for", so without this the rule could not
+      // tell a clean lockfile from an unexamined one.
+      (report.checkedLockfile && report.lockfileStale.length > 0));
 
   const action: UpdateAction =
     totalUpdates === 0 ? "none" : options.output === "pr" ? "create-pr" : "create-issue";

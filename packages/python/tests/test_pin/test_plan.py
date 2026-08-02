@@ -94,14 +94,18 @@ class TestLockfileDisabled:
 class TestLockfilePresent:
     """The cascade is correct when there *is* a lockfile to refresh."""
 
-    def test_stage_not_asked_for_never_refreshes(self, tmp_path: Path):
-        """H7b — ``--mode versions`` must not rewrite the lockfile.
+    def test_a_bump_refreshes_even_when_the_lockfile_stage_was_skipped(
+        self, tmp_path: Path
+    ):
+        """``--mode versions`` must still leave a usable lockfile.
 
-        This is the assertion that fails if a future edit re-derives the
-        predicate from ``mode`` instead of reading ``checked_lockfile``: an
-        empty ``lockfile_stale`` cannot distinguish "ran, found nothing" from
-        "was not asked for", and the cascade clause fires on version bumps
-        alone.
+        This asserted the opposite until the ``--mode versions`` tree was
+        found to be unsynthesizable.  Skipping the *detection* stage is not a
+        reason to skip the *write*: the run still rewrote ``@v4`` to ``@v7`` in
+        user source, and a lockfile that only knows ``@v4`` makes the very next
+        ``ghagen synth`` raise ``PinError: No lockfile entry``.  ``mode`` is a
+        documented action input with ``versions`` among its values, so that
+        tree is reachable by any consumer, not just by a mistake here.
         """
         app = App(root=tmp_path)
         report = UpgradeReport(
@@ -112,8 +116,24 @@ class TestLockfilePresent:
 
         plan = _plan(app, report)
 
-        assert plan.refresh_lockfile is False
+        assert plan.refresh_lockfile is True
         assert plan.apply_version_bumps is True
+
+    def test_a_skipped_lockfile_stage_alone_never_refreshes(self, tmp_path: Path):
+        """No bumps and no lockfile stage -> nothing to write.
+
+        The companion to the case above, and the one that keeps
+        ``checked_lockfile`` load-bearing: an empty ``lockfile_stale`` cannot
+        distinguish "the stage ran and found nothing" from "the stage was not
+        asked for", so dropping the flag entirely would make this refresh.
+        """
+        app = App(root=tmp_path)
+        report = UpgradeReport(checked_versions=True, checked_lockfile=False)
+
+        plan = _plan(app, report)
+
+        assert plan.refresh_lockfile is False
+        assert plan.apply_version_bumps is False
 
     def test_version_bump_cascades_when_the_stage_ran(self, tmp_path: Path):
         """A bump invalidates the pinned SHA, so the cascade is right here."""

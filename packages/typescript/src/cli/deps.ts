@@ -41,6 +41,35 @@ function buildGitHubClient(tokenFlag?: string): GitHubClient {
   return new GitHubClient(undefined, token);
 }
 
+/**
+ * Run `fn` with anything written to stdout re-routed to stderr.
+ *
+ * Wrapped around every config load, because loading a config **executes** it:
+ * it is arbitrary user TypeScript, and whatever it logs lands on stdout ahead
+ * of everything the command writes there. That is fatal for `deps update`,
+ * whose `--format github` payload the `check-deps` action appends to
+ * `$GITHUB_OUTPUT` through a bare `>>` redirect — every line is parsed as
+ * `key=value`. A logged line without an `=` fails the step; a line *with* one,
+ * say `console.log("action=create-pr")`, forges an action-level output the
+ * workflow then acts on. `deps upgrade --format json` has the same exposure
+ * with a JSON document instead.
+ *
+ * Re-routed, never suppressed: a config that logs is doing so deliberately and
+ * the operator should still see it. The replacement forwards through a fresh
+ * `process.stderr.write` lookup on every call rather than a bound reference,
+ * so a caller (or a test harness) that swaps the stream still receives it.
+ */
+async function withConfigOutputOnStderr<T>(fn: () => Promise<T>): Promise<T> {
+  const original = process.stdout.write;
+  process.stdout.write = ((...args: Parameters<typeof process.stderr.write>) =>
+    process.stderr.write(...args)) as typeof process.stdout.write;
+  try {
+    return await fn();
+  } finally {
+    process.stdout.write = original;
+  }
+}
+
 function ensureLockfilePath(app: App): string {
   if (app.lockfilePath === null) {
     throw new CliError("Error: lockfile is disabled (lockfile: null on App)");
@@ -64,7 +93,7 @@ interface PinOpts {
  */
 async function depsPin(opts: PinOpts): Promise<void> {
   const configPath = findConfig(opts.config);
-  const app = await loadApp(configPath);
+  const app = await withConfigOutputOnStderr(() => loadApp(configPath));
   ensureLockfilePath(app); // validate before doing any work
 
   const client = buildGitHubClient(opts.token);
@@ -112,7 +141,7 @@ interface CheckSyncedOpts {
  */
 async function depsCheckSynced(opts: CheckSyncedOpts): Promise<void> {
   const configPath = findConfig(opts.config);
-  const app = await loadApp(configPath);
+  const app = await withConfigOutputOnStderr(() => loadApp(configPath));
   ensureLockfilePath(app); // validate before doing any work
 
   const report = checkSync(app, { prune: opts.prune });
@@ -173,7 +202,9 @@ async function depsUpgrade(opts: UpgradeOpts): Promise<void> {
   const apply = !opts.check;
 
   const configPath = findConfig(opts.config);
-  const { app, files: userFiles } = await trackUserFiles(configPath);
+  const { app, files: userFiles } = await withConfigOutputOnStderr(() =>
+    trackUserFiles(configPath),
+  );
 
   const client = buildGitHubClient(opts.token);
 
@@ -263,12 +294,22 @@ async function depsUpdate(opts: UpdateOpts): Promise<void> {
   });
 
   const configPath = findConfig(opts.config);
-  const { app, files: userFiles } = await trackUserFiles(configPath);
+  let { app, files: userFiles } = await withConfigOutputOnStderr(() => trackUserFiles(configPath));
   const client = buildGitHubClient(opts.token);
 
   const report = await upgrade(app, client, userFiles, { mode, apply: !opts.dryRun });
   for (const w of report.warnings) {
     process.stderr.write(`warning: ${w}\n`);
+  }
+
+  // `applyUpdates` rewrote the source *files*. The app in hand was built
+  // before that and still describes the pre-bump refs, so both the lockfile
+  // re-resolve and the synth below would work from the old tree — re-pinning
+  // `@v4` and regenerating `@v4` YAML while the source now says `@v7`.
+  // Re-read. (`changedFiles` is empty unless the bumps were actually applied,
+  // so this never fires under `--dry-run`.)
+  if (report.changedFiles.length > 0) {
+    app = await withConfigOutputOnStderr(() => loadApp(configPath));
   }
 
   const plan = planUpdate(app, report, {
@@ -308,7 +349,25 @@ async function depsUpdate(opts: UpdateOpts): Promise<void> {
     }
   }
 
-  if (opts.bodyFile !== undefined && plan.bodyFormat !== null) {
+  if (changed && !opts.dryRun) {
+    // The version bumps and the re-resolved lockfile are both *inputs* to
+    // synthesis, so every write above leaves the generated workflows stale.
+    // This command exists so a caller can raise a PR without re-deriving
+    // anything; a PR whose `.github/workflows/*.yml` still carry the
+    // pre-update SHAs is red by construction on the consumer repo's own
+    // `check-synced` gate — the gate this project ships.
+    const synthesized = app.synth();
+    for (const path of synthesized) {
+      process.stderr.write(`  modified ${path}\n`);
+    }
+    changed = synthesized.length > 0 || changed;
+  }
+
+  if (opts.bodyFile !== undefined && plan.bodyFormat !== null && !opts.dryRun) {
+    // `--dry-run` writes nothing, and the body file is a write like any other.
+    // The two sibling effects — source edits and the lockfile — were already
+    // guarded; this one was not, so the documented contract ("no source edits,
+    // no lockfile write, no body file") was true of two thirds of itself.
     writeFileSync(opts.bodyFile, renderUpgradeReport(report, plan.bodyFormat), "utf8");
   }
 
@@ -324,6 +383,17 @@ export function buildDepsCommand(): Command {
     .description("Pin action references to commit SHAs in a lockfile.")
     .option("-c, --config <path>", "Path to config file")
     .option("--update", "Re-resolve all entries to latest SHAs")
+    // Both forms, explicitly. Commander does not synthesise the positive form
+    // from `--no-prune`, so declaring only the negative made `--prune` an
+    // unknown-option error — while Python's `"--prune/--no-prune"` accepts it
+    // and both `cli.md` pages hand out a CI step that uses it.
+    //
+    // The `true` is load-bearing. A lone `--no-prune` defaults to `true` by
+    // itself, but once the positive form exists Commander stops treating the
+    // negation as the default-bearing half and `prune` arrives `undefined` —
+    // which `pin`/`checkSync` read as OFF. Adding the option without the
+    // default would have silently flipped the shipped behaviour.
+    .option("--prune", "Remove lockfile entries not referenced in code", true)
     .option("--no-prune", "Keep stale lockfile entries not referenced in code")
     .option("--token <token>", "GitHub token (default: $GITHUB_TOKEN)")
     .action(async (opts: PinOpts) => depsPin(opts));
@@ -332,6 +402,8 @@ export function buildDepsCommand(): Command {
     .command("check-synced")
     .description("Verify lockfile is in sync with code (exit 1 if stale).")
     .option("-c, --config <path>", "Path to config file")
+    // See the `pin` subcommand above: both forms, default ON.
+    .option("--prune", "Also flag stale lockfile entries not referenced in code", true)
     .option("--no-prune", "Ignore stale lockfile entries not referenced in code")
     .action(async (opts: CheckSyncedOpts) => depsCheckSynced(opts));
 

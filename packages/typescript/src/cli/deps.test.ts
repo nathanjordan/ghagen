@@ -41,11 +41,14 @@ vi.mock("../pin/index.js", async (importOriginal) => {
   };
 });
 
+const loadAppMock = vi.fn<(...args: unknown[]) => Promise<App>>();
+
 vi.mock("./_common.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./_common.js")>();
   return {
     ...actual,
     findConfig: vi.fn(() => "/fake/ghagen.workflows.ts"),
+    loadApp: loadAppMock,
   };
 });
 
@@ -61,6 +64,18 @@ function emptyReport(overrides: Partial<UpgradeReport> = {}): UpgradeReport {
     checkedLockfile: false,
     ...overrides,
   };
+}
+
+/**
+ * A stand-in {@link App} carrying the surface `deps update` actually touches.
+ *
+ * `synth` is a real (empty) method rather than absent: the command
+ * re-synthesizes after it has written to the tree, so a bare `{} as App` would
+ * die on `app.synth is not a function` for reasons that have nothing to do with
+ * what the test is asserting.
+ */
+function fakeApp(overrides: Record<string, unknown> = {}): App {
+  return { synth: () => [], ...overrides } as unknown as App;
 }
 
 function captureStdout(): { text(): string; restore(): void } {
@@ -86,6 +101,7 @@ afterEach(() => {
   upgradeMock.mockReset();
   pinMock.mockReset();
   trackUserFilesMock.mockReset();
+  loadAppMock.mockReset();
 });
 
 /**
@@ -113,7 +129,7 @@ describe("deps upgrade output routing", () => {
     });
 
   test("apply mode keeps stdout parseable — the progress note goes to stderr", async () => {
-    trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
     upgradeMock.mockResolvedValue(bumpReport());
 
     const out = captureStdout();
@@ -133,7 +149,7 @@ describe("deps upgrade output routing", () => {
   // asserted: without --format there is no machine-readable payload to
   // protect, so the progress note belongs on stdout with the report.
   test("without --format the progress note goes to stdout", async () => {
-    trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
     upgradeMock.mockResolvedValue(bumpReport());
 
     const out = captureStdout();
@@ -148,7 +164,7 @@ describe("deps upgrade output routing", () => {
   });
 
   test("warnings are echoed to stderr, never to the payload", async () => {
-    trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
     upgradeMock.mockResolvedValue(
       emptyReport({
         checkedVersions: true,
@@ -183,7 +199,7 @@ describe("deps upgrade --format json key set", () => {
   // "everything up to date" early return used to have, and resolves the open
   // choice recorded in docs/specs/0005-typed-engine-report-seam.md §2.2.
   test("an empty report emits only the keys the mode asked for", async () => {
-    trackUserFilesMock.mockResolvedValue({ app: {} as App, files: new Set<string>() });
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
 
     const expectedPerMode = [
       { mode: "versions", expected: { version_bumps: [] } },
@@ -282,9 +298,12 @@ describe("deps update", () => {
    */
   test("a lockfile-less project never reaches the pin engine", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
+    // The bump was applied, so the command re-reads the config. The reload of
+    // a `lockfile: null` project is still a `lockfile: null` project.
+    loadAppMock.mockResolvedValue(fakeApp({ lockfilePath: null }));
     upgradeMock.mockResolvedValue(
       emptyReport({ ...bumpOnLocklessProject(), changedFiles: ["ghagen.workflows.ts"] }),
     );
@@ -306,7 +325,7 @@ describe("deps update", () => {
 
   test("a lockfile-bearing project refreshes through the pin engine", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: ".ghagen.lock.yml" } as App,
+      app: fakeApp({ lockfilePath: ".ghagen.lock.yml" }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(bumpOnLocklessProject());
@@ -341,7 +360,7 @@ describe("deps update", () => {
    */
   test("--format github is $GITHUB_OUTPUT-shaped and owns stdout", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(
@@ -370,9 +389,40 @@ describe("deps update", () => {
     expect(out.text()).not.toContain("warning:");
   });
 
+  /**
+   * Loading the config *executes* it, and it does not own stdout.
+   *
+   * Same stream, one step earlier. The config is arbitrary user TypeScript
+   * that runs before the plan is printed, so a `console.log` with no `=` fails
+   * the action's `>> "$GITHUB_OUTPUT"` step outright, and one *with* an `=` —
+   * `console.log("action=create-issue")` — forges an action-level output the
+   * workflow then acts on. Re-routed, not suppressed.
+   */
+  test("a chatty config module cannot reach the plan stream", async () => {
+    trackUserFilesMock.mockImplementation(async () => {
+      process.stdout.write("action=create-issue\n");
+      process.stdout.write("loading workflows...\n");
+      return { app: fakeApp({ lockfilePath: null }), files: new Set<string>() };
+    });
+    upgradeMock.mockResolvedValue(emptyReport(bumpOnLocklessProject()));
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true });
+    out.restore();
+    err.restore();
+
+    const lines = out.text().split("\n").filter(Boolean);
+    expect(lines.every((line) => /^[a-z_]+=/.test(line))).toBe(true);
+    // Exactly one `action=`: the plan's own, and it is a PR, not the issue the
+    // config module tried to forge.
+    expect(lines.filter((line) => line.startsWith("action="))).toEqual(["action=create-pr"]);
+    expect(err.text()).toContain("loading workflows...");
+  });
+
   test("--format json and --format github carry the same fields", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(bumpOnLocklessProject());
@@ -391,7 +441,7 @@ describe("deps update", () => {
 
   test("--dry-run asks the engine not to apply", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(bumpOnLocklessProject());
@@ -418,7 +468,37 @@ describe("deps update", () => {
    */
   test("--body-file receives the plan's rendering", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+    const dir = mkdtempSync(join(tmpdir(), "ghagen-update-"));
+    const bodyFile = join(dir, "body.md");
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, format: "json", bodyFile });
+    out.restore();
+
+    expect(JSON.parse(out.text()).body_format).toBe("pr-body");
+    const body = readFileSync(bodyFile, "utf8");
+    expect(body.startsWith("## ghagen dependency update")).toBe(true);
+    expect(body).toContain("actions/checkout@v4");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /**
+   * `--dry-run` writes nothing, and the body file is a write.
+   *
+   * Both `cli.md` pages document "no source edits, no lockfile write, no body
+   * file". The two sibling effects were guarded and this one was not, so the
+   * contract was true of two thirds of itself. "Write nothing" is the stronger
+   * contract, so the write moved under the guard rather than the sentence out
+   * of the docs. The plan still *decides* a `bodyFormat`: a decision is not a
+   * write.
+   */
+  test("--dry-run writes no body file", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(bumpOnLocklessProject());
@@ -430,15 +510,13 @@ describe("deps update", () => {
     out.restore();
 
     expect(JSON.parse(out.text()).body_format).toBe("pr-body");
-    const body = readFileSync(bodyFile, "utf8");
-    expect(body.startsWith("## ghagen dependency update")).toBe(true);
-    expect(body).toContain("actions/checkout@v4");
+    expect(existsSync(bodyFile)).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
   test("no body file is written when there is nothing to raise", async () => {
     trackUserFilesMock.mockResolvedValue({
-      app: { lockfilePath: null } as App,
+      app: fakeApp({ lockfilePath: null }),
       files: new Set<string>(),
     });
     upgradeMock.mockResolvedValue(emptyReport({ checkedVersions: true, checkedLockfile: true }));
@@ -454,6 +532,67 @@ describe("deps update", () => {
     expect(plan.body_format).toBeNull();
     expect(existsSync(bodyFile)).toBe(false);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+/**
+ * `deps update` performs *every* write the update needs.
+ *
+ * Its whole reason to exist is that a caller reads the plan and raises a PR
+ * without re-deriving anything. A PR whose generated workflows still carry the
+ * pre-update SHAs is red by construction on the consumer repo's own
+ * `check-synced` gate.
+ */
+describe("deps update leaves a synthesizable tree", () => {
+  /** A project with a lockfile, whose `synth` and reload are observable. */
+  function lockfileProject(): { stale: App; reloaded: App; synth: ReturnType<typeof vi.fn> } {
+    const synth = vi.fn(() => [".github/workflows/ci.yml"]);
+    const stale = { lockfilePath: ".ghagen.lock.yml", synth: vi.fn(() => []) } as unknown as App;
+    const reloaded = { lockfilePath: ".ghagen.lock.yml", synth } as unknown as App;
+    return { stale, reloaded, synth };
+  }
+
+  test("the workflows are regenerated from the re-read tree", async () => {
+    const { stale, reloaded, synth } = lockfileProject();
+    trackUserFilesMock.mockResolvedValue({ app: stale, files: new Set<string>() });
+    loadAppMock.mockResolvedValue(reloaded);
+    upgradeMock.mockResolvedValue(
+      emptyReport({ ...bumpOnLocklessProject(), changedFiles: ["ghagen.workflows.ts"] }),
+    );
+    pinMock.mockResolvedValue({
+      warnings: [],
+      errors: [],
+      written: true,
+      lockfilePath: ".ghagen.lock.yml",
+    });
+
+    const out = captureStdout();
+    const err = captureStderr();
+    await depsUpdate({ ...UPDATE_DEFAULTS, format: "json" });
+    out.restore();
+    err.restore();
+
+    // The bumps were written to *source*; the app in hand predates them, so
+    // both the pin and the synth have to run against a re-read tree.
+    expect(loadAppMock).toHaveBeenCalled();
+    expect(synth).toHaveBeenCalled();
+    expect(pinMock).toHaveBeenCalledWith(reloaded, expect.anything(), expect.anything());
+    expect(err.text()).toContain("modified .github/workflows/ci.yml");
+    expect(JSON.parse(out.text()).changed).toBe(true);
+  });
+
+  test("--dry-run synthesizes nothing", async () => {
+    const { stale, reloaded, synth } = lockfileProject();
+    trackUserFilesMock.mockResolvedValue({ app: stale, files: new Set<string>() });
+    loadAppMock.mockResolvedValue(reloaded);
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "json" });
+    out.restore();
+
+    expect(synth).not.toHaveBeenCalled();
+    expect(JSON.parse(out.text()).changed).toBe(false);
   });
 });
 
@@ -500,5 +639,95 @@ describe("deps update flag validation", () => {
       { commitMessagePrefix: "x\naction=create-pr" },
       "must not contain a newline",
     );
+  });
+});
+
+/**
+ * `--check` is read-only.
+ *
+ * The sibling assertion for `deps update --dry-run` exists above; this one,
+ * for `deps upgrade --check`, existed in neither port. Two independent
+ * reviewers mutated `apply = !opts.check` to `const apply = true` and both
+ * suites stayed green, because `pin/engine.test.ts` passes `apply` explicitly
+ * and so can never observe the CLI's wiring.
+ */
+describe("deps upgrade --check", () => {
+  test("asks the engine not to apply", async () => {
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
+    upgradeMock.mockResolvedValue(emptyReport({ checkedVersions: true }));
+
+    const out = captureStdout();
+    await depsUpgrade({ mode: "versions", check: true, token: "fake" });
+    out.restore();
+
+    expect(upgradeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ apply: false }),
+    );
+  });
+
+  test("without --check the engine is asked to apply", async () => {
+    trackUserFilesMock.mockResolvedValue({ app: fakeApp(), files: new Set<string>() });
+    upgradeMock.mockResolvedValue(emptyReport({ checkedVersions: true }));
+
+    const out = captureStdout();
+    await depsUpgrade({ mode: "versions", token: "fake" });
+    out.restore();
+
+    expect(upgradeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ apply: true }),
+    );
+  });
+});
+
+/**
+ * `--prune` must parse, not just `--no-prune`.
+ *
+ * Commander does not synthesise the positive form from a `--no-x` option, so
+ * declaring only `--no-prune` left `--prune` an unknown-option error (exit 2)
+ * — while Python's `"--prune/--no-prune"` accepted it and both `cli.md` pages
+ * hand out a copy-pasteable CI step that uses it.
+ */
+describe("deps --prune parity", () => {
+  /**
+   * Parse `argv` against the real subcommand and report the `prune` it
+   * resolved, without running the command's real body. The action handler is
+   * replaced rather than stubbed around it, so what is under test is exactly
+   * the option declarations `buildDepsCommand` ships.
+   */
+  async function parsePrune(sub: string, argv: string[]): Promise<boolean> {
+    const { buildDepsCommand } = await import("./deps.js");
+    const command = buildDepsCommand().commands.find((c) => c.name() === sub);
+    if (command === undefined) {
+      throw new Error(`no such subcommand: ${sub}`);
+    }
+
+    let seen: Record<string, unknown> = {};
+    command
+      .exitOverride()
+      .configureOutput({ writeErr: () => {}, writeOut: () => {} })
+      .action((opts: Record<string, unknown>) => {
+        seen = opts;
+      });
+
+    await command.parseAsync(argv, { from: "user" });
+    return seen["prune"] as boolean;
+  }
+
+  test.each(["pin", "check-synced"])("%s accepts --prune", async (sub) => {
+    expect(await parsePrune(sub, ["--prune"])).toBe(true);
+  });
+
+  test.each(["pin", "check-synced"])("%s accepts --no-prune", async (sub) => {
+    expect(await parsePrune(sub, ["--no-prune"])).toBe(false);
+  });
+
+  test.each(["pin", "check-synced"])("%s defaults prune ON", async (sub) => {
+    expect(await parsePrune(sub, [])).toBe(true);
   });
 });

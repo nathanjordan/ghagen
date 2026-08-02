@@ -3,7 +3,7 @@ title: CLI Reference
 description: ghagen CLI command documentation for TypeScript
 ---
 
-ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`).
+ghagen provides commands organized into top-level commands (`synth`, `check-synced`, `init`) and a `deps` subgroup (`deps pin`, `deps check-synced`, `deps upgrade`, `deps update`).
 
 ## Installation
 
@@ -279,14 +279,19 @@ for byte with the Python port.
 | --------------------- | --------------------------------------------------------------------------- |
 | `action`              | `none`, `create-pr`, or `create-issue`.                                     |
 | `total_updates`       | Version bumps plus stale lockfile entries.                                  |
-| `apply_version_bumps` | Whether newer tags were written back into user source.                      |
-| `refresh_lockfile`    | Whether the lockfile was re-resolved. Always `false` with `lockfile: null`. |
+| `apply_version_bumps` | Whether newer tags are to be written back into user source.                 |
+| `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile: null`. |
 | `branch`              | The dated branch, or empty unless `action` is `create-pr`.                  |
 | `title`               | The PR or issue title.                                                      |
 | `commit_message`      | The commit subject, prefix already applied.                                 |
 | `labels`              | Comma-separated under `github`, an array under `json`.                      |
 | `body_format`         | Which `pin/render` format the body is in; empty when there is no body.      |
 | `changed`             | Whether anything was written. Always `false` under `--dry-run`.             |
+
+Every field except `changed` is a **decision, not an outcome** — what the run
+determined should happen, which under `--dry-run` is exactly what did not. Only
+`changed` reports what was actually written, which is why it is the one field
+the plan itself does not carry.
 
 `refreshLockfile` is not `lockfileStale.length > 0`. It is `false` whenever the
 `App` has no lockfile — `ghagen deps pin` exits `1` on such a project, so a
