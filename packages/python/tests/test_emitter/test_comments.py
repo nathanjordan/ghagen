@@ -118,6 +118,22 @@ def test_attach_model_comment_block_and_eol():
     assert "beside" in _eol_token(cm, "last").value
 
 
+def test_attach_model_comment_precedes_an_existing_field_comment():
+    """A model's own comment precedes any field comment already on that key.
+
+    The peer of ``comments.test.ts``'s "merges a block comment ahead of an
+    existing first-key comment". ruamel's
+    ``yaml_set_comment_before_after_key`` APPENDS to the key's pre-comment
+    list, so Python emitted the two comments in the opposite order to
+    TypeScript for the same input.
+    """
+    cm = CommentedMap({"name": "Lint", "last": 2})
+    attach(cm, "name", comment="field comment")
+    attach_model_comment(cm, comment="model comment")
+    values = [token.value for token in _block_token(cm, "name")]
+    assert values == ["# model comment\n", "# field comment\n"]
+
+
 def test_attach_model_comment_empty_map_is_noop():
     cm = CommentedMap()
     attach_model_comment(cm, comment="x", eol_comment="y")

@@ -91,6 +91,25 @@ def attach(
                 parent.yaml_add_eol_comment(eol_comment, key=key)
 
 
+def _prepend_block_comment(node: CommentedMap, key: str, comment: str) -> None:
+    """Place *comment* BEFORE any block comment already on *key*.
+
+    ruamel's ``yaml_set_comment_before_after_key`` appends to the key's
+    pre-comment token list, which is the wrong end for a model's own comment.
+    Rather than build ``CommentToken``s here — this module writes no raw
+    comment text; :mod:`ghagen.emitter.comment_geometry` owns the payload —
+    the existing tokens are detached, :func:`attach` writes the model comment
+    into the empty slot, and the detached tokens are appended after it.
+    """
+    slot = node.ca.items.get(key)
+    saved = list(slot[1]) if slot is not None and slot[1] else []
+    if saved and slot is not None:
+        slot[1] = None
+    attach(node, key, comment=comment)
+    if saved:
+        node.ca.items[key][1].extend(saved)
+
+
 def attach_model_comment(
     node: CommentedMap,
     *,
@@ -104,6 +123,12 @@ def attach_model_comment(
     Used for the Document root AND every nested map-value model, so a model's
     own comment renders regardless of the container it sits in.
 
+    When that first key ALREADY carries a field comment (from a ``Commented``
+    wrapper), the model's own comment goes FIRST: it describes the whole map,
+    the field comment describes one field, so the broader scope reads above the
+    narrower one. This is the rule ``comments.ts`` states and enforces;
+    ``fixtures/expected/comments.yml`` binds it for both ports.
+
     A no-op on an empty map (no key to anchor the comment to).
     """
     if not node:
@@ -112,6 +137,6 @@ def attach_model_comment(
     if not keys:
         return
     if comment is not None:
-        attach(node, keys[0], comment=comment)
+        _prepend_block_comment(node, keys[0], comment)
     if eol_comment is not None:
         attach(node, keys[-1], eol_comment=eol_comment)
