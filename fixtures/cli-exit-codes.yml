@@ -4,8 +4,18 @@
 #   1  expected failure (stale files, unresolved refs, config not found)
 #   2  usage error (unknown command/option, missing or invalid option value)
 #
-# Rows are project-independent: none of them loads a user config module, so the
+# Most rows are project-independent: they load no user config module, so the
 # driver only has to chdir into an empty directory.
+#
+# A row MAY carry an optional `project:` key naming a directory under
+# `fixtures/cli-exit-code-projects/`. The driver copies that directory into a
+# fresh temp dir and chdirs there instead of into an empty one. This exists
+# because the codes that depend on *user code running* -- a config module that
+# raises -- are structurally invisible to an empty-directory driver, and that
+# is exactly the class in which the two ports drifted (Python propagated the
+# exception where TypeScript returned 1). A fixture project holds BOTH ports'
+# entrypoints; their search paths are disjoint, so each port discovers its own
+# and never sees the other's.
 - id: help
   argv: ["--help"]
   exit: 0
@@ -35,4 +45,36 @@
   exit: 1
 - id: config-not-found-flag
   argv: ["synth", "--config", "does-not-exist.py"]
+  exit: 1
+# `check-synced` is the other config-consuming command; the rows above only
+# ever exercised `synth`'s copy of the discovery path.
+- id: config-not-found-check-synced
+  argv: ["check-synced"]
+  exit: 1
+# `help` is not a command in either port. commander ships an implicit one and
+# used to answer 0 here while Typer answered 2; the ports now agree that the
+# documented spelling is `--help` and a bare `help` is a usage error.
+- id: bare-help-word
+  argv: ["help"]
+  exit: 2
+# ghagen declares no `--version`. Asserted in the Python renderer tests but
+# absent from the shared table, so nothing held the TypeScript port to it.
+- id: unknown-top-level-option
+  argv: ["--version"]
+  exit: 2
+# Unknown command *inside a sub-app*. `unknown-command` above only covers the
+# root; the `deps` subtree is mounted differently in the TypeScript port
+# (`addCommand`, not `command`), so it is a genuinely distinct path.
+- id: unknown-subcommand
+  argv: ["deps", "bogus-subcommand"]
+  exit: 2
+# Help for a subcommand, not the root.
+- id: subcommand-help
+  argv: ["synth", "--help"]
+  exit: 0
+# The class the empty-directory rows structurally cannot reach: user code runs
+# and raises. Python propagated the exception here instead of returning a code.
+- id: config-module-raises
+  argv: ["synth"]
+  project: config-raises
   exit: 1

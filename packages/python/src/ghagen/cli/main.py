@@ -132,6 +132,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     ``exc.show()`` instead would silently downgrade every error to click's
     plain renderer; ``tests/test_cli/test_exit_codes.py`` guards that.
 
+    Typer's two branches are not exhaustive, though. Anything a command raises
+    that is neither of them -- most importantly whatever a *user's* config
+    module raises, but equally an ``OSError`` from a bad ``--outdir`` or a
+    :class:`~ghagen.pin.transform.PinError` from an unlocked ref -- would
+    otherwise escape ``main()`` entirely, making the documented "returns the
+    exit code" contract false for exactly the inputs a user is most likely to
+    hit. The TypeScript port has always had this catch-all
+    (``src/cli/main.ts``); the final branch below is its counterpart, down to
+    the ``Error: <message>`` stderr line. ``Exception`` and not
+    ``BaseException``: ``KeyboardInterrupt`` and ``SystemExit`` must still
+    unwind.
+
     ``app`` stays exported for ``typer.testing.CliRunner``.
     """
     command = typer.main.get_command(app)
@@ -160,4 +172,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             rich_utils.rich_abort_error()
         else:
             typer.echo("Aborted!", err=True)
+        return 1
+    except Exception as exc:
+        # Not Typer's rich panel: the panel is for *usage* errors, which this
+        # is not, and the TypeScript port writes a plain `Error: <message>`
+        # line here. Keeping the two renderings the same shape is the point.
+        typer.echo(f"Error: {exc}", err=True)
         return 1
