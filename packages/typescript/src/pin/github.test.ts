@@ -159,6 +159,95 @@ describe("a malformed 200 surfaces as ResolveError", () => {
 });
 
 /**
+ * A 200 that parses but has the wrong *shape* must also be a `ResolveError`.
+ *
+ * Peer of Python's `TestMalformedShape`. The block above covers a body that is
+ * not JSON; this covers a body that is JSON and is not what the GitHub API
+ * documents — the case that used to make `resolveRef` return `undefined` while
+ * its signature promised `string`, so an unquoted `sha: null` reached the
+ * lockfile that this same port then refuses to read back, and `listTags`
+ * return `[]`, which reads as "this repo has no tags" and silently suppresses
+ * every update for it.
+ */
+describe("a shape-malformed 200 surfaces as ResolveError", () => {
+  const resolveRefCases: ReadonlyArray<readonly [string, unknown]> = [
+    ["no-object-key", { unexpected: "shape" }],
+    ["object-not-a-mapping", { object: "not-a-mapping" }],
+    ["object-null", { object: null }],
+    ["no-sha-key", { object: { type: "commit" } }],
+    ["sha-null", { object: { type: "commit", sha: null } }],
+    ["sha-number", { object: { type: "commit", sha: 12345 } }],
+    ["body-is-a-list", []],
+    ["body-is-a-string", "a string"],
+  ];
+
+  for (const [id, body] of resolveRefCases) {
+    it(`from resolveRef() — ${id}`, async () => {
+      const transport = new FakeTransport({ "git/ref/tags/v4": canned(body) });
+      const client = new GitHubClient(transport);
+      await expect(client.resolveRef("actions", "checkout", "v4")).rejects.toThrow(
+        /Unexpected response shape/,
+      );
+    });
+  }
+
+  const listTagsCases: ReadonlyArray<readonly [string, unknown]> = [
+    ["not-a-list", { unexpected: "shape" }],
+    ["list-of-strings", ["refs/tags/v1"]],
+    ["ref-not-a-string", [{ ref: 12345 }]],
+    ["list-of-nulls", [null]],
+  ];
+
+  for (const [id, body] of listTagsCases) {
+    it(`from listTags() — ${id}`, async () => {
+      const transport = new FakeTransport({ "git/refs/tags": canned(body) });
+      const client = new GitHubClient(transport);
+      await expect(client.listTags("actions", "checkout")).rejects.toThrow(
+        /Unexpected response shape/,
+      );
+    });
+  }
+
+  const messageCases: ReadonlyArray<readonly [unknown, string]> = [
+    [{ object: { type: "commit", sha: 1 } }, "'object.sha' must be a string, got number"],
+    [{ object: null }, "'object' must be an object, got null"],
+    [[], "expected an object, got array"],
+  ];
+
+  for (const [body, detail] of messageCases) {
+    it(`says the same thing as the Python port — ${detail}`, async () => {
+      // The exact text its Python peer asserts, character for character; see
+      // `TestMalformedShape.test_message_shape_matches_the_typescript_port`.
+      const url = "https://api.github.com/repos/actions/checkout/git/ref/tags/v4";
+      const transport = new FakeTransport({ "git/ref/tags/v4": canned(body) });
+      await expect(new GitHubClient(transport).resolveRef("actions", "checkout", "v4")).rejects.toThrow(
+        `Unexpected response shape from ${url}: ${detail}`,
+      );
+    });
+  }
+
+  it("from dereferenceTag()", async () => {
+    const transport = new FakeTransport({ [`git/tags/${TAG_SHA}`]: canned({ nope: 1 }) });
+    const client = new GitHubClient(transport);
+    await expect(client.dereferenceTag("actions", "checkout", TAG_SHA)).rejects.toThrow(
+      /does not point to a commit/,
+    );
+  });
+
+  it("but a repo with no tags is still an empty list", async () => {
+    // The 404 path must keep meaning "no tags"; only a *malformed* 200 is the
+    // error. Without this, tightening listTags could turn every tagless repo
+    // into a failed run.
+    expect(await new GitHubClient(new FakeTransport({})).listTags("o", "r")).toEqual([]);
+  });
+
+  it("and an empty page is still an empty list", async () => {
+    const transport = new FakeTransport({ "git/refs/tags": canned([]) });
+    expect(await new GitHubClient(transport).listTags("o", "r")).toEqual([]);
+  });
+});
+
+/**
  * The production adapter's *default* deadline, which nothing else observes.
  *
  * The conformance table always builds the adapter with an explicit deadline

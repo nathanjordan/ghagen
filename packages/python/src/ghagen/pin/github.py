@@ -259,15 +259,16 @@ class GitHubClient:
         dereferenced to their underlying commit.
 
         Raises:
-            ResolveError: If the ref cannot be resolved.
+            ResolveError: If the ref cannot be resolved, or the API answers
+                200 with a body that is not the documented shape.
         """
         for url in _ref_urls(owner, repo, ref):
             data = self._get_json(url)
             if data is None:
                 continue  # 404 for this prefix — try the next.
 
-            obj = data["object"]
-            sha = obj["sha"]
+            obj = _ref_object(data, url)
+            sha = _require_sha(obj, url)
             if _is_annotated_tag(obj):
                 sha = self.dereference_tag(owner, repo, sha)
             return sha
@@ -278,10 +279,18 @@ class GitHubClient:
         )
 
     def dereference_tag(self, owner: str, repo: str, tag_sha: str) -> str:
-        """Dereference an annotated tag object to its underlying commit SHA."""
+        """Dereference an annotated tag object to its underlying commit SHA.
+
+        Raises:
+            ResolveError: If the tag does not point to a commit — which
+                includes a 200 whose body is not the documented shape, since
+                such a body evidences no commit either.
+        """
         url = f"{_API_BASE}/repos/{owner}/{repo}/git/tags/{tag_sha}"
         data = self._get_json(url)
-        obj = data.get("object", {}) if data is not None else {}
+        obj = data.get("object") if isinstance(data, dict) else None
+        if not isinstance(obj, dict):
+            obj = {}
         sha = _commit_sha(obj)
         if sha is not None:
             return sha
@@ -296,8 +305,14 @@ class GitHubClient:
         Returns tag names with the ``refs/tags/`` prefix stripped, or an empty
         list when the repo has no tags (the API returns 404).
 
+        "No tags" is the 404 alone.  A 200 whose body is not an array of ref
+        objects raises rather than degrading to ``[]``: an empty list here is
+        indistinguishable from a genuinely tagless repo, and it would suppress
+        every available update for that repo without a word.
+
         Raises:
-            ResolveError: On non-404 API errors (e.g. rate limiting).
+            ResolveError: On non-404 API errors (e.g. rate limiting), or a 200
+                whose body is not the documented shape.
         """
         url: str | None = f"{_API_BASE}/repos/{owner}/{repo}/git/refs/tags"
         tags: list[str] = []
@@ -306,10 +321,7 @@ class GitHubClient:
             if page is None:
                 return []  # 404 — no tags.
             data, next_url = page
-            for ref in data:
-                full_ref = ref.get("ref", "")
-                if full_ref.startswith("refs/tags/"):
-                    tags.append(full_ref[len("refs/tags/") :])
+            tags.extend(_ref_names(data, url))
             url = next_url
         return tags
 
@@ -391,6 +403,77 @@ def _clamp_socket_timeout(resp: Any, seconds: float) -> None:
         sock.settimeout(seconds)
     except OSError:  # already closed, or not a socket after all
         pass
+
+
+# -- response-shape validation ---------------------------------------------
+#
+# A 200 that parses as JSON has still told us nothing until its *shape* is
+# checked.  Skipping the check does not avoid the failure, it relocates it: to
+# a bare ``KeyError`` here (outside the documented ``ResolveError`` contract,
+# so ``pin/engine.py``'s per-ref recovery does not catch it and one bad
+# response aborts a whole run), or to a ``None`` that reaches the lockfile as
+# an unquoted ``sha: null`` this same package then refuses to read back.
+# Both ports raise from here, with the same message shape.
+
+
+def _json_type(value: Any) -> str:
+    """Name *value*'s JSON type the way both ports name it in messages."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _shape_error(url: str, detail: str) -> ResolveError:
+    """The one message shape for a well-formed-JSON, wrong-shape 200."""
+    return ResolveError(f"Unexpected response shape from {url}: {detail}")
+
+
+def _ref_object(data: Any, url: str) -> dict:
+    """The ``object`` member of a ref response, or :class:`ResolveError`."""
+    if not isinstance(data, dict):
+        raise _shape_error(url, f"expected an object, got {_json_type(data)}")
+    obj = data.get("object")
+    if not isinstance(obj, dict):
+        raise _shape_error(url, f"'object' must be an object, got {_json_type(obj)}")
+    return obj
+
+
+def _require_sha(obj: dict, url: str) -> str:
+    """``object.sha`` as a string, or :class:`ResolveError`."""
+    sha = obj.get("sha")
+    if not isinstance(sha, str):
+        raise _shape_error(url, f"'object.sha' must be a string, got {_json_type(sha)}")
+    return sha
+
+
+def _ref_names(data: Any, url: str) -> list[str]:
+    """Tag names from one page of ``git/refs/tags``, ``refs/tags/`` stripped."""
+    if not isinstance(data, list):
+        raise _shape_error(url, f"expected an array, got {_json_type(data)}")
+    names: list[str] = []
+    for index, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            raise _shape_error(
+                url, f"[{index}] must be an object, got {_json_type(entry)}"
+            )
+        full_ref = entry.get("ref")
+        if not isinstance(full_ref, str):
+            raise _shape_error(
+                url, f"[{index}].ref must be a string, got {_json_type(full_ref)}"
+            )
+        if full_ref.startswith("refs/tags/"):
+            names.append(full_ref[len("refs/tags/") :])
+    return names
 
 
 # -- pure helpers (unit-testable without a transport) ----------------------
