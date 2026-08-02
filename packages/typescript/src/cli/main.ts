@@ -97,7 +97,16 @@ function buildCli(): Command {
   const program = new Command()
     .name("ghagen")
     .description("Generate GitHub Actions workflow YAML from TypeScript/JavaScript code.")
-    .showHelpAfterError();
+    .showHelpAfterError()
+    // commander synthesizes a `help` *command* on top of the `--help` option.
+    // Typer/click has no such thing, so `ghagen help` answered 0 here and 2
+    // there -- a command that exists in one port and not the other, which the
+    // parity mandate does not allow. Removing the extra built-in is the fix
+    // that keeps the two command sets identical; adding `help` to Python
+    // would instead grow the documented surface to match a framework
+    // accident. `--help` remains the documented spelling in both ports, and
+    // `fixtures/cli-exit-codes.yml` pins both spellings.
+    .helpCommand(false);
 
   program
     .command("synth")
