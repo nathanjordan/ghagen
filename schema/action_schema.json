@@ -25,7 +25,9 @@
               "type": "string"
             }
           },
-          "required": ["description"],
+          "required": [
+            "description"
+          ],
           "type": "object"
         }
       },
@@ -52,7 +54,10 @@
               "type": "string"
             }
           },
-          "required": ["description", "value"],
+          "required": [
+            "description",
+            "value"
+          ],
           "type": "object"
         }
       },
@@ -80,10 +85,15 @@
             "additionalProperties": false,
             "oneOf": [
               {
-                "required": ["run", "shell"]
+                "required": [
+                  "run",
+                  "shell"
+                ]
               },
               {
-                "required": ["uses"]
+                "required": [
+                  "uses"
+                ]
               }
             ],
             "properties": {
@@ -132,7 +142,7 @@
               },
               "if": {
                 "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runsstepsif",
-                "description": "You can use the if conditional to prevent a step from running unless a condition is met. You can use any supported context and expression to create a conditional.\nExpressions in an if conditional do not require the ${{ }} syntax. For more information, see https://help.github.com/en/articles/contexts-and-expression-syntax-for-github-actions.",
+                "description": "You can use the if conditional to prevent a step from running unless a condition is met. You can use any supported context and expression to create a conditional.\nExpressions in an if conditional do not require the ${{ }} syntax. However, you must always use the ${{ }} expression syntax or escape with '', \"\", or () when the expression starts with !, since ! is reserved notation in YAML format. For more information, see https://help.github.com/en/articles/contexts-and-expression-syntax-for-github-actions",
                 "type": "string"
               },
               "name": {
@@ -152,7 +162,14 @@
                     "$comment": "https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#custom-shell"
                   },
                   {
-                    "enum": ["bash", "pwsh", "python", "sh", "cmd", "powershell"]
+                    "enum": [
+                      "bash",
+                      "pwsh",
+                      "python",
+                      "sh",
+                      "cmd",
+                      "powershell"
+                    ]
                   }
                 ],
                 "description": "The shell where you want to run the command.",
@@ -184,7 +201,10 @@
           "description": "To use a composite run steps action, set this to 'composite'."
         }
       },
-      "required": ["using", "steps"],
+      "required": [
+        "using",
+        "steps"
+      ],
       "type": "object"
     },
     "runs-docker": {
@@ -257,7 +277,10 @@
           "description": "You must set this value to 'docker'."
         }
       },
-      "required": ["using", "image"],
+      "required": [
+        "using",
+        "image"
+      ],
       "type": "object"
     },
     "runs-javascript": {
@@ -289,10 +312,18 @@
         "using": {
           "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#runsusing",
           "description": "The application used to execute the code specified in `main`.",
-          "enum": ["node12", "node16", "node20", "node24"]
+          "enum": [
+            "node12",
+            "node16",
+            "node20",
+            "node24"
+          ]
         }
       },
-      "required": ["using", "main"],
+      "required": [
+        "using",
+        "main"
+      ],
       "type": "object"
     },
     "stringContainingExpressionSyntax": {
@@ -648,7 +679,9 @@
               "type": "boolean"
             }
           },
-          "required": ["description"],
+          "required": [
+            "description"
+          ],
           "type": "object"
         }
       },
@@ -676,7 +709,11 @@
       ]
     }
   },
-  "required": ["name", "description", "runs"],
+  "required": [
+    "name",
+    "description",
+    "runs"
+  ],
   "then": {
     "properties": {
       "outputs": {
