@@ -9,6 +9,7 @@ from __future__ import annotations
 from ghagen._commented import with_comment
 from ghagen.emitter import CommentNode, to_data
 from ghagen.models.action import Action, CompositeRuns, DockerRuns, NodeRuns
+from ghagen.models.common import ShellType
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -141,7 +142,7 @@ class TestIterUsesSites:
             runs=CompositeRuns(
                 steps=[
                     Step(uses="actions/setup-python@v5"),
-                    Step(run="echo hi", shell="bash"),
+                    Step(run="echo hi", shell=ShellType.BASH),
                     Step(uses="./local"),
                 ],
             ),

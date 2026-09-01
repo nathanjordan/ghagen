@@ -121,7 +121,7 @@ describe("iterUsesSites()", () => {
     const a = action({
       name: "d",
       description: "d",
-      runs: dockerRuns({ image: "docker://alpine:3" }),
+      runs: dockerRuns({ using: "docker", image: "docker://alpine:3" }),
     });
     expect([...iterUsesSites(a)]).toHaveLength(0);
   });

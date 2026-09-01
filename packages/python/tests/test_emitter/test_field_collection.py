@@ -57,7 +57,20 @@ def test_none_valued_field_is_not_collected() -> None:
 def test_raw_none_is_collected_because_none_is_checked_on_the_wrapper() -> None:
     # Rule 3's subtlety: exclude_none looks at the raw attribute, before any
     # Raw see-through, so Raw(None) survives to become a present-null key.
-    collected = collect_fields(Step(shell=Raw(None)), auto_dedent=False)
+    #
+    # `Step.shell` is declared `ShellType | Raw[str] | None`, and `Raw` is
+    # invariant, so `Raw(None)` is `Raw[None]` and outside it. That is the
+    # point: the escape hatch's declared payload is a string, and this test
+    # deliberately steps outside the declared type to reach a rule that lives
+    # below it -- the collector reads the attribute before any see-through, so
+    # what `Raw` wraps is not its business. Widening `Raw[str]` to `Raw[Any]`
+    # across the model layer is a published-API decision (docs/issues/27) and
+    # the present-null semantics it would touch are docs/issues/04's; neither
+    # belongs in docs/issues/09, so the one call that needs it says so here.
+    collected = collect_fields(
+        Step(shell=Raw(None)),  # type: ignore[arg-type]
+        auto_dedent=False,
+    )
     assert list(collected) == ["shell"]
     assert isinstance(collected["shell"], Raw)
     assert collected["shell"].value is None

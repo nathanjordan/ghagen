@@ -12,6 +12,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from ghagen.app import App
 from ghagen.models.action import Action, CompositeRuns, DockerRuns, NodeRuns
+from ghagen.models.common import ShellType
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -192,7 +193,7 @@ class TestCollectFromActions:
                 steps=[
                     Step(uses="actions/setup-python@v5"),
                     Step(uses="actions/checkout@v4"),
-                    Step(run="echo hi", shell="bash"),
+                    Step(run="echo hi", shell=ShellType.BASH),
                 ],
             ),
         )

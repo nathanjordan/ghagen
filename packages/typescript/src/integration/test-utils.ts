@@ -1,8 +1,17 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import Ajv from "ajv";
-import addFormats from "ajv-formats";
+// Both packages are CommonJS, so under `moduleResolution: "node16"` a default
+// import binds the module namespace rather than the value: `new Ajv(...)` is
+// `TS2351: has no construct signatures` and `addFormats(...)` is `TS2349: not
+// callable`. Ajv publishes a named `Ajv` export; ajv-formats publishes only a
+// default, and its CJS entry sets both `module.exports = plugin` and
+// `exports.default = plugin`, so `.default` is the callable under either
+// interpretation. Neither line was checked before docs/issues/09.
+import { Ajv } from "ajv";
+import addFormatsPlugin from "ajv-formats";
+
+const addFormats = addFormatsPlugin.default;
 import { EXPECTED_DIR, SCHEMA_DIR } from "../paths.js";
 
 export { EXPECTED_DIR, SCHEMA_DIR };

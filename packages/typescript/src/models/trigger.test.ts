@@ -13,6 +13,15 @@ import { isModel } from "./_base.js";
 import { toData, toYaml } from "../emitter/yaml-writer.js";
 import { workflow } from "./workflow.js";
 
+/**
+ * The emitted shape of a `workflow_dispatch` / `workflow_call` sub-map: a map
+ * of definition name to a map of key to value (`inputs.version.description`).
+ * `toData` returns `unknown`, so the depth has to be named to be indexed; the
+ * casts below used to stop one level short, which left the leaf `unknown` and
+ * only compiled because this file was outside the gate (docs/issues/09).
+ */
+type DefMap = Record<string, Record<string, unknown>>;
+
 describe("pushTrigger", () => {
   it("creates a push trigger with branches", () => {
     const t = pushTrigger({ branches: ["main"] });
@@ -81,7 +90,7 @@ describe("workflowDispatch", () => {
     const t = workflowDispatch({
       inputs: { env: { description: "Environment", deprecationMessage: "use `target`" } },
     });
-    const inputs = (toData(t) as Record<string, Record<string, unknown>>).inputs;
+    const inputs = (toData(t) as Record<string, DefMap>).inputs;
     expect(inputs.env.deprecationMessage).toBe("use `target`");
   });
 });
@@ -109,7 +118,7 @@ describe("workflowCall", () => {
     const t = workflowCall({
       inputs: { version: { type: "string", description: "Version", required: true } },
     });
-    const inputs = (toData(t) as Record<string, Record<string, unknown>>).inputs;
+    const inputs = (toData(t) as Record<string, DefMap>).inputs;
     expect(Object.keys(inputs.version)).toEqual(["description", "required", "type"]);
   });
 
@@ -117,7 +126,7 @@ describe("workflowCall", () => {
     const t = workflowCall({
       outputs: { result: { value: "${{ jobs.build.outputs.result }}", description: "Result" } },
     });
-    const outputs = (toData(t) as Record<string, Record<string, unknown>>).outputs;
+    const outputs = (toData(t) as Record<string, DefMap>).outputs;
     expect(Object.keys(outputs.result)).toEqual(["description", "value"]);
   });
 
@@ -125,7 +134,7 @@ describe("workflowCall", () => {
     const t = workflowCall({
       secrets: { token: { required: true, description: "API token" } },
     });
-    const secrets = (toData(t) as Record<string, Record<string, unknown>>).secrets;
+    const secrets = (toData(t) as Record<string, DefMap>).secrets;
     expect(Object.keys(secrets.token)).toEqual(["description", "required"]);
   });
 });
@@ -224,7 +233,7 @@ describe("on", () => {
   });
 
   it("emits an empty workflowDispatch as a bare `workflow_dispatch:` key (YAML)", () => {
-    const yaml = toYaml(workflow({ name: "W", on: on({ workflowDispatch: {} }) }), {
+    const yaml = toYaml(workflow({ name: "W", on: on({ workflowDispatch: {} }), jobs: {} }), {
       header: null,
     });
     expect(yaml).toContain("workflow_dispatch:\n");

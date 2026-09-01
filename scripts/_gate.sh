@@ -29,17 +29,13 @@ PY_PATHS=(
   .github/ghagen_workflows.py
 )
 
-# The tests are the one path pyright does not yet see; type-checking them is
-# docs/issues/09, which covers both ports and is being handled there. Derived by
-# subtraction rather than written out a second time, so a new root added above
-# cannot silently miss the typecheck gate.
-PY_PATHS_TYPED=()
-for _py_path in "${PY_PATHS[@]}"; do
-  if [[ "$_py_path" != "packages/python/tests/" ]]; then
-    PY_PATHS_TYPED+=("$_py_path")
-  fi
-done
-unset _py_path
+# Every gate now covers every root: pyright used to skip packages/python/tests/,
+# which is where every Python test lives, so no Python test file was checked by
+# anything (docs/issues/09). The subtraction that arranged that is gone, and
+# PY_PATHS_TYPED is kept as a name only so the typecheck gate reads like its two
+# siblings -- if a root ever has to be dropped from one gate again, this is the
+# place, and the divergence is visible here rather than inside a gate script.
+PY_PATHS_TYPED=("${PY_PATHS[@]}")
 
 : "${GATE_NAME:?_gate.sh: set GATE_NAME before sourcing}"
 : "${GATE_ALLOW_FIX:=0}" # gates that support --fix set this to 1

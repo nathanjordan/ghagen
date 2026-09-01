@@ -31,7 +31,7 @@ from ghagen import (
     with_comment,
     with_eol_comment,
 )
-from ghagen.models.common import PermissionLevel
+from ghagen.models.common import PermissionLevel, ShellType
 from ghagen.models.job import Concurrency, Defaults, DefaultsRun
 from ghagen.models.trigger import (
     WorkflowCallInput,
@@ -374,7 +374,7 @@ def test_composite_action_snapshot(snapshot: Snapshot):
                     id="greet",
                     name="Greet",
                     run="echo Hello, ${{ inputs.who }}",
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
             ],
         ),

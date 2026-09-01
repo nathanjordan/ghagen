@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ghagen.emitter.header import DEFAULT
+from ghagen.models._base import OrRaw
+from ghagen.models.action import Action
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -47,6 +49,21 @@ def _workflow_with_run(run: str) -> Workflow:
         on=On(push=PushTrigger()),
         jobs={"build": Job(runs_on="ubuntu-latest", steps=[Step(run=run)])},
     )
+
+
+def _first_step(doc: Workflow | Action) -> OrRaw[Step]:
+    """The first step of the ``build`` job.
+
+    ``apply_transforms`` is annotated ``Workflow | Action -> Workflow |
+    Action``, and both ``Workflow.jobs`` and ``Job.steps`` are optional, so
+    reaching a step takes three narrowings that say nothing about synthesis.
+    They live here once rather than at each assertion.
+    """
+    assert isinstance(doc, Workflow)
+    assert doc.jobs is not None
+    steps = doc.jobs["build"].steps
+    assert steps is not None
+    return steps[0]
 
 
 def _rename_uses(new_ref: str):
@@ -100,7 +117,7 @@ class TestRender:
             auto_dedent=True,
         )
         # The clone was edited; the caller's model is untouched.
-        assert original.jobs["build"].steps[0].uses == "actions/checkout@v4"
+        assert _first_step(original).uses == "actions/checkout@v4"
 
     def test_header_none_emits_no_header(self):
         text = render(
@@ -168,11 +185,11 @@ class TestApplyTransforms:
             wf,
             [_rename_uses("actions/checkout@v2"), _rename_uses("actions/checkout@v3")],
         )
-        assert result.jobs["build"].steps[0].uses == "actions/checkout@v3"
+        assert _first_step(result).uses == "actions/checkout@v3"
 
     def test_deep_copies_before_mutating(self):
         wf = _workflow(uses="actions/checkout@v4")
         result = apply_transforms(wf, [_rename_uses("actions/setup-node@v4")])
         assert result is not wf
-        assert wf.jobs["build"].steps[0].uses == "actions/checkout@v4"
-        assert result.jobs["build"].steps[0].uses == "actions/setup-node@v4"
+        assert _first_step(wf).uses == "actions/checkout@v4"
+        assert _first_step(result).uses == "actions/setup-node@v4"
