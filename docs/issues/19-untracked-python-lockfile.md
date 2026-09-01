@@ -1,6 +1,7 @@
 # The Python build is not reproducible: `uv.lock` is untracked
 
-**Status:** open — from round 2. Surfaced by three separate implementation worktrees
+**Status:** closed — option 1 (track `uv.lock`). From round 2. Surfaced by three separate
+implementation worktrees
 
 `uv.lock` is gitignored (`.gitignore:31`; `git ls-files uv.lock` returns nothing).
 `packages/typescript/package-lock.json` **is** tracked. The two ports therefore ship different
@@ -98,3 +99,28 @@ import error in an unrelated subsystem.
 Found mid-round while unblocking implementation agents. The import break was fixed inline because it
 was blocking; committing or not committing a lockfile is a repo-policy call with an sdist-packaging
 consequence, and it has no business being decided as a side effect of a refactor round.
+
+## Resolution
+
+Went with option 1, tracking `uv.lock`, on the strength of the parity argument in "Why the obvious
+fix is a real decision" above: `packages/typescript/package-lock.json` is already tracked, ghagen
+behaves like an application at development time regardless of what it is at install time, and this
+class of incident hit three worktrees in one round.
+
+1. `uv.lock` is committed, resolved fresh from `pyproject.toml` (`click==8.5.0`, `typer==0.24.2`,
+   both inside ADR-0009's bounds). `.gitignore`'s `uv.lock` line is removed.
+2. CI's `uv sync` steps (`.github/ghagen_workflows.py`'s `_ci_workflow()`, regenerated into
+   `.github/workflows/ci.yml`) now pass `--locked`: a lockfile that has drifted from
+   `pyproject.toml` fails the sync step instead of silently re-resolving, mirroring what `npm ci`
+   already does for `package-lock.json`. The weekly `schema-drift` workflow's unrelated `uv sync`
+   step is untouched — it is not part of `_ci_workflow()` and its job (detecting upstream _schema_
+   drift) is orthogonal to this.
+3. ADR-0009 gets an amendment recording the change; its "Why" section's historical account of the
+   incident (found with an untracked lock) is left as-is.
+4. `tests/test_declared_dependencies.py`'s module docstring, which asserted `uv.lock` is gitignored,
+   is corrected.
+
+Option 2 (scheduled fresh-resolve CI run) is not implemented here — it is complementary, not a
+substitute, and is a separate follow-up if the repo wants it. `renovate.json` needed no change:
+`config:recommended` already covers the `uv.lock`/`pyproject.toml` ecosystem and will pick it up now
+that the file is tracked.
