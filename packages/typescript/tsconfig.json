@@ -30,6 +30,7 @@
     "dist",
     "src/**/*.test.ts",
     "src/integration/test-utils.ts",
+    "src/integration/fixture-models.ts",
     "src/pin/transport-contract.ts",
     "src/paths.ts"
   ]

@@ -27,13 +27,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { parse } from "yaml";
 import { createJiti } from "jiti";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { App } from "../app.js";
-import type { toYaml as ToYaml } from "../emitter/yaml-writer.js";
+import type { toData as ToData, toYaml as ToYaml } from "../emitter/yaml-writer.js";
 import { EXPECTED_DIR } from "../paths.js";
 import { main } from "./main.js";
 
@@ -69,10 +70,22 @@ describe("ghagen init scaffold", () => {
 
     const jiti = createJiti(import.meta.url);
     const mod = (await jiti.import(configPath)) as { app: App };
-    const { toYaml } = (await jiti.import(SRC_YAML_WRITER)) as { toYaml: typeof ToYaml };
+    const { toData, toYaml } = (await jiti.import(SRC_YAML_WRITER)) as {
+      toData: typeof ToData;
+      toYaml: typeof ToYaml;
+    };
 
     const documents = mod.app.documents();
     expect(documents).toHaveLength(1);
-    expect(toYaml(documents[0]!, { header: null })).toBe(FIXTURE);
+    const yaml = toYaml(documents[0]!, { header: null });
+    expect(yaml).toBe(FIXTURE);
+
+    // The walk sweep's entry for this fixture. `init_scaffold.yml` has no static
+    // source model -- it is whatever the scaffold the CLI just wrote emits -- so
+    // it cannot live in `integration/fixture-models.ts` with the rest. It is
+    // swept here, where the model exists, rather than left out of the set
+    // (docs/issues/01). Both `toData` and `toYaml` come from the one jiti graph
+    // the module-identity note above requires.
+    expect(toData(documents[0]!)).toEqual(parse(yaml));
   });
 });
