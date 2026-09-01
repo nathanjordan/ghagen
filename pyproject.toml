@@ -53,6 +53,7 @@ dev = [
   "pyright",
   "httpx",
   "jsonschema",
+  "pre-commit",
 ]
 
 [tool.ruff]

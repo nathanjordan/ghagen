@@ -27,7 +27,7 @@ import { HttpResponse, TransportError, type HttpClient, type RequestOptions } fr
 /** The deadline the adapter under test is built with for the response rows. */
 export const RESPONSE_DEADLINE_MS = 5_000;
 
-/** Row 11's deadline, and the sole caller of the adapters' deadline argument. */
+/** Row 11's deadline — the only value ever passed as `deadlineMs` for a failure row. */
 export const FAILURE_DEADLINE_MS = 250;
 
 /**
@@ -351,7 +351,7 @@ export type MakeAdapter = (
  * Run a *real* adapter against a raw loopback origin.
  *
  * `build(deadlineMs)` constructs the adapter under test with that wall-clock
- * deadline — the deadline argument's sole caller.
+ * deadline; the closure returned below is `build`'s sole caller.
  */
 export function loopbackAdapter(build: (deadlineMs: number) => HttpClient): MakeAdapter {
   return async (testCase, deadlineMs, body) => {

@@ -166,6 +166,16 @@ Path` to a resolved `root: Path` (the caller now supplies the already
   (single source of truth for shape/defaults, consumed by two call
   sites), so "delete it" is not on the table — only its file location
   changes.
+
+  **Amended by proposal 20.** This prediction did not land: the merge commit
+  (`5e9b944`, "unify root discovery on ancestor walk; fix subdir CLI")
+  replaced the zod schema with hand-rolled typed-result validation in
+  `config.ts`, the approach ADR-0007 records, leaving `zod` with zero
+  importers. Proposal 20 deleted the now-callerless `zod` dependency from
+  `package.json`. The paragraph above and the unknown-key-stripping
+  rationale below are kept for the record; TypeScript config validation
+  does not use zod.
+
 - Decouple `loadOptions` from the `entrypoint` field to close the
   validation-coupling bug in §1.3: `loadOptions` parses only the
   `options` key (`optionsSchema.optional().parse(data.options)`, or a

@@ -44,10 +44,13 @@ The module that serializes a model tree to YAML — key ordering, comments, bloc
 serialization recursion (see ADR-0001, amended); models never serialize themselves. Also exposes
 the plain-data observation surface `toData()` — the supported way to inspect a model's emitted
 structure (see **CommentNode**).
-Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) and the block-comment
-column — is a named module, `emitter/comment-geometry.ts`, and every comment payload is rendered
-through it at attach time. No Emitter pass rewrites emitted text. The Emitter also owns the emitted
-**Header** bytes end to end — the backend never sees them.
+Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) — is a named module,
+`emitter/comment-geometry.ts`, and every comment payload is rendered through it at attach time.
+The block-comment column is _not_ this module's business here: the `yaml` backend indents a
+`commentBefore` to its node automatically, so TypeScript has nothing to own there. (The Python
+peer, `emitter/comment_geometry.py`, owns both columns — ruamel does not do this for it, so that
+port must.) No Emitter pass rewrites emitted text. The Emitter also owns the emitted **Header**
+bytes end to end — the backend never sees them.
 
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, the
@@ -60,6 +63,12 @@ construction body in the port, and a factory declaration carries no code. Its `f
 binds a _value grammar_ to a field, checked in `buildYamlData` on the peeled value so that `raw()`
 stays the deliberate escape hatch and `withComment(...)` is not one.
 _Avoid_: field map, key-order table.
+
+**`*Input`**:
+The construction-time parameter type paired with each model — `WorkflowInput`, `StepInput`, and so
+on — the `I` in `defineFactory<M, I>(SPEC)`. What a caller hands the factory; distinct from the
+**Model** the factory returns, which carries `kind` and the **ModelSpec** on top of it.
+_Avoid_: props, options, args.
 
 **OrderMode**:
 A ModelSpec's emission-order rule. Two cases, no third and no placement modifier (ADR-0011):
@@ -226,7 +235,8 @@ framework renders the text, `main()` decides the number.
   `report.lockfileStale.length > 0`. `renderUpdatePlan` takes its format **positionally**, matching
   `renderUpgradeReport`, and emits snake_case keys in both encodings because the field names are a
   cross-port wire contract, not this port's interface. `ghagen deps update` is the one command that
-  runs a whole automation pass — sweep, write, plan — and prints the plan and nothing else on
+  runs a whole automation pass — sweep, `pin/update.ts`'s `applyUpdates` writes the version bumps
+  back into user source, `planUpdate` decides the rest — and prints the plan and nothing else on
   stdout. `check-deps/action.yml` runs the Python port of it; the shell there branches on the plan
   and computes nothing.
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's
