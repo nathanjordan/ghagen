@@ -102,7 +102,7 @@ export class HttpResponse {
  * moment it is called, *including reading the body*. The distinction is the
  * whole point: a per-socket-operation timeout is reset by every byte that
  * arrives, so a peer trickling one byte per interval holds the call open
- * indefinitely while never exceeding it. Row 12 of the conformance table
+ * indefinitely while never exceeding it. Row 13 of the conformance table
  * (`dribble-body`) is that peer, and it is what an adapter must survive.
  *
  * One phase is excluded, in both ports' wording though not in this port's
