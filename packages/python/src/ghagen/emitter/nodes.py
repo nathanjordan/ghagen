@@ -302,10 +302,10 @@ def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> Commented
     both come from the model's :class:`~ghagen.models.spec.ModelSpec`.
 
     Does NOT attach the model's OWN comment — that is the container's job
-    (:func:`_to_node` for a map value, :func:`_to_seq` for a seq item, and the
-    document emitter for the root). The one exception is a present-null entry,
-    whose map is discarded: :func:`emit_entries` folds that map's own comment
-    onto the entry so it survives onto the bare key.
+    (:func:`_to_node` for a map value, :func:`_to_seq` for a seq item, and
+    :func:`attach_root_comment` for the document root). The one exception is a
+    present-null entry, whose map is discarded: :func:`emit_entries` folds
+    that map's own comment onto the entry so it survives onto the bare key.
     """
     cm = CommentedMap()
 
@@ -330,3 +330,16 @@ def _model_to_map(model: GhagenModel, *, auto_dedent: bool = False) -> Commented
         model.post_process(cm)
 
     return cm
+
+
+def attach_root_comment(cm: CommentedMap, model: GhagenModel) -> None:
+    """Attach *model*'s own comment to *cm*, its already-rendered root map.
+
+    The document root is the one container :func:`_model_to_map` does not
+    serve itself (see its docstring): it has no parent map value or seq index
+    to hang the comment on, so the document emitter renders the map first via
+    :func:`_model_to_map` and then calls this to close the gap. Kept here,
+    not called directly from :mod:`ghagen.emitter.document`, so comment
+    attachment still has exactly one home.
+    """
+    attach_model_comment(cm, comment=model.comment, eol_comment=model.eol_comment)

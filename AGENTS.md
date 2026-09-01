@@ -50,10 +50,10 @@ Four installs, all four required before the default gates pass. `scripts/*.sh` n
 one and its command if you skip it.
 
 ```sh
-uv sync                            # Python toolchain
+uv sync                            # Python toolchain, including pre-commit itself
 npm ci --prefix packages/typescript # TypeScript toolchain
 npm ci --prefix docs               # docs site toolchain (oxlint/oxfmt live here)
-pre-commit install                 # the local lint/fmt gate; not installed by default
+uv run pre-commit install          # the local lint/fmt gate; hooks are not installed by default
 ```
 
 ## Common Commands

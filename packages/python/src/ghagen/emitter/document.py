@@ -10,9 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ghagen.emitter.comments import attach_model_comment
 from ghagen.emitter.header import HeaderInput, format_header
-from ghagen.emitter.nodes import _model_to_map
+from ghagen.emitter.nodes import _model_to_map, attach_root_comment
 from ghagen.emitter.yaml_writer import dump_yaml
 from ghagen.models._base import Document
 
@@ -41,9 +40,10 @@ def emit(
     """
     cm = _model_to_map(document, auto_dedent=auto_dedent)
 
-    # The document root's OWN comment, rendered on the map as a whole — the same
-    # helper that closes the nested map-value gap.
-    attach_model_comment(cm, comment=document.comment, eol_comment=document.eol_comment)
+    # The document root's OWN comment, rendered on the map as a whole. Routed
+    # through ghagen.emitter.nodes so comment attachment stays in one module
+    # (see nodes.py's module docstring).
+    attach_root_comment(cm, document)
 
     header_str = format_header(header, document._source_location)
     return dump_yaml(cm, header=header_str)

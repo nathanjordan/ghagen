@@ -192,8 +192,10 @@ framework renders the text, `main()` decides the number.
   construction-time input contract; declared value grammars live in each port's `ModelSpec` and the
   two are bound to the Snapshot by `schema/conformance-values.yml`.
 - The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
-  App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
-  CLI-local. The CLI entry point is `main(argv) -> int`, not the Typer app: click runs in
+  App resolution — returning typed results with errors as values (ADR-0007); `cli/_common.py`
+  renders a `ConfigError` to `typer.Exit`, which is CLI-local (the TypeScript peer's equivalent is
+  `CliError`, in `cli/_errors.ts` — Python has no such class). The CLI entry point is
+  `main(argv) -> int`, not the Typer app: click runs in
   `standalone_mode=False`, so the exit code is ghagen's decision rather than the framework's, and
   Typer's error rendering is reproduced explicitly. The synthesis pipeline is `synth.render()`; pin
   runs last (ADR-0005).
@@ -211,10 +213,14 @@ framework renders the text, `main()` decides the number.
   console, and no clock either: `plan_update` takes `today` as an argument, the same reasoning
   ADR-0002 applies to construction-time config globals. `plan_update(app, report, ...)` takes the
   **App** for exactly one fact, `app.lockfile_path`, which is why `refresh_lockfile` is not
-  `bool(report.lockfile_stale)`. `ghagen deps update` is the one command that runs a whole
-  automation pass — sweep, write, plan — and prints the plan and nothing else on stdout, so
-  `--format github` can be a bare `>> "$GITHUB_OUTPUT"` redirect. `check-deps/action.yml` is its
-  only in-repo consumer; the shell there branches on the plan and computes nothing.
+  `bool(report.lockfile_stale)`. `render_update_plan(plan, changed=..., output_format=...)` is
+  `pin/plan`'s renderer for the resulting **UpdatePlan** — the `plan` peer of `pin/render`'s
+  `render_upgrade_report`, same two-format (`json`/`github`) shape. `ghagen deps update` is the one
+  command that runs a whole automation pass — sweep, `pin/update`'s `apply_updates` writes the
+  version bumps back into user source, `plan_update` decides the rest — and prints the rendered
+  plan and nothing else on stdout, so `--format github` can be a bare `>> "$GITHUB_OUTPUT"`
+  redirect. `check-deps/action.yml` is its only in-repo consumer; the shell there branches on the
+  plan and computes nothing.
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.
