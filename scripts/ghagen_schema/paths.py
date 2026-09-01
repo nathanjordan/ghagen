@@ -31,5 +31,9 @@ REPO_ROOT = repo_root()
 #: Canonical schema Snapshot directory (single source of truth).
 SCHEMA_DIR = REPO_ROOT / "schema"
 
+#: The fixtures directory (holds ``expected/`` plus other fixture data such as
+#: ``cli-exit-codes.yml`` and ``cli-exit-code-projects/``).
+FIXTURES_ROOT = REPO_ROOT / "fixtures"
+
 #: Shared golden fixtures consumed by both ports' test suites.
-FIXTURES_DIR = REPO_ROOT / "fixtures"
+EXPECTED_DIR = FIXTURES_ROOT / "expected"

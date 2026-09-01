@@ -15,12 +15,10 @@ from __future__ import annotations
 import json
 
 import pytest
-from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
+from ghagen_schema.paths import EXPECTED_DIR
 
 from ghagen.pin.engine import LockfileStaleEntry, UpgradeReport, VersionBump
 from ghagen.pin.render import render_upgrade_report
-
-FIXTURES_DIR = _FIXTURES_ROOT / "expected"
 
 
 def _bumps() -> list[VersionBump]:
@@ -76,7 +74,7 @@ class TestGoldenFixtures:
     def test_json_matches_golden_fixture(self):
         rendered = render_upgrade_report(_full_report(), output_format="json")
 
-        golden = (FIXTURES_DIR / "upgrade_report.json").read_text(encoding="utf-8")
+        golden = (EXPECTED_DIR / "upgrade_report.json").read_text(encoding="utf-8")
         assert json.loads(rendered) == json.loads(golden)
 
         # The phantom `helper_provided` field must never appear.
@@ -84,18 +82,18 @@ class TestGoldenFixtures:
 
     def test_pr_body_matches_golden_fixture(self):
         assert render_upgrade_report(_full_report(), output_format="pr-body") == (
-            FIXTURES_DIR / "upgrade_pr_body.md"
+            EXPECTED_DIR / "upgrade_pr_body.md"
         ).read_text(encoding="utf-8")
 
     def test_issue_body_matches_golden_fixture(self):
         assert render_upgrade_report(_full_report(), output_format="issue-body") == (
-            FIXTURES_DIR / "upgrade_issue_body.md"
+            EXPECTED_DIR / "upgrade_issue_body.md"
         ).read_text(encoding="utf-8")
 
     def test_text_matches_golden_fixture(self):
         """The default format's first direct test in either port."""
         assert render_upgrade_report(_full_report(), output_format="text") == (
-            FIXTURES_DIR / "upgrade_text.txt"
+            EXPECTED_DIR / "upgrade_text.txt"
         ).read_text(encoding="utf-8")
 
     def test_text_is_the_default_format(self):

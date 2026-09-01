@@ -15,9 +15,9 @@
  * This is a separate file from `main.test.ts` because that file mocks `jiti` at
  * module scope, which these rows must not be run under.
  *
- * `FIXTURES_DIR` is not usable here: the TypeScript export points one level
- * deeper than the Python one (`fixtures/expected` vs `fixtures`), so the table
- * is resolved off `REPO_ROOT` directly.
+ * `EXPECTED_DIR` is not usable here: it points one level deeper than the table
+ * and the project fixtures need (`fixtures/expected`, not `fixtures`), so the
+ * table is resolved off `FIXTURES_ROOT` instead.
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
@@ -33,7 +33,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
-import { REPO_ROOT } from "../paths.js";
+import { FIXTURES_ROOT } from "../paths.js";
 import { main } from "./main.js";
 
 interface ExitCodeRow {
@@ -45,10 +45,10 @@ interface ExitCodeRow {
 }
 
 const TABLE: ExitCodeRow[] = parse(
-  readFileSync(resolve(REPO_ROOT, "fixtures", "cli-exit-codes.yml"), "utf8"),
+  readFileSync(resolve(FIXTURES_ROOT, "cli-exit-codes.yml"), "utf8"),
 ) as ExitCodeRow[];
 
-const PROJECTS_DIR = resolve(REPO_ROOT, "fixtures", "cli-exit-code-projects");
+const PROJECTS_DIR = resolve(FIXTURES_ROOT, "cli-exit-code-projects");
 
 /**
  * The directory a row runs in, materialising its fixture project if it has one.

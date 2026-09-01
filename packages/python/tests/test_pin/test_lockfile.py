@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
+from ghagen_schema.paths import EXPECTED_DIR
 
 from ghagen.pin.lockfile import (
     Lockfile,
@@ -19,8 +19,7 @@ SAMPLE_SHA = "a" * 40
 SAMPLE_SHA2 = "b" * 40
 SAMPLE_TIME = datetime(2026, 4, 9, 14, 30, 0, tzinfo=UTC)
 
-FIXTURES_DIR = _FIXTURES_ROOT / "expected"
-GOLDEN_PATH = FIXTURES_DIR / "lockfile_golden.yml"
+GOLDEN_PATH = EXPECTED_DIR / "lockfile_golden.yml"
 
 #: The exact entries ``fixtures/expected/lockfile_golden.yml`` encodes. Both
 #: ports write these to the golden's bytes and read the golden back to them.

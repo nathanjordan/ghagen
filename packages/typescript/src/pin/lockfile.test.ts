@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { FIXTURES_DIR, loadFixture } from "../integration/test-utils.js";
+import { EXPECTED_DIR, loadFixture } from "../integration/test-utils.js";
 import { Lockfile, LockfileError, readLockfile, writeLockfile } from "./lockfile.js";
 import type { PinEntry } from "./lockfile.js";
 
@@ -204,7 +204,7 @@ describe("golden conformance", () => {
     const path = join(tmp, "lock.yml");
     writeLockfile(new Lockfile(GOLDEN_ENTRIES), path);
     expect(
-      readFileSync(path).equals(readFileSync(resolve(FIXTURES_DIR, "lockfile_golden.yml"))),
+      readFileSync(path).equals(readFileSync(resolve(EXPECTED_DIR, "lockfile_golden.yml"))),
     ).toBe(true);
   });
 
