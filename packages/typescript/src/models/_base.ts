@@ -239,8 +239,11 @@ export class Model {
   /** Yield every child Model, in traversal order: data fields, then extras.
    *
    * Extras live on `meta` rather than `data`, so they need their own pass —
-   * without it `walk()` never sees a model nested in `extras`, and both
-   * `iterUsesSites` and `dedentSteps` skip it. Python reaches extras through
+   * without it `walk()` never sees a model nested in `extras`, and
+   * `iterUsesSites`, the sole production `walk()` consumer, would skip it.
+   * (The emitter's own recursion — `modelToYamlMap`/`toYamlValue`, including
+   * its read-time `run` dedent — reaches `extras` independently, through
+   * `orderedEntries`, not through `walk()`.) Python reaches extras through
    * its `model_fields` loop and orders them last; this matches.
    *
    * This is *traversal* order, not emission order — emission order is the
