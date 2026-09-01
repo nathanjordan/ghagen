@@ -1,6 +1,6 @@
 import type { Snapshot as SchemaSnapshot } from "../schema/workflow-types.generated.js";
 import { defineFactory } from "./_base.js";
-import type { ModelSpec, ImageSnapshotModel } from "./_base.js";
+import type { Raw, ModelSpec, ImageSnapshotModel } from "./_base.js";
 
 /** The mapping-syntax half of the schema `Snapshot` union (string | object). */
 type SchemaSnapshotObject = Extract<SchemaSnapshot, { "image-name": string }>;
@@ -15,8 +15,12 @@ type SchemaSnapshotObject = Extract<SchemaSnapshot, { "image-name": string }>;
 export interface ImageSnapshotInput {
   /** Name of the image to create or add a version to. Serialized as `image-name`. */
   imageName: string;
-  /** Optional image version (e.g. `"1"`, `"1.2"`, `"1*"`). Patch versions are not supported. */
-  version?: string;
+  /**
+   * Optional image version (e.g. `"1"`, `"1.2"`, `"1*"`). Patch versions are
+   * not supported. Also accepts `raw("...")` to bypass that grammar — the
+   * mirror of Python's `str | Raw[str] | None` (`models/image_snapshot.py`).
+   */
+  version?: string | Raw<string>;
 }
 
 const IMAGE_SNAPSHOT_FIELD_MAP = {

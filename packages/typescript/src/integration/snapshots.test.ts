@@ -7,6 +7,7 @@ import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
 import { workflowDispatch } from "../models/trigger.js";
+import { imageSnapshot } from "../models/image-snapshot.js";
 import {
   action,
   actionInputDef,
@@ -151,6 +152,11 @@ describe("snapshot tests", () => {
   });
 
   it("escape_hatches.yml", () => {
+    // Also the byte-oracle for a `raw()` `ImageSnapshotInput.version` (issue
+    // 22): "latest" fails the field's own grammar (`/^\d+(\.\d+|\*)?$/`), so
+    // accepting it here proves `raw()` bypasses the check rather than merely
+    // happening to match it, and pins what a `raw()` value emits -- a plain
+    // scalar, exactly like an ordinary string.
     const w = workflow({
       name: "Escape Hatches",
       on: { push: { branches: ["main"] } },
@@ -161,6 +167,7 @@ describe("snapshot tests", () => {
         typed: job({
           runsOn: "ubuntu-latest",
           steps: [step({ name: "Custom shell", run: "echo hello", shell: raw("custom-shell") })],
+          snapshot: imageSnapshot({ imageName: "custom-image", version: raw("latest") }),
           extras: { "custom-timeout": 30 },
         }),
         raw: { "runs-on": "ubuntu-latest", steps: [{ run: "echo 'raw job'" }] } as any,

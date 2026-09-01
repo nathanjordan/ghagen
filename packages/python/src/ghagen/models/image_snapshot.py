@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import ClassVar
 
+from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel
 from ghagen.models.spec import ModelSpec
 
@@ -33,4 +34,8 @@ class ImageSnapshot(GhagenModel):
     SPEC: ClassVar[ModelSpec] = IMAGE_SNAPSHOT_SPEC
 
     image_name: str
-    version: str | None = None
+    # Every field carrying a spec pattern must admit Raw[str] — see issue 22 —
+    # so the grammar-violation message's "wrap the value in Raw(...)" advice
+    # is true wherever it can fire. Asserted by the conformance sweep's
+    # raw-hatch check (test_conformance.py / conformance.test.ts).
+    version: str | Raw[str] | None = None

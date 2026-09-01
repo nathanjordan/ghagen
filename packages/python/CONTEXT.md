@@ -190,7 +190,10 @@ framework renders the text, `main()` decides the number.
 - User input is validated at construction (Pydantic). Schema faithfulness is checked by integration
   tests, not by generated types (see ADR-0003). The TypeScript port enforces the same
   construction-time input contract; declared value grammars live in each port's `ModelSpec` and the
-  two are bound to the Snapshot by `schema/conformance-values.yml`.
+  two are bound to the Snapshot by `schema/conformance-values.yml`. Every field carrying a `patterns`
+  entry must admit `Raw[str]` in its annotation, so the grammar-violation message's "wrap the value in
+  `Raw(...)`" advice is true wherever it can fire (issue 22) — `conformance-values.yml`'s raw-hatch
+  check asserts this in both ports.
 - The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
   CLI-local. The CLI entry point is `main(argv) -> int`, not the Typer app: click runs in

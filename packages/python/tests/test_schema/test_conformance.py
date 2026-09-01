@@ -43,7 +43,7 @@ import pytest
 from pydantic import ValidationError
 from ruamel.yaml import YAML
 
-from ghagen import with_comment
+from ghagen import Raw, with_comment
 from ghagen.models._base import GhagenModel
 from ghagen.models.action import (
     Action,
@@ -412,17 +412,21 @@ def test_key_sequence_matches_shared_table(kind: str) -> None:
 class ValueBinding:
     """One declared value grammar: this port's spec plus two constructors.
 
-    ``construct`` passes the vector bare; ``construct_commented`` passes it
-    wrapped in :func:`~ghagen.with_comment`. Two constructors rather than one
-    because a comment wrapper reaches the grammar check by a different route in
-    each port, and the shared table's ``reject_commented`` vectors are what bind
-    both routes to the same answer.
+    ``construct`` passes the vector bare -- or, for the raw-hatch check
+    (``test_value_raw_hatch_bypasses_the_grammar``), wrapped in ``Raw(...)``.
+    ``construct_commented`` passes it wrapped in :func:`~ghagen.with_comment`.
+    Two constructors rather than three because a comment wrapper reaches the
+    grammar check by a different route in each port, and the shared table's
+    ``reject_commented`` vectors are what bind both routes to the same answer
+    -- ``construct`` alone is enough for the raw hatch since ``Raw`` and
+    ``Commented`` compose (``Raw`` inside or outside a comment wrapper is
+    unwrapped the same way).
     """
 
     def __init__(
         self,
         spec: ModelSpec,
-        construct: Callable[[str], GhagenModel],
+        construct: Callable[[str | Raw[str]], GhagenModel],
         construct_commented: Callable[[str], GhagenModel],
     ) -> None:
         self.spec = spec
@@ -587,6 +591,32 @@ def test_value_vectors_under_a_comment_wrapper(snapshot: str, key: str) -> None:
     for value in entry["reject_commented"]:
         with pytest.raises(ValidationError):
             binding.construct_commented(value)
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_raw_hatch_bypasses_the_grammar(snapshot: str, key: str) -> None:
+    """A field carrying a spec pattern MUST admit ``Raw`` -- see issue 22.
+
+    ``_enforce_spec_patterns`` skips non-``str`` values specifically so
+    ``Raw`` stays the escape hatch, and the grammar-violation message
+    (``models/_base.py``) tells the caller exactly that. That advice is only
+    true if the field's annotation actually accepts a ``Raw``. Rather than
+    inspect ``type(self).model_fields[field].annotation`` -- a check
+    TypeScript has no runtime form of, so it would let the two ports assert
+    different things -- this executes the same path a caller acting on the
+    message would: every ``reject`` vector, wrapped in ``Raw(...)`` instead of
+    passed bare, must still construct. A field typed to exclude ``Raw``
+    (``str | None``, as ``ImageSnapshot.version`` used to be) fails this with
+    a ``ValidationError`` instead of silently shipping a false promise.
+    """
+    entry = _VALUES[snapshot][key]
+    construct = _VALUE_BINDINGS[snapshot][key].construct
+    for value in entry["reject"]:
+        construct(Raw(value))  # must not raise -- Raw is the declared hatch
 
 
 def test_value_key_set_matches_shared_table() -> None:

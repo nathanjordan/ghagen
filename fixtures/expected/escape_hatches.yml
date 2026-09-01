@@ -10,6 +10,9 @@ jobs:
     - name: Custom shell
       run: echo hello
       shell: custom-shell
+    snapshot:
+      image-name: custom-image
+      version: latest
     custom-timeout: 30
   raw:
     runs-on: ubuntu-latest
