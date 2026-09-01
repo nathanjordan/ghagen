@@ -1,9 +1,10 @@
 """The manifest must declare every distribution the source actually imports.
 
-``pyproject.toml`` is the only artefact a fresh checkout reads. ``uv.lock`` is
-gitignored (``.gitignore:31``), so a dependency that resolves only because some
-*other* dependency happens to require it is held together by an untracked file
-on one machine.
+``uv.lock`` is tracked (``docs/issues/19-untracked-python-lockfile.md``) and
+pins a resolution, but ``pyproject.toml`` is still the source of truth an
+upgrade re-resolves against. A dependency that resolves only because some
+*other* dependency happens to require it survives a lockfile refresh only by
+accident.
 
 That is not hypothetical: ``cli/main.py`` imported ``click`` while the manifest
 declared only ``typer>=0.12``. typer 0.25 vendors click and drops the top-level

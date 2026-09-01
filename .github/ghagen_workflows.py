@@ -43,7 +43,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Lint", run="scripts/lint.sh py"),
                     Step(name="Format check", run="scripts/fmt.sh py"),
                 ],
@@ -84,7 +84,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(
                         name="actionlint",
@@ -108,7 +108,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Pyright", run="scripts/typecheck.sh py"),
                 ],
             ),
@@ -138,7 +138,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Set up Python", uses="actions/setup-python@v6", with_={"python-version": "${{ matrix.python-version }}"}),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Test", run="scripts/test.sh py"),
                 ],
             ),
@@ -160,7 +160,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Verify workflows", run="uv run ghagen check-synced"),
                 ],
             ),

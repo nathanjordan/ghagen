@@ -20,7 +20,7 @@ jobs:
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
     - name: Sync
-      run: uv sync
+      run: uv sync --locked
     - name: Lint
       run: scripts/lint.sh py
     - name: Format check
@@ -75,7 +75,7 @@ jobs:
       with:
         node-version: '24'
     - name: Sync
-      run: uv sync
+      run: uv sync --locked
     - name: Install TS deps
       run: npm ci
       working-directory: packages/typescript
@@ -93,7 +93,7 @@ jobs:
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
     - name: Sync
-      run: uv sync
+      run: uv sync --locked
     - name: Pyright
       run: scripts/typecheck.sh py
     timeout-minutes: 10
@@ -132,7 +132,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Sync
-      run: uv sync
+      run: uv sync --locked
     - name: Test
       run: scripts/test.sh py
     timeout-minutes: 15
@@ -161,7 +161,7 @@ jobs:
     - name: Set up uv
       uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7
     - name: Sync
-      run: uv sync
+      run: uv sync --locked
     - name: Verify workflows
       run: uv run ghagen check-synced
     timeout-minutes: 10

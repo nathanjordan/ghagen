@@ -43,3 +43,12 @@ is made deliberately, with the resolver refusing the upgrade until someone does.
 it does not make the Python build reproducible. `packages/typescript/package-lock.json` is tracked
 and `uv.lock` is not, so the two ports have different reproducibility guarantees.
 See `docs/issues/19-untracked-python-lockfile.md`.
+
+## Amendment (2026-08-31): `uv.lock` is now tracked
+
+`uv.lock` is committed and CI's `uv sync` steps now pass `--locked`, so a stale lockfile fails CI
+instead of silently re-resolving. `packages/typescript/package-lock.json` and `uv.lock` now carry
+the same reproducibility guarantee. See `docs/issues/19-untracked-python-lockfile.md`'s Resolution
+section. This does not relax anything above: the manifest still has to be honest on its own, because
+`uv sync -U`/a lockfile refresh re-resolves against it, and the typer ceiling still guards the
+vendoring boundary.
