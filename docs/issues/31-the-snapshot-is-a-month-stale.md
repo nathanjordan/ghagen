@@ -6,10 +6,10 @@
 Check has been faithfully reporting that upstream has moved. Nobody merged it. As of 2026-08-31 the
 newest drift branch carries, against `origin/main`:
 
-| file | delta |
-| --- | --- |
-| `schema/workflow_schema.json` | +1033 / -563 |
-| `schema/action_schema.json` | +61 |
+| file                                                         | delta                         |
+| ------------------------------------------------------------ | ----------------------------- |
+| `schema/workflow_schema.json`                                | +1033 / -563                  |
+| `schema/action_schema.json`                                  | +61                           |
 | `packages/typescript/src/schema/workflow-types.generated.ts` | regenerated, ~751 lines moved |
 
 `origin/schema-drift/20260831` supersedes every other drift branch: it is cut from current `main`
@@ -17,7 +17,7 @@ newest drift branch carries, against `origin/main`:
 origin/schema-drift/20260831` is **clean**, and the merged tree keeps all nine files in `schema/` —
 round 2's `key-order.yml`, `comment-geometry.yml`, `tag-grammar.yml`, `conformance-values.yml`,
 `conformance-scopes.yml`, `conformance-gaps.yml` all survive. (A two-dot `git diff` against those
-branches *appears* to delete them; that is a diff artifact of the older branches' base, not a merge
+branches _appears_ to delete them; that is a diff artifact of the older branches' base, not a merge
 hazard.)
 
 ## Why this was not merged as part of round 3
