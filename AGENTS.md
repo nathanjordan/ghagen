@@ -35,8 +35,14 @@ Think of this kind of like AWS CDK for Github Actions.
 
 ## Agent Instructions
 
-- The ghagen.toml and pyproject.toml/package.json config structures should stay in sync and support
-  the same functionality.
+- Project configuration lives in **one** file, `.ghagen.yml` — there is no `ghagen.toml`, and
+  neither port reads `pyproject.toml` or `package.json`. Its presence is also the app-root marker
+  (`GHAGEN_YML_MARKER`); root discovery walks ancestors for it. It carries a top-level `entrypoint`
+  key (the workflow config path, relative to the marker's directory) and an `options:` table
+  (currently just `auto_dedent`). When `entrypoint` is absent, the entrypoint is probed against the
+  root from `CONFIG_SEARCH_PATHS`. Both ports must keep the same keys, the same defaults, and the
+  same error values: `packages/python/src/ghagen/config.py` and
+  `packages/typescript/src/config.ts` are peers and should change together.
 - The ghagen tool is used in supporting github actions that are defined in this repo, so actions
   will need to be considered when making changes to the tool.
 - Update documentation when making any user-facing changes.
