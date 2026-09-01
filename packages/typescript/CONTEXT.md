@@ -197,7 +197,12 @@ framework renders the text, `main()` decides the number.
   schema (ADR-0003); separately, factories enforce their construction-time input contract at
   runtime — unknown input keys raise `ModelInputError` (use `extras`), and a **value grammar**
   declared in a spec's `patterns` (e.g. `ImageSnapshot.version`) is checked against the canonical
-  Snapshot's pattern.
+  Snapshot's pattern. Every such field's input type must admit `Raw<string>` (issue 22), so the
+  grammar-violation message's "wrap in `raw()`" advice is true wherever it fires. TypeScript has no
+  runtime form of a field's declared type, so this is enforced at compile time: the bound
+  constructors live in `models/conformance-values.ts` (a plain `src/` module, unlike
+  `conformance.test.ts`, which `tsconfig.json` excludes from `tsc --noEmit`), so narrowing a field
+  away from `Raw` fails `npm run typecheck`, not just a runtime assertion.
 - The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
   `cli/_errors.ts`. commander runs under `exitOverride()`, applied **recursively after tree

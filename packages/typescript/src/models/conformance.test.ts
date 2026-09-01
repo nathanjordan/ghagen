@@ -26,8 +26,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SCHEMA_DIR } from "../paths.js";
-import { withComment, type ModelKind, type ModelSpec } from "./_base.js";
-import { imageSnapshot } from "./image-snapshot.js";
+import { raw, type ModelKind, type ModelSpec } from "./_base.js";
+import { VALUE_BINDINGS } from "./conformance-values.js";
 import { SPECS_BY_KIND } from "./registry.js";
 
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
@@ -314,31 +314,12 @@ interface ValueEntry {
   readonly reject_commented: readonly string[];
 }
 
-interface ValueBinding {
-  readonly spec: ModelSpec;
-  /** Construct the model with `value` in the bound field. Throws on reject. */
-  readonly construct: (value: string) => unknown;
-  /**
-   * Construct with `withComment(value, …)` in the bound field. A comment
-   * wrapper is presentation, not content, so it must not change what the
-   * grammar accepts — the `reject_commented` vectors bind that in both ports.
-   */
-  readonly constructCommented: (value: string) => unknown;
-}
-
-// snapshot filename -> `<kind>.<field>` -> this port's spec + constructor. The
-// key format is exactly `spec.kind` plus a `patterns` key, so the shared table
-// *is* the spec data under one join.
-const VALUE_BINDINGS: Record<string, Record<string, ValueBinding>> = {
-  "workflow_schema.json": {
-    "imageSnapshot.version": {
-      spec: SPECS_BY_KIND.imageSnapshot,
-      construct: (version) => imageSnapshot({ imageName: "img", version }),
-      constructCommented: (version) =>
-        imageSnapshot({ imageName: "img", version: withComment(version, "note") }),
-    },
-  },
-};
+// `ValueBinding` and `VALUE_BINDINGS` live in `./conformance-values.ts`, a
+// plain (non-`.test.ts`) source file, not here -- see that file's doc comment
+// for why: `tsconfig.json` excludes `src/**/*.test.ts` from `tsc --noEmit`,
+// so a binding defined in this file would never be type-checked, and the
+// raw-hatch check below would pass regardless of whether the bound field's
+// declared type actually admits `Raw`.
 
 function loadValues(): Record<string, Record<string, ValueEntry>> {
   return parse(readFileSync(VALUES_PATH, "utf8")) as Record<string, Record<string, ValueEntry>>;
@@ -435,6 +416,27 @@ describe("schema value-grammar sweep", () => {
             () => binding.construct(value),
             `${key} accepted ${JSON.stringify(value)}`,
           ).toThrow();
+        }
+      });
+
+      it(`${snapshot}:${key} accepts a raw() value in place of the grammar`, () => {
+        // A field carrying a spec pattern MUST admit `raw()` -- see issue 22.
+        // `buildYamlData` skips the grammar check for a non-string value
+        // specifically so `raw()` stays the escape hatch, and the
+        // grammar-violation message (`models/_base.ts`) tells the caller
+        // exactly that. That advice is only true if the field's declared
+        // type actually accepts a `Raw`. TypeScript has no runtime type
+        // information to inspect (unlike Python's
+        // `model_fields[field].annotation`), so this executes the same path
+        // a caller acting on the message would: every `reject` vector,
+        // wrapped in `raw(...)` instead of passed bare, must still
+        // construct. A field typed to exclude `Raw` fails this with a thrown
+        // `ModelInputError` instead of silently shipping a false promise.
+        for (const value of entry.reject) {
+          expect(
+            () => binding.construct(raw(value)),
+            `${key} rejected raw(${JSON.stringify(value)})`,
+          ).not.toThrow();
         }
       });
 
