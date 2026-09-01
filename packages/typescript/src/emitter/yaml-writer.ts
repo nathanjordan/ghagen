@@ -301,7 +301,7 @@ export interface ToDataOptions {
 }
 
 /**
- * Emit any {@link Model} to a plain POJO / array / scalar tree — the supported
+ * Emit any `Model` to a plain POJO / array / scalar tree — the supported
  * observation surface. Keys are YAML keys in canonical order (from the spec),
  * extras merged after ordered keys, `Raw` unwrapped to its inner value.
  *
@@ -420,7 +420,7 @@ function commentNode(value: unknown, comment?: string, eolComment?: string): Com
  * strings use block-literal style. A header comment identifying the
  * generating tool is prepended by default.
  *
- * @param model   - The model to serialize (e.g. from {@link workflow} or {@link action}).
+ * @param model   - The model to serialize (e.g. from `workflow` or `action`).
  * @param options - Optional settings for header customization.
  * @returns The rendered YAML string, including a trailing newline.
  *
