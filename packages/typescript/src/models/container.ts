@@ -57,7 +57,7 @@ export const SERVICE_SPEC: ModelSpec = {
  * GitHub Actions workflow YAML.
  *
  * @param input - Container configuration and optional metadata.
- * @returns A branded {@link ContainerModel}.
+ * @returns A branded `ContainerModel`.
  *
  * @example
  * ```ts
@@ -77,10 +77,10 @@ export const container = defineFactory<ContainerModel, ContainerInput>(CONTAINER
  * Service containers run alongside the job and are accessible via their
  * key in `jobs.<job_id>.services`. The input shape is identical to
  * {@link container}, but the returned model is branded as a
- * {@link ServiceModel} so it can only be placed in the `services` map.
+ * `ServiceModel` so it can only be placed in the `services` map.
  *
  * @param input - Container configuration and optional metadata.
- * @returns A branded {@link ServiceModel}.
+ * @returns A branded `ServiceModel`.
  *
  * @example
  * ```ts

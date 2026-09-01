@@ -252,14 +252,20 @@ report. Callers must read the plan rather than reconstruct it from
 An unknown `--mode`, `--output`, or `--format` value exits `2`, as does a
 newline in `--branch-prefix`, `--commit-message-prefix`, or `--labels` — under
 `--format github` a newline in a value would forge extra `$GITHUB_OUTPUT` keys.
+All six checks run before config discovery, so a bad flag stays a usage error
+rather than becoming "no config file found", and all six are rows in
+`fixtures/cli-exit-codes.yml` that both ports are driven against.
 
 ### The plan
 
 Stdout carries the plan and nothing else, so `--format github` can be a bare
 `>> "$GITHUB_OUTPUT"` redirect. Warnings and progress go to stderr. Both
 formats carry the same ten fields, in the same order, under the same
-snake_case names. The field set is declared once, in
-`schema/update-plan-fields.yml`, and pinned by both ports' suites.
+snake_case names. The field table is declared once, in
+`schema/update-plan-fields.yml` — name, order, JSON type, and
+`$GITHUB_OUTPUT` encoding, one row per field — and pinned by both ports'
+suites, with `fixtures/expected/update_plan.json` and
+`fixtures/expected/update_plan_github.txt` binding one plan's bytes.
 
 | Field                 | Meaning                                                                                             |
 | --------------------- | --------------------------------------------------------------------------------------------------- |
@@ -316,9 +322,30 @@ ghagen init
 ```bash
 # Create .github/ghagen_workflows.py
 ghagen init
+```
 
-# Create in a custom directory
+The default lands in one of the auto-detected locations, so a bare `ghagen synth` finds it with no
+further setup.
+
+`--outdir` does not: it writes `<outdir>/ghagen_workflows.py`, which is outside
+[the search paths](#config-file-resolution), so a bare `ghagen synth` afterwards exits `1` with
+`no config file found`. Point ghagen at the file — either per invocation with `--config`:
+
+```bash
 ghagen init --outdir workflows
+ghagen synth --config workflows/ghagen_workflows.py
+```
+
+or once and for all, with the `entrypoint` key in `.ghagen.yml`:
+
+```yaml
+# .ghagen.yml
+entrypoint: workflows/ghagen_workflows.py
+```
+
+```bash
+ghagen init --outdir workflows
+ghagen synth
 ```
 
 The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.

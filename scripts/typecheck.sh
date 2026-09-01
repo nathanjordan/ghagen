@@ -6,7 +6,7 @@ gate_parse "$@"
 
 if in_scope py; then
   step "Pyright (python)"
-  uv run pyright packages/python/src/ scripts/
+  uv run pyright "${PY_PATHS_TYPED[@]}"
 fi
 
 if in_scope ts; then

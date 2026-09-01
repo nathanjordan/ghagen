@@ -1,0 +1,10 @@
+action=create-pr
+total_updates=2
+apply_version_bumps=true
+refresh_lockfile=true
+branch=ghagen-update/20260731
+title=chore(deps): update ghagen action dependencies
+commit_message=chore(deps): update ghagen action dependencies
+labels=ci,deps,automated
+body_format=pr-body
+changed=true

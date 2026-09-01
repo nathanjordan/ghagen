@@ -9,7 +9,7 @@
 # workflow read a `$GITHUB_OUTPUT` key the other port never wrote. See
 # docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
 #
-# `keys` is the exact field-name set both `--format json` and `--format
+# `fields` is the exact, ordered field list both `--format json` and `--format
 # github` emit for `ghagen deps update` -- the same list each port already
 # builds its two encodings from in one place (`_plan_fields` in
 # packages/python/src/ghagen/pin/plan.py, `planFields` in
@@ -18,27 +18,91 @@
 # missing link ACROSS ports.
 #
 # Every field is always present in both encodings -- none is conditional on
-# `--mode`, on `action`, or on whether anything changed. `body_format` is
-# `null` (JSON) / empty (github) when `action == "none"`, but the key itself
-# is still emitted; that is a value fact, not a presence fact.
+# `--mode`, on `action`, or on whether anything changed.
 #
 # Read by:
-#   - Python (packages/python/tests/test_cli/test_deps.py)
-#   - TypeScript (packages/typescript/src/cli/deps.test.ts)
+#   - Python (packages/python/tests/test_cli/test_deps.py,
+#     packages/python/tests/test_pin/test_plan.py)
+#   - TypeScript (packages/typescript/src/cli/deps.test.ts,
+#     packages/typescript/src/pin/plan.test.ts)
 #
-# Both suites assert the field-name set they observe from a live `deps
-# update` invocation -- under both `--format json` and `--format github` --
-# equals this file's `keys`, so a field added to one port and not the other
-# fails a test instead of drifting silently.
+# Three axes, and each one is asserted by both suites. Dropping any of them
+# would make this file the un-backed shared table docs/issues/24 was filed for.
+#
+# 1. NAMES. Both CLI suites assert the field-name set they observe from a live
+#    `deps update` invocation -- under both `--format json` and `--format
+#    github` -- equals the `name`s below, so a field added to one port and not
+#    the other fails a test instead of drifting silently.
+#
+# 2. ORDER. `fields` is a *sequence*, and both CLI suites compare it as one:
+#    `list(json.loads(stdout))` in Python, `Object.keys(JSON.parse(...))` in
+#    TypeScript, both against this file's order rather than against a sorted or
+#    set-ified copy. Order is observable -- it is the literal line order of the
+#    `$GITHUB_OUTPUT` block and the key order of the JSON document -- and until
+#    docs/issues/33 nothing held the two ports to the same one. A set
+#    comparison cannot see two ports that emit the same ten fields in two
+#    different orders.
+#
+# 3. TYPE AND ENCODING. `json` names the JSON type the `--format json`
+#    document carries; `github` names the rule that turns that value into the
+#    right-hand side of a `$GITHUB_OUTPUT` `key=value` line. The two genuinely
+#    differ -- `labels` is a JSON array but a comma-joined string under
+#    `github` -- and a field-name list cannot express that. Both `pin/plan`
+#    suites render a real plan in both formats and hold every field to its row.
+#
+# `json` vocabulary:
+#   string        a JSON string
+#   integer       a JSON number with no fractional part (and never a bool)
+#   boolean       JSON `true`/`false`
+#   string-array  a JSON array whose every element is a string
+#
+# `github` vocabulary -- how the JSON value becomes the `key=` right-hand side:
+#   verbatim       the string itself
+#   decimal        the integer in base 10
+#   lowercase-bool `true`/`false`, never Python's `True`/`False`: the consumer
+#                  is a workflow `if:` expression, which compares against a
+#                  lowercase string literal
+#   comma-joined   the array's elements joined by `,`
+#
+# A row with no `null_when` is never null in either encoding. `body_format` is
+# the one exception, and `null_when` says exactly when: `null` (JSON) / the
+# empty string (github) precisely when `action` is `none`, i.e. when there is
+# no body to render. That is a value fact, not a presence fact -- the key is
+# still emitted. Both `pin/plan` suites render an `action: none` plan and an
+# `action: create-pr` plan and assert the biconditional, so a port that
+# nulled `body_format` on some other condition fails.
 
-keys:
-  - action
-  - total_updates
-  - apply_version_bumps
-  - refresh_lockfile
-  - branch
-  - title
-  - commit_message
-  - labels
-  - body_format
-  - changed
+fields:
+  - name: action
+    json: string
+    github: verbatim
+  - name: total_updates
+    json: integer
+    github: decimal
+  - name: apply_version_bumps
+    json: boolean
+    github: lowercase-bool
+  - name: refresh_lockfile
+    json: boolean
+    github: lowercase-bool
+  - name: branch
+    json: string
+    github: verbatim
+  - name: title
+    json: string
+    github: verbatim
+  - name: commit_message
+    json: string
+    github: verbatim
+  - name: labels
+    json: string-array
+    github: comma-joined
+  - name: body_format
+    json: string
+    github: verbatim
+    null_when:
+      field: action
+      equals: none
+  - name: changed
+    json: boolean
+    github: lowercase-bool
