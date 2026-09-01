@@ -331,9 +331,30 @@ npx ghagen init
 ```bash
 # Create .github/ghagen.workflows.ts
 npx ghagen init
+```
 
-# Create in a custom directory
+The default lands in one of the auto-detected locations, so a bare `npx ghagen synth` finds it with
+no further setup.
+
+`--outdir` does not: it writes `<outdir>/ghagen.workflows.ts`, which is outside
+[the search paths](#config-file-resolution), so a bare `npx ghagen synth` afterwards exits `1` with
+`no config file found`. Point ghagen at the file — either per invocation with `--config`:
+
+```bash
 npx ghagen init --outdir workflows
+npx ghagen synth --config workflows/ghagen.workflows.ts
+```
+
+or once and for all, with the `entrypoint` key in `.ghagen.yml`:
+
+```yaml
+# .ghagen.yml
+entrypoint: workflows/ghagen.workflows.ts
+```
+
+```bash
+npx ghagen init --outdir workflows
+npx ghagen synth
 ```
 
 The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.

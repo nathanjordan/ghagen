@@ -316,9 +316,30 @@ ghagen init
 ```bash
 # Create .github/ghagen_workflows.py
 ghagen init
+```
 
-# Create in a custom directory
+The default lands in one of the auto-detected locations, so a bare `ghagen synth` finds it with no
+further setup.
+
+`--outdir` does not: it writes `<outdir>/ghagen_workflows.py`, which is outside
+[the search paths](#config-file-resolution), so a bare `ghagen synth` afterwards exits `1` with
+`no config file found`. Point ghagen at the file — either per invocation with `--config`:
+
+```bash
 ghagen init --outdir workflows
+ghagen synth --config workflows/ghagen_workflows.py
+```
+
+or once and for all, with the `entrypoint` key in `.ghagen.yml`:
+
+```yaml
+# .ghagen.yml
+entrypoint: workflows/ghagen_workflows.py
+```
+
+```bash
+ghagen init --outdir workflows
+ghagen synth
 ```
 
 The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.
