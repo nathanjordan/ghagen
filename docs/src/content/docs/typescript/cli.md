@@ -265,6 +265,9 @@ report. Callers must read the plan rather than reconstruct it from
 An unknown `--mode`, `--output`, or `--format` value exits `2`, as does a
 newline in `--branch-prefix`, `--commit-message-prefix`, or `--labels` — under
 `--format github` a newline in a value would forge extra `$GITHUB_OUTPUT` keys.
+All six checks run before config discovery, so a bad flag stays a usage error
+rather than becoming "no config file found", and all six are rows in
+`fixtures/cli-exit-codes.yml` that both ports are driven against.
 
 ### The plan
 
@@ -273,8 +276,11 @@ Stdout carries the plan and nothing else, so `--format github` can be a bare
 formats carry the same ten fields, in the same order, under the same
 snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
 interface, because the field names are a cross-port wire contract shared byte
-for byte with the Python port. The field set is declared once, in
-`schema/update-plan-fields.yml`, and pinned by both ports' suites.
+for byte with the Python port. The field table is declared once, in
+`schema/update-plan-fields.yml` — name, order, JSON type, and
+`$GITHUB_OUTPUT` encoding, one row per field — and pinned by both ports'
+suites, with `fixtures/expected/update_plan.json` and
+`fixtures/expected/update_plan_github.txt` binding one plan's bytes.
 
 | Field                 | Meaning                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
