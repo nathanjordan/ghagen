@@ -17,8 +17,11 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
+from ruamel.yaml import YAML
+
 from ghagen.app import App
 from ghagen.cli.main import main
+from ghagen.emitter import to_data
 from ghagen_schema.paths import EXPECTED_DIR
 
 _FIXTURE = EXPECTED_DIR / "init_scaffold.yml"
@@ -48,4 +51,12 @@ def test_init_scaffold_matches_fixture(tmp_path: Path, monkeypatch: Any):
     documents = app.documents()
     assert len(documents) == 1
 
-    assert documents[0].to_yaml(header=None) == _FIXTURE.read_text()
+    emitted = documents[0].to_yaml(header=None)
+    assert emitted == _FIXTURE.read_text()
+
+    # The walk sweep's entry for this fixture. ``init_scaffold.yml`` has no
+    # static source model -- it is whatever the scaffold the CLI just wrote
+    # emits -- so it cannot live in ``tests/test_integration/fixture_models.py``
+    # with the rest. It is swept here, where the model exists, rather than left
+    # out of the set (docs/issues/01).
+    assert to_data(documents[0]) == YAML(typ="safe").load(emitted)

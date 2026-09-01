@@ -43,16 +43,99 @@ export interface ToYamlOptions {
 // and list entry — and nowhere else.
 
 /**
+ * One resolved emitted entry: a key, its value, and the comments on it.
+ *
+ * The Emitter's two renderings ({@link modelToYamlMap} and {@link modelToData})
+ * both consume these, so membership, order, the Step `run` dedent, comment
+ * harvesting, and the `presentNullWhenEmpty` decision are each resolved once
+ * rather than restated per rendering. The two differ only in what they
+ * *render*. Peer of Python's `Entry` (`emitter/nodes.py`).
+ */
+interface Entry {
+  /** The emitted YAML key. */
+  readonly key: string;
+  /**
+   * The field value with any field-position `Commented` wrapper peeled off
+   * (its payloads are in `comment` / `eolComment`). Meaningless when
+   * `presentNull` is set — the value emits as null.
+   */
+  readonly value: unknown;
+  /** Block comment to place before `key`, or `undefined`. */
+  readonly comment: string | undefined;
+  /** End-of-line comment to place after the value, or `undefined`. */
+  readonly eolComment: string | undefined;
+  /**
+   * The value resolves to an empty map on a key the spec lists in
+   * `presentNullWhenEmpty`, so it emits as a bare `key:`.
+   */
+  readonly presentNull: boolean;
+}
+
+/**
+ * Resolve every emitted entry of `model` — the Emitter's one entry resolver.
+ *
+ * Composes {@link orderedEntries} (membership + order) with the three per-entry
+ * decisions that were previously written out once per rendering, in two
+ * textually parallel copies:
+ *
+ * - **The Step `run` dedent.** Applied here, at read time — no model mutation,
+ *   no clone (ADR-0002). Applied wherever a Step is encountered in the
+ *   recursion, not gated on the document kind, so a step nested in a job, a
+ *   composite action's `runs`, or `extras` dedents alike.
+ * - **Comment harvesting.** A field-position `Commented` wrapper is peeled and
+ *   its payloads moved onto the entry.
+ * - **`presentNullWhenEmpty`.** Decided by {@link isEmptyMapValue} on the
+ *   value as the model holds it, so it cannot depend on which rendering is
+ *   asking.
+ *
+ * When a present-null collapse discards a sub-model that carried its OWN
+ * comment, that comment is folded onto the entry rather than dropped. It would
+ * have rendered inside the map, below the key; the map is gone, so it renders
+ * below the field's own comment on the key that replaced it. Dropping it
+ * instead — which both ports used to do — silently deleted the only content the
+ * user wrote, since an otherwise-empty commented sub-model is nothing but its
+ * comment.
+ *
+ * Peer of Python's `emit_entries` (`emitter/nodes.py`).
+ */
+function emitEntries(model: Model, autoDedent: boolean): Entry[] {
+  const presentNullKeys = new Set(model.spec.presentNullWhenEmpty ?? []);
+  const isStep = model.kind === "step";
+
+  const entries: Entry[] = [];
+  for (const [key, entryValue] of orderedEntries(model)) {
+    const field =
+      autoDedent && isStep && key === "run" && typeof entryValue === "string"
+        ? dedentScript(entryValue)
+        : entryValue;
+
+    const wrapper = isCommented(field) ? field : undefined;
+    const value = unwrapCommented(field);
+    let comment = wrapper?.comment;
+    let eolComment = wrapper?.eolComment;
+
+    const presentNull = presentNullKeys.has(key) && isEmptyMapValue(value);
+    if (presentNull && value instanceof Model) {
+      comment = joinComments(comment, value.meta.comment);
+      eolComment = joinComments(eolComment, value.meta.eolComment);
+    }
+
+    entries.push({ key, value, comment, eolComment, presentNull });
+  }
+  return entries;
+}
+
+/**
  * Render a {@link Model} to a `YAMLMap` with canonical key ordering, per-field
  * comment attachment, extras merging, and postProcess support. The emitter's
  * successor to the old `Model.toYamlMap` method.
  *
- * `autoDedent` dedents a Step's `run` here, at read time, exactly where
- * {@link modelToData} does it — no model mutation, no clone (ADR-0002; the
- * peer of Python's `collect_fields`, `emitter/nodes.py:107-110`). Applied
- * wherever a Step is encountered in the recursion, not gated on the document
- * kind, so a step nested in a job, a composite action's `runs`, or `extras`
- * dedents alike.
+ * Every entry-level decision — membership, order, the Step `run` dedent,
+ * comment harvesting, present-null — is made upstream by {@link emitEntries},
+ * shared with {@link modelToData}. This function owns only what is
+ * `yaml`-backend specific from there: building the nodes, attaching the
+ * comments, and running `postProcess` (which operates on the backend node and
+ * therefore stays here, out of the shared stage).
  *
  * Module-private: the supported way to observe a model's emitted structure is
  * {@link toData}. `modelToYamlMap` builds `yaml` backend nodes for file
@@ -60,35 +143,18 @@ export interface ToYamlOptions {
  */
 function modelToYamlMap(model: Model, autoDedent: boolean): YAMLMap {
   const map = new YAMLMap();
-  const entries = orderedEntries(model);
-  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
-  const isStep = model.kind === "step";
 
-  // Emit each field, attaching any Commented-wrapper comment inline at the
-  // point of emission (no collect-then-reattach two-pass). The comment module
-  // owns the actual placement.
-  for (const [key, entryValue] of entries) {
-    const value =
-      autoDedent && isStep && key === "run" && typeof entryValue === "string"
-        ? dedentScript(entryValue)
-        : entryValue;
-
-    // present-null-when-empty: an empty sub-map emits as a bare `key:` (null).
-    if (presentNull.has(key) && isEmptyMapValue(value)) {
-      const pair = new Pair(new Scalar(key), nullScalar());
-      map.items.push(pair);
-      const { comment, eolComment } = presentNullComments(value);
-      if (comment !== undefined || eolComment !== undefined) {
-        attachFieldComment(pair, comment, eolComment);
-      }
-      continue;
-    }
-    if (isCommented(value)) {
-      const pair = new Pair(new Scalar(key), toYamlValue(unwrapCommented(value), autoDedent));
-      map.items.push(pair);
-      attachFieldComment(pair, value.comment, value.eolComment);
-    } else {
-      map.items.push(new Pair(new Scalar(key), toYamlValue(value, autoDedent)));
+  // Render each resolved entry, attaching its comments inline at the point of
+  // emission (no collect-then-reattach two-pass). The comment module owns the
+  // actual placement. A present-null entry emits as a bare `key:` (null).
+  for (const entry of emitEntries(model, autoDedent)) {
+    const pair = new Pair(
+      new Scalar(entry.key),
+      entry.presentNull ? nullScalar() : toYamlValue(entry.value, autoDedent),
+    );
+    map.items.push(pair);
+    if (entry.comment !== undefined || entry.eolComment !== undefined) {
+      attachFieldComment(pair, entry.comment, entry.eolComment);
     }
   }
 
@@ -178,10 +244,10 @@ function toYamlValue(value: unknown, autoDedent: boolean): unknown {
  * Resolve a model's emitted `[key, value]` entries in canonical order, folding
  * in `meta.extras` per the spec's {@link OrderMode}.
  *
- * The single home for both Emitter passes ({@link modelToYamlMap} and
- * {@link modelToData}), so the YAML nodes and the observed data cannot disagree
- * on ordering. `alphabetical` sorts every key, extras included; `explicit` — the
- * default — emits `data` as it stands, then extras.
+ * The membership-and-order half of {@link emitEntries}, which is itself the
+ * single home for both Emitter renderings, so the YAML nodes and the observed
+ * data cannot disagree on ordering. `alphabetical` sorts every key, extras
+ * included; `explicit` — the default — emits `data` as it stands, then extras.
  *
  * "As it stands" *is* the spec's declaration order: `buildYamlData` populates
  * `data` by iterating `Object.entries(spec.fieldMap)`, and the dynamic-key
@@ -229,31 +295,6 @@ function isEmptyMapValue(value: unknown): boolean {
 function joinComments(...parts: (string | undefined)[]): string | undefined {
   const present = parts.filter((p): p is string => p !== undefined);
   return present.length > 0 ? present.join("\n") : undefined;
-}
-
-/**
- * The comments a present-null entry carries: the field's own, then the
- * discarded sub-model's.
- *
- * A present-null collapse throws the sub-model away. When that sub-model
- * carried its OWN comment, the comment would have rendered inside the map,
- * below the key; the map is gone, so it renders below the field's comment on
- * the key that replaced it. Dropping it instead — which both ports used to
- * do — silently deleted the only content the user wrote, since an otherwise
- * empty commented sub-model is nothing but its comment. Peer of Python's
- * `emit_entries`.
- */
-function presentNullComments(value: unknown): {
-  comment: string | undefined;
-  eolComment: string | undefined;
-} {
-  const wrapper = isCommented(value) ? value : undefined;
-  const inner = unwrapCommented(value);
-  const sub = inner instanceof Model ? inner.meta : undefined;
-  return {
-    comment: joinComments(wrapper?.comment, sub?.comment),
-    eolComment: joinComments(wrapper?.eolComment, sub?.eolComment),
-  };
 }
 
 /** A null scalar that emits as a bare `key:` (empty source), matching ruamel. */
@@ -312,54 +353,38 @@ export interface ToDataOptions {
  *   {@link CommentNode}.
  *
  * Any model may be passed (step, job, on, …). Dedent is NOT one of the
- * `yaml`-backend passes below — it is applied here in the recursion itself
- * (matching Python's `collect_fields`, the shared pre-backend collection
- * stage), so `toData` reproduces it exactly. Unlike {@link toYaml}, `toData`
- * does not run the `yaml`-backend passes (block-literal promotion, comment
- * geometry) or `postProcess`; assert those via the YAML string.
+ * `yaml`-backend passes — `emitEntries` applies it during the shared
+ * pre-backend collection stage that both `toData` and {@link toYaml} walk, so
+ * this reproduces it exactly. Unlike {@link toYaml}, `toData` does not run the
+ * `yaml`-backend passes (block-literal promotion, comment geometry) or
+ * `postProcess`, which operate on the backend node; assert those via the YAML
+ * string.
  */
 export function toData(model: Model, options?: ToDataOptions): unknown {
   return modelToData(model, options?.comments ?? false, options?.autoDedent ?? true);
 }
 
-/** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */
+/**
+ * Walk a model's entries to a plain object — the peer of `modelToYamlMap`.
+ *
+ * Both renderings consume the same {@link emitEntries}, so membership, the YAML
+ * keys, the Step `run` dedent, canonical order, the extras merge, comment
+ * harvesting, and the `presentNullWhenEmpty` decision are all resolved once,
+ * upstream of either. This function owns only the plain-data rendering from
+ * there, and does NOT run `postProcess`.
+ */
 function modelToData(
   model: Model,
   comments: boolean,
   autoDedent: boolean,
 ): Record<string, unknown> {
-  const entries = orderedEntries(model);
-  const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
-  const isStep = model.kind === "step";
-
   const result: Record<string, unknown> = {};
-  for (const [key, value] of entries) {
-    // autoDedent is applied wherever a Step's `run` is encountered in the
-    // recursion (matching Python), not gated on the document kind — so a bare
-    // Step or a Step nested in a job both dedent.
-    const field =
-      autoDedent && isStep && key === "run" && typeof value === "string"
-        ? dedentScript(value)
+  for (const entry of emitEntries(model, autoDedent)) {
+    const value = entry.presentNull ? null : valueToData(entry.value, comments, autoDedent);
+    result[entry.key] =
+      comments && (entry.comment !== undefined || entry.eolComment !== undefined)
+        ? commentNode(value, entry.comment, entry.eolComment)
         : value;
-    const emptyPresentNull = presentNull.has(key) && isEmptyMapValue(field);
-    if (emptyPresentNull) {
-      // The collapse discards the sub-model, so its own comment folds onto the
-      // bare `key:` below the field's — the same resolution `modelToYamlMap`
-      // makes, so the two passes cannot disagree about it.
-      const { comment, eolComment } = presentNullComments(field);
-      result[key] =
-        comments && (comment !== undefined || eolComment !== undefined)
-          ? commentNode(null, comment, eolComment)
-          : null;
-    } else if (isCommented(field)) {
-      const inner = valueToData(field.value, comments, autoDedent);
-      result[key] =
-        comments && (field.comment !== undefined || field.eolComment !== undefined)
-          ? commentNode(inner, field.comment, field.eolComment)
-          : inner;
-    } else {
-      result[key] = valueToData(field, comments, autoDedent);
-    }
   }
   return result;
 }
