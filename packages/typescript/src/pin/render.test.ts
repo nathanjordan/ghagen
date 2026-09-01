@@ -15,14 +15,22 @@ import type { LockfileStaleEntry, UpgradeReport, VersionBump } from "./engine.js
 import { renderUpgradeReport, type UpgradeFormat } from "./render.js";
 import { loadFixture } from "../integration/test-utils.js";
 
-/** The shared golden's version bumps (the second has no source files). */
+/**
+ * The shared golden's version bumps (the second has no source files).
+ *
+ * The first bump's source file carries a non-ASCII character (`á`)
+ * deliberately -- see `docs/issues/23` item 2. `JSON.stringify` never
+ * `\uXXXX`-escapes it; Python's `json.dumps` defaults to escaping. Both ports
+ * must emit the raw UTF-8 byte, which is what makes this a byte-exact oracle
+ * rather than a merely value-equal one for the JSON format.
+ */
 const BUMPS: VersionBump[] = [
   {
     uses: "actions/checkout@v5",
     current: "v5",
     latest: "v6",
     severity: "major",
-    source_files: [".github/ghagen_workflows.py"],
+    source_files: [".github/ghágen_workflows.py"],
   },
   {
     uses: "actions/setup-node@v3",
@@ -39,7 +47,7 @@ const STALE: LockfileStaleEntry[] = [
     uses: "actions/setup-python@v6",
     current_sha: "ece7cb06caefa5fff74198d8649806c4678c61a1",
     latest_sha: "aaaa1111bbbb2222cccc3333dddd4444eeee5555",
-    source_files: [".github/ghagen_workflows.py"],
+    source_files: [".github/ghágen_workflows.py"],
   },
 ];
 
@@ -73,8 +81,15 @@ const ALL_FORMATS: UpgradeFormat[] = ["text", "json", "pr-body", "issue-body"];
 describe("renderUpgradeReport() golden fixtures", () => {
   test("json matches the shared golden fixture", () => {
     const rendered = renderUpgradeReport(fullReport(), "json");
+    const golden = loadFixture("upgrade_report.json");
 
-    expect(JSON.parse(rendered)).toEqual(JSON.parse(loadFixture("upgrade_report.json")));
+    // Byte-exact, not merely value-equal: `JSON.parse(rendered) ==
+    // JSON.parse(golden)` would pass even if this port \uXXXX-escaped the
+    // non-ASCII `á` in a source file and the Python peer didn't (or vice
+    // versa) -- docs/issues/23 item 2. The raw text comparison is what makes
+    // the fix load-bearing.
+    expect(rendered).toEqual(golden);
+    expect(JSON.parse(rendered)).toEqual(JSON.parse(golden));
 
     // The phantom `helper_provided` field must never appear.
     expect(rendered).not.toContain("helper_provided");

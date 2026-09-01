@@ -72,7 +72,10 @@ def _render_json(report: UpgradeReport) -> str:
         result["lockfile_stale"] = [
             _stale_to_json(entry) for entry in report.lockfile_stale
         ]
-    return json_mod.dumps(result, indent=2) + "\n"
+    # ensure_ascii=False: match JSON.stringify, which never \uXXXX-escapes
+    # non-ASCII. json.dumps defaults to escaping; that default is the
+    # divergence, not a deliberate choice, so it is overridden here.
+    return json_mod.dumps(result, indent=2, ensure_ascii=False) + "\n"
 
 
 def _bump_to_json(bump: VersionBump) -> dict:

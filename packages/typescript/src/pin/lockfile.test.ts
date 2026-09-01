@@ -265,6 +265,40 @@ describe("golden conformance", () => {
   });
 });
 
+describe("key quoting (LATENT — docs/issues/23 item 4)", () => {
+  // No fixture reaches this through the CLI -- every realistic `uses:`
+  // string already contains a `/`, an `@`, or a `docker://` prefix, none of
+  // which is YAML-ambiguous. `Lockfile`'s public API accepts any `string`
+  // key, though, so this constructs the input directly: "123456" parses as a
+  // YAML int unless quoted. Before the fix, the `yaml` package double-quoted
+  // it while ruamel single-quoted it -- same semantic key, different bytes.
+  //
+  // fixtures/expected/lockfile_key_quoting.yml is the shared oracle: both
+  // ports write this exact Lockfile and must produce identical bytes.
+  it("writes the golden's bytes exactly for an ambiguous key", () => {
+    const path = join(tmp, "lock.yml");
+    const lf = new Lockfile([
+      ["123456", { sha: "a".repeat(40), resolvedAt: new Date("2026-04-09T14:30:00Z") }],
+      [
+        "actions/checkout@v4",
+        { sha: "b".repeat(40), resolvedAt: new Date("2026-04-09T14:30:00Z") },
+      ],
+    ]);
+    writeLockfile(lf, path);
+    expect(
+      readFileSync(path).equals(readFileSync(resolve(EXPECTED_DIR, "lockfile_key_quoting.yml"))),
+    ).toBe(true);
+  });
+
+  it("reads the quoted key back", () => {
+    const path = join(tmp, "lock.yml");
+    writeFileSync(path, loadFixture("lockfile_key_quoting.yml"));
+    const lf = readLockfile(path);
+    expect(new Set(lf.keys())).toEqual(new Set(["123456", "actions/checkout@v4"]));
+    expect(lf.get("123456")?.sha).toBe("a".repeat(40));
+  });
+});
+
 describe("decode grammar (rule 7)", () => {
   const accepted: ReadonlyArray<readonly [string, string]> = [
     ["2026-04-09T14:30:00+00:00", "2026-04-09T14:30:00.000Z"],
@@ -286,12 +320,39 @@ describe("decode grammar (rule 7)", () => {
     '"2026-04-09T14:30:00"', // quoted, naive
     "2026-04-09T14:30:00", // bare, naive
     '"2026-04-09T14:30:00+02:00"', // explicit non-UTC offset
+    // This port already rejected all of the following (TIMESTAMP_RE is the
+    // reference side); the Python peer's `datetime.fromisoformat` accepted
+    // every one of them on its own, and the pre-fix implementation therefore
+    // silently accepted them too -- docs/issues/23 item 3. Pinned here so a
+    // regression in either port's regex shows up as a parity break.
+    '"2026-04-09 14:30:00+00:00"', // space separator, not T
+    '"2026-04-09T14:30:00+0000"', // offset without a colon
+    '"2026-04-09T14:30:00+00"', // offset with no minutes
+    '"2026-04-09T14:30:00,123456+00:00"', // comma decimal separator
+    '"20260409T143000+0000"', // basic format, no separators
+    '"2026-04-09T14:30:00+00:00:00"', // offset carrying seconds
+    '"2026-04-09T14:30:00-00:00"', // negative-zero offset
   ];
   it.each(rejected)("rejects %s", (literal) => {
     const path = join(tmp, "lock.yml");
     writeFileSync(path, lockDoc(literal));
     expect(() => readLockfile(path)).toThrow(LockfileError);
     expect(() => readLockfile(path)).toThrow(/resolved_at/);
+  });
+});
+
+describe("decode grammar fixture (rule 7, one shared file)", () => {
+  // fixtures/expected/lockfile_space_separator_rejected.yml pins the
+  // space-separator form (accepted by Python's `datetime.fromisoformat`
+  // alone, rejected by the shared `TIMESTAMP_RE` -- docs/issues/23 item 3)
+  // as an actual on-disk document, read by both ports, rather than only as
+  // an in-process literal. Flipping the space to `T` (one byte) makes the
+  // fixture a valid timestamp and the read no longer throws, so the test
+  // goes from a pass to a failure -- proof the fixture is load-bearing.
+  it("rejects the golden space-separator document", () => {
+    expect(() =>
+      readLockfile(resolve(EXPECTED_DIR, "lockfile_space_separator_rejected.yml")),
+    ).toThrow(/resolved_at/);
   });
 });
 

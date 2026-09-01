@@ -244,7 +244,8 @@ def render_update_plan(
     """
     fields = _plan_fields(plan, changed=changed)
     if output_format == "json":
-        return json_mod.dumps(fields, indent=2) + "\n"
+        # ensure_ascii=False: match JSON.stringify (see pin/render.py).
+        return json_mod.dumps(fields, indent=2, ensure_ascii=False) + "\n"
     if output_format == "github":
         return "".join(
             f"{key}={_github_value(value)}\n" for key, value in fields.items()

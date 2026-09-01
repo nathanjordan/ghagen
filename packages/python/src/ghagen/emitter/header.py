@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
@@ -95,6 +96,12 @@ def build_header_variables(
     ``source_location`` is None (shouldn't happen for user-defined
     models but is handled defensively).
 
+    The absolute path is computed lexically (``.`` and ``..`` collapsed, cwd
+    prepended if relative) and never follows a symlink, matching the
+    TypeScript peer's ``resolve()`` from ``node:path``. A path reached
+    through a symlink keeps the symlink's name in ``source_file`` rather
+    than being rewritten to wherever the link points.
+
     Args:
         source_location: The ``(filename, lineno)`` tuple captured by
             :class:`~ghagen.models._base.GhagenModel` during
@@ -108,7 +115,7 @@ def build_header_variables(
         source_file = "<unknown>"
         source_line = "0"
     else:
-        abs_path = Path(source_location[0]).resolve()
+        abs_path = Path(os.path.abspath(source_location[0]))
         root = find_app_root(abs_path.parent)
         if root is not None:
             try:

@@ -17,6 +17,7 @@ import { GitHubClient, type HttpResponse } from "./github.js";
 import { Lockfile, readLockfile, writeLockfile } from "./lockfile.js";
 import { checkSync, pin, upgrade } from "./engine.js";
 import { FakeTransport, canned } from "./transport-contract.js";
+import { EXPECTED_DIR } from "../paths.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -321,6 +322,36 @@ describe("upgrade()", () => {
     expect(report.versionBumps).toEqual([]);
     expect(report.warnings).toHaveLength(1);
     expect(report.warnings[0]).toContain("failed to list tags for actions/checkout");
+  });
+
+  // Regression for docs/issues/23 item 1: repos used to be grouped for the
+  // `listTags` sweep by `.sort((a, b) => a.localeCompare(b))`, which is
+  // locale-dependent -- not just wrong for astral-plane/non-BMP keys but
+  // actively non-reproducible: the same input can order differently on two
+  // machines with different default locales. "Zulu/repo" < "apple/repo" by
+  // code point (`Z` is 0x5A, `a` is 0x61) but every locale collation tested,
+  // including the process's own default (en-US, asserted below so this test
+  // fails loudly if that ever changes), orders them the other way --
+  // dictionary order ignores case. versionBumps order follows the grouping
+  // order, so it is the observable surface for this.
+  it("groups repos by code point, not locale collation (non-reproducible across machines)", async () => {
+    expect("Zulu/repo".localeCompare("apple/repo")).toBeGreaterThan(0); // apple < Zulu, locale-wise
+    expect("Zulu/repo" < "apple/repo").toBe(true); // Zulu < apple, code-point-wise
+
+    const app = appWithRefs(tmp, "Zulu/repo@v4", "apple/repo@v4");
+    const client = new GitHubClient(
+      new FakeTransport({
+        "repos/Zulu/repo/git/refs/tags": tags("v4", "v5"),
+        "repos/apple/repo/git/refs/tags": tags("v4", "v9"),
+      }),
+    );
+
+    const report = await upgrade(app, client, new Set(), { mode: "versions", apply: false });
+
+    const expected = readFileSync(join(EXPECTED_DIR, "pin_repo_group_order.txt"), "utf8")
+      .split("\n")
+      .filter((s) => s.length > 0);
+    expect(report.versionBumps.map((b) => b.uses)).toEqual(expected);
   });
 });
 

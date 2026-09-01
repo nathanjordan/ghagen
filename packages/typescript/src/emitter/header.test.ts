@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { HeaderVariables } from "./header.js";
 import { buildHeaderVariables, DEFAULT_HEADER, formatHeader, HEADER_VARIABLES } from "./header.js";
+import { EXPECTED_DIR } from "../paths.js";
 
 describe("formatHeader()", () => {
   it("renders the default template when header is undefined", () => {
@@ -104,6 +108,45 @@ describe("buildHeaderVariables()", () => {
     expect(vars.source_line).toBe("0");
     expect(vars.tool).toBe("ghagen");
     expect(vars.version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("does not resolve source_file through a symlink", () => {
+    // Regression for docs/issues/23 item 6: Python's Path.resolve() follows
+    // symlinks for existing path components; this port's resolve() from
+    // node:path never touches the filesystem. Puts a real (marker-bearing)
+    // project root behind a directory symlink whose own lexical ancestor
+    // has a *different* marker-bearing root, so the two root-discovery
+    // strategies would disagree if either resolved the link: resolving
+    // would walk from tmp/project/sub and find no marker; not resolving
+    // walks from tmp/other/link and finds tmp/other/.ghagen.yml.
+    //
+    // fixtures/expected/header_source_file_symlink.txt is the shared byte
+    // oracle: the Python peer builds the identical directory layout and
+    // asserts the same string.
+    const tmp = mkdtempSync(join(tmpdir(), "ghagen-header-symlink-"));
+    try {
+      // The symlink's target -- nobody should ever be resolved into this tree.
+      const realProject = join(tmp, "project", "sub");
+      mkdirSync(realProject, { recursive: true });
+
+      // The symlink's own lexical ancestor -- the root the lexical walk finds.
+      const linkParent = join(tmp, "other");
+      mkdirSync(linkParent);
+      writeFileSync(join(linkParent, ".ghagen.yml"), "");
+      symlinkSync(realProject, join(linkParent, "link"), "dir");
+
+      const src = join(linkParent, "link", "workflows.py"); // never created -- lexical only
+
+      const vars = buildHeaderVariables({ file: src, line: 1 });
+
+      const expected = readFileSync(
+        join(EXPECTED_DIR, "header_source_file_symlink.txt"),
+        "utf8",
+      ).trim();
+      expect(vars.source_file).toBe(expected);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
 
