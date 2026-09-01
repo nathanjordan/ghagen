@@ -12,6 +12,35 @@
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Every Python root in the repo, named once so the three `py` gates cannot
+# disagree about what they cover. Each gate used to spell its own list out, and
+# the three lists drifted apart -- see docs/issues/32 (and docs/issues/17, the
+# half-fix it is residue from). `scripts/` and `.github/ghagen_workflows.py` are
+# dev tooling rather than shipped package code (ADR-0003), but they are Python
+# source and the gates must see them: the latter is the single source for every
+# file under `.github/workflows/`.
+#
+# Paths are repo-root-relative because the gates are documented to run from the
+# repo root, and relative paths keep ruff/pyright diagnostics short.
+PY_PATHS=(
+  packages/python/src/
+  packages/python/tests/
+  scripts/
+  .github/ghagen_workflows.py
+)
+
+# The tests are the one path pyright does not yet see; type-checking them is
+# docs/issues/09, which covers both ports and is being handled there. Derived by
+# subtraction rather than written out a second time, so a new root added above
+# cannot silently miss the typecheck gate.
+PY_PATHS_TYPED=()
+for _py_path in "${PY_PATHS[@]}"; do
+  if [[ "$_py_path" != "packages/python/tests/" ]]; then
+    PY_PATHS_TYPED+=("$_py_path")
+  fi
+done
+unset _py_path
+
 : "${GATE_NAME:?_gate.sh: set GATE_NAME before sourcing}"
 : "${GATE_ALLOW_FIX:=0}" # gates that support --fix set this to 1
 

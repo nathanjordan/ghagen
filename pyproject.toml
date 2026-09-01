@@ -59,9 +59,12 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-# `scripts/ghagen_schema/` (see ADR-0003) is dev tooling, not shipped package code, but it is
-# still Python source the `py` gate scope must cover -- see docs/issues/17.
-src = ["packages/python/src", "scripts"]
+# `scripts/ghagen_schema/` (see ADR-0003) and `.github/ghagen_workflows.py` are dev tooling, not
+# shipped package code, but they are still Python source the `py` gate scope must cover -- see
+# docs/issues/17 and docs/issues/32. The gates pass explicit paths (scripts/_gate.sh's PY_PATHS),
+# which is what actually sets the scope; these entries keep an editor or a bare `ruff`/`pyright`
+# invocation agreeing with the gates.
+src = ["packages/python/src", "scripts", ".github"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
@@ -71,9 +74,12 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-# scripts/ghagen_schema/ is dev tooling (ADR-0003), not shipped package code, but it is still
-# Python source the `py` gate scope must cover -- see docs/issues/17.
-include = ["packages/python/src", "scripts"]
+# scripts/ghagen_schema/ and .github/ghagen_workflows.py are dev tooling (ADR-0003), not shipped
+# package code, but they are still Python source the `py` gate scope must cover -- see
+# docs/issues/17 and docs/issues/32. An explicit path argument overrides `include` rather than
+# composing with it, so scripts/_gate.sh's PY_PATHS_TYPED is what the gate actually checks; this
+# list keeps a bare `uv run pyright` agreeing with it.
+include = ["packages/python/src", "scripts", ".github/ghagen_workflows.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/python/tests"]
