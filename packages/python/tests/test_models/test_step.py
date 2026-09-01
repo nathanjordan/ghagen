@@ -121,16 +121,17 @@ def test_run_none():
     assert step.run is None
 
 
-def test_to_data_without_dedent_keeps_raw_run():
-    """``to_data`` defaults ``auto_dedent=False``: ``run`` stays raw."""
+def test_to_data_defaults_dedent_dedents_run():
+    """``to_data`` defaults ``auto_dedent=True``, matching ``to_yaml``."""
     step = Step(name="Build", run="\n    echo building\n    make all\n")
-    assert to_data(step)["run"] == "\n    echo building\n    make all\n"
+    assert to_data(step)["run"] == "echo building\nmake all\n"
 
 
-def test_to_data_auto_dedent_dedents_run():
-    """``to_data(auto_dedent=True)`` dedents a Step's ``run`` at node build."""
+def test_to_data_auto_dedent_false_keeps_raw_run():
+    """``to_data(auto_dedent=False)`` keeps a Step's ``run`` string as authored."""
     step = Step(name="Build", run="\n    echo building\n    make all\n")
-    assert to_data(step, auto_dedent=True)["run"] == "echo building\nmake all\n"
+    data = to_data(step, auto_dedent=False)
+    assert data["run"] == "\n    echo building\n    make all\n"
 
 
 def test_to_yaml_dedents_by_default():
