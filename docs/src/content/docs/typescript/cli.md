@@ -349,3 +349,38 @@ which both ports' `main()` is tested against.
 | `0`  | The command did what it was asked. Includes both "no updates available" and "updates available" under `deps upgrade --check` and `deps update` — a report is not a failure.                                                                                                                          |
 | `1`  | Expected failure: generated files are stale, the lockfile is stale, refs failed to resolve, no config file was found, or the config module raised.                                                                                                                                                   |
 | `2`  | Usage error: unknown command, unknown option, missing option argument, invalid option value, or no arguments at all. `ghagen help` is an unknown command in both ports — the help spelling is `ghagen --help`. Framework-detected and hand-validated usage errors are indistinguishable to a caller. |
+
+## Output streams
+
+Every command splits its output across stdout and stderr, and never mixes a
+machine-readable payload with progress or diagnostic text on the same
+stream. This is the shared contract in `schema/cli-streams.yml` — the "which
+stream" peer of `fixtures/cli-exit-codes.yml`'s "which exit code" — and both
+ports' CLI suites are driven from it directly: `src/cli/streams.test.ts`
+here, `test_cli/test_streams.py` in the Python port.
+
+The rule: whichever stream carries a command's machine-readable payload
+carries _only_ that payload, so a bare `>> "$GITHUB_OUTPUT"` redirect or a
+`| jq` pipe never sees a stray progress line ahead of it. Everything else —
+warnings, errors, and progress notes — goes to the other stream.
+
+| Command             | Payload stream | Notes                                                                                                                    |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `synth`             | stdout         | The "wrote `<path>`" lines and the "Synthesized N file(s)." summary; `synth` has no separate machine payload.            |
+| `check-synced`      | stdout         | "All files are up-to-date." The "N file(s) are out of date" report goes to stderr instead.                               |
+| `init`              | stdout         | "Created `<path>`". "Config file already exists" goes to stderr instead.                                                 |
+| `deps check-synced` | stdout         | "Lockfile is in sync." The "Missing lockfile entries" report goes to stderr instead.                                     |
+| `deps pin`          | stdout         | Each `<uses> -> <sha>` line, plus the pruned/written/up-to-date summaries. Warnings (e.g. no GitHub token) go to stderr. |
+| `deps upgrade`      | stdout         | The rendered report, unconditionally — text or one of `--format json`/`pr-body`/`issue-body`.                            |
+| `deps update`       | stdout         | The rendered plan, unconditionally — `--format github` or `--format json` — so a bare redirect is safe.                  |
+
+`deps upgrade`'s apply-progress note ("Applied version bumps" / "modified
+`<path>`") is the one case that moves stream depending on a flag: it stays on
+stdout when `--format` is absent (there is no payload to protect), and moves
+to stderr when `--format` is passed, so the JSON/PR/issue-body payload stays
+parseable — this is the H6 hotfix. `deps update`'s equivalent note is
+unconditionally stderr, because `deps update`'s stdout is _always_ the plan,
+format or no format. Collapsing that asymmetry into one rule for both
+commands is exactly the class of bug `schema/cli-streams.yml` exists to
+catch — a regression in either port fails the corresponding row in both
+suites rather than drifting silently.
