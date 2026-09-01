@@ -78,8 +78,12 @@ def test_every_on_event_present_nulls_an_empty_map():
         if field_name == "schedule":
             assert to_data(On(schedule=[]))["schedule"] == []
             continue
-        assert to_data(On(**{field_name: {}}))[yaml_key] is None, yaml_key
-        yaml = Workflow(name="W", on=On(**{field_name: {}})).to_yaml(header=None)
+        # A ``**dict[str, object]`` splat has no static shape, so pyright checks
+        # it against every keyword of ``On.__init__`` at once. Walking
+        # ``yaml_keys`` is the point of this test; the splat is how it is driven.
+        assert to_data(On(**{field_name: {}}))[yaml_key] is None, yaml_key  # type: ignore[arg-type]
+        on = On(**{field_name: {}})  # type: ignore[arg-type]
+        yaml = Workflow(name="W", on=on).to_yaml(header=None)
         assert f"\n  {yaml_key}:\n" in yaml, yaml_key
         assert f"{yaml_key}: {{}}" not in yaml, yaml_key
 

@@ -6,6 +6,7 @@ import { raw, withComment, withEolComment } from "../models/_base.js";
 import { workflow } from "../models/workflow.js";
 import { job } from "../models/job.js";
 import { step } from "../models/step.js";
+import { on } from "../models/trigger.js";
 import { workflowDispatch } from "../models/trigger.js";
 import { imageSnapshot } from "../models/image-snapshot.js";
 import {
@@ -340,7 +341,7 @@ describe("snapshot tests", () => {
   it("body_shapes.yml", () => {
     const w = workflow({
       name: "Body Shapes",
-      on: {
+      on: on({
         // Present-null on a key the old one-element allowlist did not cover.
         create: {},
         push: { branches: ["main"] },
@@ -370,7 +371,7 @@ describe("snapshot tests", () => {
         // An event GitHub ships ahead of the Snapshot: untyped, so it can only
         // arrive through extras, and it sorts between `create` and `push`.
         extras: { pull_request_review_thread: { types: ["resolved"] } },
-      },
+      }),
       defaults: { run: { shell: "bash", workingDirectory: "src" } },
       jobs: {
         build: job({
