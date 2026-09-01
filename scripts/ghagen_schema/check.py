@@ -52,7 +52,14 @@ def run() -> int:
             # path under `rel`, listed individually rather than collapsed to
             # its containing directory.
             status = subprocess.run(
-                ["git", "status", "--porcelain", "--untracked-files=all", "--", str(rel)],
+                [
+                    "git",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                    "--",
+                    str(rel),
+                ],
                 cwd=REPO_ROOT,
                 capture_output=True,
                 text=True,
