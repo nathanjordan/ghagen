@@ -3,6 +3,7 @@
 from ghagen import Action, Job, On, PushTrigger, Step, Workflow
 from ghagen.models._base import Document
 from ghagen.models.action import CompositeRuns
+from ghagen.models.common import ShellType
 from ghagen.models.trigger import WorkflowDispatchTrigger
 
 
@@ -29,7 +30,7 @@ def test_action_to_yaml_still_works():
     action = Action(
         name="A",
         description="d",
-        runs=CompositeRuns(steps=[Step(run="echo hi", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo hi", shell=ShellType.BASH)]),
     )
     out = action.to_yaml(header=None)
     assert "name: A" in out

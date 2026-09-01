@@ -23,6 +23,7 @@ from ghagen import (
     Workflow,
 )
 from ghagen.emitter.document import emit
+from ghagen.models.common import ShellType
 
 _TRIPLE_RUN = """
     echo building
@@ -36,7 +37,7 @@ def _composite_action() -> Action:
         description="Build the project",
         runs=CompositeRuns(
             steps=[
-                Step(run=_TRIPLE_RUN, shell="bash"),
+                Step(run=_TRIPLE_RUN, shell=ShellType.BASH),
             ],
         ),
     )
@@ -87,7 +88,12 @@ def test_composite_action_dedent_does_not_mutate_caller() -> None:
     """Dedent reads-and-copies the value; the caller's model stays raw."""
     action = _composite_action()
     action.to_yaml(header=None)
+    # ``Action.runs`` is the three-way runs union; only the composite arm has
+    # ``steps``. ``_composite_action`` builds a ``CompositeRuns``, so the
+    # narrowing restates the fixture rather than adding a hypothesis.
+    assert isinstance(action.runs, CompositeRuns)
     step = action.runs.steps[0]
+    assert isinstance(step, Step)
     assert step.run == _TRIPLE_RUN
 
 
@@ -98,7 +104,10 @@ def _rename_transform(item: Workflow | Action) -> Workflow | Action:
     """A trivial Transform that also appends a step with an indented run."""
     if isinstance(item, Workflow):
         for node in item.walk():
-            if isinstance(node, Job):
+            # ``Job.steps`` is optional (a reusable-workflow call job has
+            # ``uses`` instead); every job this transform meets in these tests
+            # has steps, and appending to None would be the bug.
+            if isinstance(node, Job) and node.steps is not None:
                 node.steps.append(Step(run=_TRIPLE_RUN))
     return item
 
@@ -127,7 +136,10 @@ def test_transform_then_dedent(tmp_path) -> None:
     assert dedented_indent < _run_line_indent(undedented, "echo building")
     # The caller's original model was deep-copied by the transform pass, so it
     # never gained the appended step.
-    assert len(wf.jobs["test"].steps) == 1
+    assert wf.jobs is not None
+    steps = wf.jobs["test"].steps
+    assert steps is not None
+    assert len(steps) == 1
 
 
 # --- single deep-copy on the synth path ---

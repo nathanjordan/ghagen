@@ -1,0 +1,18 @@
+{
+  // The gate's config -- `npm run typecheck`, and so `scripts/typecheck.sh ts`.
+  //
+  // `tsconfig.json`'s `exclude` list is the *publish* boundary: what `tsc`
+  // emits into `dist/`, which `package.json`'s `files: ["dist"]` then ships.
+  // Test files and the test-only modules under `src/` (`paths.ts`,
+  // `integration/test-utils.ts`, `pin/transport-contract.ts`) must stay out of
+  // that. They must NOT stay out of the type check, and until docs/issues/09
+  // they did, because one list was serving both purposes and kept growing --
+  // every new shared test helper was a locally correct addition that silently
+  // removed a real module from the gate.
+  //
+  // Splitting the two means the publish list can grow without the gate
+  // narrowing. `exclude` here is only what `tsc` cannot read at all.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "exclude": ["node_modules", "dist"]
+}

@@ -53,7 +53,11 @@ class ModelSpec:
         present_null_when_empty: YAML keys whose value, when it resolves to an
             empty map (an empty sub-model or ``{}``), is emitted as a bare null
             key (``key:``) instead of ``key: {}``. The declarative replacement
-            for the old model-layer present-null smuggle.
+            for the old model-layer present-null smuggle. This is about an
+            *empty map*, never about ``None``: a ``None`` field is dropped by
+            ``exclude_none`` in :func:`~ghagen.emitter.nodes.collect_fields` and
+            never reaches this rule. An empty map is how a caller spells
+            "present, no configuration"; ``None`` is how they spell "absent".
         patterns: Value grammars for individual fields, keyed by the same field
             names as ``yaml_keys``. Enforced at construction by
             :class:`~ghagen.models._base.GhagenModel`; non-``str`` values

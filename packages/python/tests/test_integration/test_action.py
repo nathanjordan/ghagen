@@ -20,6 +20,7 @@ from ghagen import (
     Step,
     Workflow,
 )
+from ghagen.models.common import ShellType
 
 from .conftest import validate_and_roundtrip
 
@@ -50,7 +51,7 @@ def test_composite_action_full(action_schema: dict[str, Any]) -> None:
                     id="greet",
                     name="Greet",
                     run="echo Hello, ${{ inputs.greeting }}",
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
             ],
         ),
@@ -151,7 +152,7 @@ def test_app_adds_workflow_and_action_to_right_paths(tmp_path: Path) -> None:
     action = Action(
         name="Test Action",
         description="desc",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo", shell=ShellType.BASH)]),
     )
     app.add_action(action)
 
@@ -173,7 +174,7 @@ def test_app_add_action_with_custom_dir(tmp_path: Path) -> None:
     action = Action(
         name="Sub",
         description="Subdir action",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo", shell=ShellType.BASH)]),
     )
     app.add_action(action, dir="actions/sub")
     app.synth()
@@ -189,7 +190,7 @@ def test_app_add_escape_hatch_explicit_path(tmp_path: Path) -> None:
     action = Action(
         name="Custom",
         description="Custom-path action",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo", shell=ShellType.BASH)]),
     )
     app.add(action, "custom/location/action.yml")
     app.synth()
@@ -204,7 +205,7 @@ def test_app_check_detects_stale_action(tmp_path: Path) -> None:
     action = Action(
         name="Stale",
         description="desc",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo", shell=ShellType.BASH)]),
     )
     app.add_action(action)
 
@@ -224,7 +225,7 @@ def test_app_check_reports_missing_file(tmp_path: Path) -> None:
     action = Action(
         name="Missing",
         description="desc",
-        runs=CompositeRuns(steps=[Step(run="echo", shell="bash")]),
+        runs=CompositeRuns(steps=[Step(run="echo", shell=ShellType.BASH)]),
     )
     app.add_action(action)
 

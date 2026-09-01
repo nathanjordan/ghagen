@@ -106,6 +106,7 @@ describe("walk()", () => {
       name: "My Action",
       description: "composite",
       runs: compositeRuns({
+        using: "composite",
         steps: [step({ uses: "actions/setup-node@v4" }), step({ run: "npm ci", shell: "bash" })],
       }),
     });

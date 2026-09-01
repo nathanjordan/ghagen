@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 import pytest
 
 from ghagen.emitter import CommentNode, to_data
+from ghagen.models._base import OrRaw
 from ghagen.models.action import Action, CompositeRuns, DockerRuns
+from ghagen.models.common import ShellType
 from ghagen.models.job import Job
 from ghagen.models.step import Step
 from ghagen.models.trigger import On, PushTrigger
@@ -31,6 +33,27 @@ def _lockfile(**pins: str) -> Lockfile:
     )
 
 
+def _jobs(result: Workflow | Action) -> dict[str, Job]:
+    """The ``jobs`` map of a pinned *workflow*.
+
+    ``PinTransform.__call__`` is annotated ``Workflow | Action -> Workflow |
+    Action`` and ``Workflow.jobs`` is optional, so every ``result.jobs[...]``
+    below needs two narrowings that say nothing about pinning. The composite
+    action cases spell theirs out inline with ``isinstance``; these hold the
+    same shape once, here.
+    """
+    assert isinstance(result, Workflow)
+    assert result.jobs is not None
+    return result.jobs
+
+
+def _steps(result: Workflow | Action, job: str = "build") -> list[OrRaw[Step]]:
+    """The steps of one job of a pinned workflow. ``Job.steps`` is optional."""
+    steps = _jobs(result)[job].steps
+    assert steps is not None
+    return steps
+
+
 class TestPinTransform:
     def test_pins_step_uses(self):
         lf = _lockfile(**{"actions/checkout@v4": SHA_CHECKOUT})
@@ -45,7 +68,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        step = result.jobs["build"].steps[0]
+        step = _steps(result)[0]
         assert to_data(step, comments=True)["uses"] == CommentNode(
             f"actions/checkout@{SHA_CHECKOUT}", eol_comment="v4"
         )
@@ -71,7 +94,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        steps = result.jobs["build"].steps
+        steps = _steps(result)
         assert to_data(steps[0], comments=True)["uses"] == CommentNode(
             f"actions/checkout@{SHA_CHECKOUT}", eol_comment="v4"
         )
@@ -91,7 +114,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        job = result.jobs["call"]
+        job = _jobs(result)["call"]
         assert to_data(job, comments=True)["uses"] == CommentNode(
             f"octo-org/repo/.github/workflows/ci.yml@{SHA_REUSABLE}", eol_comment="v1"
         )
@@ -109,7 +132,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        assert result.jobs["build"].steps[0].uses == "./local-action"
+        assert _steps(result)[0].uses == "./local-action"
 
     def test_skips_docker(self):
         lf = _lockfile()
@@ -124,7 +147,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        assert result.jobs["build"].steps[0].uses == "docker://node:18"
+        assert _steps(result)[0].uses == "docker://node:18"
 
     def test_missing_entry_raises(self):
         lf = _lockfile()
@@ -176,7 +199,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        assert result.jobs["build"].steps[0].run == "echo hello"
+        assert _steps(result)[0].run == "echo hello"
 
     def test_hand_pinned_sha_is_left_untouched(self):
         """A ref already written as a SHA is not pinnable — never raises PinError."""
@@ -193,7 +216,7 @@ class TestPinTransform:
         )
         transform = PinTransform(lf)
         result = transform(wf)
-        assert result.jobs["build"].steps[0].uses == f"actions/checkout@{sha}"
+        assert _steps(result)[0].uses == f"actions/checkout@{sha}"
 
 
 class TestPinTransformAction:
@@ -210,7 +233,7 @@ class TestPinTransformAction:
                         uses="actions/setup-python@v5",
                         with_={"python-version": "3.13"},
                     ),
-                    Step(run="echo hi", shell="bash"),
+                    Step(run="echo hi", shell=ShellType.BASH),
                 ],
             ),
         )

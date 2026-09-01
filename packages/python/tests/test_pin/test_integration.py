@@ -149,8 +149,13 @@ class TestSynthWithPin:
         )
         app.add_workflow(wf, "ci.yml")
         app.synth()
-        # Original model should be unchanged.
-        assert wf.jobs["build"].steps[0].uses == "actions/checkout@v4"
+        # Original model should be unchanged. `Workflow.jobs` and `Job.steps`
+        # are both optional, so reaching the step takes two narrowings that say
+        # nothing about synth.
+        assert wf.jobs is not None
+        steps = wf.jobs["build"].steps
+        assert steps is not None
+        assert steps[0].uses == "actions/checkout@v4"
         # Second synth should produce identical output.
         app.synth()
         content = (tmp_path / ".github" / "workflows" / "ci.yml").read_text()

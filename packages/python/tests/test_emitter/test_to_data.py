@@ -228,7 +228,7 @@ def test_deep_structure_matches_emitted_yaml():
         name="CI",
         on=On(
             push=PushTrigger(branches=["main"]),
-            workflow_dispatch={},  # present-null empty map
+            workflow_dispatch=WorkflowDispatchTrigger(),  # present-null empty map
             extras={"merge_group": {}},  # extra on the alphabetical On spec
         ),
         jobs={

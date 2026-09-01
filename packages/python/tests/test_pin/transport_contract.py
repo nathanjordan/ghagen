@@ -418,12 +418,19 @@ def loopback_adapter(build: Callable[[float], HttpClient]) -> MakeAdapter:
     def make(case: ResponseCase | str, deadline: float) -> Iterator[Bound]:
         if isinstance(case, ResponseCase):
             handler = _responder(case.wire())
-        elif _FAILURE_HANDLERS[case] is None:
-            with _closed_port() as url:
-                yield Bound(build(deadline), url, lambda: None)
-            return
         else:
-            handler = _FAILURE_HANDLERS[case]  # type: ignore[assignment]
+            # A None entry in the table means "there is no server": the case is
+            # a connect failure, so there is no handler to give LoopbackOrigin.
+            # Reading the table once keeps that narrowing -- the two-lookup form
+            # this replaces lost it between the branches and papered over the
+            # gap with a `# type: ignore[assignment]` that nothing checked,
+            # because this whole tree was outside pyright (docs/issues/09).
+            failure = _FAILURE_HANDLERS[case]
+            if failure is None:
+                with _closed_port() as url:
+                    yield Bound(build(deadline), url, lambda: None)
+                return
+            handler = failure
         with LoopbackOrigin(handler) as origin:
             yield Bound(build(deadline), origin.url, origin.observed_auth)
 

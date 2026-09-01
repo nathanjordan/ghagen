@@ -9,7 +9,7 @@ from ghagen._commented import with_comment, with_eol_comment
 from ghagen.emitter import CommentNode, to_data
 from ghagen.models.job import Defaults, DefaultsRun, Job
 from ghagen.models.step import Step
-from ghagen.models.trigger import On
+from ghagen.models.trigger import ON_SPEC, On, PushTrigger, WorkflowDispatchTrigger
 from ghagen.models.workflow import Workflow
 
 
@@ -29,12 +29,13 @@ def test_empty_workflow_dispatch_emits_present_null_key():
     Driven by ``ON_SPEC.present_null_when_empty`` in the Emitter, not a
     model-layer ``Raw(None)`` mutation.
     """
-    data = to_data(On(workflow_dispatch={}))
+    data = to_data(On(workflow_dispatch=WorkflowDispatchTrigger()))
     assert "workflow_dispatch" in data
     assert data["workflow_dispatch"] is None
     # Formatting (bare null key, not ``{}``) is a YAML concern — assert it on
     # the emitted string via a wrapping workflow.
-    yaml = Workflow(name="W", on=On(workflow_dispatch={})).to_yaml(header=None)
+    wf = Workflow(name="W", on=On(workflow_dispatch=WorkflowDispatchTrigger()))
+    yaml = wf.to_yaml(header=None)
     assert "workflow_dispatch:" in yaml
     assert "workflow_dispatch: {}" not in yaml
 
@@ -44,12 +45,55 @@ def test_boolean_workflow_dispatch_not_present_null():
     assert to_data(On(workflow_dispatch=True))["workflow_dispatch"] is True
 
 
+def test_explicit_none_event_is_unset_not_present():
+    """``None`` on an ``on:`` event means *unset*, never "present, no filters".
+
+    docs/issues/04. The two ports used to disagree about this and the
+    disagreement was not cosmetic: Python dropped the key (``on: {}``, a
+    workflow that fires on nothing) while TypeScript kept it (a workflow that
+    fires on ``create``). One word, one meaning, both ports; ``{}`` is how a
+    caller asks for the event with no filters. Peer:
+    ``packages/typescript/src/models/trigger.test.ts``.
+    """
+    assert to_data(On(create=None)) == {}
+    yaml = Workflow(name="W", on=On(create=None)).to_yaml(header=None)
+    assert "\non: {}\n" in yaml
+    assert "create" not in yaml
+
+
+def test_every_on_event_present_nulls_an_empty_map():
+    """Every ``on:`` event key emits GitHub's bare ``key:`` for an empty map.
+
+    ``ON_SPEC.present_null_when_empty`` is derived from ``ON_SPEC.yaml_keys``,
+    so this walks the whole key set rather than restating a second list of
+    names: an event added to ``yaml_keys`` is covered here the moment it is
+    declared. It was a one-element allowlist (``workflow_dispatch``) until
+    docs/issues/04, so every other event emitted ``create: {}``.
+
+    ``schedule`` is the one key skipped, and it is not an exception to the
+    rule: its value is a *list*, which ``resolves_to_empty_map`` never treats
+    as an empty map.
+    """
+    for field_name, yaml_key in ON_SPEC.yaml_keys.items():
+        if field_name == "schedule":
+            assert to_data(On(schedule=[]))["schedule"] == []
+            continue
+        # A ``**dict[str, object]`` splat has no static shape, so pyright checks
+        # it against every keyword of ``On.__init__`` at once. Walking
+        # ``yaml_keys`` is the point of this test; the splat is how it is driven.
+        assert to_data(On(**{field_name: {}}))[yaml_key] is None, yaml_key  # type: ignore[arg-type]
+        on = On(**{field_name: {}})  # type: ignore[arg-type]
+        yaml = Workflow(name="W", on=on).to_yaml(header=None)
+        assert f"\n  {yaml_key}:\n" in yaml, yaml_key
+        assert f"{yaml_key}: {{}}" not in yaml, yaml_key
+
+
 def test_on_emits_alphabetically_interleaving_extras():
     """order="alphabetical" sorts all keys; a dynamic extra event interleaves."""
     data = to_data(
         On(
             workflow_run={"types": ["completed"]},
-            push={"branches": ["main"]},
+            push=PushTrigger(branches=["main"]),
             extras={"merge_group": {}},
         )
     )
@@ -79,7 +123,7 @@ def test_defaults_run_shell_comment_in_emitted_yaml():
     """
     wf = Workflow(
         name="W",
-        on=On(push={"branches": ["main"]}),
+        on=On(push=PushTrigger(branches=["main"])),
         jobs={
             "build": Job(
                 runs_on="ubuntu-latest",

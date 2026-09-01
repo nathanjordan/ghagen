@@ -1,7 +1,27 @@
 """Tests for the generic model traversal primitives ``walk()`` / ``children()``."""
 
+from collections.abc import Iterable
+
 from ghagen import Action, Job, On, PushTrigger, Raw, Step, Workflow, with_comment
+from ghagen.models._base import GhagenModel
 from ghagen.models.action import CompositeRuns
+from ghagen.models.common import ShellType
+
+
+def _as_steps(models: Iterable[GhagenModel]) -> list[Step]:
+    """The traversed models, narrowed to ``Step``.
+
+    ``children()`` and ``walk()`` yield the base ``GhagenModel`` -- not knowing
+    what it is walking is the whole of the traversal contract -- so ``uses`` and
+    ``run`` are not on the declared type and a test that reads them has to say
+    which model it expected. The per-element ``isinstance`` states what each
+    caller below already assumes (docs/issues/09).
+    """
+    steps = []
+    for model in models:
+        assert isinstance(model, Step)
+        steps.append(model)
+    return steps
 
 
 def _visit_labels(root) -> list[str]:
@@ -25,12 +45,12 @@ def test_children_yields_direct_nested_models():
         runs_on="ubuntu-latest",
         steps=[Step(uses="actions/checkout@v4"), Step(run="pytest")],
     )
-    models = list(job.children())
-    assert all(isinstance(m, Step) for m in models)
+    # ``_as_steps`` asserts every child is a ``Step``, element by element.
+    steps = _as_steps(job.children())
     # Ordered, not just present -- a reordering regression in the list branch
     # of ``_scan_for_models`` must fail this, matching the TypeScript twin's
     # ``toEqual`` in "yields bare Models, not key/model records".
-    assert [m.uses or m.run for m in models] == ["actions/checkout@v4", "pytest"]
+    assert [s.uses or s.run for s in steps] == ["actions/checkout@v4", "pytest"]
 
 
 def test_children_skips_scalars_and_none():
@@ -111,7 +131,7 @@ def test_walk_reaches_steps_inside_composite_action_runs():
         runs=CompositeRuns(
             steps=[
                 Step(uses="actions/setup-node@v4"),
-                Step(run="npm ci", shell="bash"),
+                Step(run="npm ci", shell=ShellType.BASH),
             ],
         ),
     )
@@ -133,7 +153,7 @@ def _extras_job() -> Job:
 
 def test_children_reaches_models_nested_in_extras():
     """``extras`` is a traversed field, not an opaque blob."""
-    uses = [m.uses for m in _extras_job().children()]
+    uses = [s.uses for s in _as_steps(_extras_job().children())]
     assert "actions/setup-node@v4" in uses
 
 
@@ -145,7 +165,7 @@ def test_children_yields_extras_last():
     extras off ``data`` and appends them. The skip-and-rescan in
     ``children()`` is what makes the two ports agree on visit order.
     """
-    assert [m.uses for m in _extras_job().children()] == [
+    assert [s.uses for s in _as_steps(_extras_job().children())] == [
         "actions/checkout@v4",
         "actions/setup-node@v4",
     ]

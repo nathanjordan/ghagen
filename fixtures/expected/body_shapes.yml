@@ -1,0 +1,44 @@
+name: Body Shapes
+on:
+  create:
+  pull_request_review_thread:
+    types:
+    - resolved
+  push:
+    branches:
+    - main
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: string
+    outputs:
+      digest:
+        description: Digest of the image this run built
+        value: ${{ jobs.build.outputs.digest }}
+    secrets:
+      deploy-token:
+        description: Token the deploy step authenticates with
+        required: true
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash
+    working-directory: src
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: build
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+    - name: Set up Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+    - id: build
+      name: Build
+      run: echo "digest=sha256:deadbeef" >> "$GITHUB_OUTPUT"
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}

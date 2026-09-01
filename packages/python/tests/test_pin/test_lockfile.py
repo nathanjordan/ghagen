@@ -21,6 +21,23 @@ SAMPLE_TIME = datetime(2026, 4, 9, 14, 30, 0, tzinfo=UTC)
 
 GOLDEN_PATH = EXPECTED_DIR / "lockfile_golden.yml"
 
+
+def _entry(lf: Lockfile, uses: str) -> PinEntry:
+    """``Lockfile.get`` returns ``PinEntry | None``; every call below expects a
+    hit, and one narrowing here beats fourteen at the call sites."""
+    entry = lf.get(uses)
+    assert entry is not None
+    return entry
+
+
+def _utcoffset_seconds(moment: datetime) -> float:
+    """``datetime.utcoffset()`` is ``timedelta | None`` -- None exactly when the
+    value is naive, which is what these assertions rule out."""
+    offset = moment.utcoffset()
+    assert offset is not None
+    return offset.total_seconds()
+
+
 #: The exact entries ``fixtures/expected/lockfile_golden.yml`` encodes. Both
 #: ports write these to the golden's bytes and read the golden back to them.
 GOLDEN_ENTRIES = {
@@ -66,7 +83,7 @@ class TestLockfile:
             }
         )
         assert lf.get("actions/checkout@v4") is not None
-        assert lf.get("actions/checkout@v4").sha == SAMPLE_SHA
+        assert _entry(lf, "actions/checkout@v4").sha == SAMPLE_SHA
 
     def test_get_missing(self):
         lf = Lockfile()
@@ -75,7 +92,7 @@ class TestLockfile:
     def test_set(self):
         lf = Lockfile()
         lf.set("actions/checkout@v4", PinEntry(sha=SAMPLE_SHA, resolved_at=SAMPLE_TIME))
-        assert lf.get("actions/checkout@v4").sha == SAMPLE_SHA
+        assert _entry(lf, "actions/checkout@v4").sha == SAMPLE_SHA
         assert len(lf) == 1
 
     def test_set_replaces(self):
@@ -87,7 +104,7 @@ class TestLockfile:
         lf.set(
             "actions/checkout@v4", PinEntry(sha=SAMPLE_SHA2, resolved_at=SAMPLE_TIME)
         )
-        assert lf.get("actions/checkout@v4").sha == SAMPLE_SHA2
+        assert _entry(lf, "actions/checkout@v4").sha == SAMPLE_SHA2
         assert len(lf) == 1
 
     def test_constructor_bulk_load(self):
@@ -102,7 +119,7 @@ class TestLockfile:
             }
         )
         assert len(lf) == 2
-        assert lf.get("actions/setup-python@v5").sha == SAMPLE_SHA2
+        assert _entry(lf, "actions/setup-python@v5").sha == SAMPLE_SHA2
 
     def test_prune(self):
         lf = Lockfile(
@@ -233,8 +250,8 @@ class TestRoundTrip:
         # Read back and verify.
         lf2 = read_lockfile(path)
         assert len(lf2) == 2
-        assert lf2.get("actions/checkout@v4").sha == SAMPLE_SHA
-        assert lf2.get("actions/setup-python@v5").sha == SAMPLE_SHA2
+        assert _entry(lf2, "actions/checkout@v4").sha == SAMPLE_SHA
+        assert _entry(lf2, "actions/setup-python@v5").sha == SAMPLE_SHA2
 
     def test_read_missing_file(self, tmp_path):
         lf = read_lockfile(tmp_path / "does-not-exist.yml")
@@ -282,10 +299,10 @@ class TestGoldenConformance:
         lf = read_lockfile(GOLDEN_PATH)
         assert set(lf.keys()) == set(GOLDEN_ENTRIES)
         for uses, expected in GOLDEN_ENTRIES.items():
-            entry = lf.get(uses)
+            entry = _entry(lf, uses)
             assert entry.sha == expected.sha
             assert entry.resolved_at == expected.resolved_at
-            assert entry.resolved_at.utcoffset().total_seconds() == 0
+            assert _utcoffset_seconds(entry.resolved_at) == 0
 
     def test_microseconds_truncated_to_whole_seconds(self, tmp_path):
         path = tmp_path / "lock.yml"
@@ -377,7 +394,7 @@ class TestKeyQuoting:
         path.write_bytes((EXPECTED_DIR / "lockfile_key_quoting.yml").read_bytes())
         lf = read_lockfile(path)
         assert set(lf.keys()) == {"123456", "actions/checkout@v4"}
-        assert lf.get("123456").sha == "a" * 40
+        assert _entry(lf, "123456").sha == "a" * 40
 
 
 class TestDecodeGrammar:
@@ -398,9 +415,9 @@ class TestDecodeGrammar:
     def test_accepted(self, tmp_path, literal, expected):
         path = tmp_path / "lock.yml"
         path.write_text(_lock_doc(literal))
-        entry = read_lockfile(path).get("actions/checkout@v4")
+        entry = _entry(read_lockfile(path), "actions/checkout@v4")
         assert entry.resolved_at == expected
-        assert entry.resolved_at.utcoffset().total_seconds() == 0
+        assert _utcoffset_seconds(entry.resolved_at) == 0
 
     @pytest.mark.parametrize(
         "literal",

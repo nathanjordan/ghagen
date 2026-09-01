@@ -60,6 +60,16 @@ on = On(
 
 Events without a dedicated model accept a `dict[str, Any]` for full flexibility.
 
+### `{}` is the event, `None` is no event
+
+An **empty** value on any event field emits GitHub's documented bare-key form — `create:`, with no
+value — whether the event takes no filters at all or its filters were simply left empty. That holds
+for `On(create={})` as much as for `On(push=PushTrigger())` and `On(workflow_call=WorkflowCallTrigger())`.
+
+`None` means _unset_, exactly as omitting the field does: the key is dropped, so `On(create=None)`
+emits `on: {}`. The TypeScript port reads `null` the same way. The two used to disagree — see
+`docs/issues/04`.
+
 ## PushTrigger
 
 Configuration for `push` event triggers. Filters which pushes trigger the workflow.

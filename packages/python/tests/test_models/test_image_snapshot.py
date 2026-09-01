@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from ghagen import ImageSnapshot, Job, with_comment, with_eol_comment
+from ghagen import Commented, ImageSnapshot, Job, with_comment, with_eol_comment
 from ghagen.emitter import to_data
 
 
@@ -87,6 +87,14 @@ def test_version_pattern_survives_a_comment_wrapper(version: str):
 def test_comment_wrapper_survives_a_grammar_valid_value():
     """Peeling for the grammar check must not drop the wrapper itself."""
     snap = ImageSnapshot(image_name="img", version=with_comment("1.2", "note"))
+    # `with_comment` is annotated `T -> T` so that a wrapped value stays
+    # assignable to the field it decorates; the object it actually returns is a
+    # `Commented[T]` (see `ghagen._commented`). The declared type of
+    # `version` therefore never mentions the wrapper, and a test that reaches
+    # *into* it has to undo the annotation's convenient fiction. The isinstance
+    # is the assertion this test's name makes -- that the wrapper survived --
+    # so stating it is a gain, not a tax (docs/issues/09).
+    assert isinstance(snap.version, Commented)
     assert snap.version.value == "1.2"
     assert snap.version.comment == "note"
 
