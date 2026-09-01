@@ -25,7 +25,7 @@ from ghagen.models.common import ExpressionStr
 from ghagen.models.container import Container, Service
 from ghagen.models.image_snapshot import ImageSnapshot
 from ghagen.models.job import Job, Matrix, Strategy
-from ghagen.models.permissions import Permissions
+from ghagen.models.permissions import Permissions, PermissionsValue
 from ghagen.models.step import Step
 from ghagen.models.trigger import (
     On,
@@ -63,6 +63,7 @@ __all__ = [
     "Matrix",
     "Strategy",
     "Permissions",
+    "PermissionsValue",
     "Step",
     "On",
     "PRTrigger",

@@ -161,12 +161,25 @@ covering model, and whose declared property set that model must emit in full. A 
 be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
 
 **Gap**:
-A scope property both ports intentionally do not model, allow-listed by name in
-`schema/conformance-gaps.yml`. Both sweeps hold every row to three claims, not just "listed":
-the name must still exist upstream (else stale), must still be uncovered by the model (else the
-gap has been closed and the row must go), and the file's own snapshot/scope keys must equal the
-sweep's exactly — so a gap entry is a live regression guard against a re-introduced gap, not a
-comment that happens to be YAML.
+A limit both ports intentionally do not close, recorded in `schema/conformance-gaps.yml`. Two
+kinds, proved differently. A **property gap** is a scope property neither port models,
+allow-listed by name; both sweeps hold every such row to three claims, not just "listed": the name
+must still exist upstream (else stale), must still be uncovered by the model (else the gap has been
+closed and the row must go), and the file's own snapshot/scope keys must equal the sweep's exactly.
+A **constraint gap**, under the reserved top-level `constraints` key, records a cross-field rule
+neither port enforces — today only `workflowDispatchInput.default`'s dependence on the sibling
+`type`. It has no absent property to point at, so its three claims differ: the upstream paths it
+names must still hold the values it names, its `counterexample` must still _construct_ in both
+ports (the day either enforces the rule, the row fails and must go), and the same key-set parity.
+Either way a gap row is a live regression guard, not a comment that happens to be YAML.
+
+**Input type**:
+The accepted type union of a model field, bound to the Snapshot by `schema/conformance-inputs.yml`
+— the third shared table, alongside scopes (property sets) and values (grammars). A row names the
+`yaml_key` the field emits, the Snapshot `type_paths` whose union the declared type must equal, and
+accept/reject vectors both ports execute. `yaml_key` is what lets one row cover a field the two
+ports name differently. The reject direction is asymmetric by construction: Python runs it under
+`pytest.raises`, TypeScript compiles it under `@ts-expect-error`.
 
 ### CLI
 
@@ -212,6 +225,11 @@ framework renders the text, `main()` decides the number.
   constructors live in `models/conformance-values.ts` (a plain `src/` module, unlike
   `conformance.test.ts`, which `tsconfig.json` excludes from `tsc --noEmit`), so narrowing a field
   away from `Raw` fails `npm run typecheck`, not just a runtime assertion.
+- A field's accepted **input type** is bound to the Snapshot by `schema/conformance-inputs.yml`, the
+  peer of the value table. Its reject vectors have no runtime form in this port, so they too are
+  compiler-executed: `models/conformance-inputs.ts` (a plain `src/` module, for the same reason)
+  declares each rejected literal under an `@ts-expect-error`, so widening a field to admit one turns
+  the directive unused and `tsc` reports TS2578. Python runs the same vectors under `pytest.raises`.
 - The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
   `cli/_errors.ts`. commander runs under `exitOverride()`, applied **recursively after tree

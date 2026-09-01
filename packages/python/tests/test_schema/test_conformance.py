@@ -57,6 +57,7 @@ from ghagen.models.action import (
 from ghagen.models.container import Container, Service
 from ghagen.models.image_snapshot import IMAGE_SNAPSHOT_SPEC, ImageSnapshot
 from ghagen.models.job import (
+    JOB_SPEC,
     Concurrency,
     Defaults,
     DefaultsRun,
@@ -65,10 +66,12 @@ from ghagen.models.job import (
     Matrix,
     Strategy,
 )
-from ghagen.models.permissions import Permissions
+from ghagen.models.permissions import Permissions, PermissionsValue
 from ghagen.models.spec import ModelSpec
-from ghagen.models.step import Step
+from ghagen.models.step import STEP_SPEC, Step
 from ghagen.models.trigger import (
+    WORKFLOW_CALL_INPUT_SPEC,
+    WORKFLOW_DISPATCH_INPUT_SPEC,
     On,
     PRTrigger,
     PushTrigger,
@@ -80,12 +83,13 @@ from ghagen.models.trigger import (
     WorkflowDispatchInput,
     WorkflowDispatchTrigger,
 )
-from ghagen.models.workflow import Workflow
+from ghagen.models.workflow import WORKFLOW_SPEC, Workflow
 from ghagen_schema.paths import SCHEMA_DIR
 
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
 SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"
 VALUES_PATH = SCHEMA_DIR / "conformance-values.yml"
+INPUTS_PATH = SCHEMA_DIR / "conformance-inputs.yml"
 KEY_ORDER_PATH = SCHEMA_DIR / "key-order.yml"
 
 # A JSON path into a loaded schema: the keys to walk before reading properties.
@@ -185,8 +189,24 @@ def _load_schema(filename: str) -> dict[str, Any]:
     return json.loads((SCHEMA_DIR / filename).read_text())
 
 
-def _load_gaps() -> dict[str, dict[str, list[str]]]:
+#: Reserved top-level key in conformance-gaps.yml holding cross-field
+#: constraint gaps rather than per-scope property gaps. It is not a snapshot,
+#: so the property-gap sweep and its key-set guard must both skip it.
+CONSTRAINTS_KEY = "constraints"
+
+
+def _load_gaps_file() -> dict[str, Any]:
+    """The whole gaps document, ``constraints`` section included."""
     return YAML(typ="safe").load(GAPS_PATH.read_text())
+
+
+def _load_gaps() -> dict[str, dict[str, list[str]]]:
+    """Only the per-snapshot property-gap sections."""
+    return {
+        snapshot: scopes
+        for snapshot, scopes in _load_gaps_file().items()
+        if snapshot != CONSTRAINTS_KEY
+    }
 
 
 def _resolve(schema: dict[str, Any], path: SchemaPath) -> Any:
@@ -635,4 +655,350 @@ def test_value_key_set_matches_shared_table() -> None:
             f"{snapshot} value grammars diverge from {VALUES_PATH.name}: "
             f"port has {sorted(_VALUE_BINDINGS[snapshot])}, shared table has "
             f"{sorted(shared[snapshot])}."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Input-TYPE sweep. The scope table binds which properties a model exposes; the
+# value table binds the grammar of the string fields that declare one. Neither
+# binds a field's accepted TYPE UNION, which is the axis the two ports actually
+# drifted on (issue 27). The shared table is schema/conformance-inputs.yml,
+# read identically by the TypeScript sweep; only the spec + constructor binding
+# stays here.
+#
+# This port's half is the strong one: Pydantic validates the declared
+# annotation on every construction, so both the ``accept`` and the ``reject``
+# vectors are genuinely EXECUTED here. TypeScript has no runtime type system --
+# its ``reject`` vectors are checked by the compiler instead, in
+# ``models/conformance-inputs.ts``. See that file and the shared table's header;
+# the asymmetry is real and neither side pretends otherwise.
+# ---------------------------------------------------------------------------
+
+
+class InputBinding:
+    """One ``<kind>.<field>`` row: this port's spec, field name, constructor."""
+
+    def __init__(
+        self,
+        spec: ModelSpec,
+        field: str,
+        construct: Callable[[Any], GhagenModel],
+    ) -> None:
+        self.spec = spec
+        #: This port's name for the field. The shared table keys on the
+        #: TypeScript spelling (``continueOnError``); Python's is
+        #: ``continue_on_error``. Rather than transliterate -- which would bake
+        #: a naming convention into the sweep -- each port names its own field
+        #: and both assert their spec maps it to the shared ``yaml_key``.
+        self.field = field
+        self.construct = construct
+
+
+_INPUT_BINDINGS: dict[str, dict[str, InputBinding]] = {
+    "workflow_schema.json": {
+        "job.permissions": InputBinding(
+            JOB_SPEC,
+            "permissions",
+            lambda v: Job(runs_on="ubuntu-latest", permissions=v),
+        ),
+        "workflow.permissions": InputBinding(
+            WORKFLOW_SPEC,
+            "permissions",
+            lambda v: Workflow(name="CI", permissions=v),
+        ),
+        "workflowDispatchInput.default": InputBinding(
+            WORKFLOW_DISPATCH_INPUT_SPEC,
+            "default",
+            # Constructed WITHOUT ``type``: every ``if`` in the Snapshot's
+            # conditional block is guarded by ``required: [type]``, so with no
+            # ``type`` present the unconditional union is exactly what applies.
+            lambda v: WorkflowDispatchInput(default=v),
+        ),
+        "workflowCallInput.default": InputBinding(
+            WORKFLOW_CALL_INPUT_SPEC,
+            "default",
+            # ``type`` is required here, and unlike workflow_dispatch it does
+            # not constrain ``default`` -- the Snapshot types that field
+            # directly.
+            lambda v: WorkflowCallInput(type="string", default=v),
+        ),
+        "job.continueOnError": InputBinding(
+            JOB_SPEC,
+            "continue_on_error",
+            lambda v: Job(runs_on="ubuntu-latest", continue_on_error=v),
+        ),
+        "step.continueOnError": InputBinding(
+            STEP_SPEC,
+            "continue_on_error",
+            lambda v: Step(run="echo hi", continue_on_error=v),
+        ),
+    },
+}
+
+
+def _load_inputs() -> dict[str, dict[str, dict[str, Any]]]:
+    """Load the shared input-type table: snapshot -> "<kind>.<field>" -> entry."""
+    return YAML(typ="safe").load(INPUTS_PATH.read_text())
+
+
+_INPUTS = _load_inputs()
+
+
+def _iter_inputs() -> list[tuple[str, str]]:
+    return [
+        (snapshot, key)
+        for snapshot, entries in _INPUTS.items()
+        for key in entries
+        if key in _INPUT_BINDINGS.get(snapshot, {})
+    ]
+
+
+def _iter_input_refs() -> list[tuple[str, str]]:
+    return [(s, k) for s, k in _iter_inputs() if "ref" in _INPUTS[s][k]]
+
+
+def _snapshot_type_union(schema: dict[str, Any], entry: dict[str, Any]) -> list[str]:
+    """The sorted union of the JSON-Schema type tokens at ``type_paths``."""
+    types: set[str] = set()
+    for path in entry["type_paths"]:
+        node = _resolve(schema, tuple(path))
+        if isinstance(node, str):
+            types.add(node)
+        else:
+            types |= set(node)
+    return sorted(types)
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_inputs(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_inputs()],
+)
+def test_input_types_match_the_snapshot(snapshot: str, key: str) -> None:
+    """The declared union equals the one the Snapshot spells at ``type_paths``.
+
+    The type-union analogue of ``test_value_pattern_matches_snapshot``, and
+    what stops the shared table from being a wish. An upstream narrowing -- or
+    a typo in ``types`` -- fails here, in both ports.
+    """
+    entry = _INPUTS[snapshot][key]
+    schema = _load_schema(snapshot)
+    union = _snapshot_type_union(schema, entry)
+    assert union == list(entry["types"]), (
+        f"{key}: {INPUTS_PATH.name} declares types={list(entry['types'])}, but "
+        f"the Snapshot's type_paths resolve to {union}."
+    )
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_inputs(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_inputs()],
+)
+def test_input_field_emits_the_shared_yaml_key(snapshot: str, key: str) -> None:
+    """This port's spec maps its bound field to the shared table's ``yaml_key``.
+
+    The shared key (``job.continueOnError``) uses one spelling for a field the
+    two ports name differently. This is what makes that safe: each port names
+    its own field in its own binding, and both assert the field lands on the
+    same emitted key. A binding pointed at the wrong field fails here.
+    """
+    entry = _INPUTS[snapshot][key]
+    binding = _INPUT_BINDINGS[snapshot][key]
+    mapped = binding.spec.yaml_keys.get(binding.field)
+    assert mapped == entry["yaml_key"], (
+        f"{key}: this port's spec maps {binding.field!r} to {mapped!r}, shared "
+        f"table says {entry['yaml_key']!r}."
+    )
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_input_refs(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_input_refs()],
+)
+def test_input_ref_still_points_at_the_shared_node(snapshot: str, key: str) -> None:
+    """A row with a ``ref`` is a bare ``$ref`` to one shared Snapshot node.
+
+    Only the two ``permissions`` rows carry one, and there it is the entire
+    justification for a single ``PermissionsValue`` alias serving both the
+    workflow-level and the job-level field. If upstream ever inlines or splits
+    ``definitions.permissions``, one alias stops being the right shape and this
+    fails, rather than the divergence being rediscovered by a reader.
+    """
+    ref = _INPUTS[snapshot][key]["ref"]
+    schema = _load_schema(snapshot)
+    assert _resolve(schema, tuple(ref["path"])) == ref["value"]
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_inputs(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_inputs()],
+)
+def test_input_accept_vectors(snapshot: str, key: str) -> None:
+    """Every ``accept`` vector constructs."""
+    entry = _INPUTS[snapshot][key]
+    construct = _INPUT_BINDINGS[snapshot][key].construct
+    for value in entry["accept"]:
+        construct(value)  # must not raise
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_inputs(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_inputs()],
+)
+def test_input_reject_vectors(snapshot: str, key: str) -> None:
+    """Every ``reject`` vector raises.
+
+    This half of the sweep has no runtime peer in TypeScript -- see the shared
+    table's header. Here it is a real execution: Pydantic validates the
+    declared annotation, so a field widened past the Snapshot's union fails
+    here (a field narrowed below it fails the accept half instead).
+    """
+    entry = _INPUTS[snapshot][key]
+    construct = _INPUT_BINDINGS[snapshot][key].construct
+    for value in entry["reject"]:
+        with pytest.raises(ValidationError):
+            construct(value)
+
+
+def test_permissions_value_alias_is_both_permissions_fields() -> None:
+    """``PermissionsValue`` is the declared type of BOTH ``permissions`` fields.
+
+    The alias exists because the Snapshot defines ``permissions`` exactly once
+    and both fields are a bare ``$ref`` to it (asserted above). This is the
+    other half: the alias is not merely exported, it is what the two fields are
+    annotated with -- so re-inlining the union at one site, which is how they
+    drifted apart in the first place, fails here.
+    """
+    assert Job.model_fields["permissions"].annotation == PermissionsValue | None
+    assert Workflow.model_fields["permissions"].annotation == PermissionsValue | None
+
+
+def test_input_key_set_matches_shared_table() -> None:
+    """This port's input-type bindings must match the shared table exactly.
+
+    Mirrored by the TypeScript sweep, so a type union bound in one port and not
+    the other fails a test.
+    """
+    shared = _load_inputs()
+    assert set(_INPUT_BINDINGS) == set(shared), (
+        f"input-type snapshots diverge from {INPUTS_PATH.name}: "
+        f"port has {sorted(_INPUT_BINDINGS)}, shared table has {sorted(shared)}."
+    )
+    for snapshot in shared:
+        assert set(_INPUT_BINDINGS[snapshot]) == set(shared[snapshot]), (
+            f"{snapshot} input types diverge from {INPUTS_PATH.name}: "
+            f"port has {sorted(_INPUT_BINDINGS[snapshot])}, shared table has "
+            f"{sorted(shared[snapshot])}."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Cross-field constraint gaps -- the ``constraints`` section of
+# conformance-gaps.yml. A property gap proves itself by the property's absence
+# from the spec, a set-membership test. A cross-field constraint has no such
+# footprint (both fields are present and both are typed), so the only proof the
+# limit still exists is to construct the schema-invalid combination and watch
+# it succeed.
+# ---------------------------------------------------------------------------
+
+# snapshot -> "<kind>.<field>" -> constructor over the row's ``counterexample``.
+_CONSTRAINT_BINDINGS: dict[str, dict[str, Callable[[dict[str, Any]], GhagenModel]]] = {
+    "workflow_schema": {
+        "workflowDispatchInput.default": lambda kw: WorkflowDispatchInput(**kw),
+    },
+}
+
+
+def _load_constraints() -> dict[str, dict[str, dict[str, Any]]]:
+    return _load_gaps_file()[CONSTRAINTS_KEY]
+
+
+def _iter_constraints() -> list[tuple[str, str]]:
+    return [
+        (snapshot, key)
+        for snapshot, rows in _load_constraints().items()
+        for key in rows
+        if key in _CONSTRAINT_BINDINGS.get(snapshot, {})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_constraints(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_constraints()],
+)
+def test_constraint_gap_rule_still_exists_upstream(snapshot: str, key: str) -> None:
+    """Every ``requires`` path must still hold its stated value.
+
+    Claim 1 of a constraint row, the peer of the property rows' ``stale``
+    check: the row cannot outlive the upstream rule it describes.
+    """
+    row = _load_constraints()[snapshot][key]
+    schema = _load_schema(f"{snapshot}.json")
+    for req in row["requires"]:
+        found = _resolve(schema, tuple(req["path"]))
+        assert found == req["value"], (
+            f"{key}: {GAPS_PATH.name} says the Snapshot holds {req['value']!r} "
+            f"at {req['path']}, but it holds {found!r}. The upstream rule this "
+            "gap records has changed -- update or remove the row."
+        )
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_constraints(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_constraints()],
+)
+def test_constraint_gap_is_still_unenforced(snapshot: str, key: str) -> None:
+    """The ``counterexample`` must still CONSTRUCT -- the gap is still open.
+
+    Claim 2, the peer of the property rows' ``closed`` check. Implementing the
+    conditional turns this red, which forces the row to be deleted rather than
+    left standing as a stale "known limit".
+    """
+    row = _load_constraints()[snapshot][key]
+    construct = _CONSTRAINT_BINDINGS[snapshot][key]
+    construct(dict(row["counterexample"]))  # must not raise -- the gap is real
+
+
+def test_constraint_gap_key_set_matches_the_sweep() -> None:
+    """Claim 3: this port's constraint bindings match the shared section.
+
+    Mirrored in the TypeScript sweep, so a constraint recorded against one port
+    only -- or a garbled key -- fails a test.
+    """
+    shared = _load_constraints()
+    assert set(_CONSTRAINT_BINDINGS) == set(shared), (
+        f"{GAPS_PATH.name} constraint snapshots diverge from the sweep: port "
+        f"has {sorted(_CONSTRAINT_BINDINGS)}, file has {sorted(shared)}."
+    )
+    for snapshot in shared:
+        assert set(_CONSTRAINT_BINDINGS[snapshot]) == set(shared[snapshot]), (
+            f"{snapshot} constraint rows diverge from the sweep: port has "
+            f"{sorted(_CONSTRAINT_BINDINGS[snapshot])}, {GAPS_PATH.name} has "
+            f"{sorted(shared[snapshot])}."
+        )
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_constraints(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_constraints()],
+)
+def test_constraint_gap_row_states_its_claim(snapshot: str, key: str) -> None:
+    """A gap row is a claim, so it must actually say what is unenforced.
+
+    ``requires_prose`` and ``unenforced`` are the row's reasoning, and an empty
+    or placeholder one turns the row back into the shrug it exists to replace.
+    """
+    row = _load_constraints()[snapshot][key]
+    for field in ("requires_prose", "unenforced"):
+        text = row.get(field, "")
+        assert len(text) > 120, (
+            f"{key}: {GAPS_PATH.name} row has no substantive {field!r}. State "
+            "what the Snapshot requires and what the ports do not enforce."
         )

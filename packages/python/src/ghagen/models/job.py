@@ -10,7 +10,7 @@ from ghagen._raw import Raw
 from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.container import Container, Service
 from ghagen.models.image_snapshot import ImageSnapshot
-from ghagen.models.permissions import Permissions
+from ghagen.models.permissions import PermissionsValue
 from ghagen.models.spec import ModelSpec
 from ghagen.models.step import Step
 
@@ -157,7 +157,7 @@ class Job(GhagenModel):
         description="Conditional expression that must evaluate "
         "to true for this job to run.",
     )
-    permissions: OrRaw[Permissions] | None = None
+    permissions: PermissionsValue | None = None
     environment: OrRaw[str | Environment] | None = None
     strategy: OrRaw[Strategy] | None = None
     env: dict[str, str] | None = None

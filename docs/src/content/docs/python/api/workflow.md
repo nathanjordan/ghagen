@@ -26,16 +26,16 @@ print(workflow.to_yaml())
 
 ### Parameters
 
-| Parameter     | Type                                                                  | Default | Description                                                                                                          |
-| ------------- | --------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| `name`        | `str \| None`                                                         | `None`  | The display name of the workflow.                                                                                    |
-| `run_name`    | `str \| None`                                                         | `None`  | Custom name for workflow runs. Supports GitHub Actions expressions. Serialized as `run-name`.                        |
-| `on`          | `On \| dict \| None`                                                  | `None`  | Trigger configuration for the workflow. See [Triggers](/python/api/triggers/).                                       |
-| `permissions` | `Permissions \| Literal["read-all", "write-all"] \| Raw[str] \| None` | `None`  | Token permissions. Can be a `Permissions` object or a string shorthand. See [Permissions](/python/api/permissions/). |
-| `env`         | `dict[str, str] \| None`                                              | `None`  | Environment variables available to all jobs in the workflow.                                                         |
-| `defaults`    | `Defaults \| None`                                                    | `None`  | Default settings for all `run` steps. See [Defaults](#defaults).                                                     |
-| `concurrency` | `str \| Concurrency \| None`                                          | `None`  | Concurrency group configuration. Can be a string (group name) or a `Concurrency` object.                             |
-| `jobs`        | `dict[str, Job]`                                                      | `{}`    | Map of job IDs to job definitions. See [Job](/python/api/job/).                                                      |
+| Parameter     | Type                         | Default | Description                                                                                                                                   |
+| ------------- | ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `str \| None`                | `None`  | The display name of the workflow.                                                                                                             |
+| `run_name`    | `str \| None`                | `None`  | Custom name for workflow runs. Supports GitHub Actions expressions. Serialized as `run-name`.                                                 |
+| `on`          | `On \| dict \| None`         | `None`  | Trigger configuration for the workflow. See [Triggers](/python/api/triggers/).                                                                |
+| `permissions` | `PermissionsValue \| None`   | `None`  | Token permissions. A `Permissions`, the `"read-all"` / `"write-all"` shorthand, or a `Raw[str]`. See [Permissions](/python/api/permissions/). |
+| `env`         | `dict[str, str] \| None`     | `None`  | Environment variables available to all jobs in the workflow.                                                                                  |
+| `defaults`    | `Defaults \| None`           | `None`  | Default settings for all `run` steps. See [Defaults](#defaults).                                                                              |
+| `concurrency` | `str \| Concurrency \| None` | `None`  | Concurrency group configuration. Can be a string (group name) or a `Concurrency` object.                                                      |
+| `jobs`        | `dict[str, Job]`             | `{}`    | Map of job IDs to job definitions. See [Job](/python/api/job/).                                                                               |
 
 All models also accept these inherited parameters from the base class:
 
