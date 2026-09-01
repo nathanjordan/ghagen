@@ -16,9 +16,11 @@
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, test, vi, afterEach } from "vitest";
+import { parse as parseYaml } from "yaml";
 import type { App } from "../app.js";
+import { SCHEMA_DIR } from "../paths.js";
 import type { UpgradeReport } from "../pin/index.js";
 
 const upgradeMock = vi.fn<(...args: unknown[]) => Promise<UpgradeReport>>();
@@ -227,19 +229,18 @@ describe("deps upgrade --format json key set", () => {
 
 // -- deps update -------------------------------------------------------------
 
-/** The field set `--format github` and `--format json` both carry. */
-const PLAN_FIELDS = [
-  "action",
-  "total_updates",
-  "apply_version_bumps",
-  "refresh_lockfile",
-  "branch",
-  "title",
-  "commit_message",
-  "labels",
-  "body_format",
-  "changed",
-].sort();
+/**
+ * The field set `--format github` and `--format json` both carry, shared with
+ * the Python suite through `schema/update-plan-fields.yml` — see
+ * docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
+ */
+const PLAN_FIELDS: string[] = (
+  parseYaml(readFileSync(resolve(SCHEMA_DIR, "update-plan-fields.yml"), "utf8")) as {
+    keys: string[];
+  }
+).keys
+  .slice()
+  .sort();
 
 /** Parse `--format github` back into the mapping a runner would build. */
 function githubOutputs(stdout: string): Record<string, string> {

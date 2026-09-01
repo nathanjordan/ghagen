@@ -273,7 +273,8 @@ Stdout carries the plan and nothing else, so `--format github` can be a bare
 formats carry the same ten fields, in the same order, under the same
 snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
 interface, because the field names are a cross-port wire contract shared byte
-for byte with the Python port.
+for byte with the Python port. The field set is declared once, in
+`schema/update-plan-fields.yml`, and pinned by both ports' suites.
 
 | Field                 | Meaning                                                                          |
 | --------------------- | -------------------------------------------------------------------------------- |

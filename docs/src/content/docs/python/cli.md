@@ -258,7 +258,8 @@ newline in `--branch-prefix`, `--commit-message-prefix`, or `--labels` — under
 Stdout carries the plan and nothing else, so `--format github` can be a bare
 `>> "$GITHUB_OUTPUT"` redirect. Warnings and progress go to stderr. Both
 formats carry the same ten fields, in the same order, under the same
-snake_case names.
+snake_case names. The field set is declared once, in
+`schema/update-plan-fields.yml`, and pinned by both ports' suites.
 
 | Field                 | Meaning                                                                         |
 | --------------------- | ------------------------------------------------------------------------------- |

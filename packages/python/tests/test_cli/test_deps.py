@@ -28,6 +28,8 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
+from ghagen_schema.paths import SCHEMA_DIR
+from ruamel.yaml import YAML
 from typer.testing import CliRunner
 
 from ghagen.cli.main import app
@@ -506,19 +508,12 @@ ci = Workflow(
 app.add_workflow(ci, "ci.yml")
 """
 
-#: The field set `--format github` and `--format json` both carry.
-_PLAN_FIELDS = {
-    "action",
-    "total_updates",
-    "apply_version_bumps",
-    "refresh_lockfile",
-    "branch",
-    "title",
-    "commit_message",
-    "labels",
-    "body_format",
-    "changed",
-}
+#: The field set `--format github` and `--format json` both carry, shared with
+#: the TypeScript suite through ``schema/update-plan-fields.yml`` --
+#: see docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
+_PLAN_FIELDS = set(
+    YAML(typ="safe").load((SCHEMA_DIR / "update-plan-fields.yml").read_text())["keys"]
+)
 
 
 def _github_outputs(stdout: str) -> dict[str, str]:
