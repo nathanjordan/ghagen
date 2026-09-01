@@ -141,18 +141,18 @@ workflow_schema.json:
 
   # --- input defaults -------------------------------------------------------
   # `workflow_dispatch` leaves `default` untyped in `properties` and constrains
-  # it from an `allOf`/`if`/`then` block keyed on the sibling `type`: four
-  # branches, three distinct types. The union of those branches IS the
+  # it from a `oneOf` keyed on the sibling `type`: five branches, four of which
+  # type `default`, in three distinct ways. The union of those branches IS the
   # unconditional union, which is what these four paths spell out. The
   # conditional itself is NOT enforced by either port -- that limit is recorded,
   # with its counterexample, under `constraints` in conformance-gaps.yml.
   workflowDispatchInput.default:
     yaml_key: default
     type_paths:
-      - [definitions, workflowDispatchInput, allOf, 0, then, properties, default, type]
-      - [definitions, workflowDispatchInput, allOf, 1, then, properties, default, type]
-      - [definitions, workflowDispatchInput, allOf, 2, then, properties, default, type]
-      - [definitions, workflowDispatchInput, allOf, 3, then, properties, default, type]
+      - [definitions, workflowDispatchInput, oneOf, 0, properties, default, type]
+      - [definitions, workflowDispatchInput, oneOf, 1, properties, default, type]
+      - [definitions, workflowDispatchInput, oneOf, 2, properties, default, type]
+      - [definitions, workflowDispatchInput, oneOf, 3, properties, default, type]
     types: [boolean, number, string]
     accept:
       - a-string
@@ -166,7 +166,9 @@ workflow_schema.json:
       - []
       - {}
       - [a, b]
-  # `workflow_call` types its `default` directly -- no conditional, same union.
+  # `workflow_call` types its `default` directly -- no conditional, same union,
+  # spelled as a three-branch `anyOf` since the 2026-09-01 refresh (it was a
+  # single `type` list before).
   workflowCallInput.default:
     yaml_key: default
     type_paths:
@@ -183,6 +185,42 @@ workflow_schema.json:
           "^[_a-zA-Z][a-zA-Z0-9_-]*$",
           properties,
           default,
+          anyOf,
+          0,
+          type,
+        ]
+      - [
+          properties,
+          on,
+          oneOf,
+          2,
+          properties,
+          workflow_call,
+          properties,
+          inputs,
+          patternProperties,
+          "^[_a-zA-Z][a-zA-Z0-9_-]*$",
+          properties,
+          default,
+          anyOf,
+          1,
+          type,
+        ]
+      - [
+          properties,
+          on,
+          oneOf,
+          2,
+          properties,
+          workflow_call,
+          properties,
+          inputs,
+          patternProperties,
+          "^[_a-zA-Z][a-zA-Z0-9_-]*$",
+          properties,
+          default,
+          anyOf,
+          2,
           type,
         ]
     types: [boolean, number, string]

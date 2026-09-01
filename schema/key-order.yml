@@ -207,7 +207,9 @@ permissions:
     - artifact-metadata
     - attestations
     - checks
+    - code-quality
     - contents
+    - copilot-requests
     - deployments
     - discussions
     - id-token
@@ -219,6 +221,7 @@ permissions:
     - repository-projects
     - security-events
     - statuses
+    - vulnerability-alerts
 
 strategy:
   order: explicit
@@ -238,6 +241,7 @@ concurrency:
   keys:
     - group
     - cancel-in-progress
+    - queue
 
 defaults:
   order: explicit

@@ -15,7 +15,9 @@ PERMISSIONS_SPEC = ModelSpec(
         "artifact_metadata": "artifact-metadata",
         "attestations": "attestations",
         "checks": "checks",
+        "code_quality": "code-quality",
         "contents": "contents",
+        "copilot_requests": "copilot-requests",
         "deployments": "deployments",
         "discussions": "discussions",
         "id_token": "id-token",
@@ -27,6 +29,7 @@ PERMISSIONS_SPEC = ModelSpec(
         "repository_projects": "repository-projects",
         "security_events": "security-events",
         "statuses": "statuses",
+        "vulnerability_alerts": "vulnerability-alerts",
     },
 )
 
@@ -44,7 +47,13 @@ class Permissions(GhagenModel):
     artifact_metadata: PermissionLevel | Raw[str] | None = None
     attestations: PermissionLevel | Raw[str] | None = None
     checks: PermissionLevel | Raw[str] | None = None
+    code_quality: PermissionLevel | Raw[str] | None = None
     contents: PermissionLevel | Raw[str] | None = None
+    # The Snapshot narrows this scope to `write` alone -- there is no read
+    # or none level for it. Typed like its siblings, for the same reason
+    # `models` is: the shared value table binds `pattern` strings, and this
+    # grammar is an `enum`.
+    copilot_requests: PermissionLevel | Raw[str] | None = None
     deployments: PermissionLevel | Raw[str] | None = None
     discussions: PermissionLevel | Raw[str] | None = None
     id_token: PermissionLevel | Raw[str] | None = None
@@ -60,6 +69,8 @@ class Permissions(GhagenModel):
     repository_projects: PermissionLevel | Raw[str] | None = None
     security_events: PermissionLevel | Raw[str] | None = None
     statuses: PermissionLevel | Raw[str] | None = None
+    # Narrowed upstream to `read | none`, like `models`; see the note there.
+    vulnerability_alerts: PermissionLevel | Raw[str] | None = None
 
 
 #: Everything a ``permissions:`` key accepts, at either level.

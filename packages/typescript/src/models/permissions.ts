@@ -21,8 +21,17 @@ export interface PermissionsInput {
   attestations?: PermissionLevel | Raw<string>;
   /** Permission for the `checks` scope. */
   checks?: PermissionLevel | Raw<string>;
+  /** Permission for the `code-quality` scope. Serialized as `code-quality`. */
+  codeQuality?: PermissionLevel | Raw<string>;
   /** Permission for the `contents` scope. */
   contents?: PermissionLevel | Raw<string>;
+  /**
+   * Permission for the `copilot-requests` scope. Serialized as
+   * `copilot-requests`. The Snapshot narrows this scope to `write` alone --
+   * there is no read or none level for it. Typed like its siblings, for the
+   * same reason `models` is.
+   */
+  copilotRequests?: PermissionLevel | Raw<string>;
   /** Permission for the `deployments` scope. */
   deployments?: PermissionLevel | Raw<string>;
   /** Permission for the `discussions` scope. */
@@ -49,6 +58,12 @@ export interface PermissionsInput {
   securityEvents?: PermissionLevel | Raw<string>;
   /** Permission for the `statuses` scope. */
   statuses?: PermissionLevel | Raw<string>;
+  /**
+   * Permission for the `vulnerability-alerts` scope. Serialized as
+   * `vulnerability-alerts`. Narrowed upstream to `read | none`, like
+   * `models`; see the note there.
+   */
+  vulnerabilityAlerts?: PermissionLevel | Raw<string>;
 }
 
 /**
@@ -84,7 +99,9 @@ export const PERMISSIONS_SPEC: ModelSpec = {
     artifactMetadata: "artifact-metadata",
     attestations: "attestations",
     checks: "checks",
+    codeQuality: "code-quality",
     contents: "contents",
+    copilotRequests: "copilot-requests",
     deployments: "deployments",
     discussions: "discussions",
     idToken: "id-token",
@@ -96,6 +113,7 @@ export const PERMISSIONS_SPEC: ModelSpec = {
     repositoryProjects: "repository-projects",
     securityEvents: "security-events",
     statuses: "statuses",
+    vulnerabilityAlerts: "vulnerability-alerts",
   } satisfies Record<keyof PermissionsInput, keyof SchemaPermissions>,
 };
 

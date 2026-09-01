@@ -41,8 +41,10 @@ workflow_schema.json:
     - [properties, on, oneOf, 2, properties, pull_request_target, oneOf, 1, allOf, 0]
   scheduleTrigger:
     - [properties, on, oneOf, 2, properties, schedule, items]
+  # Upstream wrapped `workflow_dispatch` in its own two-way oneOf (the bare
+  # `null` form, or the object with `inputs`); index 1 is the object form.
   workflowDispatch:
-    - [properties, on, oneOf, 2, properties, workflow_dispatch]
+    - [properties, on, oneOf, 2, properties, workflow_dispatch, oneOf, 1]
   workflowDispatchInput:
     - [definitions, workflowDispatchInput]
   workflowCall:
@@ -57,8 +59,14 @@ workflow_schema.json:
   # --- job sub-shapes ---
   permissions:
     - [definitions, permissions-event]
+  # Upstream split the single `definitions.container` into two nodes:
+  # `jobContainer` (the job-level container -- the six keys ghagen's
+  # Container/ContainerInput models) and `serviceContainer` (those six plus
+  # `command` and `entrypoint`). ghagen's two models follow the split.
   container:
-    - [definitions, container]
+    - [definitions, jobContainer]
+  serviceContainer:
+    - [definitions, serviceContainer]
   strategy:
     - [definitions, normalJob, properties, strategy]
   concurrency:

@@ -140,6 +140,7 @@ _MODELS: dict[str, dict[str, type[GhagenModel]]] = {
         # --- job sub-shapes ---
         "permissions": Permissions,
         "container": Container,
+        "serviceContainer": Service,
         "strategy": Strategy,
         "concurrency": Concurrency,
         "defaults": Defaults,
@@ -194,9 +195,18 @@ def _load_schema(filename: str) -> dict[str, Any]:
 #: so the property-gap sweep and its key-set guard must both skip it.
 CONSTRAINTS_KEY = "constraints"
 
+#: Reserved top-level key in conformance-gaps.yml holding the gaps in the OTHER
+#: direction -- emitted keys the Snapshot does not declare for their scope (see
+#: ``test_scope_emits_only_declared_keys``). Not a snapshot either, so the
+#: property-gap sweep and its key-set guard skip it too.
+UNDECLARED_KEY = "undeclared"
+
+#: Every reserved (non-snapshot) top-level key in conformance-gaps.yml.
+_RESERVED_KEYS = frozenset({CONSTRAINTS_KEY, UNDECLARED_KEY})
+
 
 def _load_gaps_file() -> dict[str, Any]:
-    """The whole gaps document, ``constraints`` section included."""
+    """The whole gaps document, reserved sections included."""
     return YAML(typ="safe").load(GAPS_PATH.read_text())
 
 
@@ -205,8 +215,13 @@ def _load_gaps() -> dict[str, dict[str, list[str]]]:
     return {
         snapshot: scopes
         for snapshot, scopes in _load_gaps_file().items()
-        if snapshot != CONSTRAINTS_KEY
+        if snapshot not in _RESERVED_KEYS
     }
+
+
+def _load_undeclared() -> dict[str, dict[str, list[str]]]:
+    """The ``undeclared`` section: snapshot -> scope -> emitted-but-unbacked."""
+    return _load_gaps_file()[UNDECLARED_KEY]
 
 
 def _resolve(schema: dict[str, Any], path: SchemaPath) -> Any:
@@ -325,6 +340,100 @@ def test_gap_set_matches_sweep() -> None:
         assert set(scopes) == set(gaps[key]), (
             f"{key} scope keys in {GAPS_PATH.name} diverge from the sweep: "
             f"sweep has {sorted(scopes)}, {GAPS_PATH.name} has {sorted(gaps[key])}."
+        )
+
+
+# ---------------------------------------------------------------------------
+# The sweep in the other direction: model keys must be DECLARED upstream.
+#
+# ``test_scope_properties_covered`` above asserts upstream <= model -- every
+# property the Snapshot declares is emitted by some model, or allow-listed.
+# That catches the drift everyone expects (upstream grows a field and neither
+# port models it). It says nothing at all about the reverse: a ``yaml_keys``
+# value is a free string, so ``"shell": "shel"`` -- or a key GitHub retired two
+# years ago -- passes every check in this file, and ghagen emits a workflow
+# GitHub refuses.
+#
+# TypeScript has a compile-time answer to that for SOME of its specs:
+# ``satisfies Record<keyof StepInput, keyof SchemaStep>`` asserts each emitted
+# key is a property name the generated type declares, so a typo is TS2322 (and
+# an upstream rename is TS2724 -- which is exactly how the 2026-09-01 refresh's
+# ``definitions.container`` -> ``jobContainer``/``serviceContainer`` split
+# surfaced). But there are seven such clauses, covering eight of this sweep's
+# twenty-nine scopes, and Python had no peer for any of them. This test is the
+# peer, for every scope, in both ports.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "scope_name"),
+    _iter_scopes(),
+    ids=[f"{snap}:{scope}" for snap, scope in _iter_scopes()],
+)
+def test_scope_emits_only_declared_keys(snapshot: str, scope_name: str) -> None:
+    """Every emitted YAML key must be a property the Snapshot declares.
+
+    The inverse of ``test_scope_properties_covered``: model <= upstream rather
+    than upstream <= model. Legitimate exceptions live under the reserved
+    ``undeclared`` key in the same shared allow-list, and are held to the same
+    three-way claim the property gaps are -- the name must still be emitted
+    (else the row is closed), must still be absent upstream (else it is stale),
+    and the section's key set must equal the sweep's
+    (``test_undeclared_set_matches_sweep``).
+    """
+    scope = SWEEP[snapshot][scope_name]
+    schema = _load_schema(snapshot)
+    props = _schema_properties(schema, scope)
+    emitted = _model_property_names(scope.model)
+
+    snapshot_undeclared = _load_undeclared().get(snapshot.removesuffix(".json"), {})
+    allow = set(snapshot_undeclared.get(scope_name, []))
+
+    invented = emitted - props - allow
+    assert not invented, (
+        f"{snapshot}:{scope_name} model {scope.model.__name__} emits keys the "
+        f"Snapshot does not declare for this scope: {sorted(invented)}. Fix the "
+        f"ModelSpec, or record them under `undeclared` in {GAPS_PATH.name} with "
+        f"the reason they are emitted anyway."
+    )
+    # Claim 1: the row is still needed -- the model still emits this key.
+    closed = allow - emitted
+    assert not closed, (
+        f"{snapshot}:{scope_name} `undeclared` names {sorted(closed)} that "
+        f"{scope.model.__name__} no longer emits. Remove them from "
+        f"{GAPS_PATH.name}."
+    )
+    # Claim 2: the key is still un-upstream. The day the Snapshot declares it,
+    # the exception has become ordinary coverage and the row must go.
+    backed = allow & props
+    assert not backed, (
+        f"{snapshot}:{scope_name} `undeclared` names {sorted(backed)} that the "
+        f"Snapshot now declares -- the exception is no longer one. Remove them "
+        f"from {GAPS_PATH.name}."
+    )
+
+
+def test_undeclared_set_matches_sweep() -> None:
+    """The ``undeclared`` section's key structure must match the sweep exactly.
+
+    Claim 3, and the peer of ``test_gap_set_matches_sweep``: the test above
+    reads the section via ``.get(..., {})``, so a garbled snapshot or scope key
+    would silently read as "no exceptions recorded" -- which is this section's
+    entire current content, and therefore invisible. Mirrored in the TypeScript
+    sweep.
+    """
+    undeclared = _load_undeclared()
+    sweep_keys = {snapshot.removesuffix(".json") for snapshot in SWEEP}
+    assert sweep_keys == set(undeclared), (
+        f"{GAPS_PATH.name} `undeclared` top-level keys diverge from the sweep: "
+        f"sweep has {sorted(sweep_keys)}, file has {sorted(undeclared)}."
+    )
+    for snapshot, scopes in SWEEP.items():
+        key = snapshot.removesuffix(".json")
+        assert set(scopes) == set(undeclared[key]), (
+            f"{key} scope keys under `undeclared` in {GAPS_PATH.name} diverge "
+            f"from the sweep: sweep has {sorted(scopes)}, file has "
+            f"{sorted(undeclared[key])}."
         )
 
 
