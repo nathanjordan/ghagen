@@ -137,7 +137,7 @@ Invariants (all already true in code; the tests below freeze them):
 
 Follow the existing cross-port snapshot infrastructure. Shared golden fixtures
 already live at the repo-root `fixtures/expected/*.yml` and are loaded by **both**
-ports: Python `tests/test_integration/` (`conftest.py` → `FIXTURES_DIR`) and
+ports: Python `tests/test_integration/` (`test_snapshots.py` → `EXPECTED_DIR`) and
 TypeScript `src/integration/test-utils.ts` (`loadFixture`, same
 `../../../../fixtures` path). Snapshot tests build a model in each language and
 `assert rendered == loadFixture(name)` — parity by construction against one file.

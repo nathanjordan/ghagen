@@ -17,12 +17,12 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
-from ghagen_schema.paths import FIXTURES_DIR
+from ghagen_schema.paths import EXPECTED_DIR
 
 from ghagen.app import App
 from ghagen.cli.main import main
 
-_FIXTURE = FIXTURES_DIR / "expected" / "init_scaffold.yml"
+_FIXTURE = EXPECTED_DIR / "init_scaffold.yml"
 
 
 def _load_app(config_path: Path) -> App:

@@ -37,5 +37,11 @@ export const REPO_ROOT = findRepoRoot();
 /** Canonical schema Snapshot directory (single source of truth). */
 export const SCHEMA_DIR = resolve(REPO_ROOT, "schema");
 
+/**
+ * The fixtures directory (holds `expected/` plus other fixture data such as
+ * `cli-exit-codes.yml` and `cli-exit-code-projects/`).
+ */
+export const FIXTURES_ROOT = resolve(REPO_ROOT, "fixtures");
+
 /** Shared golden fixtures consumed by both ports' test suites. */
-export const FIXTURES_DIR = resolve(REPO_ROOT, "fixtures", "expected");
+export const EXPECTED_DIR = resolve(FIXTURES_ROOT, "expected");

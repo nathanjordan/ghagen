@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ghagen_schema.paths import FIXTURES_DIR
+from ghagen_schema.paths import EXPECTED_DIR
 from pytest_snapshot.plugin import Snapshot
 from ruamel.yaml.comments import CommentedMap
 
@@ -36,7 +36,7 @@ from ghagen.models.common import PermissionLevel
 from ghagen.models.job import Concurrency
 from ghagen.models.trigger import WorkflowDispatchInput
 
-SNAPSHOT_DIR = FIXTURES_DIR / "expected"
+SNAPSHOT_DIR = EXPECTED_DIR
 
 
 def test_ci_basic(snapshot: Snapshot):
