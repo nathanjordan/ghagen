@@ -18,7 +18,7 @@ export interface WrapRule {
    * - `objectModel` — wrap only when a non-Model object (leaves strings/Raw).
    * - `list`        — map an array, wrapping each non-Model item.
    * - `map`         — map an object's values, wrapping each non-string/-Model.
-   * - `dispatch`    — pass booleans/null through, else wrap unless a Model.
+   * - `dispatch`    — pass booleans through, else wrap unless a Model.
    */
   readonly mode: "model" | "objectModel" | "list" | "map" | "dispatch";
 }
@@ -85,6 +85,11 @@ export interface ModelSpec {
    * YAML keys whose value, when it resolves to an empty map, is emitted as a
    * bare null key (`key:`) instead of `key: {}`. The declarative replacement
    * for the model-layer present-null smuggle. Defaults to empty.
+   *
+   * This is about an *empty map*, never about `null`: a null field is dropped
+   * at construction (`buildYamlData`), so it never reaches this rule.
+   * `presentNullWhenEmpty` is how a caller spells "present, no configuration"
+   * and `null`/omission is how they spell "absent" — one meaning each.
    */
   readonly presentNullWhenEmpty?: readonly string[];
   /**

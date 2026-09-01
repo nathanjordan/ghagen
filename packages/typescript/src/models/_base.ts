@@ -423,6 +423,11 @@ export class ModelInputError extends Error {
  * wrapping and re-applied after, so `withComment(...)` survives around a
  * plain-object shorthand.
  *
+ * A field whose value is `null` is dropped, exactly as an omitted (`undefined`)
+ * one is: `null` means *unset*, the peer of Python's `exclude_none`. It is not
+ * a way to spell "present with no configuration" — an empty object (`{}`) is,
+ * via `presentNullWhenEmpty`.
+ *
  * This is the single input→`data` path in the port, so it is where the two
  * construction-time invariants live:
  *
@@ -468,7 +473,13 @@ export function buildYamlData(
 
   for (const [camelKey, yamlKey] of Object.entries(spec.fieldMap)) {
     let value = data[camelKey];
-    if (value === undefined) {
+    // `null` means UNSET, exactly as `undefined` does — the peer of Python's
+    // `exclude_none` (`emitter/nodes.py`, `collect_fields`). One word, one
+    // meaning, for every field of every model in both ports. Checked here, on
+    // the raw value before the `Commented` peel below, so `raw(null)` and
+    // `withComment(null, ...)` still survive: both are objects, not `null`,
+    // and Python's check is on the raw wrapper for the same reason.
+    if (value === undefined || value === null) {
       continue;
     }
 
@@ -597,7 +608,10 @@ function applyWrapRule(rule: WrapRule, value: unknown): unknown {
       return out;
     }
     case "dispatch":
-      if (typeof value === "boolean" || value === null) {
+      // No `null` branch: `buildYamlData` drops a null field before any wrap
+      // rule sees it (`null` means unset), so only the boolean shorthand
+      // needs to pass through unwrapped.
+      if (typeof value === "boolean") {
         return value;
       }
       return isModel(value) ? value : factory(value);
