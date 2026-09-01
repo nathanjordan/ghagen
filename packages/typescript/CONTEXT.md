@@ -135,7 +135,8 @@ What a caller should **do** about an **Upgrade report** — whether to apply bum
 refresh the lockfile, what to raise, and under what branch, title, and labels. Every field is a
 decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
 as well as the report, because one rule turns on `app.lockfilePath`, a fact the serialized report
-deliberately does not carry.
+deliberately does not carry. Its ten-field wire shape (both `--format json` and `--format github`)
+is declared once, in `schema/update-plan-fields.yml`, and pinned by both suites.
 
 ### Schema
 
