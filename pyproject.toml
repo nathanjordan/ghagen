@@ -79,7 +79,17 @@ venv = ".venv"
 # docs/issues/17 and docs/issues/32. An explicit path argument overrides `include` rather than
 # composing with it, so scripts/_gate.sh's PY_PATHS_TYPED is what the gate actually checks; this
 # list keeps a bare `uv run pyright` agreeing with it.
-include = ["packages/python/src", "scripts", ".github/ghagen_workflows.py"]
+include = [
+  "packages/python/src",
+  "packages/python/tests",
+  "scripts",
+  ".github/ghagen_workflows.py",
+]
+# The peer of `[tool.pytest.ini_options] pythonpath` below: the schema tests import
+# `ghagen_schema` as a top-level package from scripts/ (ADR-0003), which pytest arranges
+# with its own sys.path entry. pyright has no view of that setting, so without this every
+# `from ghagen_schema... import` in the tests is reportMissingImports -- see docs/issues/09.
+extraPaths = ["scripts"]
 # pyright's default `exclude` is ["**/node_modules", "**/__pycache__", "**/.*"], and that last
 # pattern quietly swallows everything under `.github/`. An explicit path argument does not
 # override it: `pyright .github/ghagen_workflows.py` reported "0 errors" while analysing zero

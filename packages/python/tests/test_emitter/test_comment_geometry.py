@@ -64,7 +64,13 @@ def test_render_eol_comment_contributes_gutter_minus_one():
 
 def test_render_eol_comment_is_idempotent_over_its_own_output():
     """What the ``#`` pass-through in the shared table buys the gutter pass."""
-    assert render_eol_comment(render_eol_comment("x").strip(" ")) == " # x"
+    # ``render_eol_comment`` returns None for exactly one input class -- a
+    # payload containing a newline, which cannot sit at end of line. ``"x"`` is
+    # not one, so the round trip is defined; naming the intermediate says so
+    # rather than assuming it (docs/issues/09).
+    once = render_eol_comment("x")
+    assert once is not None
+    assert render_eol_comment(once.strip(" ")) == " # x"
 
 
 # --- _apply_pre_comment_columns ---

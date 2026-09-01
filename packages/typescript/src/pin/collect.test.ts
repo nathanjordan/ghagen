@@ -159,7 +159,7 @@ describe("collectUsesRefs from actions", () => {
       action({
         name: "docker-action",
         description: "runs in a container",
-        runs: dockerRuns({ image: "docker://alpine:3" }),
+        runs: dockerRuns({ using: "docker", image: "docker://alpine:3" }),
       }),
     );
     expect(collectUsesRefs(app)).toEqual([]);

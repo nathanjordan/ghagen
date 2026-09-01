@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from ruamel.yaml.comments import CommentedMap
 
 import ghagen.models
-from ghagen import Matrix, Raw, Step, with_comment, with_eol_comment
+from ghagen import Commented, Matrix, Raw, Step, with_comment, with_eol_comment
 from ghagen.emitter.data import to_data
 from ghagen.models._base import _META_FIELDS, Document, GhagenModel
 from ghagen.models.spec import ModelSpec
@@ -261,11 +261,25 @@ def test_grammar_rejects_a_non_matching_string_under_a_comment_wrapper() -> None
 
 
 def test_raw_bypasses_the_grammar() -> None:
-    """``Raw`` is not a ``str``, so the grammar skips it — bare or wrapped."""
-    assert _Patterned(value=Raw("nope")).value.value == "nope"
-    wrapped = _Patterned(value=with_comment(Raw("nope"), "note"))
-    assert wrapped.value.value.value == "nope"
-    assert wrapped.value.comment == "note"
+    """``Raw`` is not a ``str``, so the grammar skips it — bare or wrapped.
+
+    ``_Patterned.value`` is declared ``str | Raw[str] | None`` and
+    ``with_comment`` is annotated ``T -> T`` while returning a ``Commented[T]``
+    (see ``ghagen._commented``), so neither the ``Raw`` nor the wrapper is
+    visible in the declared type. The ``isinstance`` narrowings below are what
+    this test is *for* -- that the value arrived as a ``Raw``, and that the
+    comment wrapper is still around it -- so they are stated rather than
+    asserted through a suppression (docs/issues/09).
+    """
+    bare = _Patterned(value=Raw("nope")).value
+    assert isinstance(bare, Raw)
+    assert bare.value == "nope"
+
+    wrapped = _Patterned(value=with_comment(Raw("nope"), "note")).value
+    assert isinstance(wrapped, Commented)
+    assert isinstance(wrapped.value, Raw)
+    assert wrapped.value.value == "nope"
+    assert wrapped.comment == "note"
 
 
 # --- integer-like YAML keys: rejected wherever a user key can reach the map ---

@@ -9,7 +9,7 @@ from ghagen._commented import with_comment, with_eol_comment
 from ghagen.emitter import CommentNode, to_data
 from ghagen.models.job import Defaults, DefaultsRun, Job
 from ghagen.models.step import Step
-from ghagen.models.trigger import On
+from ghagen.models.trigger import On, PushTrigger, WorkflowDispatchTrigger
 from ghagen.models.workflow import Workflow
 
 
@@ -29,12 +29,13 @@ def test_empty_workflow_dispatch_emits_present_null_key():
     Driven by ``ON_SPEC.present_null_when_empty`` in the Emitter, not a
     model-layer ``Raw(None)`` mutation.
     """
-    data = to_data(On(workflow_dispatch={}))
+    data = to_data(On(workflow_dispatch=WorkflowDispatchTrigger()))
     assert "workflow_dispatch" in data
     assert data["workflow_dispatch"] is None
     # Formatting (bare null key, not ``{}``) is a YAML concern — assert it on
     # the emitted string via a wrapping workflow.
-    yaml = Workflow(name="W", on=On(workflow_dispatch={})).to_yaml(header=None)
+    wf = Workflow(name="W", on=On(workflow_dispatch=WorkflowDispatchTrigger()))
+    yaml = wf.to_yaml(header=None)
     assert "workflow_dispatch:" in yaml
     assert "workflow_dispatch: {}" not in yaml
 
@@ -49,7 +50,7 @@ def test_on_emits_alphabetically_interleaving_extras():
     data = to_data(
         On(
             workflow_run={"types": ["completed"]},
-            push={"branches": ["main"]},
+            push=PushTrigger(branches=["main"]),
             extras={"merge_group": {}},
         )
     )
@@ -79,7 +80,7 @@ def test_defaults_run_shell_comment_in_emitted_yaml():
     """
     wf = Workflow(
         name="W",
-        on=On(push={"branches": ["main"]}),
+        on=On(push=PushTrigger(branches=["main"])),
         jobs={
             "build": Job(
                 runs_on="ubuntu-latest",

@@ -235,7 +235,11 @@ def test_if_guard():
 
 def test_unhashable():
     with pytest.raises(TypeError):
-        {expr.github.ref}  # noqa: B018
+        # Building the set is what raises -- `__hash__` runs as it is built.
+        # As a bare expression statement this needed a B018 suppression for
+        # ruff and still drew pyright's reportUnusedExpression; naming the
+        # result needs neither and loses nothing (docs/issues/09).
+        _ = {expr.github.ref}
 
 
 # --- repr ---

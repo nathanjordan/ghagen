@@ -7,7 +7,7 @@ import { toYaml, toYamlFile, toData } from "./yaml-writer.js";
 import { EOL_GUTTER } from "./comment-geometry.js";
 import type { HeaderVariables } from "./header.js";
 import { Model, raw, withComment, withEolComment } from "../models/_base.js";
-import type { ModelMeta, ModelSpec } from "../models/_base.js";
+import type { Document as GhagenDocument, ModelMeta, ModelSpec } from "../models/_base.js";
 import { JOB_SPEC, job } from "../models/job.js";
 import { workflow } from "../models/workflow.js";
 import { step } from "../models/step.js";
@@ -24,10 +24,21 @@ import { step } from "../models/step.js";
  * argument naming that same sequence a third time (after the literal and after
  * the spec); under the two-case {@link OrderMode} an `explicit` spec emits
  * `data` as it stands, so the argument is gone and the literal is the order.
+ *
+ * The return type is asserted to `Document`. That claim is *false* -- the
+ * spec's `kind` is `"step"`, and only a workflow or an action is a `Document`
+ * (`_base.ts`, ADR-0001) -- and it is deliberate: these tests exercise the
+ * writer on a model whose shape they control completely, which is the point of
+ * the seam. `toYaml` reads only `data` and `spec`, never the brand. Asserting
+ * once here is the alternative to 33 assertions at the call sites; before
+ * docs/issues/09 this file was outside `tsc` and neither was needed.
  */
-function simpleModel(data: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) {
+function simpleModel(
+  data: Record<string, unknown> = {},
+  meta: Record<string, unknown> = {},
+): GhagenDocument {
   const spec = { kind: "step", fieldMap: {} } as unknown as ModelSpec;
-  return new Model(spec, data, meta as ModelMeta);
+  return new Model(spec, data, meta as ModelMeta) as unknown as GhagenDocument;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,34 +220,46 @@ describe("comments", () => {
   });
 
   it("the EOL gutter does not depend on a neighbouring key's comment", () => {
-    // Cross-port parity: `test_comments.py` asserts the same four strings.
-    // The gutter is EOL_GUTTER whichever side of the key the comment sits on
-    // and whether or not a neighbour carries one. On `main` TypeScript emitted
-    // one column for a collection value (the regex refused to widen after a
-    // `:`) and Python emitted one column whenever a neighbour was commented.
+    // Cross-port parity: `test_comments.py` asserts the same four gutter
+    // strings -- `on: push  # trigger` twice and `on:  # trigger` twice, each a
+    // substring of a whole document below. The gutter is EOL_GUTTER whichever
+    // side of the key the comment sits on and whether or not a neighbour
+    // carries one. On `main` TypeScript emitted one column for a collection
+    // value (the regex refused to widen after a `:`) and Python emitted one
+    // column whenever a neighbour was commented.
+    //
+    // Three of these four cases passed a third `["name", "on"]` argument to
+    // `simpleModel`, which has taken two parameters since the `order` field was
+    // deleted: `tsc` never saw the call because the file was excluded, and the
+    // argument was silently dropped. What it was there for is the premise the
+    // test's name rests on -- that `on` is emitted *after* `name`, so it really
+    // does have a commented neighbour. Without it the three cases relied on the
+    // literal's insertion order for the very thing they meant to state. The
+    // parameter is gone and is not coming back, so the premise is pinned the
+    // way this file pins the header cases: assert the whole emitted document,
+    // in which key order is a byte fact rather than an assumption.
+    // See docs/issues/09.
     const scalar = simpleModel({ name: "ci", on: withEolComment("push", "trigger") });
-    expect(toYaml(scalar, { header: null })).toContain("on: push  # trigger\n");
+    expect(toYaml(scalar, { header: null })).toBe("name: ci\non: push  # trigger\n");
 
-    const scalarWithNeighbour = simpleModel(
-      { name: withComment("ci", "the name"), on: withEolComment("push", "trigger") },
-      {},
-      ["name", "on"],
+    const scalarWithNeighbour = simpleModel({
+      name: withComment("ci", "the name"),
+      on: withEolComment("push", "trigger"),
+    });
+    expect(toYaml(scalarWithNeighbour, { header: null })).toBe(
+      "# the name\nname: ci\non: push  # trigger\n",
     );
-    expect(toYaml(scalarWithNeighbour, { header: null })).toContain("on: push  # trigger\n");
 
-    const collection = simpleModel(
-      { name: "ci", on: withEolComment({ push: {} }, "trigger") },
-      {},
-      ["name", "on"],
-    );
-    expect(toYaml(collection, { header: null })).toContain("on:  # trigger\n");
+    const collection = simpleModel({ name: "ci", on: withEolComment({ push: {} }, "trigger") });
+    expect(toYaml(collection, { header: null })).toBe("name: ci\non:  # trigger\n  push: {}\n");
 
-    const collectionWithNeighbour = simpleModel(
-      { name: withComment("ci", "the name"), on: withEolComment({ push: {} }, "trigger") },
-      {},
-      ["name", "on"],
+    const collectionWithNeighbour = simpleModel({
+      name: withComment("ci", "the name"),
+      on: withEolComment({ push: {} }, "trigger"),
+    });
+    expect(toYaml(collectionWithNeighbour, { header: null })).toBe(
+      "# the name\nname: ci\non:  # trigger\n  push: {}\n",
     );
-    expect(toYaml(collectionWithNeighbour, { header: null })).toContain("on:  # trigger\n");
   });
 
   it("a multi-line EOL comment degrades to a block comment above the field", () => {

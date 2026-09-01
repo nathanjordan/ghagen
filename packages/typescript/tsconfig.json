@@ -18,6 +18,13 @@
     "isolatedModules": true
   },
   "include": ["src"],
+  // The publish boundary, and nothing else: `npm run build` runs `tsc` over
+  // this config and `files: ["dist"]` ships what it emits, so tests and the
+  // test-only modules under `src/` stay out. It is deliberately NOT the gate's
+  // scope -- `npm run typecheck` uses `tsconfig.typecheck.json`, which extends
+  // this file and narrows `exclude` back to `node_modules`/`dist`. Adding an
+  // entry here therefore keeps a module out of `dist/` without taking it out of
+  // `tsc`, which is the whole of docs/issues/09.
   "exclude": [
     "node_modules",
     "dist",
