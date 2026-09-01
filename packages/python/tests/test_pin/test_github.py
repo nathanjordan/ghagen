@@ -7,10 +7,13 @@ The pure helpers are unit-tested directly.
 
 from __future__ import annotations
 
-import urllib.request
+import socket
+import threading
+import time
 
 import pytest
 
+from ghagen.pin import github
 from ghagen.pin.github import (
     API_TIMEOUT_SECONDS,
     GitHubClient,
@@ -23,7 +26,12 @@ from ghagen.pin.github import (
     _parse_next_link,
     _ref_urls,
 )
-from tests.test_pin.transport_contract import FakeTransport, canned, canned_raw
+from tests.test_pin.transport_contract import (
+    FakeTransport,
+    LoopbackOrigin,
+    canned,
+    canned_raw,
+)
 
 SHA = "a" * 40
 TAG_SHA = "b" * 40
@@ -292,25 +300,28 @@ class TestMalformedShape:
         transport = FakeTransport({"git/refs/tags": canned([])})
         assert GitHubClient(transport).list_tags("o", "r") == []
 
+    def test_a_later_page_being_malformed_also_raises(self):
+        # Issue 14: a well-formed page 1 with a Link header must not mask a
+        # malformed page 2 — the guard applies to every page the loop
+        # follows, not only the request list_tags makes first.
+        next_url = "https://api.github.com/repos/o/r/git/refs/tags?page=2"
+        page1 = [{"ref": "refs/tags/v1"}, {"ref": "refs/tags/v2"}]
+        transport = FakeTransport(
+            {
+                "git/refs/tags?page=2": canned({"message": "not an array"}),
+                "git/refs/tags": [
+                    canned(page1, headers={"Link": f'<{next_url}>; rel="next"'}),
+                ],
+            }
+        )
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Unexpected response shape"):
+            client.list_tags("o", "r")
 
-class _StubHTTPResponse:
-    """The smallest thing ``UrllibTransport.get`` will accept from ``urlopen``."""
 
-    status = 200
-    reason = "OK"
-    headers: dict[str, str] = {}
-
-    def read(self, *args: object) -> bytes:
-        return b"{}"
-
-    def read1(self, *args: object) -> bytes:
-        return b""
-
-    def __enter__(self) -> _StubHTTPResponse:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        return None
+def _respond_ok(conn: socket.socket, _stop: threading.Event) -> None:
+    """A complete, well-formed response — the deadline is what's under test."""
+    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
 
 
 class TestDefaultDeadline:
@@ -319,31 +330,39 @@ class TestDefaultDeadline:
     The conformance table always builds the adapter with an explicit deadline
     (``loopback_adapter``'s ``build``), so deleting the default would leave the
     whole suite green while shipping a transport that can hang forever.  These
-    tests observe the value the default-constructed adapter actually hands to
-    the underlying I/O call.
+    tests observe the value the default-constructed adapter actually arms,
+    against a real loopback request — peer of the TypeScript port's
+    ``describe("FetchTransport's default deadline", ...)`` in
+    ``pin/github.test.ts``, which spies on ``AbortSignal.timeout`` the same
+    way this spies on :func:`github._deadline_connection_class`, the one seam
+    the constructor's ``timeout`` value passes through on its way to actually
+    governing the request.
     """
 
-    def _captured_timeout(self, monkeypatch, transport: UrllibTransport) -> object:
-        captured: dict[str, object] = {}
+    def _armed_deadlines(self, monkeypatch, transport: UrllibTransport) -> list[float]:
+        captured: list[float] = []
+        original = github._deadline_connection_class
 
-        def fake_urlopen(req: object, **kwargs: object) -> _StubHTTPResponse:
-            captured["timeout"] = kwargs.get("timeout")
-            return _StubHTTPResponse()
+        def spy(base: type, deadline: float) -> type:
+            captured.append(deadline)
+            return original(base, deadline)
 
-        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-        transport.get("http://origin.test/contract")
-        return captured["timeout"]
+        monkeypatch.setattr(github, "_deadline_connection_class", spy)
+
+        with LoopbackOrigin(_respond_ok) as origin:
+            before = time.monotonic()
+            transport.get(origin.url)
+        return [deadline - before for deadline in captured]
 
     def test_default_constructed_adapter_uses_the_declared_deadline(self, monkeypatch):
-        assert (
-            self._captured_timeout(monkeypatch, UrllibTransport())
-            == API_TIMEOUT_SECONDS
-        )
+        deadlines = self._armed_deadlines(monkeypatch, UrllibTransport())
+        assert deadlines == [pytest.approx(API_TIMEOUT_SECONDS, abs=0.1)]
 
     def test_explicit_deadline_overrides_the_default(self, monkeypatch):
         # Pins API_TIMEOUT_SECONDS as the *default argument* rather than a
         # constant hardcoded into the request.
-        assert self._captured_timeout(monkeypatch, UrllibTransport(timeout=1.5)) == 1.5
+        deadlines = self._armed_deadlines(monkeypatch, UrllibTransport(timeout=1.5))
+        assert deadlines == [pytest.approx(1.5, abs=0.1)]
 
     def test_declared_deadline_matches_the_typescript_port(self):
         # `API_TIMEOUT_MS = 30_000` in packages/typescript/src/pin/github.ts.

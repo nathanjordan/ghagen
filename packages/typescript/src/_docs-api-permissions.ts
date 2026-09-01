@@ -4,3 +4,4 @@
  * @packageDocumentation
  */
 export { permissions } from "./models/permissions.js";
+export type { PermissionsValue } from "./models/permissions.js";

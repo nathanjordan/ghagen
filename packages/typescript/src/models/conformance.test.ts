@@ -13,7 +13,12 @@
  * mirrored exactly by the Python sweep
  * (`packages/python/tests/test_schema/test_conformance.py`). Both ports held to
  * the same allow-list means both model the same property set -- cross-port
- * surface agreement, structurally.
+ * surface agreement, structurally. Every entry is asserted three ways: a
+ * listed name must still be upstream ("stale"), must still be uncovered by the
+ * model ("closed" -- catching a gap that was fixed without deleting the row),
+ * and the file's own top-level snapshot/scope keys must match the sweep
+ * exactly ("gap set matches the sweep" -- catching a garbled key, which an
+ * empty allow-list under it would otherwise hide).
  */
 
 import { readFileSync } from "node:fs";
@@ -21,13 +26,15 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SCHEMA_DIR } from "../paths.js";
-import { withComment, type ModelKind, type ModelSpec } from "./_base.js";
-import { imageSnapshot } from "./image-snapshot.js";
+import { raw, type ModelKind, type ModelSpec } from "./_base.js";
+import { VALUE_BINDINGS } from "./conformance-values.js";
+import { CONSTRAINT_BINDINGS, INPUT_BINDINGS } from "./conformance-inputs.js";
 import { SPECS_BY_KIND } from "./registry.js";
 
 const GAPS_PATH = resolve(SCHEMA_DIR, "conformance-gaps.yml");
 const SCOPES_PATH = resolve(SCHEMA_DIR, "conformance-scopes.yml");
 const VALUES_PATH = resolve(SCHEMA_DIR, "conformance-values.yml");
+const INPUTS_PATH = resolve(SCHEMA_DIR, "conformance-inputs.yml");
 const KEY_ORDER_PATH = resolve(SCHEMA_DIR, "key-order.yml");
 
 /**
@@ -113,12 +120,26 @@ const SWEEP: Record<string, Record<string, Scope>> = Object.fromEntries(
 
 type Gaps = Record<string, Record<string, string[]>>;
 
+/**
+ * Reserved top-level key in conformance-gaps.yml holding cross-field
+ * constraint gaps rather than per-scope property gaps. It is not a snapshot,
+ * so the property-gap sweep and its key-set guard must both skip it.
+ */
+const CONSTRAINTS_KEY = "constraints";
+
 function loadSchema(filename: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(SCHEMA_DIR, filename), "utf8"));
 }
 
+/** The whole gaps document, `constraints` section included. */
+function loadGapsFile(): Record<string, unknown> {
+  return parse(readFileSync(GAPS_PATH, "utf8")) as Record<string, unknown>;
+}
+
+/** Only the per-snapshot property-gap sections. */
 function loadGaps(): Gaps {
-  return parse(readFileSync(GAPS_PATH, "utf8")) as Gaps;
+  const doc = loadGapsFile();
+  return Object.fromEntries(Object.entries(doc).filter(([key]) => key !== CONSTRAINTS_KEY)) as Gaps;
 }
 
 function resolvePath(schema: Record<string, unknown>, path: SchemaPath): Record<string, unknown> {
@@ -189,6 +210,18 @@ describe("schema conformance sweep", () => {
           `${snapshot}:${scopeName} allow-list has stale entries ${JSON.stringify(stale)} ` +
             `no longer in the schema. Remove them from conformance-gaps.yml.`,
         ).toEqual([]);
+
+        // A gap entry claims the model does NOT cover this name. If the model
+        // now covers it, the gap has been closed and the row is stale in the
+        // other direction -- this is what makes a recorded gap a *test that
+        // the gap still exists*, so closing it forces the table to be updated.
+        const closed = [...allow].filter((a) => covered.has(a)).sort();
+        expect(
+          closed,
+          `${snapshot}:${scopeName} allow-list names ${JSON.stringify(closed)} that ` +
+            `the model now covers -- the gap has been closed. Remove them from ` +
+            `conformance-gaps.yml.`,
+        ).toEqual([]);
       });
     }
   }
@@ -205,6 +238,26 @@ describe("schema conformance sweep", () => {
         Object.keys(SPECS[snapshot]).sort(),
         `${snapshot} scopes diverge from conformance-scopes.yml`,
       ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
+
+  it("gap set matches the sweep", () => {
+    // Mirrors the Python guard (test_gap_set_matches_sweep). The per-scope
+    // test above reads `gaps[snapshotKey]?.[scopeName] ?? []`, which silently
+    // treats a garbled or missing key as "no gaps recorded" -- invisible when
+    // that key's allow-list is empty anyway, which is exactly this file's
+    // current state. This guard makes the file's shape itself load-bearing:
+    // every snapshot and scope key the sweep binds must appear here and vice
+    // versa, so renaming or dropping a top-level key (e.g. `workflow_schema`
+    // -> `workflow_schemas`) fails here.
+    const sweepKeys = Object.keys(SWEEP).map((snapshot) => snapshot.replace(/\.json$/, ""));
+    expect(sweepKeys.sort()).toEqual(Object.keys(gaps).sort());
+    for (const [snapshot, scopes] of Object.entries(SWEEP)) {
+      const key = snapshot.replace(/\.json$/, "");
+      expect(
+        Object.keys(scopes).sort(),
+        `${key} scope keys in conformance-gaps.yml diverge from the sweep`,
+      ).toEqual(Object.keys(gaps[key] ?? {}).sort());
     }
   });
 });
@@ -277,31 +330,12 @@ interface ValueEntry {
   readonly reject_commented: readonly string[];
 }
 
-interface ValueBinding {
-  readonly spec: ModelSpec;
-  /** Construct the model with `value` in the bound field. Throws on reject. */
-  readonly construct: (value: string) => unknown;
-  /**
-   * Construct with `withComment(value, …)` in the bound field. A comment
-   * wrapper is presentation, not content, so it must not change what the
-   * grammar accepts — the `reject_commented` vectors bind that in both ports.
-   */
-  readonly constructCommented: (value: string) => unknown;
-}
-
-// snapshot filename -> `<kind>.<field>` -> this port's spec + constructor. The
-// key format is exactly `spec.kind` plus a `patterns` key, so the shared table
-// *is* the spec data under one join.
-const VALUE_BINDINGS: Record<string, Record<string, ValueBinding>> = {
-  "workflow_schema.json": {
-    "imageSnapshot.version": {
-      spec: SPECS_BY_KIND.imageSnapshot,
-      construct: (version) => imageSnapshot({ imageName: "img", version }),
-      constructCommented: (version) =>
-        imageSnapshot({ imageName: "img", version: withComment(version, "note") }),
-    },
-  },
-};
+// `ValueBinding` and `VALUE_BINDINGS` live in `./conformance-values.ts`, a
+// plain (non-`.test.ts`) source file, not here -- see that file's doc comment
+// for why: `tsconfig.json` excludes `src/**/*.test.ts` from `tsc --noEmit`,
+// so a binding defined in this file would never be type-checked, and the
+// raw-hatch check below would pass regardless of whether the bound field's
+// declared type actually admits `Raw`.
 
 function loadValues(): Record<string, Record<string, ValueEntry>> {
   return parse(readFileSync(VALUES_PATH, "utf8")) as Record<string, Record<string, ValueEntry>>;
@@ -314,6 +348,47 @@ function resolveValuePath(schema: Record<string, unknown>, path: SchemaPath): un
   }
   return node;
 }
+
+/**
+ * A bound pattern's source must start with `^` and end with `$`.
+ *
+ * TypeScript enforces value grammars with `pattern.test` (`models/_base.ts`),
+ * which depends on the anchors entirely -- unlike Python's `fullmatch`
+ * (`GhagenModel._enforce_spec_patterns`), for which they are redundant. The
+ * two ports therefore agree today only by coincidence of every current
+ * pattern happening to be anchored. The next grammar copied from a JSON
+ * Schema `pattern` -- where *unanchored* is the norm -- would make
+ * TypeScript accept a value Python rejects, with nothing catching the
+ * divergence (issue 28 #3). This assertion is what closes that gap.
+ */
+function assertPatternAnchored(pattern: RegExp, key: string): void {
+  const src = pattern.source;
+  const anchored = src.startsWith("^") && src.endsWith("$");
+  expect(
+    anchored,
+    `${key} pattern ${JSON.stringify(src)} is not anchored with ^ and $. ` +
+      "TypeScript's pattern.test() depends on the anchors entirely, but " +
+      "Python's fullmatch() (models/_base.py) does not need them -- " +
+      "without them the two ports would validate this field differently. " +
+      "Add ^ and $ to the pattern, or wrap the RegExp as ^(?:...)$ so the " +
+      "anchors stop being load-bearing in either port.",
+  ).toBe(true);
+}
+
+describe("value-grammar pattern anchoring", () => {
+  // Direct proof `assertPatternAnchored` catches what it must. The sweep
+  // below only ever sees today's real bindings, which are already anchored
+  // -- so on its own it can never turn red. This constructs the exact input
+  // the sweep cannot currently produce (an unanchored pattern) and confirms
+  // the assertion actually fails it, rather than passing by construction.
+  it("rejects an unanchored pattern", () => {
+    expect(() => assertPatternAnchored(/\d+/, "synthetic.field")).toThrow(/not anchored/);
+  });
+
+  it("accepts an anchored pattern", () => {
+    expect(() => assertPatternAnchored(/^\d+$/, "synthetic.field")).not.toThrow();
+  });
+});
 
 describe("schema value-grammar sweep", () => {
   const values = loadValues();
@@ -336,6 +411,12 @@ describe("schema value-grammar sweep", () => {
         expect(pattern?.flags, `${key} pattern must carry no flags`).toBe("");
       });
 
+      it(`${snapshot}:${key} pattern is anchored with ^ and $`, () => {
+        const pattern = binding.spec.patterns?.[field];
+        expect(pattern, `${key} declares no pattern in its ModelSpec`).toBeDefined();
+        assertPatternAnchored(pattern as RegExp, key);
+      });
+
       it(`${snapshot}:${key} accepts every schema-valid vector`, () => {
         for (const value of entry.accept) {
           expect(
@@ -351,6 +432,27 @@ describe("schema value-grammar sweep", () => {
             () => binding.construct(value),
             `${key} accepted ${JSON.stringify(value)}`,
           ).toThrow();
+        }
+      });
+
+      it(`${snapshot}:${key} accepts a raw() value in place of the grammar`, () => {
+        // A field carrying a spec pattern MUST admit `raw()` -- see issue 22.
+        // `buildYamlData` skips the grammar check for a non-string value
+        // specifically so `raw()` stays the escape hatch, and the
+        // grammar-violation message (`models/_base.ts`) tells the caller
+        // exactly that. That advice is only true if the field's declared
+        // type actually accepts a `Raw`. TypeScript has no runtime type
+        // information to inspect (unlike Python's
+        // `model_fields[field].annotation`), so this executes the same path
+        // a caller acting on the message would: every `reject` vector,
+        // wrapped in `raw(...)` instead of passed bare, must still
+        // construct. A field typed to exclude `Raw` fails this with a thrown
+        // `ModelInputError` instead of silently shipping a false promise.
+        for (const value of entry.reject) {
+          expect(
+            () => binding.construct(raw(value)),
+            `${key} rejected raw(${JSON.stringify(value)})`,
+          ).not.toThrow();
         }
       });
 
@@ -384,6 +486,235 @@ describe("schema value-grammar sweep", () => {
       expect(
         Object.keys(VALUE_BINDINGS[snapshot]).sort(),
         `${snapshot} value grammars diverge from conformance-values.yml`,
+      ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Input-TYPE sweep. The scope table binds which properties a model exposes; the
+// value table binds the grammar of the string fields that declare one. Neither
+// binds a field's accepted TYPE UNION, which is the axis the two ports actually
+// drifted on (issue 27). The shared table is schema/conformance-inputs.yml,
+// read identically by the Python sweep; the spec + constructor + typed-literal
+// binding lives in `./conformance-inputs.ts` -- a plain `src/` module, because
+// `tsconfig.json` excludes `src/**/*.test.ts` from `tsc --noEmit` and the
+// reject direction of this sweep IS the compiler. See that file's header.
+// ---------------------------------------------------------------------------
+
+interface InputRef {
+  readonly path: SchemaPath;
+  readonly value: string;
+}
+
+interface InputEntry {
+  /** The key this field emits; each port asserts its own spec maps to it. */
+  readonly yaml_key: string;
+  /** Paths, each resolving to a JSON-Schema `type` token or a list of them. */
+  readonly type_paths: readonly SchemaPath[];
+  /** The sorted union of what `type_paths` resolve to. */
+  readonly types: readonly string[];
+  /** Optional: a path plus the exact `$ref` string it must hold. */
+  readonly ref?: InputRef;
+  readonly accept: readonly unknown[];
+  readonly reject: readonly unknown[];
+}
+
+function loadInputs(): Record<string, Record<string, InputEntry>> {
+  return parse(readFileSync(INPUTS_PATH, "utf8")) as Record<string, Record<string, InputEntry>>;
+}
+
+/** The sorted union of the JSON-Schema type tokens at `type_paths`. */
+function snapshotTypeUnion(schema: Record<string, unknown>, entry: InputEntry): string[] {
+  const types = new Set<string>();
+  for (const path of entry.type_paths) {
+    const node = resolveValuePath(schema, path);
+    if (typeof node === "string") {
+      types.add(node);
+    } else {
+      for (const token of node as string[]) {
+        types.add(token);
+      }
+    }
+  }
+  return [...types].sort();
+}
+
+describe("schema input-type sweep", () => {
+  const inputs = loadInputs();
+
+  for (const [snapshot, entries] of Object.entries(inputs)) {
+    const schema = loadSchema(snapshot);
+
+    for (const [key, entry] of Object.entries(entries)) {
+      const binding = INPUT_BINDINGS[snapshot]?.[key];
+      if (binding === undefined) {
+        continue; // the parity guard below is the failure surface
+      }
+
+      it(`${snapshot}:${key} declared types match the canonical Snapshot`, () => {
+        // The type-union analogue of the value sweep's pattern-identity check,
+        // and what stops the shared table from being a wish. An upstream
+        // narrowing -- or a typo in `types` -- fails here, in both ports.
+        expect(snapshotTypeUnion(schema, entry)).toEqual([...entry.types]);
+      });
+
+      it(`${snapshot}:${key} field emits the shared yaml_key`, () => {
+        // The shared key (`job.continueOnError`) uses one spelling for a field
+        // the two ports name differently. This is what makes that safe: each
+        // port names its own field in its own binding, and both assert the
+        // field lands on the same emitted key.
+        expect(
+          binding.spec.fieldMap[binding.field],
+          `${key}: this port maps ${binding.field} elsewhere`,
+        ).toBe(entry.yaml_key);
+      });
+
+      if (entry.ref !== undefined) {
+        const ref = entry.ref;
+        it(`${snapshot}:${key} is still a bare $ref to the shared node`, () => {
+          // Only the two `permissions` rows carry a `ref`, and there it is the
+          // entire justification for one `PermissionsValue` alias serving both
+          // the workflow-level and the job-level field. If upstream inlines or
+          // splits `definitions.permissions`, one alias stops being the right
+          // shape and this fails.
+          expect(resolveValuePath(schema, ref.path)).toBe(ref.value);
+        });
+      }
+
+      it(`${snapshot}:${key} accept vectors match the shared table`, () => {
+        // This is the join between the compiler and the shared file. The
+        // literals in `conformance-inputs.ts` are `satisfies readonly
+        // <FieldType>[]`, so tsc has already ruled they are all in the field's
+        // union; this asserts they are the SAME list the Python sweep
+        // executes. Edit a vector in the YAML and this comparison fails here
+        // while the construction fails there -- one shared byte, both suites.
+        expect(binding.accept).toEqual(entry.accept);
+      });
+
+      it(`${snapshot}:${key} reject vectors match the shared table`, () => {
+        // Same join for the reject direction, which has no runtime form in
+        // this port. Each literal in `conformance-inputs.ts` sits under an
+        // `@ts-expect-error`, so tsc has already ruled each one is OUTSIDE the
+        // field's union (and reports an unused directive the moment the field
+        // widens to admit it). This asserts the compiler ruled on the same
+        // list Python's `pytest.raises` executes.
+        expect(binding.reject).toEqual(entry.reject);
+      });
+
+      it(`${snapshot}:${key} constructs with every accept vector`, () => {
+        // Weaker than Python's peer and deliberately kept anyway: it catches
+        // an accept vector the RUNTIME rejects (a value grammar, a metadata
+        // check), which the compile-time `satisfies` cannot see.
+        for (const value of entry.accept) {
+          expect(
+            () => binding.construct(value),
+            `${key} rejected ${JSON.stringify(value)}`,
+          ).not.toThrow();
+        }
+      });
+    }
+  }
+
+  it("input-type key set matches the shared input table", () => {
+    // Mirrors the Python guard (test_input_key_set_matches_shared_table): a
+    // type union bound in one port and not the other fails here.
+    const shared = loadInputs();
+    expect(Object.keys(INPUT_BINDINGS).sort()).toEqual(Object.keys(shared).sort());
+    for (const snapshot of Object.keys(shared)) {
+      expect(
+        Object.keys(INPUT_BINDINGS[snapshot]).sort(),
+        `${snapshot} input types diverge from conformance-inputs.yml`,
+      ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-field constraint gaps -- the `constraints` section of
+// conformance-gaps.yml. A property gap proves itself by the property's absence
+// from the spec, a set-membership test. A cross-field constraint has no such
+// footprint (both fields are present and both are typed), so the only proof
+// the limit still exists is to construct the schema-invalid combination and
+// watch it succeed.
+// ---------------------------------------------------------------------------
+
+interface ConstraintRequirement {
+  readonly path: SchemaPath;
+  readonly value: unknown;
+}
+
+interface ConstraintRow {
+  readonly kind: string;
+  readonly requires: readonly ConstraintRequirement[];
+  readonly requires_prose: string;
+  readonly unenforced: string;
+  readonly counterexample: Record<string, unknown>;
+}
+
+function loadConstraints(): Record<string, Record<string, ConstraintRow>> {
+  return loadGapsFile()[CONSTRAINTS_KEY] as Record<string, Record<string, ConstraintRow>>;
+}
+
+describe("cross-field constraint gaps", () => {
+  const constraints = loadConstraints();
+
+  for (const [snapshot, rows] of Object.entries(constraints)) {
+    const schema = loadSchema(`${snapshot}.json`);
+
+    for (const [key, row] of Object.entries(rows)) {
+      const binding = CONSTRAINT_BINDINGS[snapshot]?.[key];
+      if (binding === undefined) {
+        continue; // the parity guard below is the failure surface
+      }
+
+      it(`${snapshot}:${key} rule still exists upstream`, () => {
+        // Claim 1, the peer of the property rows' `stale` check: the row
+        // cannot outlive the upstream rule it describes.
+        for (const req of row.requires) {
+          expect(
+            resolveValuePath(schema, req.path),
+            `${key}: the Snapshot no longer holds ${JSON.stringify(req.value)} at ` +
+              `${JSON.stringify(req.path)} -- update or remove the row`,
+          ).toEqual(req.value);
+        }
+      });
+
+      it(`${snapshot}:${key} counterexample still type-checks`, () => {
+        // Claim 2 for this port. The runtime half below is nearly vacuous here
+        // -- TypeScript validates no declared input type at runtime, so almost
+        // anything "constructs". The meaningful claim is the compile-time one:
+        // `conformance-inputs.ts` declares this same object `satisfies` the
+        // model's input type with NO `@ts-expect-error`, so it must compile.
+        // Enforce the conditional with a discriminated union and that stops
+        // compiling, forcing the row out. This assertion binds that literal to
+        // the YAML row so corrupting either is visible.
+        expect(binding.counterexample).toEqual(row.counterexample);
+      });
+
+      it(`${snapshot}:${key} counterexample still constructs`, () => {
+        expect(() => binding.construct()).not.toThrow();
+      });
+
+      it(`${snapshot}:${key} row states its claim`, () => {
+        // A gap row is a claim, so it must actually say what is unenforced.
+        // An empty or placeholder prose field turns the row back into the
+        // shrug it exists to replace.
+        expect(row.requires_prose.length).toBeGreaterThan(120);
+        expect(row.unenforced.length).toBeGreaterThan(120);
+      });
+    }
+  }
+
+  it("constraint gap key set matches the sweep", () => {
+    // Claim 3, mirrored in the Python sweep: a constraint recorded against one
+    // port only -- or a garbled key -- fails a test.
+    const shared = loadConstraints();
+    expect(Object.keys(CONSTRAINT_BINDINGS).sort()).toEqual(Object.keys(shared).sort());
+    for (const snapshot of Object.keys(shared)) {
+      expect(
+        Object.keys(CONSTRAINT_BINDINGS[snapshot]).sort(),
+        `${snapshot} constraint rows in conformance-gaps.yml diverge from the sweep`,
       ).toEqual(Object.keys(shared[snapshot]).sort());
     }
   });

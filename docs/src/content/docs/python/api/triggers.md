@@ -158,14 +158,25 @@ An input parameter for `workflow_dispatch` triggers.
 
 ### Parameters
 
-| Parameter             | Type                                                                                  | Default | Description                                                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description`         | `str \| None`                                                                         | `None`  | Human-readable description of the input.                                                                                                          |
-| `required`            | `bool \| None`                                                                        | `None`  | Whether the input is required.                                                                                                                    |
-| `default`             | `str \| None`                                                                         | `None`  | Default value for the input.                                                                                                                      |
-| `type`                | `Literal["boolean", "number", "string", "choice", "environment"] \| Raw[str] \| None` | `None`  | Input type. Closed set — the five members `workflow_dispatch` accepts. Use `Raw` to bypass.                                                       |
-| `options`             | `list[str] \| None`                                                                   | `None`  | Available options when `type` is `"choice"`.                                                                                                      |
-| `deprecation_message` | `str \| None`                                                                         | `None`  | Deprecation notice shown in the dispatch UI. Serialized as `deprecationMessage` — the schema spells this key camelCase, unlike its five siblings. |
+| Parameter             | Type                                                                                  | Default | Description                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`         | `str \| None`                                                                         | `None`  | Human-readable description of the input.                                                                                                                                  |
+| `required`            | `bool \| None`                                                                        | `None`  | Whether the input is required.                                                                                                                                            |
+| `default`             | `str \| bool \| int \| float \| None`                                                 | `None`  | Default value for the input. The schema types this conditionally on the sibling `type` (see the caution below); ghagen accepts the unconditional union of those branches. |
+| `type`                | `Literal["boolean", "number", "string", "choice", "environment"] \| Raw[str] \| None` | `None`  | Input type. Closed set — the five members `workflow_dispatch` accepts. Use `Raw` to bypass.                                                                               |
+| `options`             | `list[str] \| None`                                                                   | `None`  | Available options when `type` is `"choice"`.                                                                                                                              |
+| `deprecation_message` | `str \| None`                                                                         | `None`  | Deprecation notice shown in the dispatch UI. Serialized as `deprecationMessage` — the schema spells this key camelCase, unlike its five siblings.                         |
+
+:::caution[`default` and `type` are not cross-checked]
+The canonical schema makes `default`'s type conditional on the sibling `type`:
+`type="string"` (and `"environment"`) require a string default, `type="boolean"` a
+boolean one, `type="number"` a number, and `type="choice"` requires `options`. ghagen
+types `default` as the _unconditional_ union of those branches and never reads `type`
+when validating it — `WorkflowDispatchInput(type="boolean", default="yes")` constructs
+cleanly here and is rejected by GitHub. Both ports behave identically; the limit is
+recorded, with its counterexample and the upstream paths it depends on, under
+`constraints` in `schema/conformance-gaps.yml`.
+:::
 
 ## WorkflowCallTrigger
 
@@ -220,7 +231,7 @@ An input parameter for `workflow_call` triggers.
 | ------------- | ---------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `description` | `str \| None`                                        | `None`   | Human-readable description of the input.                                                                                        |
 | `required`    | `bool \| None`                                       | `None`   | Whether the input is required.                                                                                                  |
-| `default`     | `str \| None`                                        | `None`   | Default value.                                                                                                                  |
+| `default`     | `str \| bool \| int \| float \| None`                | `None`   | Default value. The schema types this one directly, and unconditionally, as `[boolean, number, string]`.                         |
 | `type`        | `Literal["boolean", "number", "string"] \| Raw[str]` | required | Input type. Closed set — narrower than `workflow_dispatch`'s, and required, both per the canonical schema. Use `Raw` to bypass. |
 
 ## WorkflowCallOutput

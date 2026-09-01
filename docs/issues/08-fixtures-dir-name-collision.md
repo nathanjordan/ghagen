@@ -1,6 +1,6 @@
 # `FIXTURES_DIR` names two different directories in the two ports
 
-**Status:** open — deferred out of proposal 23 (dev-script hygiene), round 2
+**Status:** closed — resolved by spec 0004's unified root discovery; verified round 3
 
 One name, one sentence of documentation, two directories:
 
@@ -72,3 +72,25 @@ One more file carries a stale reference to the same constant and belongs with th
 Fixing it means touching five files under `packages/` and `scripts/ghagen_schema/`, which turns a
 dev-tooling change into a two-port change and serialises it against test-file work in several
 round-2 proposals that took a hard dependency on today's values. Sequence it after those land.
+
+## Resolution
+
+Resolved indirectly, by spec 0004 (unified root discovery), before this issue was picked up.
+Verified in round 3: `grep -rn FIXTURES_DIR scripts/ packages/` returns **nothing**. The colliding
+name no longer exists in either port. Both now publish the same two constants with the same meaning
+and the same documentation:
+
+|                 | Python (`scripts/ghagen_schema/paths.py`) | TypeScript (`packages/typescript/src/paths.ts`) |
+| --------------- | ----------------------------------------- | ----------------------------------------------- |
+| `FIXTURES_ROOT` | `REPO_ROOT / "fixtures"`                  | `resolve(REPO_ROOT, "fixtures")`                |
+| `EXPECTED_DIR`  | `FIXTURES_ROOT / "expected"`              | `resolve(FIXTURES_ROOT, "expected")`            |
+
+The rebinding this issue described — `test_deps.py` importing `FIXTURES_DIR as _FIXTURES_ROOT` and
+then redefining it — is gone with it.
+
+**One premise here is now stale and worth recording**, because it would have pushed a fix in the
+wrong direction: this issue argued that "`fixtures/` contains exactly one entry, `expected/`, so the
+Python constant points at the parent of the only thing anyone wants." That is no longer true.
+`fixtures/` now holds `expected/`, `actions/`, `cli-exit-code-projects/` and `cli-exit-codes.yml`.
+Collapsing the two names into one, as this issue proposed, would have been the wrong fix by the time
+anyone got to it. Keeping both names, distinctly, is correct.

@@ -131,7 +131,8 @@ What a caller should **do** about an **Upgrade report** — whether to apply bum
 refresh the lockfile, what to raise, and under what branch, title, and labels. Every field is a
 decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
 as well as the report, because one rule turns on `app.lockfile_path`, a fact the serialized report
-deliberately does not carry.
+deliberately does not carry. Its ten-field wire shape (both `--format json` and `--format github`)
+is declared once, in `schema/update-plan-fields.yml`, and pinned by both suites.
 
 ### Schema
 
@@ -145,6 +146,27 @@ Divergence between the committed schema Snapshot and the current upstream schema
 A named node in a Snapshot (`schema/conformance-scopes.yml`) that both ports must bind to a
 covering model, and whose declared property set that model must emit in full. A path segment may
 be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
+
+**Gap**:
+A limit both ports intentionally do not close, recorded in `schema/conformance-gaps.yml`. Two
+kinds, proved differently. A **property gap** is a scope property neither port models,
+allow-listed by name; both sweeps hold every such row to three claims, not just "listed": the name
+must still exist upstream (else stale), must still be uncovered by the model (else the gap has been
+closed and the row must go), and the file's own snapshot/scope keys must equal the sweep's exactly.
+A **constraint gap**, under the reserved top-level `constraints` key, records a cross-field rule
+neither port enforces — today only `workflowDispatchInput.default`'s dependence on the sibling
+`type`. It has no absent property to point at, so its three claims differ: the upstream paths it
+names must still hold the values it names, its `counterexample` must still *construct* in both
+ports (the day either enforces the rule, the row fails and must go), and the same key-set parity.
+Either way a gap row is a live regression guard, not a comment that happens to be YAML.
+
+**Input type**:
+The accepted type union of a model field, bound to the Snapshot by `schema/conformance-inputs.yml`
+— the third shared table, alongside scopes (property sets) and values (grammars). A row names the
+`yaml_key` the field emits, the Snapshot `type_paths` whose union the declared type must equal, and
+accept/reject vectors both ports execute. `yaml_key` is what lets one row cover a field the two
+ports name differently. The reject direction is asymmetric by construction: Python runs it under
+`pytest.raises`, TypeScript compiles it under `@ts-expect-error`.
 
 ### CLI
 
@@ -181,10 +203,17 @@ framework renders the text, `main()` decides the number.
 - User input is validated at construction (Pydantic). Schema faithfulness is checked by integration
   tests, not by generated types (see ADR-0003). The TypeScript port enforces the same
   construction-time input contract; declared value grammars live in each port's `ModelSpec` and the
-  two are bound to the Snapshot by `schema/conformance-values.yml`.
+  two are bound to the Snapshot by `schema/conformance-values.yml`; the accepted *type union* of a
+  field is bound by its peer `schema/conformance-inputs.yml`, whose reject vectors Python executes
+  at runtime and TypeScript executes at compile time. Every field carrying a `patterns`
+  entry must admit `Raw[str]` in its annotation, so the grammar-violation message's "wrap the value in
+  `Raw(...)`" advice is true wherever it can fire (issue 22) — `conformance-values.yml`'s raw-hatch
+  check asserts this in both ports.
 - The config module (`config.py`) solely owns `.ghagen.yml` — discovery, single parse, validation,
-  App resolution — returning typed results with errors as values (ADR-0007); `CliError` is
-  CLI-local. The CLI entry point is `main(argv) -> int`, not the Typer app: click runs in
+  App resolution — returning typed results with errors as values (ADR-0007); `cli/_common.py`
+  renders a `ConfigError` to `typer.Exit`, which is CLI-local (the TypeScript peer's equivalent is
+  `CliError`, in `cli/_errors.ts` — Python has no such class). The CLI entry point is
+  `main(argv) -> int`, not the Typer app: click runs in
   `standalone_mode=False`, so the exit code is ghagen's decision rather than the framework's, and
   Typer's error rendering is reproduced explicitly. The synthesis pipeline is `synth.render()`; pin
   runs last (ADR-0005).
@@ -202,10 +231,14 @@ framework renders the text, `main()` decides the number.
   console, and no clock either: `plan_update` takes `today` as an argument, the same reasoning
   ADR-0002 applies to construction-time config globals. `plan_update(app, report, ...)` takes the
   **App** for exactly one fact, `app.lockfile_path`, which is why `refresh_lockfile` is not
-  `bool(report.lockfile_stale)`. `ghagen deps update` is the one command that runs a whole
-  automation pass — sweep, write, plan — and prints the plan and nothing else on stdout, so
-  `--format github` can be a bare `>> "$GITHUB_OUTPUT"` redirect. `check-deps/action.yml` is its
-  only in-repo consumer; the shell there branches on the plan and computes nothing.
+  `bool(report.lockfile_stale)`. `render_update_plan(plan, changed=..., output_format=...)` is
+  `pin/plan`'s renderer for the resulting **UpdatePlan** — the `plan` peer of `pin/render`'s
+  `render_upgrade_report`, same two-format (`json`/`github`) shape. `ghagen deps update` is the one
+  command that runs a whole automation pass — sweep, `pin/update`'s `apply_updates` writes the
+  version bumps back into user source, `plan_update` decides the rest — and prints the rendered
+  plan and nothing else on stdout, so `--format github` can be a bare `>> "$GITHUB_OUTPUT"`
+  redirect. `check-deps/action.yml` is its only in-repo consumer; the shell there branches on the
+  plan and computes nothing.
 - `_package_paths.py` is the shared "is this file ghagen-internal / a user file" predicate (peer of
   the TS `_package_paths.ts`). Tests resolve repo paths via `ghagen_schema.paths`, never via
   hand-rolled `parents[N]`.

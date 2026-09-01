@@ -5,10 +5,10 @@ import {
   GitHubClient,
   ResolveError,
   TransportError,
-  commitSha,
-  isAnnotatedTag,
-  parseNextLink,
-  refUrls,
+  _commitSha,
+  _isAnnotatedTag,
+  _parseNextLink,
+  _refUrls,
 } from "./github.js";
 import { FakeTransport, LoopbackOrigin, canned, cannedRaw } from "./transport-contract.js";
 const SHA = "a".repeat(40);
@@ -245,6 +245,20 @@ describe("a shape-malformed 200 surfaces as ResolveError", () => {
     const transport = new FakeTransport({ "git/refs/tags": canned([]) });
     expect(await new GitHubClient(transport).listTags("o", "r")).toEqual([]);
   });
+
+  it("throws when a later page is malformed, not just the first", async () => {
+    // Issue 14: a well-formed page 1 with a Link header must not mask a
+    // malformed page 2 — the guard applies to every page the loop follows,
+    // not only the request `listTags` makes first.
+    const next = "https://api.github.com/repos/o/r/git/refs/tags?page=2";
+    const page1 = [{ ref: "refs/tags/v1" }, { ref: "refs/tags/v2" }];
+    const transport = new FakeTransport({
+      "git/refs/tags?page=2": canned({ message: "not an array" }),
+      "git/refs/tags": [canned(page1, { headers: { Link: `<${next}>; rel="next"` } })],
+    });
+    const client = new GitHubClient(transport);
+    await expect(client.listTags("o", "r")).rejects.toThrow(/Unexpected response shape/);
+  });
 });
 
 /**
@@ -289,36 +303,36 @@ describe("FetchTransport's default deadline", () => {
 });
 
 describe("pure helpers", () => {
-  it("refUrls() returns tag-then-head fallback order", () => {
-    expect(refUrls("actions", "checkout", "v4")).toEqual([
+  it("_refUrls() returns tag-then-head fallback order", () => {
+    expect(_refUrls("actions", "checkout", "v4")).toEqual([
       "https://api.github.com/repos/actions/checkout/git/ref/tags/v4",
       "https://api.github.com/repos/actions/checkout/git/ref/heads/v4",
     ]);
   });
 
-  it("isAnnotatedTag() detects tag objects", () => {
-    expect(isAnnotatedTag({ type: "tag" })).toBe(true);
-    expect(isAnnotatedTag({ type: "commit" })).toBe(false);
-    expect(isAnnotatedTag({})).toBe(false);
+  it("_isAnnotatedTag() detects tag objects", () => {
+    expect(_isAnnotatedTag({ type: "tag" })).toBe(true);
+    expect(_isAnnotatedTag({ type: "commit" })).toBe(false);
+    expect(_isAnnotatedTag({})).toBe(false);
   });
 
-  it("commitSha() returns the sha only for commit objects", () => {
-    expect(commitSha({ type: "commit", sha: SHA })).toBe(SHA);
-    expect(commitSha({ type: "tag", sha: SHA })).toBeNull();
-    expect(commitSha({ type: "commit" })).toBeNull();
-    expect(commitSha({})).toBeNull();
+  it("_commitSha() returns the sha only for commit objects", () => {
+    expect(_commitSha({ type: "commit", sha: SHA })).toBe(SHA);
+    expect(_commitSha({ type: "tag", sha: SHA })).toBeNull();
+    expect(_commitSha({ type: "commit" })).toBeNull();
+    expect(_commitSha({})).toBeNull();
   });
 
-  it("parseNextLink() extracts the next relation", () => {
+  it("_parseNextLink() extracts the next relation", () => {
     const header =
       '<https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next", ' +
       '<https://api.github.com/repos/o/r/git/refs/tags?page=5>; rel="last"';
-    expect(parseNextLink(header)).toBe("https://api.github.com/repos/o/r/git/refs/tags?page=2");
+    expect(_parseNextLink(header)).toBe("https://api.github.com/repos/o/r/git/refs/tags?page=2");
   });
 
-  it("parseNextLink() returns null without a next relation", () => {
-    expect(parseNextLink(null)).toBeNull();
-    expect(parseNextLink("")).toBeNull();
-    expect(parseNextLink('<https://api.github.com/x?page=1>; rel="last"')).toBeNull();
+  it("_parseNextLink() returns null without a next relation", () => {
+    expect(_parseNextLink(null)).toBeNull();
+    expect(_parseNextLink("")).toBeNull();
+    expect(_parseNextLink('<https://api.github.com/x?page=1>; rel="last"')).toBeNull();
   });
 });

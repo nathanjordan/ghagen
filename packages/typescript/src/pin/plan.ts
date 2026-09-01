@@ -41,7 +41,13 @@ export interface UpdatePlan {
   /** Version bumps plus stale lockfile entries. */
   totalUpdates: number;
 
-  /** Whether to write newer version tags back into the user source files. */
+  /**
+   * Whether to write newer version tags back into the user source files.
+   *
+   * `false` whenever `output === "issue"`: an issue reports pending work, it
+   * does not perform it, so no write happens for either output. See
+   * `refreshLockfile` for the same rule applied to the lockfile.
+   */
   applyVersionBumps: boolean;
 
   /**
@@ -50,7 +56,8 @@ export interface UpdatePlan {
    * `false` when the app has no lockfile configured, whatever the report says
    * — `ghagen deps pin` exits 1 on such a project, and the report's
    * `checkedLockfile` stays `true` there because it records what the run was
-   * *asked* for, not what it ran.
+   * *asked* for, not what it ran. Also `false` whenever `output === "issue"`,
+   * for the same reason as `applyVersionBumps`.
    */
   refreshLockfile: boolean;
 
@@ -80,7 +87,13 @@ export interface UpdatePlan {
 
 /** Everything the caller chose, as opposed to everything the run found. */
 export interface PlanUpdateOptions {
-  /** What the caller wants raised when there is something to raise. */
+  /**
+   * What the caller wants raised when there is something to raise.
+   *
+   * Also decides whether anything gets written: `"issue"` implies
+   * `applyVersionBumps` and `refreshLockfile` are both `false`, since an
+   * issue reports pending work rather than performing it.
+   */
   output: UpdateOutput;
   /** Prefix for the dated PR branch, e.g. `ghagen-update/`. */
   branchPrefix: string;
@@ -119,9 +132,16 @@ export function planUpdate(
   // `versionBumps` is empty unless the versions stage ran, so the flag adds
   // nothing here — reading it would make this a fresh derivation site for a
   // fact the report already encodes structurally.
-  const applyVersionBumps = report.versionBumps.length > 0;
+  //
+  // Gated on `output === "pr"`: an issue *describes* pending work, it does
+  // not perform it, so `--output issue` writes nothing — no version bumps,
+  // no lockfile refresh. This is a decision, computed the same way whether or
+  // not the caller passed `--dry-run`; the CLI is what turns "would apply"
+  // into "did apply" by additionally gating on `!dryRun`.
+  const applyVersionBumps = options.output === "pr" && report.versionBumps.length > 0;
 
   const refreshLockfile =
+    options.output === "pr" &&
     // The fact the payload drops: `deps pin` exits 1 on a project with no
     // lockfile, so a cascade into it is not "harmless extra work".
     app.lockfilePath !== null &&
@@ -132,7 +152,7 @@ export function planUpdate(
     // `ghagen synth` raise `PinError: No lockfile entry`. `mode` is a
     // documented action input with `versions` among its values, so that tree
     // is reachable by any consumer.
-    (applyVersionBumps ||
+    (report.versionBumps.length > 0 ||
       // Read, never re-derived from `--mode`. Load-bearing only here: an empty
       // `lockfileStale` cannot distinguish "the stage ran and found nothing"
       // from "the stage was not asked for", so without this the rule could not

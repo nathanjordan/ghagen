@@ -273,20 +273,21 @@ Stdout carries the plan and nothing else, so `--format github` can be a bare
 formats carry the same ten fields, in the same order, under the same
 snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
 interface, because the field names are a cross-port wire contract shared byte
-for byte with the Python port.
+for byte with the Python port. The field set is declared once, in
+`schema/update-plan-fields.yml`, and pinned by both ports' suites.
 
-| Field                 | Meaning                                                                          |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `action`              | `none`, `create-pr`, or `create-issue`.                                          |
-| `total_updates`       | Version bumps plus stale lockfile entries.                                       |
-| `apply_version_bumps` | Whether newer tags are to be written back into user source.                      |
-| `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile: null`. |
-| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                       |
-| `title`               | The PR or issue title.                                                           |
-| `commit_message`      | The commit subject, prefix already applied.                                      |
-| `labels`              | Comma-separated under `github`, an array under `json`.                           |
-| `body_format`         | Which `pin/render` format the body is in; empty when there is no body.           |
-| `changed`             | Whether anything was written. Always `false` under `--dry-run`.                  |
+| Field                 | Meaning                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `action`              | `none`, `create-pr`, or `create-issue`.                                                              |
+| `total_updates`       | Version bumps plus stale lockfile entries.                                                           |
+| `apply_version_bumps` | Whether newer tags are to be written back into user source. Always `false` with `--output issue`.    |
+| `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile: null` or `--output issue`. |
+| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                                           |
+| `title`               | The PR or issue title.                                                                               |
+| `commit_message`      | The commit subject, prefix already applied.                                                          |
+| `labels`              | Comma-separated under `github`, an array under `json`.                                               |
+| `body_format`         | Which `pin/render` format the body is in; empty when there is no body.                               |
+| `changed`             | Whether anything was written. Always `false` under `--dry-run` or `--output issue`.                  |
 
 Every field except `changed` is a **decision, not an outcome** — what the run
 determined should happen, which under `--dry-run` is exactly what did not. Only
@@ -301,11 +302,15 @@ lockfile stale by definition.
 
 ### Writes
 
-Without `--dry-run` this command modifies the working tree. Version bumps are
+`--output` decides whether this command writes anything, not just which
+artifact it raises. `--output pr` (the default) is "do the work and open a PR
+for it": without `--dry-run` it modifies the working tree — version bumps are
 written into your source files, and the lockfile is re-resolved when
-`refresh_lockfile` is true. That holds for `--output issue` too: the issue
-describes updates that have _already_ been applied locally. Use `--dry-run`
-when you want the decision without the writes.
+`refresh_lockfile` is true. `--output issue` is "tell a human there is work":
+it never writes, with or without `--dry-run`. The issue it files describes
+updates that have been _detected_, not applied — nothing in the working tree
+changes. Use `--dry-run` with `--output pr` when you want the decision
+without the writes.
 
 ## ghagen init
 
@@ -344,3 +349,38 @@ which both ports' `main()` is tested against.
 | `0`  | The command did what it was asked. Includes both "no updates available" and "updates available" under `deps upgrade --check` and `deps update` — a report is not a failure.                                                                                                                          |
 | `1`  | Expected failure: generated files are stale, the lockfile is stale, refs failed to resolve, no config file was found, or the config module raised.                                                                                                                                                   |
 | `2`  | Usage error: unknown command, unknown option, missing option argument, invalid option value, or no arguments at all. `ghagen help` is an unknown command in both ports — the help spelling is `ghagen --help`. Framework-detected and hand-validated usage errors are indistinguishable to a caller. |
+
+## Output streams
+
+Every command splits its output across stdout and stderr, and never mixes a
+machine-readable payload with progress or diagnostic text on the same
+stream. This is the shared contract in `schema/cli-streams.yml` — the "which
+stream" peer of `fixtures/cli-exit-codes.yml`'s "which exit code" — and both
+ports' CLI suites are driven from it directly: `src/cli/streams.test.ts`
+here, `test_cli/test_streams.py` in the Python port.
+
+The rule: whichever stream carries a command's machine-readable payload
+carries _only_ that payload, so a bare `>> "$GITHUB_OUTPUT"` redirect or a
+`| jq` pipe never sees a stray progress line ahead of it. Everything else —
+warnings, errors, and progress notes — goes to the other stream.
+
+| Command             | Payload stream | Notes                                                                                                                    |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `synth`             | stdout         | The "wrote `<path>`" lines and the "Synthesized N file(s)." summary; `synth` has no separate machine payload.            |
+| `check-synced`      | stdout         | "All files are up-to-date." The "N file(s) are out of date" report goes to stderr instead.                               |
+| `init`              | stdout         | "Created `<path>`". "Config file already exists" goes to stderr instead.                                                 |
+| `deps check-synced` | stdout         | "Lockfile is in sync." The "Missing lockfile entries" report goes to stderr instead.                                     |
+| `deps pin`          | stdout         | Each `<uses> -> <sha>` line, plus the pruned/written/up-to-date summaries. Warnings (e.g. no GitHub token) go to stderr. |
+| `deps upgrade`      | stdout         | The rendered report, unconditionally — text or one of `--format json`/`pr-body`/`issue-body`.                            |
+| `deps update`       | stdout         | The rendered plan, unconditionally — `--format github` or `--format json` — so a bare redirect is safe.                  |
+
+`deps upgrade`'s apply-progress note ("Applied version bumps" / "modified
+`<path>`") is the one case that moves stream depending on a flag: it stays on
+stdout when `--format` is absent (there is no payload to protect), and moves
+to stderr when `--format` is passed, so the JSON/PR/issue-body payload stays
+parseable — this is the H6 hotfix. `deps update`'s equivalent note is
+unconditionally stderr, because `deps update`'s stdout is _always_ the plan,
+format or no format. Collapsing that asymmetry into one rule for both
+commands is exactly the class of bug `schema/cli-streams.yml` exists to
+catch — a regression in either port fails the corresponding row in both
+suites rather than drifting silently.

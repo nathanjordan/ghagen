@@ -9,11 +9,12 @@
  * Two builders construct canned responses: `canned()` encodes a JSON value,
  * `cannedRaw()` takes a body verbatim (a malformed 200, a truncated payload).
  *
- * Rows 8-12 put the adapter in front of a **raw socket**, not a
+ * Rows 9-14 put the adapter in front of a **raw socket**, not a
  * request-handling server: `node:http`'s `createServer` always frames a
  * well-formed response, so it cannot express "peer closes without answering"
- * (row 9), "declared `Content-Length: 100`, delivered 5 bytes" (row 11), or
- * "trickle a byte at a time forever" (row 12).
+ * (row 10), "declared `Content-Length: 100`, delivered 5 bytes" (row 12),
+ * "trickle a body byte at a time forever" (row 13), or "trickle a *head*
+ * byte at a time, forever, never completing it" (row 14).
  *
  * Test-only; excluded from the build in `tsconfig.json` beside
  * `src/integration/test-utils.ts`.
@@ -26,7 +27,7 @@ import { HttpResponse, TransportError, type HttpClient, type RequestOptions } fr
 /** The deadline the adapter under test is built with for the response rows. */
 export const RESPONSE_DEADLINE_MS = 5_000;
 
-/** Row 10's deadline, and the sole caller of the adapters' deadline argument. */
+/** Row 11's deadline — the only value ever passed as `deadlineMs` for a failure row. */
 export const FAILURE_DEADLINE_MS = 250;
 
 /**
@@ -98,7 +99,7 @@ export class FakeTransport implements HttpClient {
 // ---- the conformance table ----
 
 /**
- * A row that must produce a resolved `HttpResponse` (rows 1-7).
+ * A row that must produce a resolved `HttpResponse` (rows 1-8).
  *
  * One description serves both kinds of adapter: `wire()` is what a raw origin
  * writes to the socket, `response()` is the equivalent canned `HttpResponse`.
@@ -136,7 +137,7 @@ export class ResponseCase {
 
 const NEXT_LINK = '<https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next"';
 
-/** Rows 1-7 — every adapter, real or canned, must satisfy these. */
+/** Rows 1-8 — every adapter, real or canned, must satisfy these. */
 export const RESPONSE_CASES: readonly ResponseCase[] = [
   new ResponseCase(
     "json-200",
@@ -150,15 +151,23 @@ export const RESPONSE_CASES: readonly ResponseCase[] = [
   new ResponseCase("link-header", 200, "OK", "[]", [["Link", NEXT_LINK]]),
   new ResponseCase("token-supplied", 200, "OK", "{}", [], "s3cret"),
   new ResponseCase("no-token", 200, "OK", "{}"),
+  // Row 8 — a paginated page that parses as JSON but is not an array. The
+  // transport resolves this like any other 200; it is `GitHubClient.listTags`
+  // (`refNames`, `github.ts`) that must turn it into `ResolveError` rather than
+  // truncating the tag list or crashing outright. Binding the raw bytes here
+  // keeps both adapters delivering the identical malformed body so that
+  // per-port shape-check, which is tested separately, sees the same input.
+  new ResponseCase("non-array-page", 200, "OK", '{"message": "not an array"}'),
 ];
 
-/** Rows 8-12 — a canned double satisfies these by construction, so it skips them. */
+/** Rows 9-14 — a canned double satisfies these by construction, so it skips them. */
 export const FAILURE_CASES: readonly string[] = [
   "connection-refused",
   "abrupt-close",
   "stall-mid-body",
   "truncated-body",
   "dribble-body",
+  "dribble-head",
 ];
 
 export const ALL_CASES: ReadonlyArray<ResponseCase | string> = [
@@ -173,11 +182,11 @@ export function caseId(testCase: ResponseCase | string): string {
 
 // ---- the loopback origin ----
 
-/** A head that promises 100 bytes and is followed by 5, used by rows 10 and 11. */
+/** A head that promises 100 bytes and is followed by 5, used by rows 11 and 12. */
 const UNDERDELIVERED = "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n12345";
 
 /**
- * Row 12's shape: one body byte every `DRIBBLE_INTERVAL_MS` for 10s.
+ * Row 13's shape: one body byte every `DRIBBLE_INTERVAL_MS` for 10s.
  *
  * The interval must exceed `FAILURE_DEADLINE_MS / 2` so that a *per-socket*
  * timeout of one deadline never fires — which is exactly what makes the row
@@ -192,7 +201,7 @@ type Handler = (socket: Socket) => void;
  * A raw-socket origin bound to `127.0.0.1:0`.
  *
  * Teardown destroys every tracked socket before `close()`: a connection with an
- * in-flight request the handler never answers (row 10) blocks the `close`
+ * in-flight request the handler never answers (row 11) blocks the `close`
  * callback indefinitely otherwise.
  */
 export class LoopbackOrigin {
@@ -256,21 +265,21 @@ function authHeader(request: string): string | null {
 const FAILURE_HANDLERS: Record<string, Handler | null> = {
   // Served by a port nobody listens on.
   "connection-refused": null,
-  /** Row 9 — accept the request, then close without writing a response. */
+  /** Row 10 — accept the request, then close without writing a response. */
   "abrupt-close": (socket) => socket.end(),
-  /** Row 10 — send a head and part of the body, then hold the connection. */
+  /** Row 11 — send a head and part of the body, then hold the connection. */
   "stall-mid-body": (socket) => {
     socket.write(UNDERDELIVERED);
   },
-  /** Row 11 — declare 100 bytes, deliver 5, close. */
+  /** Row 12 — declare 100 bytes, deliver 5, close. */
   "truncated-body": (socket) => {
     socket.write(UNDERDELIVERED);
     socket.end();
   },
   /**
-   * Row 12 — send one body byte every 200ms for 10s.
+   * Row 13 — send one body byte every 200ms for 10s.
    *
-   * The row rows 10 and 11 cannot express. A *stalled* peer is caught by a
+   * The row rows 11 and 12 cannot express. A *stalled* peer is caught by a
    * per-socket-operation timeout too, because no operation completes; a peer
    * that keeps trickling resets that timeout forever, so only an adapter
    * honouring a genuine **wall-clock** deadline aborts. `AbortSignal.timeout`
@@ -285,6 +294,28 @@ const FAILURE_HANDLERS: Record<string, Handler | null> = {
         return;
       }
       socket.write("x");
+    }, DRIBBLE_INTERVAL_MS);
+    timer.unref();
+    socket.on("close", () => clearInterval(timer));
+  },
+  /**
+   * Row 14 — send one head byte every 200ms for 10s, never completing it.
+   *
+   * `dribble-body` (row 13) proves a wall-clock deadline once the head is
+   * already in hand; this row proves the same thing about the head itself —
+   * no status line, no headers, ever, just a trickle that a per-operation
+   * timeout renews forever. An adapter that only starts its deadline once it
+   * sees body bytes — the exact gap a fix for row 13 alone could leave open —
+   * hangs on this row instead of failing it.
+   */
+  "dribble-head": (socket) => {
+    let sent = 0;
+    const timer = setInterval(() => {
+      if (sent++ >= DRIBBLE_LENGTH || socket.destroyed) {
+        clearInterval(timer);
+        return;
+      }
+      socket.write("H");
     }, DRIBBLE_INTERVAL_MS);
     timer.unref();
     socket.on("close", () => clearInterval(timer));
@@ -320,7 +351,7 @@ export type MakeAdapter = (
  * Run a *real* adapter against a raw loopback origin.
  *
  * `build(deadlineMs)` constructs the adapter under test with that wall-clock
- * deadline — the deadline argument's sole caller.
+ * deadline; the closure returned below is `build`'s sole caller.
  */
 export function loopbackAdapter(build: (deadlineMs: number) => HttpClient): MakeAdapter {
   return async (testCase, deadlineMs, body) => {
@@ -355,7 +386,7 @@ function responder(wire: string): Handler {
 export function cannedAdapter(): MakeAdapter {
   return async (testCase, _deadlineMs, body) => {
     if (typeof testCase === "string") {
-      throw new Error("a canned double satisfies rows 8-11 by construction; it runs rows 1-7");
+      throw new Error("a canned double satisfies rows 9-12 by construction; it runs rows 1-8");
     }
     const transport = new FakeTransport({ "/contract": testCase.response() });
     await body({

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 from pydantic import Field
 
-from ghagen._raw import Raw
 from ghagen.models._base import Document, OrRaw
 from ghagen.models.job import Concurrency, Defaults, Job
-from ghagen.models.permissions import Permissions
+from ghagen.models.permissions import PermissionsValue
 from ghagen.models.spec import ModelSpec
 from ghagen.models.trigger import On
 
@@ -55,9 +54,7 @@ class Workflow(Document):
         description="Custom name for workflow runs, supports expressions.",
     )
     on: OrRaw[On | dict[str, Any]] | None = None
-    permissions: (
-        OrRaw[Permissions | Literal["read-all", "write-all"] | Raw[str]] | None
-    ) = None
+    permissions: PermissionsValue | None = None
     env: dict[str, str] | None = None
     defaults: OrRaw[Defaults] | None = None
     concurrency: OrRaw[str | Concurrency] | None = None

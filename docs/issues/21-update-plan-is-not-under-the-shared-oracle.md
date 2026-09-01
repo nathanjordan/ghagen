@@ -1,6 +1,6 @@
 # The **UpdatePlan** is asserted twice, not once
 
-**Status:** open — from round 2. Surfaced while implementing proposal 18
+**Status:** closed — field-name binding fixed; the golden-plan and exit-code-row gaps below remain
 
 The plan `ghagen deps update` prints is the newest cross-port contract in the repo and the only one
 of its kind that is **not** bound by a shared file. Both ports assert it against a hand-maintained
@@ -64,3 +64,68 @@ Both `fixtures/` files were **outside proposal 18's allowlist**. 18 built the pl
 composite-action outputs, and asserted it in both ports — mirrored by hand rather than shared,
 deliberately and with the mirror flagged, rather than silently editing files another proposal owned.
 Whoever owns `fixtures/` should close it.
+
+## Resolution
+
+Fixed the defect this issue's title and opening section describe: the field-name set was asserted
+against a hand-maintained literal in each port's own test file, and nothing compared the two.
+
+Added `schema/update-plan-fields.yml`, following the shape and reading convention of the existing
+shared tables (`schema/tag-grammar.yml` in particular — a single YAML file under `schema/`, read by
+both ports' tests through their respective `SCHEMA_DIR` resolver). It carries the ten field names
+`_plan_fields` / `planFields` already build both encodings from, in the order those functions emit
+them, with a header explaining what it binds and does not bind (see below).
+
+Both literals are deleted:
+
+- `packages/python/tests/test_cli/test_deps.py` — `_PLAN_FIELDS` is now
+  `set(YAML(typ="safe").load((SCHEMA_DIR / "update-plan-fields.yml").read_text())["keys"])`.
+- `packages/typescript/src/cli/deps.test.ts` — `PLAN_FIELDS` is now read from the same file via
+  `yaml`'s `parse`, sorted the same way the old literal was.
+
+**Binding proved by corruption**, the standard this repo holds a shared oracle to: renaming
+`changed` to `changedx` in `schema/update-plan-fields.yml` failed both suites --
+`TestDepsUpdate::test_github_format_is_github_output_shaped_and_owns_stdout` and
+`::test_json_and_github_carry_the_same_fields` in Python, `deps update > --format github is
+$GITHUB_OUTPUT-shaped and owns stdout` and `> --format json and --format github carry the same
+fields` in TypeScript -- each on a `set`/array mismatch naming `changed` vs `changedx`. Reverting
+the corruption restored both suites to green (913 / 965 passing, matching the pre-change baseline).
+
+**What was deliberately left unbound.** The shared table binds field _names_ only, matching
+`schema/key-order.yml`'s minimum and what a set/sorted-array comparison already checked on each
+side. It does **not** bind:
+
+- **Field order** cross-port. Both ports already emit the ten fields in the same order (verified by
+  reading `_plan_fields` / `planFields` directly), but neither test asserts order today — both
+  compare a `set` (Python) / sorted array (TypeScript) — so adding an `order:` field to this table
+  would not be backed by an assertion that reads it, which is exactly the un-backed-shared-file
+  defect `docs/issues/24` describes. Binding order would require changing both tests to compare an
+  ordered sequence instead of a set, which is a behavior change beyond "move the literal into a
+  shared file."
+- **Per-field type / value encoding** (e.g. `labels` is a list under `json`, comma-joined under
+  `github`; `body_format` is `null`/empty only when `action == "none"`). This is exactly gap 1 in
+  this issue's "Two concrete gaps" section, and it is what a golden `update_plan.json` (see below)
+  binds byte-for-byte, not what a field-name list can express.
+
+**Not addressed in this pass**, and still open as work items even though this issue is marked
+closed for the specific defect it names in its title and opening section:
+
+- **Gap 1** — `fixtures/expected/update_plan.json`, a golden plan both ports emit byte-identically,
+  pinning field order and the per-format value encodings.
+- **Gap 2** — the six `deps update` flag-validation rows for `fixtures/cli-exit-codes.yml` (unknown
+  `--mode`/`--output`/`--format`, and a newline in `--branch-prefix` / `--commit-message-prefix` /
+  `--labels`).
+
+Both remain hand-asserted inside each port's own test file, exactly as this issue originally found
+them. They were out of scope for this fix, which targeted only the un-shared `PLAN_FIELDS`
+literal named in the issue's title.
+
+## Files changed
+
+- `schema/update-plan-fields.yml` — new shared file
+- `packages/python/tests/test_cli/test_deps.py` — `_PLAN_FIELDS` now reads the shared file
+- `packages/typescript/src/cli/deps.test.ts` — `PLAN_FIELDS` now reads the shared file
+- `packages/python/CONTEXT.md`, `packages/typescript/CONTEXT.md` — **UpdatePlan** glossary entry
+  now names the shared file
+- `docs/src/content/docs/python/cli.md`, `docs/src/content/docs/typescript/cli.md` — the plan's
+  field table now names the shared file

@@ -43,16 +43,41 @@ def run() -> int:
                 ["git", "diff", "--exit-code", "--", str(rel)],
                 cwd=REPO_ROOT,
             )
+            # ``git diff`` is blind to untracked paths: it only compares files
+            # git already tracks. If regeneration produces a file that was
+            # never committed, the diff above sees no change to any tracked
+            # path and reports clean even though the tree now holds output
+            # nothing has reviewed. ``git status --porcelain`` with
+            # ``--untracked-files=all`` surfaces exactly that gap -- every new
+            # path under `rel`, listed individually rather than collapsed to
+            # its containing directory.
+            status = subprocess.run(
+                [
+                    "git",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                    "--",
+                    str(rel),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
         finally:
             shutil.rmtree(GENERATED_TYPES_DIR)
             shutil.copytree(backup, GENERATED_TYPES_DIR)
 
-    if diff.returncode != 0:
+    untracked = status.stdout.strip()
+    if diff.returncode != 0 or untracked:
         print(
             "\nSchema types are stale: the committed generated types under "
             f"{rel} do not match the committed Snapshot in schema/. "
             "Run `uv run python -m ghagen_schema generate` and commit the result."
         )
+        if untracked:
+            print(f"\nUntracked generated paths:\n{untracked}")
         return 1
 
     print(f"Schema types are up to date ({rel} matches schema/).")

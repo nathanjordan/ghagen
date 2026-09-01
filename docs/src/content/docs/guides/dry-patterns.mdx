@@ -13,6 +13,7 @@ Define a function that returns a job to create reusable job templates:
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 from ghagen import Job, Step, checkout
 
@@ -26,7 +27,7 @@ Step(name=tool, run=cmd),
 ],
 )
 
-````
+```
 
 Use it to stamp out multiple jobs without repeating the structure:
 
@@ -36,32 +37,30 @@ jobs = {
     "mypy": lint_job("Mypy", "mypy src/"),
     "black": lint_job("Black", "black --check ."),
 }
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { job, step } from "@ghagen/ghagen";
 import type { JobModel } from "@ghagen/ghagen";
 
 function lintJob(tool: string, cmd: string): JobModel {
-return job({
-name: `Lint (${tool})`,
-runsOn: "ubuntu-latest",
-steps: [
-step({ uses: "actions/checkout@v4" }),
-step({ name: tool, run: cmd }),
-],
-});
+  return job({
+    name: `Lint (${tool})`,
+    runsOn: "ubuntu-latest",
+    steps: [step({ uses: "actions/checkout@v4" }), step({ name: tool, run: cmd })],
+  });
 }
 
 const jobs = {
-ruff: lintJob("Ruff", "ruff check ."),
-mypy: lintJob("Mypy", "mypy src/"),
-black: lintJob("Black", "black --check ."),
+  ruff: lintJob("Ruff", "ruff check ."),
+  mypy: lintJob("Mypy", "mypy src/"),
+  black: lintJob("Black", "black --check ."),
 };
+```
 
-````
 </TabItem>
 </Tabs>
 
@@ -73,6 +72,7 @@ Extract repeated values into variables to ensure consistency and simplify update
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 RUNNER = "ubuntu-latest"
 PYTHON_VERSION = "3.12"
@@ -86,10 +86,11 @@ Job(
         Step(uses=SETUP_PYTHON_ACTION, with_={"python-version": PYTHON_VERSION}),
     ],
 )
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { job, step } from "@ghagen/ghagen";
 
@@ -99,14 +100,14 @@ const CHECKOUT_ACTION = "actions/checkout@v4";
 const SETUP_PYTHON_ACTION = "actions/setup-python@v5";
 
 job({
-runsOn: RUNNER,
-steps: [
-step({ uses: CHECKOUT_ACTION }),
-step({ uses: SETUP_PYTHON_ACTION, with_: { "python-version": PYTHON_VERSION } }),
-],
+  runsOn: RUNNER,
+  steps: [
+    step({ uses: CHECKOUT_ACTION }),
+    step({ uses: SETUP_PYTHON_ACTION, with_: { "python-version": PYTHON_VERSION } }),
+  ],
 });
+```
 
-````
 </TabItem>
 </Tabs>
 
@@ -118,6 +119,7 @@ Use iteration to generate repetitive structures:
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 services = ["api", "web", "worker"]
 
@@ -132,7 +134,7 @@ jobs = {
     )
     for svc in services
 }
-````
+```
 
 This works equally well for generating step lists:
 
@@ -146,27 +148,30 @@ steps = [checkout()] + [
 
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { job, step } from "@ghagen/ghagen";
 
 const services = ["api", "web", "worker"];
 
 const jobs = Object.fromEntries(
-services.map((svc) => [
-`build-${svc}`,
-job({
-name: `Build ${svc}`,
-runsOn: "ubuntu-latest",
-steps: [
-step({ uses: "actions/checkout@v4" }),
-step({ name: "Build", run: `docker build -t ${svc} ./services/${svc}` }),
-],
-}),
-])
+  services.map((svc) => [
+    `build-${svc}`,
+    job({
+      name: `Build ${svc}`,
+      runsOn: "ubuntu-latest",
+      steps: [
+        step({ uses: "actions/checkout@v4" }),
+        step({ name: "Build", run: `docker build -t ${svc} ./services/${svc}` }),
+      ],
+    }),
+  ]),
 );
-
 ```
+
 </TabItem>
 </Tabs>
+
+```
 
 ```

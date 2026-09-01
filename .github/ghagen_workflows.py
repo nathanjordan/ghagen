@@ -43,7 +43,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Lint", run="scripts/lint.sh py"),
                     Step(name="Format check", run="scripts/fmt.sh py"),
                 ],
@@ -64,16 +64,24 @@ def _ci_workflow() -> Workflow:
             # separate scope and a separate job: lint-ts no longer installs an Astro
             # site to run oxlint, and docs linting runs in parallel instead of
             # serially inside it.
-            "lint-docs": Job(
-                name="Lint (docs)",
+            #
+            # This job also builds the docs site (astro + starlight-typedoc), not just
+            # lints it. The build is the gate that actually catches `_docs-api-*.ts`
+            # TypeDoc entry-point drift; lint/fmt alone do not touch TypeDoc at all.
+            # That needs `packages/typescript/` installed too, since TypeDoc documents
+            # that package.
+            "docs": Job(
+                name="Docs",
                 runs_on="ubuntu-latest",
-                timeout_minutes=10,
+                timeout_minutes=20,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(name="Install docs deps", run="npm ci", working_directory="docs"),
                     Step(name="Lint", run="scripts/lint.sh docs"),
                     Step(name="Format check", run="scripts/fmt.sh docs"),
+                    Step(name="Build docs", run="npm run build", working_directory="docs"),
                 ],
             ),
             "lint-meta": Job(
@@ -84,7 +92,7 @@ def _ci_workflow() -> Workflow:
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
                     Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(
                         name="actionlint",
@@ -108,7 +116,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Pyright", run="scripts/typecheck.sh py"),
                 ],
             ),
@@ -124,9 +132,16 @@ def _ci_workflow() -> Workflow:
                 ],
             ),
             "test-py": Job(
+                # The matrix is enforced by UV_PYTHON, not by actions/setup-python.
+                # uv resolves the interpreter itself and `.python-version` (3.14) wins
+                # over anything setup-python puts on PATH, so the previous job ran 3.14
+                # on all three legs and reported them as 3.11/3.12/3.13. UV_PYTHON
+                # outranks the file; "Assert interpreter" makes a future regression fail
+                # instead of lying.
                 name="Test (Python ${{ matrix.python-version }})",
                 runs_on="ubuntu-latest",
                 timeout_minutes=15,
+                env={"UV_PYTHON": "${{ matrix.python-version }}"},
                 strategy=Strategy(
                     matrix=Matrix(
                         extras={
@@ -137,8 +152,20 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Set up Python", uses="actions/setup-python@v6", with_={"python-version": "${{ matrix.python-version }}"}),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
+                    Step(
+                        name="Assert interpreter",
+                        run="""
+                            set -euo pipefail
+                            want='${{ matrix.python-version }}'
+                            got="$(uv run python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+                            if [ "$got" != "$want" ]; then
+                              echo "matrix says $want, uv ran $got -- the matrix is not enforced" >&2
+                              exit 1
+                            fi
+                            echo "running Python $got"
+                        """,
+                    ),
                     Step(name="Test", run="scripts/test.sh py"),
                 ],
             ),
@@ -160,7 +187,7 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Sync", run="uv sync"),
+                    Step(name="Sync", run="uv sync --locked"),
                     Step(name="Verify workflows", run="uv run ghagen check-synced"),
                 ],
             ),
@@ -260,10 +287,35 @@ def _schema_drift_workflow() -> Workflow:
                               echo "No schema drift."
                               exit 0
                             fi
-                            BRANCH="schema-drift/$(date +%Y%m%d)"
-                            if gh pr list --head "$BRANCH" --json number \\
+                            # Name the branch after the CONTENT of the drift, not
+                            # the date. A date-named branch is new on every run, so
+                            # the "already filed" guard below could never match --
+                            # three byte-identical drift branches were filed on
+                            # consecutive Mondays before this was fixed. Hash the
+                            # post-refresh files, not the diff, whose index lines
+                            # move with the base: identical upstream schema then
+                            # yields an identical branch name, so a repeat run is a
+                            # no-op and only genuinely new drift opens a new PR.
+                            DRIFT="$(git hash-object \\
+                                       schema/workflow_schema.json \\
+                                       schema/action_schema.json \\
+                                       packages/typescript/src/schema/workflow-types.generated.ts \\
+                                     | git hash-object --stdin | cut -c1-12)"
+                            BRANCH="schema-drift/$DRIFT"
+                            # --state all deliberately: a drift a human closed
+                            # without merging stays dispositioned. Delete the branch
+                            # and the PR to make this same drift file again.
+                            if gh pr list --head "$BRANCH" --state all --json number \\
                                  --jq '.[0].number' | grep -q .; then
-                              echo "Drift PR already open for $BRANCH."
+                              echo "Drift $DRIFT already filed as a PR."
+                              exit 0
+                            fi
+                            # The fallback issue carries the same id, so a run whose
+                            # push landed but whose PR call failed is not re-filed.
+                            if gh issue list --label schema-drift --state all \\
+                                 --search "$DRIFT" --json number \\
+                                 --jq '.[0].number' | grep -q .; then
+                              echo "Drift $DRIFT already filed as an issue."
                               exit 0
                             fi
                             git config user.name  "github-actions[bot]"
@@ -271,15 +323,15 @@ def _schema_drift_workflow() -> Workflow:
                               "41898282+github-actions[bot]@users.noreply.github.com"
                             git checkout -b "$BRANCH"
                             git add schema/ packages/typescript/src/schema/
-                            git commit -m "chore(schema): sync upstream drift + regenerate types"
+                            git commit -m "chore(schema): sync upstream drift $DRIFT + regenerate types"
                             if ! git push --force-with-lease -u origin "$BRANCH" || ! gh pr create \\
-                                 --title "Schema drift: refreshed Snapshot + types" \\
-                                 --body "Automated upstream schema refresh (Snapshot + regenerated types). CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \\
+                                 --title "Schema drift $DRIFT: refreshed Snapshot + types" \\
+                                 --body "Automated upstream schema refresh (Snapshot + regenerated types), drift id \\`$DRIFT\\`. CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \\
                                  --label schema-drift; then
                               echo "::warning::PR creation failed; opening a fallback issue."
                               gh issue create \\
-                                --title "GitHub Actions schema drift detected" \\
-                                --body "Automated schema refresh could not open a PR. Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
+                                --title "GitHub Actions schema drift $DRIFT detected" \\
+                                --body "Automated schema refresh could not open a PR (drift id \\`$DRIFT\\`). Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
                                 --label schema-drift
                             fi
                         """,
@@ -368,11 +420,20 @@ def _check_deps_smoke_workflow() -> Workflow:
                         },
                     ),
                     Step(
+                        # `changed` added by docs/issues/20: `--output issue`
+                        # now writes nothing even without `--dry-run`, so this
+                        # step keeps `dry-run: 'true'` regardless -- it also
+                        # gates the composite action's "Raise PR or issue"
+                        # step, and dropping it here would file a real issue
+                        # against this repository. The no-`--dry-run` half of
+                        # the write-suppression fix is exercised offline
+                        # instead, in both ports' `deps update` CLI tests.
                         name="Assert issue plan",
                         run="""
                             set -euo pipefail
                             [ "${{ steps.issue.outputs.action }}" = "create-issue" ]
                             [ -z "${{ steps.issue.outputs.branch }}" ]
+                            [ "${{ steps.issue.outputs.changed }}" = "false" ]
                         """,
                     ),
                 ],

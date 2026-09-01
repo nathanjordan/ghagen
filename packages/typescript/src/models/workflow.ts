@@ -3,17 +3,15 @@ import type { HttpsJsonSchemastoreOrgGithubWorkflowJson as SchemaWorkflow } from
 import { defineFactory } from "./_base.js";
 import type {
   OnModel,
-  PermissionsModel,
   ConcurrencyModel,
   DefaultsModel,
   JobModel,
-  Raw,
   ModelSpec,
   WorkflowModel,
 } from "./_base.js";
 import type { OnInput } from "./trigger.js";
 import { on } from "./trigger.js";
-import type { PermissionsInput } from "./permissions.js";
+import type { PermissionsValue } from "./permissions.js";
 import { permissions } from "./permissions.js";
 import type { ConcurrencyInput } from "./job.js";
 import { concurrency, defaults } from "./job.js";
@@ -32,8 +30,8 @@ export interface WorkflowInput {
   runName?: string;
   /** Trigger configuration for the workflow. Accepts a pre-built `OnModel` or an inline `OnInput` object which will be auto-wrapped. */
   on?: OnModel | OnInput;
-  /** Token permissions. Can be a `PermissionsModel`, an inline `PermissionsInput`, a string shorthand (`"read-all"` / `"write-all"`), or a `Raw<string>` for arbitrary values. */
-  permissions?: PermissionsModel | PermissionsInput | "read-all" | "write-all" | Raw<string>;
+  /** Token permissions. See {@link PermissionsValue}: a `PermissionsModel`, an inline `PermissionsInput`, the `"read-all"` / `"write-all"` shorthand, or a `Raw<string>` for arbitrary values. */
+  permissions?: PermissionsValue;
   /** Environment variables available to all jobs in the workflow. */
   env?: Record<string, string>;
   /** Default settings for all `run` steps. Accepts a pre-built `DefaultsModel` or an inline `DefaultsInput`. */

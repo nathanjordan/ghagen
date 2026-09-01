@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
 from ghagen_schema.manifest import ManifestEntry, load_manifest
 from ghagen_schema.sync import fetch_schema, save_all_schemas, save_schema
 

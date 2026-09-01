@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
-import { FIXTURES_DIR, SCHEMA_DIR } from "../paths.js";
+import { EXPECTED_DIR, SCHEMA_DIR } from "../paths.js";
 
-export { FIXTURES_DIR, SCHEMA_DIR };
+export { EXPECTED_DIR, SCHEMA_DIR };
 
 export function loadFixture(name: string): string {
-  return readFileSync(resolve(FIXTURES_DIR, name), "utf-8");
+  return readFileSync(resolve(EXPECTED_DIR, name), "utf-8");
 }
 
 export function parseYaml(yamlStr: string): unknown {

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ghagen.app import App
 from ghagen.pin.engine import LockfileStaleEntry, UpgradeReport, VersionBump
-from ghagen.pin.plan import UpdatePlan, plan_update
+from ghagen.pin.plan import UpdatePlan, plan_update, render_update_plan
 
 _TODAY = date(2026, 7, 31)
 
@@ -211,6 +211,47 @@ class TestAction:
         assert _plan(app, report).total_updates == 2
 
 
+class TestOutputIssueImpliesNoWrites:
+    """Issue 20: ``--output issue`` writes nothing, even with plenty to report.
+
+    ``apply_version_bumps`` and ``refresh_lockfile`` gate the CLI's actual
+    writes, so they must be ``False`` for ``output="issue"`` regardless of
+    what the report found -- otherwise the plan would tell a caller "these
+    were applied" for a run that applied nothing.
+    """
+
+    def test_version_bump_is_not_applied_under_issue_output(self, tmp_path: Path):
+        app = App(root=tmp_path)
+        report = UpgradeReport(
+            version_bumps=[_bump()],
+            checked_versions=True,
+            checked_lockfile=True,
+        )
+
+        plan = _plan(app, report, output="issue")
+
+        assert plan.apply_version_bumps is False
+        assert plan.refresh_lockfile is False
+        assert plan.action == "create-issue"
+        assert plan.total_updates == 1
+
+    def test_stale_lockfile_entry_is_not_refreshed_under_issue_output(
+        self, tmp_path: Path
+    ):
+        app = App(root=tmp_path)
+        report = UpgradeReport(
+            lockfile_stale=[_stale()],
+            checked_versions=True,
+            checked_lockfile=True,
+        )
+
+        plan = _plan(app, report, output="issue")
+
+        assert plan.apply_version_bumps is False
+        assert plan.refresh_lockfile is False
+        assert plan.action == "create-issue"
+
+
 class TestLabels:
     """The nine-line bash label loop, turned into assertions."""
 
@@ -256,3 +297,32 @@ class TestCommitMessage:
         plan = _plan(app, report, commit_message_prefix="  chore(deps):  ")
 
         assert plan.commit_message == "chore(deps): update ghagen action dependencies"
+
+
+class TestJsonFormatNonAscii:
+    """``docs/issues/23`` item 2 also names the plan output as reachable.
+
+    ``render_update_plan``'s ``json`` branch shares ``render_upgrade_report``'s
+    ``ensure_ascii=False`` fix (see ``pin/render.py``'s golden-fixture test for
+    the primary oracle); this pins the same fix at its own call site with a
+    direct, byte-exact assertion rather than a fixture file, since the two
+    call sites share one line of code and one rationale.
+    """
+
+    def test_json_does_not_escape_non_ascii(self, tmp_path: Path):
+        plan = UpdatePlan(
+            action="create-pr",
+            total_updates=1,
+            apply_version_bumps=True,
+            refresh_lockfile=False,
+            branch="ghagen-update/2026-07-31",
+            title="update ghagen action dependencies",
+            commit_message="update ghágen action dependencies",
+            labels=(),
+            body_format="pr-body",
+        )
+
+        rendered = render_update_plan(plan, changed=True, output_format="json")
+
+        assert "ghágen" in rendered
+        assert "\\u" not in rendered

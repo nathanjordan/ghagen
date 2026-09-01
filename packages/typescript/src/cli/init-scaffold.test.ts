@@ -34,13 +34,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { App } from "../app.js";
 import type { toYaml as ToYaml } from "../emitter/yaml-writer.js";
-import { FIXTURES_DIR } from "../paths.js";
+import { EXPECTED_DIR } from "../paths.js";
 import { main } from "./main.js";
 
 const SRC_DIR = resolve(fileURLToPath(import.meta.url), "..", "..");
 const SRC_INDEX = resolve(SRC_DIR, "index.ts");
 const SRC_YAML_WRITER = resolve(SRC_DIR, "emitter", "yaml-writer.ts");
-const FIXTURE = readFileSync(resolve(FIXTURES_DIR, "init_scaffold.yml"), "utf8");
+const FIXTURE = readFileSync(resolve(EXPECTED_DIR, "init_scaffold.yml"), "utf8");
 
 let tmp: string;
 let originalCwd: string;

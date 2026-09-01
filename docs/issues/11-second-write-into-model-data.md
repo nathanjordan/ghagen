@@ -1,6 +1,16 @@
 # A second production write into a model's `data` bag, unnamed by any proposal
 
-**Status:** open — from round 2, found by proposal 10's reviser; no proposal owns it
+**Status:** closed — from round 2, found by proposal 10's reviser; no proposal owned it, so fixed
+directly rather than left for one. `emitter/yaml-writer.ts`'s `toYaml` path (`modelToYamlMap` /
+`toYamlValue`) now dedents a Step's `run` at read time, threading `autoDedent` through the
+recursion exactly as `toData`'s `modelToData` already did — no clone, no mutation of any model's
+`data` bag (ADR-0002; matches Python's `collect_fields`, which never mutated). The `dedentSteps`
+clone-then-`walk()`-then-write function is deleted. Production TypeScript now has exactly **one**
+runtime write into an existing `model.data`: `pin/sites.ts:48`, sanctioned by `Model`'s own
+docstring ("synthesis-time transforms … can rewrite fields after a `cloneModel` deep copy") — the
+peer of Python's `pin/sites.py`'s `setattr` on a `GhagenModel` attribute. Bound by
+`packages/typescript/src/emitter/yaml-writer.test.ts`'s "does not mutate the model's `data` bag"
+tests.
 
 `packages/typescript/src/emitter/yaml-writer.ts:48` assigns into an existing `data` bag:
 

@@ -118,6 +118,55 @@ describe("key ordering", () => {
 });
 
 // ---------------------------------------------------------------------------
+// autoDedent — read-time, no model mutation (docs/issues/11)
+// ---------------------------------------------------------------------------
+describe("autoDedent does not write into the model's `data` bag", () => {
+  // `toYaml`'s dedent used to clone the document, `walk()` the clone, and
+  // write the dedented `run` back into the clone's `data` (`dedentSteps`,
+  // removed). Harmless — it wrote to the clone, never the caller's model —
+  // but it was a second production write into an existing `model.data`
+  // alongside `pin/sites.ts`'s, uncounted by any proposal. Dedent now happens
+  // at read time in `modelToYamlMap`/`toYamlValue`, exactly like `toData`'s
+  // `modelToData`, so there is no clone and nothing to mutate: these pin that
+  // the original model — root, nested, and reached through `extras` alike —
+  // keeps its raw, undedented `run` after emission.
+  it("leaves a job step's raw `run` untouched after toYaml", () => {
+    const s = step({ run: "  echo hi\n  echo bye" });
+    const wf = workflow({ jobs: { build: job({ runsOn: "ubuntu-latest", steps: [s] }) } });
+
+    const dedented = toYaml(wf, { header: null });
+    const verbatim = toYaml(wf, { header: null, autoDedent: false });
+
+    // Dedent actually ran (its own indicator, `|-` vs `|2-`, is asserted
+    // elsewhere) and produced a different rendering...
+    expect(dedented).not.toBe(verbatim);
+    // ...but the model both calls ran on still holds the raw, undedented
+    // string — dedent never wrote back into it.
+    expect(s.data["run"]).toBe("  echo hi\n  echo bye");
+  });
+
+  it("leaves an extras-nested step's raw `run` untouched after toYaml", () => {
+    const hidden = step({ run: "  echo indented\n  echo more" });
+    const wf = workflow({
+      jobs: { build: job({ runsOn: "ubuntu-latest", steps: [], extras: { hidden } }) },
+    });
+
+    toYaml(wf, { header: null });
+
+    expect(hidden.data["run"]).toBe("  echo indented\n  echo more");
+  });
+
+  it("leaves the model untouched when autoDedent is false", () => {
+    const s = step({ run: "  echo hi" });
+    const wf = workflow({ jobs: { build: job({ runsOn: "ubuntu-latest", steps: [s] }) } });
+
+    toYaml(wf, { header: null, autoDedent: false });
+
+    expect(s.data["run"]).toBe("  echo hi");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Comments
 // ---------------------------------------------------------------------------
 describe("comments", () => {

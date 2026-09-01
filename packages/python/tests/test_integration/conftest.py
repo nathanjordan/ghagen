@@ -7,8 +7,9 @@ from typing import Any
 
 import jsonschema
 import pytest
-from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
+
+from ghagen_schema.paths import SCHEMA_DIR
 
 WORKFLOW_SCHEMA_PATH = SCHEMA_DIR / "workflow_schema.json"
 ACTION_SCHEMA_PATH = SCHEMA_DIR / "action_schema.json"

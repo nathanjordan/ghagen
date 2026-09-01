@@ -156,10 +156,12 @@ describe("walk()", () => {
   });
 
   it("dedents an extras-nested step's run at emit", () => {
-    // The second consequence of H14, which the hotfix fixed but left
-    // unguarded: `dedentSteps` is a `walk()` consumer, so a step `walk()`
-    // cannot reach keeps its authored indentation and is emitted as `|2-`
-    // where Python emits `|-`. Byte parity, not just site parity.
+    // The second consequence of H14: the emitter's dedent pass recurses
+    // through `orderedEntries` (a job's data fields, then its `extras`), not
+    // through `walk()`, so an extras-nested step is already in its reach —
+    // this pins that it stays that way. A step the recursion cannot reach
+    // keeps its authored indentation and is emitted as `|2-` where Python
+    // emits `|-`. Byte parity, not just site parity.
     const wf = workflow({
       jobs: {
         build: job({

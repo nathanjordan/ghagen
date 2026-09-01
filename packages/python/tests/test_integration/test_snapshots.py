@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ghagen_schema.paths import FIXTURES_DIR
 from pytest_snapshot.plugin import Snapshot
 from ruamel.yaml.comments import CommentedMap
 
@@ -35,8 +34,9 @@ from ghagen import (
 from ghagen.models.common import PermissionLevel
 from ghagen.models.job import Concurrency
 from ghagen.models.trigger import WorkflowDispatchInput
+from ghagen_schema.paths import EXPECTED_DIR
 
-SNAPSHOT_DIR = FIXTURES_DIR / "expected"
+SNAPSHOT_DIR = EXPECTED_DIR
 
 
 def test_ci_basic(snapshot: Snapshot):
@@ -191,7 +191,16 @@ def test_multiline_run(snapshot: Snapshot):
 
 
 def test_escape_hatches(snapshot: Snapshot):
-    """All four escape hatches in one workflow snapshot."""
+    """All four escape hatches in one workflow snapshot.
+
+    Also the byte-oracle for a ``Raw`` ``ImageSnapshot.version`` (issue 22):
+    ``"latest"`` fails the field's own grammar (``^\\d+(\\.\\d+|\\*)?$``), so
+    accepting it here proves ``Raw`` bypasses the check rather than merely
+    happening to match it, and pins what a ``Raw`` value emits -- a plain
+    scalar, exactly like an ordinary string -- since ``Raw`` values reach the
+    emitter by a different path (``ghagen._raw.raw_scalar`` /
+    ``emitter.nodes.unwrap_raw``) than plain strings do.
+    """
     snapshot.snapshot_dir = SNAPSHOT_DIR
 
     def add_annotation(cm: CommentedMap) -> None:
@@ -215,6 +224,9 @@ def test_escape_hatches(snapshot: Snapshot):
                         shell=Raw("custom-shell"),
                     ),
                 ],
+                snapshot=ImageSnapshot(
+                    image_name="custom-image", version=Raw("latest")
+                ),
                 extras={"custom-timeout": 30},
             ),
             "raw": cm_job,

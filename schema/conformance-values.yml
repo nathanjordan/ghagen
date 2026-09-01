@@ -29,7 +29,7 @@
 #             saw the re-attached `Commented` and skipped the check entirely).
 #
 # Each sweep binds each key to its own port's spec + two constructors — bare and
-# comment-wrapped — then asserts three things:
+# comment-wrapped — then asserts four things:
 #
 #   1. Pattern identity - the port's pattern source string equals the schema's
 #      pattern string at `path`. (The TypeScript half also asserts `.flags` is
@@ -40,7 +40,18 @@
 #      written for (`re.match` accepting a trailing newline, Python's
 #      Unicode-aware `\d`, and `with_comment` defeating the grammar) leave
 #      `.pattern` byte-identical and are only visible to executed vectors.
-#   3. Key-set parity - both sweeps assert their bound key set equals this
+#   3. Raw hatch - every `reject` vector, wrapped in Raw(...) / raw(...) in
+#      place of a bare string, constructs successfully. `_enforce_spec_patterns`
+#      / `buildYamlData` skip the grammar check for a non-string value
+#      specifically so Raw stays the escape hatch (see the grammar-violation
+#      message in `models/_base.py` / `models/_base.ts`, and issue 22) — this
+#      is what makes that message's advice true for every field this table
+#      names, in both ports, by the same means: construct-and-must-not-throw,
+#      not a type inspection (which TypeScript has no runtime form of). A
+#      future pattern-carrying field whose annotation does not admit Raw fails
+#      here rather than only being discoverable by a caller acting on the
+#      message.
+#   4. Key-set parity - both sweeps assert their bound key set equals this
 #      file's, so a grammar enforced in one port and not the other fails a test.
 #
 # Read by:

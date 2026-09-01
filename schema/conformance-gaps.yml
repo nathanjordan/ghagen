@@ -15,9 +15,25 @@
 # listed here) fails that port's sweep; a listed name no longer in the schema
 # is flagged as stale.
 #
+# Every row is a claim, and both sweeps hold it to that claim three ways:
+#   1. The named property must still exist upstream ("stale" otherwise).
+#   2. The named property must still be UNCOVERED by the port's model
+#      ("closed" otherwise) -- a gap someone fixed without deleting the row
+#      would otherwise sit here forever, silently correct. This is what makes
+#      recording a gap here a *test that the gap still exists*.
+#   3. This file's own top-level snapshot keys, and each snapshot's scope
+#      keys, must equal the sweep's exactly (`test_gap_set_matches_sweep` /
+#      "gap set matches the sweep") -- so garbling a key here (e.g.
+#      `workflow_schema` -> `workflow_schemas`) fails both suites even though
+#      every list below is currently empty.
+#
 # Keys are <snapshot>.<scope>; the scope set is defined by each port's sweep.
 # Every entry needs an inline comment: why the gap is intentional, or
 # "# TODO: unmodeled" if it is a genuine gap worth tracking.
+#
+# The reserved top-level key `constraints` is NOT a snapshot: it holds gaps of a
+# second kind (see its own header, at the bottom of this file) and is excluded
+# from the snapshot/scope key comparison in (3).
 
 workflow_schema:
   workflow: []
@@ -50,3 +66,90 @@ action_schema:
   actionInput: []
   actionOutput: []
   branding: []
+
+# ---------------------------------------------------------------------------
+# Cross-field constraint gaps.
+#
+# The rows above name a *property* the models do not expose. These name a
+# *constraint between two properties of the same model* that neither port
+# enforces. The distinction matters mechanically, not just editorially: a
+# property gap is proved to still exist by the property's absence from the
+# spec, which is a set-membership test. A cross-field constraint has no such
+# footprint -- the fields are both present and both typed -- so the only way to
+# prove the limit still exists is to CONSTRUCT the schema-invalid combination
+# and observe that it succeeds.
+#
+# That is what each row here does, so a row is a live test in both directions,
+# exactly like the property rows:
+#
+#   1. `requires` -- each path into the Snapshot must still hold the stated
+#      value, so the row cannot outlive the upstream rule it describes.
+#   2. `counterexample` -- constructing this input must still SUCCEED in this
+#      port. Implement the conditional and the row turns red, forcing its
+#      removal rather than leaving a stale "known limit" on record.
+#
+# In TypeScript the counterexample is additionally re-declared as a typed
+# literal `satisfies` the model's input type in
+# `packages/typescript/src/models/conformance-inputs.ts`, and the sweep
+# deep-equals that literal against the one below. That is the port's only
+# available proof, and the honest one: TypeScript could enforce this rule at
+# compile time with a discriminated union, and if someone ever does, the
+# `satisfies` stops compiling -- so the row is load-bearing there too, just at
+# a different moment than Python's construction.
+#
+# Keys are <snapshot> -> <kind>.<field>. Each row needs `requires`,
+# `counterexample`, `requires_prose`, and `unenforced`; both sweeps assert
+# their bound key set equals this section's.
+constraints:
+  workflow_schema:
+    workflowDispatchInput.default:
+      kind: workflowDispatchInput
+      requires:
+        - path:
+            [definitions, workflowDispatchInput, allOf, 1, if, properties, type, const]
+          value: boolean
+        - path:
+            [definitions, workflowDispatchInput, allOf, 1, if, required]
+          value: [type]
+        - path:
+            [
+              definitions,
+              workflowDispatchInput,
+              allOf,
+              1,
+              then,
+              properties,
+              default,
+              type,
+            ]
+          value: boolean
+      requires_prose: >-
+        The Snapshot leaves `workflowDispatchInput.default` untyped in
+        `properties` and constrains it from a five-branch `allOf` of
+        `if`/`then` clauses keyed on the sibling `type`: `type: "string"` and
+        `type: "environment"` require a string `default`, `type: "boolean"`
+        requires a boolean one, `type: "number"` requires a number, and
+        `type: "choice"` requires `options`. A `workflow_dispatch` input is
+        therefore only schema-valid when `default` matches what `type` declares.
+        The paths above pin the `boolean` branch, which is the one the
+        counterexample violates.
+      unenforced: >-
+        Neither port enforces any of it. Both type `default` as the
+        UNCONDITIONAL union of the branches -- `str | bool | int | float` in
+        Python, `string | boolean | number` in TypeScript, bound to the
+        Snapshot by schema/conformance-inputs.yml -- and neither looks at
+        `type` when validating `default`. So `type: "boolean"` with
+        `default: "yes"` is accepted by both ports and rejected by the
+        Snapshot, and ghagen will happily emit a workflow GitHub refuses.
+        `type: "choice"` without `options` is unenforced by the same omission.
+        This is the only cross-field dependency in any of the models, and
+        binding it would mean a validator that reads a sibling field -- a new
+        capability in both `ModelSpec` and the emitter's construction-time
+        checks, since `patterns` (the one existing per-field grammar hook) sees
+        a single value with no access to the rest of the model. Recorded rather
+        than built: one rule does not justify the mechanism, and an
+        unimplemented rule left unrecorded is how a "known limit" becomes a bug
+        report.
+      counterexample:
+        type: boolean
+        default: "yes"

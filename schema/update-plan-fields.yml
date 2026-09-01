@@ -1,0 +1,44 @@
+# The `ghagen deps update` plan field table.
+#
+# The newest cross-port contract in the repo, and until now the only one of
+# its kind with no shared file backing it: both ports asserted the plan's
+# field set against a hand-maintained literal in their own test file
+# (`_PLAN_FIELDS` in `test_deps.py`, `PLAN_FIELDS` in `deps.test.ts`), and
+# nothing compared the two. Adding an eleventh field to one port and its own
+# test passed both suites; the divergence would have surfaced only when a
+# workflow read a `$GITHUB_OUTPUT` key the other port never wrote. See
+# docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
+#
+# `keys` is the exact field-name set both `--format json` and `--format
+# github` emit for `ghagen deps update` -- the same list each port already
+# builds its two encodings from in one place (`_plan_fields` in
+# packages/python/src/ghagen/pin/plan.py, `planFields` in
+# packages/typescript/src/pin/plan.ts), so a field can never appear in one
+# encoding and not the other within a single port. What this file adds is the
+# missing link ACROSS ports.
+#
+# Every field is always present in both encodings -- none is conditional on
+# `--mode`, on `action`, or on whether anything changed. `body_format` is
+# `null` (JSON) / empty (github) when `action == "none"`, but the key itself
+# is still emitted; that is a value fact, not a presence fact.
+#
+# Read by:
+#   - Python (packages/python/tests/test_cli/test_deps.py)
+#   - TypeScript (packages/typescript/src/cli/deps.test.ts)
+#
+# Both suites assert the field-name set they observe from a live `deps
+# update` invocation -- under both `--format json` and `--format github` --
+# equals this file's `keys`, so a field added to one port and not the other
+# fails a test instead of drifting silently.
+
+keys:
+  - action
+  - total_updates
+  - apply_version_bumps
+  - refresh_lockfile
+  - branch
+  - title
+  - commit_message
+  - labels
+  - body_format
+  - changed

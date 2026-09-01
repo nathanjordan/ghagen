@@ -47,7 +47,7 @@ class CommentNode:
 def to_data(
     model: GhagenModel,
     *,
-    auto_dedent: bool = False,
+    auto_dedent: bool = True,
     comments: bool = False,
 ) -> Any:
     """Emit any model to plain Python data — the supported observation surface.
@@ -58,6 +58,11 @@ def to_data(
     ordered keys, and ``Raw`` escape-hatch values unwrapped to their inner
     value.
 
+    - ``auto_dedent=True`` (default): a Step's ``run`` string is dedented, same
+      as :meth:`~ghagen.models._base.Document.to_yaml`'s default — so a
+      no-options ``to_data`` / ``to_yaml`` pair can never disagree about
+      ``run``. Pass ``auto_dedent=False`` to observe the authored string
+      verbatim.
     - ``comments=False`` (default): ``Commented`` wrappers are unwrapped to
       their values. The returned tree contains no framework wrapper types
       (``Commented``, ``Raw``, ``CommentNode``, ``GhagenModel``, ruamel nodes),
@@ -71,10 +76,14 @@ def to_data(
     serialization, so it is deliberately not gated on
     :class:`~ghagen.models._base.Document`.
 
-    Unlike :func:`~ghagen.emitter.emit`, this does not run the ruamel-backend
-    passes (block-scalar promotion, comment-column alignment) or the
-    ``post_process`` hook, which operate on the backend node. Assert those via
-    the emitted YAML string.
+    Dedent is NOT one of those backend passes —
+    :func:`~ghagen.emitter.nodes.collect_fields` applies it during the shared
+    pre-backend collection stage that both ``to_data`` and ``emit`` walk, so
+    this function reproduces it exactly.
+    Unlike :func:`~ghagen.emitter.emit`, ``to_data`` does not run the
+    ruamel-backend passes (block-scalar promotion, comment-column alignment)
+    or the ``post_process`` hook, which operate on the backend node — assert
+    those via the emitted YAML string.
 
     Raises:
         TypeError: if *model* is not a :class:`~ghagen.models._base.GhagenModel`.

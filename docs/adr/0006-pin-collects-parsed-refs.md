@@ -26,6 +26,22 @@ and `LockfileError` for anything the reader cannot interpret;
 and `pin/lockfile.ts` state the grammar normatively; neither delegates scalar style or timestamp
 tolerance to its YAML library.
 
+**Amendment (docs/issues/23, item 3 and item 4):** "neither delegates ... timestamp tolerance to
+its YAML library" was the stated invariant but not, until now, the actual behavior of the
+**reader** — `_decode_timestamp` called `datetime.fromisoformat` directly, which accepts several
+spellings (a space separator, a colonless or minuteless offset, a comma decimal, basic format, a
+non-`:00` UTC offset like `+00:00:00`) that TypeScript's `TIMESTAMP_RE` rejects. Both readers now
+check the same named regex (`_TIMESTAMP_RE` / `TIMESTAMP_RE`) before either
+`datetime.fromisoformat` or a ruamel `TimeStamp` gets a say, closing the reader to exactly the
+grammar rule 7 in `pin/lockfile.py` names. The same principle extended to **keys**: a `uses`
+string that would be misread as a different YAML scalar type unquoted (a bool/null keyword, an
+int, a float) is now quoted by an explicit predicate (`_key_needs_quoting` /
+`needsQuoting`) shared, byte-for-byte the same regex, across both ports, rather than left to each
+YAML library's own quoting heuristic (ruamel single-quotes such a key; the TypeScript `yaml`
+package double-quotes it). No `uses:` string produced by normal ghagen usage triggers this — every
+real ref contains `/`, `@`, or a `docker://` prefix — so it is latent, reachable only by
+constructing a `Lockfile` directly through the public API.
+
 **The rule covers tag parsing as well as ref parsing.** `find_latest_tag` used to return a string
 it had already parsed, so `upgrade` re-parsed it behind a `parse(...) is None` guard that could
 never fire — this shape, one level down. `latest_bump` / `latestBump` returns a `Bump` of parsed

@@ -13,14 +13,13 @@ import type {
   DefaultsRunModel,
   EnvironmentModel,
   StepModel,
-  PermissionsModel,
   ContainerModel,
   ServiceModel,
   ImageSnapshotModel,
   Raw,
   ModelSpec,
 } from "./_base.js";
-import type { PermissionsInput } from "./permissions.js";
+import type { PermissionsValue } from "./permissions.js";
 import { permissions } from "./permissions.js";
 import type { ContainerInput } from "./container.js";
 import { container, service } from "./container.js";
@@ -284,8 +283,8 @@ export interface JobInput {
   needs?: string | string[];
   /** Conditional expression that must evaluate to true for this job to run. Serialized as `if`. The trailing `_` avoids the reserved word; it is stripped during emission. */
   if_?: string;
-  /** Token permissions for this job. Accepts a `PermissionsModel`, an inline `PermissionsInput`, a string shorthand, or a `Raw<string>`. */
-  permissions?: PermissionsModel | PermissionsInput | "read-all" | "write-all" | Raw<string>;
+  /** Token permissions for this job. See {@link PermissionsValue}: a `PermissionsModel`, an inline `PermissionsInput`, the `"read-all"` / `"write-all"` shorthand, or a `Raw<string>`. */
+  permissions?: PermissionsValue;
   /** Deployment environment. Can be a string (name only), an `EnvironmentModel`, or an inline `EnvironmentInput`. */
   environment?: string | EnvironmentModel | EnvironmentInput;
   /** Matrix strategy configuration. Accepts a `StrategyModel` or an inline `StrategyInput`. */

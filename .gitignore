@@ -28,7 +28,6 @@ htmlcov/
 Thumbs.db
 
 # uv
-uv.lock
 
 # Linting
 .ruff_cache/

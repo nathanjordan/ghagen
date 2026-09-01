@@ -44,10 +44,13 @@ The module that serializes a model tree to YAML — key ordering, comments, bloc
 serialization recursion (see ADR-0001, amended); models never serialize themselves. Also exposes
 the plain-data observation surface `toData()` — the supported way to inspect a model's emitted
 structure (see **CommentNode**).
-Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) and the block-comment
-column — is a named module, `emitter/comment-geometry.ts`, and every comment payload is rendered
-through it at attach time. No Emitter pass rewrites emitted text. The Emitter also owns the emitted
-**Header** bytes end to end — the backend never sees them.
+Comment _geometry_ — the end-of-line gutter (`EOL_GUTTER`, 2 columns) — is a named module,
+`emitter/comment-geometry.ts`, and every comment payload is rendered through it at attach time.
+The block-comment column is _not_ this module's business here: the `yaml` backend indents a
+`commentBefore` to its node automatically, so TypeScript has nothing to own there. (The Python
+peer, `emitter/comment_geometry.py`, owns both columns — ruamel does not do this for it, so that
+port must.) No Emitter pass rewrites emitted text. The Emitter also owns the emitted **Header**
+bytes end to end — the backend never sees them.
 
 **ModelSpec**:
 The per-model serialization spec — YAML key names (field → emitted key), an **OrderMode**, the
@@ -60,6 +63,12 @@ construction body in the port, and a factory declaration carries no code. Its `f
 binds a _value grammar_ to a field, checked in `buildYamlData` on the peeled value so that `raw()`
 stays the deliberate escape hatch and `withComment(...)` is not one.
 _Avoid_: field map, key-order table.
+
+**`*Input`**:
+The construction-time parameter type paired with each model — `WorkflowInput`, `StepInput`, and so
+on — the `I` in `defineFactory<M, I>(SPEC)`. What a caller hands the factory; distinct from the
+**Model** the factory returns, which carries `kind` and the **ModelSpec** on top of it.
+_Avoid_: props, options, args.
 
 **OrderMode**:
 A ModelSpec's emission-order rule. Two cases, no third and no placement modifier (ADR-0011):
@@ -135,7 +144,8 @@ What a caller should **do** about an **Upgrade report** — whether to apply bum
 refresh the lockfile, what to raise, and under what branch, title, and labels. Every field is a
 decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
 as well as the report, because one rule turns on `app.lockfilePath`, a fact the serialized report
-deliberately does not carry.
+deliberately does not carry. Its ten-field wire shape (both `--format json` and `--format github`)
+is declared once, in `schema/update-plan-fields.yml`, and pinned by both suites.
 
 ### Schema
 
@@ -149,6 +159,27 @@ Divergence between the committed schema Snapshot and the current upstream schema
 A named node in a Snapshot (`schema/conformance-scopes.yml`) that both ports must bind to a
 covering model, and whose declared property set that model must emit in full. A path segment may
 be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
+
+**Gap**:
+A limit both ports intentionally do not close, recorded in `schema/conformance-gaps.yml`. Two
+kinds, proved differently. A **property gap** is a scope property neither port models,
+allow-listed by name; both sweeps hold every such row to three claims, not just "listed": the name
+must still exist upstream (else stale), must still be uncovered by the model (else the gap has been
+closed and the row must go), and the file's own snapshot/scope keys must equal the sweep's exactly.
+A **constraint gap**, under the reserved top-level `constraints` key, records a cross-field rule
+neither port enforces — today only `workflowDispatchInput.default`'s dependence on the sibling
+`type`. It has no absent property to point at, so its three claims differ: the upstream paths it
+names must still hold the values it names, its `counterexample` must still _construct_ in both
+ports (the day either enforces the rule, the row fails and must go), and the same key-set parity.
+Either way a gap row is a live regression guard, not a comment that happens to be YAML.
+
+**Input type**:
+The accepted type union of a model field, bound to the Snapshot by `schema/conformance-inputs.yml`
+— the third shared table, alongside scopes (property sets) and values (grammars). A row names the
+`yaml_key` the field emits, the Snapshot `type_paths` whose union the declared type must equal, and
+accept/reject vectors both ports execute. `yaml_key` is what lets one row cover a field the two
+ports name differently. The reject direction is asymmetric by construction: Python runs it under
+`pytest.raises`, TypeScript compiles it under `@ts-expect-error`.
 
 ### CLI
 
@@ -188,7 +219,17 @@ framework renders the text, `main()` decides the number.
   schema (ADR-0003); separately, factories enforce their construction-time input contract at
   runtime — unknown input keys raise `ModelInputError` (use `extras`), and a **value grammar**
   declared in a spec's `patterns` (e.g. `ImageSnapshot.version`) is checked against the canonical
-  Snapshot's pattern.
+  Snapshot's pattern. Every such field's input type must admit `Raw<string>` (issue 22), so the
+  grammar-violation message's "wrap in `raw()`" advice is true wherever it fires. TypeScript has no
+  runtime form of a field's declared type, so this is enforced at compile time: the bound
+  constructors live in `models/conformance-values.ts` (a plain `src/` module, unlike
+  `conformance.test.ts`, which `tsconfig.json` excludes from `tsc --noEmit`), so narrowing a field
+  away from `Raw` fails `npm run typecheck`, not just a runtime assertion.
+- A field's accepted **input type** is bound to the Snapshot by `schema/conformance-inputs.yml`, the
+  peer of the value table. Its reject vectors have no runtime form in this port, so they too are
+  compiler-executed: `models/conformance-inputs.ts` (a plain `src/` module, for the same reason)
+  declares each rejected literal under an `@ts-expect-error`, so widening a field to admit one turns
+  the directive unused and `tsc` reports TS2578. Python runs the same vectors under `pytest.raises`.
 - The config module (`config.ts`) solely owns `.ghagen.yml` — discovery, single parse, validation,
   App resolution — returning typed results with errors as values (ADR-0007); `CliError` lives in
   `cli/_errors.ts`. commander runs under `exitOverride()`, applied **recursively after tree
@@ -212,7 +253,8 @@ framework renders the text, `main()` decides the number.
   `report.lockfileStale.length > 0`. `renderUpdatePlan` takes its format **positionally**, matching
   `renderUpgradeReport`, and emits snake_case keys in both encodings because the field names are a
   cross-port wire contract, not this port's interface. `ghagen deps update` is the one command that
-  runs a whole automation pass — sweep, write, plan — and prints the plan and nothing else on
+  runs a whole automation pass — sweep, `pin/update.ts`'s `applyUpdates` writes the version bumps
+  back into user source, `planUpdate` decides the rest — and prints the plan and nothing else on
   stdout. `check-deps/action.yml` runs the Python port of it; the shell there branches on the plan
   and computes nothing.
 - `defaults()`'s nested `run` map is a promoted `DefaultsRunModel` (mirror of Python's

@@ -97,22 +97,20 @@ export class HttpResponse {
  * conformance table in `transport-contract.ts` runs it against each of them,
  * and its Python peer runs the identical table.
  *
- * **Deadline — wall clock, not per operation.** A `get` settles — resolving or
- * rejecting — within `API_TIMEOUT_MS` measured on the wall clock from the
- * moment it is called, *including reading the body*. The distinction is the
- * whole point: a per-socket-operation timeout is reset by every byte that
- * arrives, so a peer trickling one byte per interval holds the call open
- * indefinitely while never exceeding it. Row 12 of the conformance table
- * (`dribble-body`) is that peer, and it is what an adapter must survive.
- *
- * One phase is excluded, in both ports' wording though not in this port's
- * fact: the response **head**. Python's `UrllibTransport` delegates
- * connect-and-read-headers to `urlopen`, which admits only a per-operation
- * timeout, so an origin that trickles *header* bytes is bounded per operation
- * there; `AbortSignal.timeout` covers it here. The guarantee stated is the
- * intersection — wall-clock from the first body byte, per-operation before it
- * — so that the interface promises only what both ports deliver. This port
- * exceeds it; see `UrllibTransport._read_within` in `pin/github.py`.
+ * **Deadline — wall clock, not per operation, the whole call.** A `get`
+ * settles — resolving or rejecting — within `API_TIMEOUT_MS` measured on the
+ * wall clock from the moment it is called — connecting, reading the response
+ * **head**, and reading the body, all under the one budget. The distinction
+ * is the whole point: a per-socket-operation timeout is reset by every byte
+ * that arrives, so a peer trickling one byte per interval holds the call open
+ * indefinitely while never exceeding it. Rows 13 and 14 of the conformance
+ * table (`dribble-body`, `dribble-head`) are that peer, at each phase, and
+ * both are what an adapter must survive. This port gets that from
+ * `AbortSignal.timeout`, which spans the whole call by construction; Python's
+ * `UrllibTransport` gets it by re-clamping its socket's timeout to the
+ * wall-clock budget remaining before every read — head bytes included —
+ * rather than delegating to `urlopen`'s fixed per-operation one. See
+ * `UrllibTransport._deadline_socket_class` in `pin/github.py`.
  *
  * Production adapters take the deadline as one defaulted constructor argument
  * so the promise is testable rather than merely stated, and the default itself
@@ -209,14 +207,14 @@ export class GitHubClient {
    * 200 with a body that is not the documented shape.
    */
   async resolveRef(owner: string, repo: string, ref: string): Promise<string> {
-    for (const url of refUrls(owner, repo, ref)) {
+    for (const url of _refUrls(owner, repo, ref)) {
       const data = await this.getJson(url);
       if (data === null) {
         continue; // 404 for this prefix — try the next.
       }
       const obj = refObject(data, url);
       let sha = requireSha(obj, url);
-      if (isAnnotatedTag(obj)) {
+      if (_isAnnotatedTag(obj)) {
         sha = await this.dereferenceTag(owner, repo, sha);
       }
       return sha;
@@ -240,7 +238,7 @@ export class GitHubClient {
     const data = await this.getJson(url);
     const member = isJsonObject(data) ? data["object"] : undefined;
     const obj = isJsonObject(member) ? (member as { type?: string; sha?: string }) : {};
-    const sha = commitSha(obj);
+    const sha = _commitSha(obj);
     if (sha !== null) {
       return sha;
     }
@@ -341,7 +339,7 @@ export class GitHubClient {
     if (resp.status === 404) {
       return null;
     }
-    return { body: this.parseJson(resp, url), next: parseNextLink(resp.header("Link")) };
+    return { body: this.parseJson(resp, url), next: _parseNextLink(resp.header("Link")) };
   }
 }
 
@@ -418,25 +416,33 @@ function refNames(data: unknown, url: string): string[] {
 }
 
 // -- pure helpers (unit-testable without a transport) ----------------------
+//
+// Exported — not imported by any production code outside this file — solely so
+// `github.test.ts` can unit-test them directly without a transport. They are
+// not part of the published API (absent from `pin/index.ts` and `src/index.ts`),
+// matching Python's underscore-prefixed module-private peers (`_ref_urls`,
+// `_is_annotated_tag`, `_commit_sha`, `_parse_next_link` in `pin/github.py`).
 
-/** Return the candidate ref-lookup URLs in tag-then-head fallback order. */
-export function refUrls(owner: string, repo: string, ref: string): string[] {
+/** @internal — return the candidate ref-lookup URLs in tag-then-head fallback order. */
+export function _refUrls(owner: string, repo: string, ref: string): string[] {
   return (["tags", "heads"] as const).map(
     (prefix) => `${API_BASE}/repos/${owner}/${repo}/git/ref/${prefix}/${ref}`,
   );
 }
 
-/** Whether a ref object points to an annotated tag (needs dereferencing). */
-export function isAnnotatedTag(obj: { type?: string }): boolean {
+/** @internal — whether a ref object points to an annotated tag (needs dereferencing). */
+export function _isAnnotatedTag(obj: { type?: string }): boolean {
   return obj.type === "tag";
 }
 
-/** Return the SHA if `obj` is a commit object, else `null`. */
-export function commitSha(obj: { type?: string; sha?: string }): string | null {
+/** @internal — return the SHA if `obj` is a commit object, else `null`. */
+export function _commitSha(obj: { type?: string; sha?: string }): string | null {
   return obj.type === "commit" && typeof obj.sha === "string" ? obj.sha : null;
 }
 
 /**
+ * @internal
+ *
  * Extract the `next` URL from a GitHub `Link` header.
  *
  * Example header value:
@@ -444,7 +450,7 @@ export function commitSha(obj: { type?: string; sha?: string }): string | null {
  *     <https://api.github.com/repos/o/r/git/refs/tags?page=2>; rel="next",
  *     <https://api.github.com/repos/o/r/git/refs/tags?page=5>; rel="last"
  */
-export function parseNextLink(header: string | null): string | null {
+export function _parseNextLink(header: string | null): string | null {
   if (!header) {
     return null;
   }

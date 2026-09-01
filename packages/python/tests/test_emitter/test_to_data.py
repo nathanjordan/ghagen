@@ -27,6 +27,7 @@ from ghagen import (
 )
 from ghagen.emitter import CommentNode, to_data
 from ghagen.models.job import Defaults, DefaultsRun
+from ghagen_schema.paths import EXPECTED_DIR
 
 
 def test_returns_plain_dict():
@@ -65,6 +66,31 @@ def test_extras_merged_after_ordered_keys():
     data = to_data(step)
     assert list(data) == ["name", "custom"]
     assert data["custom"] == "x"
+
+
+def test_extras_astral_plane_keys_order_by_code_point():
+    """``On(extras=...)`` (docs/issues/23 item 5) -- the only reachable path.
+
+    The issue's own example pair: ``"\\u{1F600}"`` (an astral-plane key,
+    U+1F600) and ``"＀"`` (U+FF00, a BMP key). ``On.SPEC.order ==
+    "alphabetical"``, so every extras key merges into the same sort
+    ``order_entries`` runs on typed fields, and these two disagree on where
+    they land depending on whether the comparison is by Unicode code point
+    (Python's native ``str`` ordering) or by UTF-16 code unit (the pre-fix
+    TypeScript ``.sort()``): the BMP char's single code unit (0xFF00) is
+    numerically *larger* than the astral char's leading surrogate (0xD83D),
+    even though the astral char's actual code point (0x1F600) is larger
+    still. ``fixtures/expected/on_extras_astral_order.txt`` is the shared
+    oracle the TypeScript peer asserts the same order against.
+    """
+    on = On(
+        push=PushTrigger(),
+        extras={"＀_event": {}, "\U0001f600_event": {}},
+    )
+
+    fixture_path = EXPECTED_DIR / "on_extras_astral_order.txt"
+    expected = fixture_path.read_text(encoding="utf-8").splitlines()
+    assert list(to_data(on)) == expected
 
 
 def test_raw_unwrapped_to_inner_value():
@@ -168,11 +194,27 @@ def test_non_model_raises_type_error():
         to_data("just a string")  # type: ignore[arg-type]
 
 
-def test_bare_step_run_dedented_with_auto_dedent():
+def test_bare_step_run_dedented_by_default():
     # Parity with the ruamel recursion: a bare Step's run dedents wherever it is
     # encountered, not only inside a Document.
-    data = to_data(Step(run="  echo one\n  echo two"), auto_dedent=True)
+    data = to_data(Step(run="  echo one\n  echo two"))
     assert data["run"] == "echo one\necho two"
+
+
+def test_to_data_and_to_yaml_agree_on_run_with_no_options():
+    # The deliverable invariant (issue 13): a to_data / to_yaml pair called
+    # with no options must never disagree about a Step's run. Both default
+    # auto_dedent to True, so this must hold for any indented multi-line run.
+    step = Step(name="Build", run="  echo building\n  make all")
+    wf = Workflow(
+        name="CI",
+        jobs={"build": Job(runs_on="ubuntu-latest", steps=[step])},
+    )
+    yaml = YAML(typ="safe")
+    parsed = yaml.load(io.StringIO(wf.to_yaml(header=None)))
+    run_from_yaml = parsed["jobs"]["build"]["steps"][0]["run"]
+    run_from_data = to_data(wf)["jobs"]["build"]["steps"][0]["run"]
+    assert run_from_data == run_from_yaml == "echo building\nmake all"
 
 
 def test_deep_structure_matches_emitted_yaml():
@@ -180,7 +222,8 @@ def test_deep_structure_matches_emitted_yaml():
     # must equal to_data's output for a RICH document, so the two duplicated
     # recursions cannot diverge on exclude/unwrap/present-null/dedent — not just
     # top-level ordering. Comments are dropped by the YAML parse, so to_data runs
-    # with comments off; auto_dedent matches the ``to_yaml`` default-on.
+    # with comments off; auto_dedent is left at its default, which now matches
+    # ``to_yaml``'s default-on.
     wf = Workflow(
         name="CI",
         on=On(
@@ -207,4 +250,4 @@ def test_deep_structure_matches_emitted_yaml():
     )
     yaml = YAML(typ="safe")
     parsed = yaml.load(io.StringIO(wf.to_yaml(header=None)))
-    assert to_data(wf, auto_dedent=True) == parsed
+    assert to_data(wf) == parsed

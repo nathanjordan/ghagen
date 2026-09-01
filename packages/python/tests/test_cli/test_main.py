@@ -14,7 +14,7 @@ def test_init(tmp_path: Path, monkeypatch: object):
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
-    assert "Created" in result.output
+    assert "Created" in result.stdout
 
     config = tmp_path / ".github" / "ghagen_workflows.py"
     assert config.exists()
@@ -30,7 +30,7 @@ def test_init_already_exists(tmp_path: Path, monkeypatch: object):
 
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 1
-    assert "already exists" in result.output
+    assert "already exists" in result.stderr
 
 
 def test_synth_and_check(tmp_path: Path, monkeypatch: object):
@@ -58,7 +58,7 @@ app.add_workflow(ci, "ci.yml")
     # Synth
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 0
-    assert "Synthesized 1" in result.output
+    assert "Synthesized 1" in result.stdout
 
     # Verify file exists
     generated = tmp_path / ".github" / "workflows" / "ci.yml"
@@ -70,7 +70,7 @@ app.add_workflow(ci, "ci.yml")
     # Check should pass (files are in sync)
     result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 0
-    assert "up-to-date" in result.output
+    assert "up-to-date" in result.stdout
 
 
 def test_synth_workflow_and_action(tmp_path: Path, monkeypatch: object):
@@ -117,8 +117,8 @@ app.add_action(greet)
     )
 
     result = runner.invoke(app, ["synth"])
-    assert result.exit_code == 0, result.output
-    assert "Synthesized 2 file(s)" in result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
+    assert "Synthesized 2 file(s)" in result.stdout
 
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
     action_file = tmp_path / "action.yml"
@@ -129,7 +129,7 @@ app.add_action(greet)
 
     result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 0
-    assert "up-to-date" in result.output
+    assert "up-to-date" in result.stdout
 
 
 def test_check_detects_stale(tmp_path: Path, monkeypatch: object):
@@ -160,14 +160,14 @@ app.add_workflow(ci, "ci.yml")
     # Check should fail
     result = runner.invoke(app, ["check-synced"])
     assert result.exit_code == 1
-    assert "out of date" in result.output
+    assert "out of date" in result.stderr
 
 
 def test_synth_no_config(tmp_path: Path, monkeypatch: object):
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert "no config file found" in result.output
+    assert "no config file found" in result.stderr
 
 
 _MINIMAL_WORKFLOW_SRC = """\
@@ -196,8 +196,8 @@ def test_entrypoint_in_ghagen_yml(tmp_path: Path, monkeypatch: object):
     (tmp_path / ".ghagen.yml").write_text("entrypoint: scripts/wf.py\n")
 
     result = runner.invoke(app, ["synth"])
-    assert result.exit_code == 0, result.output
-    assert "Synthesized 1" in result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
+    assert "Synthesized 1" in result.stdout
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
@@ -211,7 +211,7 @@ def test_entrypoint_relative_to_yml_dir(tmp_path: Path, monkeypatch: object):
     (tmp_path / ".ghagen.yml").write_text("entrypoint: .github/my_wf.py\n")
 
     result = runner.invoke(app, ["synth"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
@@ -223,8 +223,8 @@ def test_entrypoint_file_missing(tmp_path: Path, monkeypatch: object):
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert ".ghagen.yml" in result.output
-    assert "does_not_exist.py" in result.output
+    assert ".ghagen.yml" in result.stderr
+    assert "does_not_exist.py" in result.stderr
 
 
 def test_entrypoint_wrong_type(tmp_path: Path, monkeypatch: object):
@@ -235,7 +235,7 @@ def test_entrypoint_wrong_type(tmp_path: Path, monkeypatch: object):
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert "must be a string" in result.output
+    assert "must be a string" in result.stderr
 
 
 def test_entrypoint_malformed_yaml(tmp_path: Path, monkeypatch: object):
@@ -246,7 +246,7 @@ def test_entrypoint_malformed_yaml(tmp_path: Path, monkeypatch: object):
 
     result = runner.invoke(app, ["synth"])
     assert result.exit_code == 1
-    assert "failed to parse YAML" in result.output
+    assert "failed to parse YAML" in result.stderr
 
 
 def test_cli_config_overrides_ghagen_yml(tmp_path: Path, monkeypatch: object):
@@ -259,7 +259,7 @@ def test_cli_config_overrides_ghagen_yml(tmp_path: Path, monkeypatch: object):
     (tmp_path / ".ghagen.yml").write_text("entrypoint: does_not_exist.py\n")
 
     result = runner.invoke(app, ["synth", "--config", "flag_wf.py"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
@@ -271,7 +271,7 @@ def test_ghagen_yml_without_entrypoint_falls_back(tmp_path: Path, monkeypatch: o
     (tmp_path / "ghagen_config.py").write_text(_MINIMAL_WORKFLOW_SRC)
 
     result = runner.invoke(app, ["synth"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
     assert (tmp_path / ".github" / "workflows" / "ci.yml").exists()
 
 
@@ -290,8 +290,8 @@ def test_entrypoint_resolved_from_subdirectory(tmp_path: Path, monkeypatch: obje
     monkeypatch.chdir(subdir)  # type: ignore[attr-defined]
 
     result = runner.invoke(app, ["synth"])
-    assert result.exit_code == 0, result.output
-    assert "Synthesized 1" in result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
+    assert "Synthesized 1" in result.stdout
     # App() defaults root="." (unaffected by this spec), which resolves
     # against cwd -- i.e. the subdirectory the CLI was invoked from. What
     # this test guards is entrypoint *resolution*: `.ghagen.yml` one level
@@ -299,5 +299,5 @@ def test_entrypoint_resolved_from_subdirectory(tmp_path: Path, monkeypatch: obje
     assert (subdir / ".github" / "workflows" / "ci.yml").exists()
 
     result = runner.invoke(app, ["check-synced"])
-    assert result.exit_code == 0, result.output
-    assert "up-to-date" in result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
+    assert "up-to-date" in result.stdout

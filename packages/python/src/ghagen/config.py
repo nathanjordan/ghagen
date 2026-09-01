@@ -22,6 +22,7 @@ What lives behind this seam:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -58,10 +59,15 @@ def find_app_root(start: Path | None = None) -> Path | None:
             a file. Defaults to the current working directory.
 
     Returns:
-        The resolved directory containing ``.ghagen.yml``, or
-        ``None`` if no ancestor contains the marker.
+        The absolute directory containing ``.ghagen.yml``, or ``None`` if no
+        ancestor contains the marker. Lexical only -- ``.`` and ``..`` are
+        collapsed and the result is joined against the cwd, but a symlink
+        anywhere in *start* is never followed. That matches the TypeScript
+        peer's ``findAppRoot``, which uses ``resolve()`` from ``node:path``
+        (string manipulation only, no filesystem access) and has no
+        equivalent of ``Path.resolve()``'s realpath behaviour to opt out of.
     """
-    base = (start or Path.cwd()).resolve()
+    base = Path(os.path.abspath(start or Path.cwd()))
     if base.is_file():
         base = base.parent
 

@@ -13,6 +13,7 @@ ghagen's typed models cover the most common GitHub Actions features, but the Git
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 from ghagen import Job, Raw, Step
 
@@ -24,9 +25,11 @@ Job(runs_on=Raw("${{ matrix.os }}"))
 
 Step(name="Custom shell", run="echo hello", shell=Raw("custom-shell"))
 
-````
+```
+
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { job, step, raw } from "@ghagen/ghagen";
 
@@ -35,7 +38,7 @@ job({ runsOn: raw("${{ matrix.os }}") });
 
 // Use a custom shell that isn't in the predefined set
 step({ name: "Custom shell", run: "echo hello", shell: raw("custom-shell") });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -52,6 +55,7 @@ The `extras` dictionary lets you add key-value pairs that are merged into the mo
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 from ghagen import Job
 
@@ -63,9 +67,11 @@ extras={
 },
 )
 
-````
+```
+
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { job } from "@ghagen/ghagen";
 
@@ -73,7 +79,7 @@ job({
   runsOn: "ubuntu-latest",
   extras: { "timeout-minutes": 30, "continue-on-error": true },
 });
-````
+```
 
 </TabItem>
 </Tabs>
@@ -94,6 +100,7 @@ Set `postProcess` to a callback that runs just before the model is written out. 
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 from ghagen import On, PushTrigger, Workflow
 
@@ -107,7 +114,7 @@ jobs={"test": test_job},
 post_process=add_annotation,
 )
 
-````
+```
 
 Use `post_process` for conditional logic, complex mutations, or anything that doesn't fit the declarative model:
 
@@ -121,26 +128,27 @@ def add_debug_step(cm):
         )
 
 Workflow(..., post_process=add_debug_step)
-````
+```
 
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { workflow, job, step, on, pushTrigger } from "@ghagen/ghagen";
 import type { YAMLMap } from "yaml";
 
 workflow({
-name: "Annotated",
-on: on({ push: pushTrigger({ branches: ["main"] }) }),
-jobs: { test: testJob },
-postProcess: (map: YAMLMap) => {
-map.set("x-generated-by", "ghagen");
-},
+  name: "Annotated",
+  on: on({ push: pushTrigger({ branches: ["main"] }) }),
+  jobs: { test: testJob },
+  postProcess: (map: YAMLMap) => {
+    map.set("x-generated-by", "ghagen");
+  },
 });
-
-````
+```
 
 The TypeScript `postProcess` callback receives a `YAMLMap` from the `yaml` library rather than a plain dict.
+
 </TabItem>
 </Tabs>
 
@@ -150,6 +158,7 @@ For maximum flexibility, you can build a raw YAML node and pass it anywhere a ty
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
+
 ```python
 from ruamel.yaml.comments import CommentedMap
 
@@ -170,34 +179,32 @@ Workflow(
         ),
     },
 )
-````
+```
 
 Typed models and raw YAML nodes can be mixed freely in the same workflow -- use typed models where they fit and drop down to a `CommentedMap` only for the sections that need escape.
 
 </TabItem>
 <TabItem label="TypeScript">
+
 ```typescript
 import { workflow, job, step, on, pushTrigger } from "@ghagen/ghagen";
 import { YAMLMap, Pair, Scalar } from "yaml";
 
 const rawJob = new YAMLMap();
 rawJob.items.push(new Pair(new Scalar("runs-on"), "ubuntu-latest"));
-rawJob.items.push(
-new Pair(new Scalar("steps"), [{ run: "echo 'raw job'" }]),
-);
+rawJob.items.push(new Pair(new Scalar("steps"), [{ run: "echo 'raw job'" }]));
 
 workflow({
-name: "Mixed",
-on: on({ push: pushTrigger({ branches: ["main"] }) }),
-jobs: {
-raw: rawJob,
-typed: job({
-runsOn: "ubuntu-latest",
-steps: [step({ uses: "actions/checkout@v4" })],
-}),
-},
+  name: "Mixed",
+  on: on({ push: pushTrigger({ branches: ["main"] }) }),
+  jobs: {
+    raw: rawJob,
+    typed: job({
+      runsOn: "ubuntu-latest",
+      steps: [step({ uses: "actions/checkout@v4" })],
+    }),
+  },
 });
-
 ```
 
 Typed models and raw `YAMLMap` nodes can be mixed freely in the same workflow -- use typed models where they fit and drop down to a `YAMLMap` only for the sections that need escape. This is the TypeScript equivalent of Python's `CommentedMap`.
@@ -209,12 +216,15 @@ Typed models and raw `YAMLMap` nodes can be mixed freely in the same workflow --
 
 Use this decision guide to pick the right escape hatch:
 
-| Situation                                                        | Escape hatch                       |
-| ---------------------------------------------------------------- | ---------------------------------- |
-| A field rejects your value (expression, custom enum)             | `raw()`                            |
-| You need a YAML key that has no corresponding model field        | `extras`                           |
-| You need conditional logic or complex mutations at emission time | `postProcess`                      |
-| You need full control over a section of YAML                     | Raw YAML passthrough               |
+| Situation                                                        | Escape hatch         |
+| ---------------------------------------------------------------- | -------------------- |
+| A field rejects your value (expression, custom enum)             | `raw()`              |
+| You need a YAML key that has no corresponding model field        | `extras`             |
+| You need conditional logic or complex mutations at emission time | `postProcess`        |
+| You need full control over a section of YAML                     | Raw YAML passthrough |
 
 **Start with `raw()`** and escalate only if it doesn't solve your problem. The lighter the escape hatch, the more type safety and IDE support you retain.
+
+```
+
 ```

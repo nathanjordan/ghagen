@@ -8,13 +8,14 @@ drift into a shape the real adapter is unable to produce.
 Two builders construct canned responses: :func:`canned` encodes a JSON value,
 :func:`canned_raw` takes a body verbatim (a malformed 200, a truncated payload).
 
-Rows 8-12 put the adapter in front of a **raw socket**, not a request-handling
+Rows 9-14 put the adapter in front of a **raw socket**, not a request-handling
 server: ``http.server`` always frames a well-formed response, so it cannot
-express "peer closes without answering" (row 9), "declared
-``Content-Length: 100``, delivered 5 bytes" (row 11), or "trickle a byte at a
-time forever" (row 12).  Each scenario gets its own listening socket and its
+express "peer closes without answering" (row 10), "declared
+``Content-Length: 100``, delivered 5 bytes" (row 12), "trickle a body byte at
+a time forever" (row 13), or "trickle a *head* byte at a time, forever, never
+completing it" (row 14).  Each scenario gets its own listening socket and its
 own daemon thread — a scenario whose handler deliberately never returns (row
-10) would otherwise block a shared accept loop and deadlock the next one.
+11) would otherwise block a shared accept loop and deadlock the next one.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ from ghagen.pin.github import HttpClient, Response, TransportError
 # Generous: these rows are about what comes back, not about timing.
 RESPONSE_DEADLINE_SECONDS = 5.0
 
-# Row 10's deadline, and the sole caller of the adapters' deadline argument.
+# Row 11's deadline, and the sole caller of the adapters' deadline argument.
 FAILURE_DEADLINE_SECONDS = 0.25
 
 # Upper bound on a failure row's wall clock, at 10x the deadline.  No lower
@@ -110,7 +111,7 @@ class FakeTransport:
 
 @dataclass(frozen=True)
 class ResponseCase:
-    """A row that must produce a returned :class:`Response` (rows 1-7).
+    """A row that must produce a returned :class:`Response` (rows 1-8).
 
     One description serves both kinds of adapter: :meth:`wire` is what a raw
     origin writes to the socket, :meth:`response` is the equivalent canned
@@ -189,8 +190,21 @@ RESPONSE_CASES: tuple[ResponseCase, ...] = (
         reason="OK",
         body=b"{}",
     ),
+    # Row 8 — a paginated page that parses as JSON but is not an array.  The
+    # transport resolves this like any other 200; it is
+    # ``GitHubClient.list_tags`` (``_ref_names``, ``github.py``) that must turn
+    # it into ``ResolveError`` rather than truncating the tag list or crashing
+    # outright.  Binding the raw bytes here keeps both adapters delivering the
+    # identical malformed body so that per-port shape-check, which is tested
+    # separately, sees the same input.
+    ResponseCase(
+        name="non-array-page",
+        status=200,
+        reason="OK",
+        body=b'{"message": "not an array"}',
+    ),
 )
-"""Rows 1-7 — every adapter, real or canned, must satisfy these."""
+"""Rows 1-8 — every adapter, real or canned, must satisfy these."""
 
 FAILURE_CASES: tuple[str, ...] = (
     "connection-refused",
@@ -198,8 +212,9 @@ FAILURE_CASES: tuple[str, ...] = (
     "stall-mid-body",
     "truncated-body",
     "dribble-body",
+    "dribble-head",
 )
-"""Rows 8-12 — a canned double satisfies these by construction, so it skips them."""
+"""Rows 9-14 — a canned double satisfies these by construction, so it skips them."""
 
 ALL_CASES: tuple[ResponseCase | str, ...] = (*RESPONSE_CASES, *FAILURE_CASES)
 
@@ -223,11 +238,11 @@ def _read_request(conn: socket.socket) -> bytes:
     return data
 
 
-# A head that promises 100 bytes and is followed by 5, used by rows 10 and 11.
+# A head that promises 100 bytes and is followed by 5, used by rows 11 and 12.
 _UNDERDELIVERED_HEAD = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n"
 _UNDERDELIVERED_BODY = b"12345"
 
-# Row 12's shape: one body byte every _DRIBBLE_INTERVAL for _DRIBBLE_SECONDS.
+# Row 13's shape: one body byte every _DRIBBLE_INTERVAL for _DRIBBLE_SECONDS.
 # The interval must exceed FAILURE_DEADLINE_SECONDS/2 so that a *per-socket*
 # timeout of one deadline never fires — which is exactly what makes the row
 # distinguish a wall-clock deadline from a per-operation one.
@@ -307,25 +322,25 @@ def _responder(wire: bytes) -> Callable[[socket.socket, threading.Event], None]:
 
 
 def _abrupt_close(conn: socket.socket, _stop: threading.Event) -> None:
-    """Row 9 — accept the request, then close without writing a response."""
+    """Row 10 — accept the request, then close without writing a response."""
     return None
 
 
 def _stall_mid_body(conn: socket.socket, stop: threading.Event) -> None:
-    """Row 10 — send a head and part of the body, then hold the connection."""
+    """Row 11 — send a head and part of the body, then hold the connection."""
     conn.sendall(_UNDERDELIVERED_HEAD + _UNDERDELIVERED_BODY)
     stop.wait()
 
 
 def _truncated_body(conn: socket.socket, _stop: threading.Event) -> None:
-    """Row 11 — declare 100 bytes, deliver 5, close."""
+    """Row 12 — declare 100 bytes, deliver 5, close."""
     conn.sendall(_UNDERDELIVERED_HEAD + _UNDERDELIVERED_BODY)
 
 
 def _dribble_body(conn: socket.socket, stop: threading.Event) -> None:
-    """Row 12 — send one body byte every 200ms for 10s.
+    """Row 13 — send one body byte every 200ms for 10s.
 
-    The row rows 10 and 11 cannot express.  A *stalled* peer is caught by a
+    The row rows 11 and 12 cannot express.  A *stalled* peer is caught by a
     per-socket-operation timeout too, because no operation completes; a peer
     that keeps trickling resets that timeout forever, so only an adapter
     honouring a genuine **wall-clock** deadline aborts.  ``AbortSignal.timeout``
@@ -338,6 +353,22 @@ def _dribble_body(conn: socket.socket, stop: threading.Event) -> None:
         conn.sendall(b"x")
 
 
+def _dribble_head(conn: socket.socket, stop: threading.Event) -> None:
+    """Row 14 — send one head byte every 200ms for 10s, never completing it.
+
+    ``dribble-body`` (row 13) proves a wall-clock deadline once the head is
+    already in hand; this row proves the same thing about the head itself —
+    no status line, no headers, ever, just a trickle that a per-operation
+    timeout renews forever.  An adapter that only starts its deadline once
+    ``read`` first sees body bytes — the exact gap a fix for row 13 alone
+    could leave open — hangs on this row instead of failing it.
+    """
+    for _ in range(_DRIBBLE_LENGTH):
+        if stop.wait(_DRIBBLE_INTERVAL):
+            return
+        conn.sendall(b"H")
+
+
 _FAILURE_HANDLERS: dict[
     str, Callable[[socket.socket, threading.Event], None] | None
 ] = {
@@ -346,6 +377,7 @@ _FAILURE_HANDLERS: dict[
     "stall-mid-body": _stall_mid_body,
     "truncated-body": _truncated_body,
     "dribble-body": _dribble_body,
+    "dribble-head": _dribble_head,
 }
 
 
@@ -404,7 +436,7 @@ def canned_adapter() -> MakeAdapter:
     @contextmanager
     def make(case: ResponseCase | str, _deadline: float) -> Iterator[Bound]:
         assert isinstance(case, ResponseCase), (
-            "a canned double satisfies rows 8-11 by construction; it runs rows 1-7"
+            "a canned double satisfies rows 9-12 by construction; it runs rows 1-8"
         )
         transport = FakeTransport({"/contract": case.response()})
 

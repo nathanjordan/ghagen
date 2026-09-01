@@ -17,6 +17,7 @@ import { GitHubClient, type HttpResponse } from "./github.js";
 import { Lockfile, readLockfile, writeLockfile } from "./lockfile.js";
 import { checkSync, pin, upgrade } from "./engine.js";
 import { FakeTransport, canned } from "./transport-contract.js";
+import { EXPECTED_DIR } from "../paths.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -196,6 +197,41 @@ describe("upgrade()", () => {
     expect(readFileSync(source, "utf8")).toContain("actions/checkout@v5");
   });
 
+  // Python's counterpart is test_cli/test_deps.py::TestUpgradeApply's
+  // multi-repo case (`_mock_list_tags`, `:156-162`) — the only multi-repo
+  // upgrade() coverage on either port before docs/issues/16. That test drives
+  // the CLI with a mocked `GitHubClient.list_tags`; this one drives the engine
+  // directly against the shared canned transport (proposal 16), one entry per
+  // repo, to prove a second loop iteration over a distinct repo is exercised.
+  it("detects and applies version bumps across more than one repository", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@v4", "actions/setup-python@v5");
+    const source = join(tmp, "wf.ts");
+    writeFileSync(
+      source,
+      'step({ uses: "actions/checkout@v4" });\nstep({ uses: "actions/setup-python@v5" });\n',
+    );
+    const client = new GitHubClient(
+      new FakeTransport({
+        "repos/actions/checkout/git/refs/tags": tags("v1", "v2", "v3", "v4", "v5", "v6", "v7"),
+        "repos/actions/setup-python/git/refs/tags": tags("v4", "v5", "v5.1.0", "v6", "v7"),
+      }),
+    );
+
+    const report = await upgrade(app, client, new Set([source]), {
+      mode: "versions",
+      apply: true,
+    });
+
+    expect(report.versionBumps.map((b) => b.uses)).toEqual([
+      "actions/checkout@v4",
+      "actions/setup-python@v5",
+    ]);
+    expect(report.changedFiles).toEqual([source]);
+    const content = readFileSync(source, "utf8");
+    expect(content).toContain("actions/checkout@v7");
+    expect(content).toContain("actions/setup-python@v7");
+  });
+
   // A four-segment tag is a version tag, end to end, in both ports. The shared
   // grammar (schema/tag-grammar.yml) accepts arity > 3, so v4.1.2.3 is a real
   // upgrade candidate. This is the source-file mutation guard: before 14,
@@ -286,6 +322,36 @@ describe("upgrade()", () => {
     expect(report.versionBumps).toEqual([]);
     expect(report.warnings).toHaveLength(1);
     expect(report.warnings[0]).toContain("failed to list tags for actions/checkout");
+  });
+
+  // Regression for docs/issues/23 item 1: repos used to be grouped for the
+  // `listTags` sweep by `.sort((a, b) => a.localeCompare(b))`, which is
+  // locale-dependent -- not just wrong for astral-plane/non-BMP keys but
+  // actively non-reproducible: the same input can order differently on two
+  // machines with different default locales. "Zulu/repo" < "apple/repo" by
+  // code point (`Z` is 0x5A, `a` is 0x61) but every locale collation tested,
+  // including the process's own default (en-US, asserted below so this test
+  // fails loudly if that ever changes), orders them the other way --
+  // dictionary order ignores case. versionBumps order follows the grouping
+  // order, so it is the observable surface for this.
+  it("groups repos by code point, not locale collation (non-reproducible across machines)", async () => {
+    expect("Zulu/repo".localeCompare("apple/repo")).toBeGreaterThan(0); // apple < Zulu, locale-wise
+    expect("Zulu/repo" < "apple/repo").toBe(true); // Zulu < apple, code-point-wise
+
+    const app = appWithRefs(tmp, "Zulu/repo@v4", "apple/repo@v4");
+    const client = new GitHubClient(
+      new FakeTransport({
+        "repos/Zulu/repo/git/refs/tags": tags("v4", "v5"),
+        "repos/apple/repo/git/refs/tags": tags("v4", "v9"),
+      }),
+    );
+
+    const report = await upgrade(app, client, new Set(), { mode: "versions", apply: false });
+
+    const expected = readFileSync(join(EXPECTED_DIR, "pin_repo_group_order.txt"), "utf8")
+      .split("\n")
+      .filter((s) => s.length > 0);
+    expect(report.versionBumps.map((b) => b.uses)).toEqual(expected);
   });
 });
 

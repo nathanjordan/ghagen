@@ -20,8 +20,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from ghagen_schema.paths import REPO_ROOT
 from ruamel.yaml import YAML
+
+from ghagen_schema.paths import REPO_ROOT
 
 #: Every composite action this repository ships, by directory name.
 SHIPPED_ACTIONS = ["check-deps", "check-synth"]
