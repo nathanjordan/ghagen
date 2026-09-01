@@ -31,14 +31,28 @@
 # Every entry needs an inline comment: why the gap is intentional, or
 # "# TODO: unmodeled" if it is a genuine gap worth tracking.
 #
-# The reserved top-level key `constraints` is NOT a snapshot: it holds gaps of a
-# second kind (see its own header, at the bottom of this file) and is excluded
-# from the snapshot/scope key comparison in (3).
+# Two reserved top-level keys are NOT snapshots, and are excluded from the
+# snapshot/scope key comparison in (3). Each holds gaps of a different kind and
+# carries its own header, at the bottom of this file:
+#
+#   constraints - a rule BETWEEN two properties that neither port enforces.
+#   undeclared  - the sweep in the other direction: a key a port emits that the
+#                 Snapshot does not declare. (Its own key set is compared to
+#                 the sweep's separately, by its own test.)
 
 workflow_schema:
   workflow: []
   job: []
-  step: []
+  step:
+    # The five keys of GitHub's background/parallel steps feature, added
+    # upstream in the 2026-09-01 refresh. `parallel` is a recursive array of
+    # steps and `wait-all` is a present-null keyword, so modelling the set is
+    # a feature, not five fields -- filed as docs/issues/37.
+    - background # TODO: unmodeled (issue 37)
+    - cancel # TODO: unmodeled (issue 37)
+    - parallel # TODO: unmodeled (issue 37)
+    - wait # TODO: unmodeled (issue 37)
+    - wait-all # TODO: unmodeled (issue 37)
   on: []
   pushTrigger: []
   prTrigger: []
@@ -51,6 +65,13 @@ workflow_schema:
   workflowCallSecret: []
   permissions: []
   container: []
+  serviceContainer:
+    # Upstream split `definitions.container` into `jobContainer` and
+    # `serviceContainer`, and the service half gained two keys the job half
+    # does not have. ghagen's Service model is still Container's shape, so
+    # both are uncovered -- filed as docs/issues/37.
+    - command # TODO: unmodeled (issue 37)
+    - entrypoint # TODO: unmodeled (issue 37)
   strategy: []
   concurrency: []
   defaults: []
@@ -106,18 +127,17 @@ constraints:
       kind: workflowDispatchInput
       requires:
         - path:
-            [definitions, workflowDispatchInput, allOf, 1, if, properties, type, const]
+            [definitions, workflowDispatchInput, oneOf, 1, properties, type, const]
           value: boolean
         - path:
-            [definitions, workflowDispatchInput, allOf, 1, if, required]
+            [definitions, workflowDispatchInput, oneOf, 1, required]
           value: [type]
         - path:
             [
               definitions,
               workflowDispatchInput,
-              allOf,
+              oneOf,
               1,
-              then,
               properties,
               default,
               type,
@@ -125,14 +145,17 @@ constraints:
           value: boolean
       requires_prose: >-
         The Snapshot leaves `workflowDispatchInput.default` untyped in
-        `properties` and constrains it from a five-branch `allOf` of
-        `if`/`then` clauses keyed on the sibling `type`: `type: "string"` and
-        `type: "environment"` require a string `default`, `type: "boolean"`
-        requires a boolean one, `type: "number"` requires a number, and
-        `type: "choice"` requires `options`. A `workflow_dispatch` input is
-        therefore only schema-valid when `default` matches what `type` declares.
-        The paths above pin the `boolean` branch, which is the one the
-        counterexample violates.
+        `properties` and constrains it from a five-branch `oneOf` keyed on the
+        sibling `type`: `type: "string"` and `type: "environment"` require a
+        string `default`, `type: "boolean"` requires a boolean one,
+        `type: "number"` requires a number, and `type: "choice"` requires
+        `options`. A `workflow_dispatch` input is therefore only schema-valid
+        when `default` matches what `type` declares. The paths above pin the
+        `boolean` branch, which is the one the counterexample violates. (The
+        2026-09-01 refresh restructured this from an `allOf` of `if`/`then`
+        clauses into the `oneOf` above; the rule is unchanged, the paths are
+        not, and these rows failed until they were repointed -- which is the
+        point of pinning them positionally.)
       unenforced: >-
         Neither port enforces any of it. Both type `default` as the
         UNCONDITIONAL union of the branches -- `str | bool | int | float` in
@@ -153,3 +176,65 @@ constraints:
       counterexample:
         type: boolean
         default: "yes"
+
+# ---------------------------------------------------------------------------
+# Undeclared-key gaps: the sweep in the other direction.
+#
+# Everything above records something upstream that ghagen does NOT emit. This
+# section records the inverse: a key ghagen DOES emit that the Snapshot does
+# not declare for that scope.
+#
+# The property sweep only ever asserted upstream <= model. Nothing asserted
+# model <= upstream, and in Python nothing could: a `ModelSpec.yaml_keys` value
+# is a free string, so `"shell": "shel"` -- or a key the platform retired two
+# years ago -- passed every check in the family while ghagen emitted a workflow
+# the platform refuses. TypeScript had a compile-time answer for some of its
+# specs (`satisfies Record<keyof StepInput, keyof SchemaStep>`, which is also
+# how the 2026-09-01 `definitions.container` split surfaced, as TS2724), but
+# there are seven such clauses, covering eight of the sweep's twenty-nine
+# scopes, and Python had no peer for any of them. `test_scope_emits_only_declared_keys` /
+# "scope emits only declared keys" is that peer, for every scope, in both ports.
+#
+# A row here is held to the same three claims as a property gap: the model must
+# still emit the name (else the row is closed), the Snapshot must still not
+# declare it (else it is stale and the key is ordinary coverage), and this
+# section's snapshot/scope key set must equal the sweep's
+# (`test_undeclared_set_matches_sweep` / "undeclared set matches the sweep") --
+# which is what makes the currently-empty lists load-bearing rather than
+# decorative, exactly as it is for the property gaps.
+#
+# Every entry needs an inline comment saying why ghagen emits a key upstream
+# does not declare. There are none today: every key both ports emit is an
+# upstream-declared property name.
+undeclared:
+  workflow_schema:
+    workflow: []
+    job: []
+    step: []
+    on: []
+    pushTrigger: []
+    prTrigger: []
+    scheduleTrigger: []
+    workflowDispatch: []
+    workflowDispatchInput: []
+    workflowCall: []
+    workflowCallInput: []
+    workflowCallOutput: []
+    workflowCallSecret: []
+    permissions: []
+    container: []
+    serviceContainer: []
+    strategy: []
+    concurrency: []
+    defaults: []
+    defaultsRun: []
+    environment: []
+    imageSnapshot: []
+  action_schema:
+    action: []
+    compositeRuns: []
+    dockerRuns: []
+    nodeRuns: []
+    actionInput: []
+    actionOutput: []
+    branding: []
