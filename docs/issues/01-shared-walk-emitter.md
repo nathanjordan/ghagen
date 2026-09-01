@@ -32,7 +32,7 @@ an `Entry` (`key`, `value`, `comment`, `eolComment`, `presentNull`) and one `emi
 autoDedent)` that composes `orderedEntries` with the dedent, the comment harvest and the present-null
 verdict — including the fold of a discarded sub-model's own comment onto the entry. Both
 `modelToYamlMap` and `modelToData` are now loops over `emitEntries` that differ only in what they
-*render*: a `Pair` with a `Scalar` key versus a `Record` slot; `nullScalar()` versus `null`;
+_render_: a `Pair` with a `Scalar` key versus a `Record` slot; `nullScalar()` versus `null`;
 `attachFieldComment` versus a `CommentNode`. Neither re-derives anything the entry already carries.
 `presentNullComments` is deleted — its rationale moved into `emitEntries`' doc comment, where it now
 governs both renderings instead of one.
@@ -84,7 +84,7 @@ new fixture lands in none of the three and fails there.
 
 **Both halves were proved load-bearing, by mutation.**
 
-*The sweep catches a divergence between the two walks.* In each port, `toData` was made to disagree
+_The sweep catches a divergence between the two walks._ In each port, `toData` was made to disagree
 with the YAML walk on one decision the shared stage owns — rendering a present-null entry as `{}`
 instead of `null`, leaving `emitEntries` and the YAML rendering untouched. Python: **2 failed, 24
 passed** in `test_to_data_sweep.py` (`comments.yml`, `body_shapes.yml`). TypeScript: **2 failed, 16
@@ -93,27 +93,27 @@ passed** in `to-data-sweep.test.ts`, the same two documents. Reverted.
 Measured honestly, the retained hand-built document catches this particular mutation too — it
 contains both present-null spellings, which is why it was worth keeping. It was also checked
 against a narrower mutation (`present_null` honoured only when the discarded value is a
-`GhagenModel`, so a bare `create: {}` is not nulled): that fails the hand-built document *and*
+`GhagenModel`, so a bare `create: {}` is not nulled): that fails the hand-built document _and_
 `body_shapes.yml`, and no other fixture has the shape to notice. The sweep's claim is therefore
 breadth, not that the old test was blind — one curated document is one author's memory of the
 shapes that matter, and the fixtures are the shapes the ports actually agreed to emit. Whichever
 decision the shared stage owns diverges next, the document that has it is now in the set.
 
-*The shared stage feeds both consumers.* In each port, one rule inside `emitEntries` was changed
+_The shared stage feeds both consumers._ In each port, one rule inside `emitEntries` was changed
 once — `present_null` / `presentNull` forced to `false` — and both renderings moved. Python: **6
 failed** — 2 in `test_snapshots.py` (the YAML consumer: `comments.yml`, `body_shapes.yml`) and 4 in
 `test_emitter/test_to_data.py` (the data consumer), from a single edited line. TypeScript: **5
 failed** — 2 in `snapshots.test.ts` and 3 in `to-data.test.ts`, likewise from one line. The sweep
-itself stayed green in both, which is the point: the two renderings moved *together*, because they
+itself stayed green in both, which is the point: the two renderings moved _together_, because they
 read one rule. Reverted.
 
 **What was deliberately not done.** Proposal 02's recommended design — one plain emission tree with
 a swappable ruamel/`yaml` backend — is not built, and the value-rendering dispatch is still
 duplicated per port: `_value_to_data` beside `_to_node` in Python, `valueToData` beside
 `toYamlValue` in TypeScript, roughly 25 lines each. That duplication is a different shape from the
-one this issue was about. The collection stage decided *what* is emitted — the answers the two
+one this issue was about. The collection stage decided _what_ is emitted — the answers the two
 walks could disagree on with both suites green — and it is now shared. The value dispatch decides
-*how* each already-agreed value is rendered into a backend the two do not share, so collapsing it
+_how_ each already-agreed value is rendered into a backend the two do not share, so collapsing it
 means introducing the intermediate tree and the backend interface, in both ports, with no bytes to
 show for it. It was considered and deferred rather than smuggled in behind a structural change that
 had to move zero bytes. Python's `emit_entries` was left alone beyond what TypeScript parity
