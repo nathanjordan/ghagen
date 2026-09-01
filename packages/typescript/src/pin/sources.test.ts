@@ -35,6 +35,10 @@ const FIXTURE_DIR = resolve(HERE, "../../fixtures/sources-project");
 const configPath = resolve(FIXTURE_DIR, "ghagen.config.ts");
 const fixtureFile = (name: string) => resolve(FIXTURE_DIR, name);
 
+const LAZY_DIR = resolve(HERE, "../../fixtures/lazy-app-project");
+const lazyConfigPath = resolve(LAZY_DIR, "ghagen.config.ts");
+const lazyFile = (name: string) => resolve(LAZY_DIR, name);
+
 describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
   it("tracks the config plus its transpiled, native-required, and native-ESM helpers", async () => {
     const { files } = await trackFiles(configPath);
@@ -72,5 +76,60 @@ describe("trackUserFiles (real jiti, ADR-0004 canary)", () => {
     // future jiti or Node release breaks the hook in either direction.
     const { files } = await trackFiles(configPath);
     expect(files.has(fixtureFile("esm-helper.mjs"))).toBe(true);
+  });
+});
+
+/**
+ * Issue 03: helpers imported lazily *inside* `createApp()`.
+ *
+ * This block must stay BELOW the one above. `esmLoadedUrls` in `sources.ts` is
+ * a process-globally accumulated set (ADR-0004's ESM half reads the whole set,
+ * not a per-call diff), so loading this fixture's `.mjs` first would leak it
+ * into the exact-set assertion above. The two fixtures keep separate `.mjs`
+ * files for the same reason.
+ */
+describe("trackFiles with app resolution (lazy createApp imports)", () => {
+  it("tracks helpers first imported while the resolver runs", async () => {
+    // The fixture config imports NOTHING but `App` at module scope: all three
+    // helpers are `await import(...)`ed inside `createApp()`, so they load
+    // only while the resolver callback runs. Before that callback existed the
+    // window closed on the config import and every one of them was missed --
+    // `deps upgrade --apply` reported success and left their pins stale.
+    //
+    // The callback stands in for `resolveApp` without its `instanceof App`
+    // check, which is unreliable here because jiti loads `App` in its own
+    // module graph (see this file's header). What is under test is *when* the
+    // window closes, not the resolution policy -- so the stand-in runs the
+    // real factory, which is all the window has to observe.
+    const { files } = await trackFiles(lazyConfigPath, async (mod) => {
+      const factory = (mod as { createApp?: () => Promise<unknown> }).createApp;
+      expect(typeof factory).toBe("function");
+      await factory?.();
+    });
+
+    expect(files.has(lazyConfigPath)).toBe(true);
+    // Cache-diff half of the ADR-0004 union: only jiti transpiles the `.ts`
+    // helper, so it exists nowhere else.
+    expect(files.has(lazyFile("lazy-ts-helper.ts"))).toBe(true);
+    expect(files.has(lazyFile("lazy-cjs-helper.js"))).toBe(true);
+    // ESM half: the `.mjs` never enters `jiti.cache`, so only the
+    // `module.register` hook sees it -- and only if the drain and the read
+    // happen after the factory ran.
+    expect(files.has(lazyFile("lazy-esm-helper.mjs"))).toBe(true);
+  });
+
+  it("stays usable without a resolver, tracking only eager imports", async () => {
+    // `trackFiles` remains the standalone tracking primitive: the resolver is
+    // optional, so the canary above still needs no resolved App. Its window
+    // then really does close on the import -- the `.ts` helper the factory
+    // would have pulled in stays untracked.
+    const { files } = await trackFiles(lazyConfigPath);
+    expect(files.has(lazyConfigPath)).toBe(true);
+    expect(files.has(lazyFile("lazy-ts-helper.ts"))).toBe(false);
+    // Only the `.ts` helper can be asserted absent, and only because the
+    // cache diff is genuinely per-call. The other two are not: jiti routes
+    // both `await import("./lazy-cjs-helper.js")` and the `.mjs` through
+    // Node's ESM loader, so the previous test recorded them in the
+    // process-globally accumulated `esmLoadedUrls` that this call re-reads.
   });
 });

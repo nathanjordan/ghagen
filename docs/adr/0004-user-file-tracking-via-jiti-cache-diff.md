@@ -3,9 +3,10 @@
 **Status:** accepted
 
 `deps upgrade --apply` must know which user source files were loaded by the config so it can scope
-`uses:` rewrites. The TypeScript port determines this by diffing `jiti.cache` keys before and after
-importing the user's config (`pin/sources.ts`). This mechanism is **kept deliberately**, guarded by
-a real-jiti integration test over a fixture project.
+`uses:` rewrites. The TypeScript port determines this by diffing `jiti.cache` keys across a window
+that opens before the user's config is imported and closes after its `App` has been resolved
+(`pin/sources.ts`). This mechanism is **kept deliberately**, guarded by a real-jiti integration test
+over a fixture project.
 
 ## Why
 
@@ -75,4 +76,30 @@ The `appLoader` / `app_loader` injection parameters around this mechanism were r
 hypothetical-seam indirection (proposal 07); the jiti-cache-diff + ESM-hook mechanism and its
 canary are unchanged. Python's tracking window includes App resolution (`create_app()` runs
 between the `sys.modules` snapshots) so modules imported lazily inside `create_app()` stay
-tracked.
+tracked. TypeScript's did not, until:
+
+## Resolved (2026-09-01): the window now spans App resolution (issue 03)
+
+The two ports disagreed about _when_ the window closes. TypeScript closed it on the config import
+and resolved the App afterwards, so a helper first imported inside `createApp()` entered neither
+half of the union and `deps upgrade --apply` silently left its `uses:` refs alone — this ADR's
+defended failure mode, reintroduced by a boundary rather than by the mechanism. Measured against a
+new `fixtures/lazy-app-project/` (three helpers, all `await import(...)`ed inside the factory), the
+tracked set was `{ghagen.config.ts}` and nothing else: **both** halves failed, not just one.
+
+**Resolution — move the boundary, not the mechanism.** `trackFiles` takes an optional `onLoaded`
+callback, awaited with the imported module after the import and before either half is read;
+`trackUserFiles` passes `resolveApp` as that callback. The cache diff and the ESM-hook read are
+unchanged, and `trackFiles` remains callable with no callback, so the canary still needs no
+resolved `App` (it would hit the cross-realm `instanceof App` artifact under Vitest). Same tracked
+set as Python's, for the same reason, stated in the same place.
+
+The canary now covers both fixtures. Two facts about the second one were established empirically
+(jiti 2.6.1, Node 24) rather than assumed, because both bear on what the test may assert:
+
+- `jiti.cache` is shared across `createJiti` instances in a process, so the cache diff is genuinely
+  per-call — a helper tracked by one call is in the next call's `before` keys.
+- jiti routes `await import("./helper.js")` from transpiled config code through Node's native
+  `import()`, so a plain-CJS helper imported _lazily_ is seen by the ESM hook as well as the cache
+  diff. Only the `.ts` helper is exclusive to the cache diff, and only it can be asserted absent
+  from a resolver-less call; the other two persist in the process-global `esmLoadedUrls`.

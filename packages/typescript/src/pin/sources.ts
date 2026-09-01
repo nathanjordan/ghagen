@@ -20,6 +20,12 @@
  *    via `module.register` observes exactly those ESM loads and augments the
  *    diff (see `ensureEsmHook` below).
  *
+ * Both observations are read only *after* app resolution has run (resolution
+ * is passed in as `trackFiles`'s `onLoaded` callback), so a helper imported
+ * lazily inside `createApp()` is tracked like an eager one, as in Python's
+ * `track_user_files`. Closing the window on the config import instead left
+ * those files' `uses:` refs silently un-rewritten (issue 03).
+ *
  * See docs/adr/0004-user-file-tracking-via-jiti-cache-diff.md. The real-jiti
  * integration test (`sources.test.ts`) is the canary for both halves.
  */
@@ -101,18 +107,29 @@ function ensureEsmHook(): Promise<void> {
 }
 
 /**
- * Import `configPath` through jiti and return the imported module together
- * with the user-source files loaded as a side effect. This is the ADR-0004
- * tracking primitive: it runs the jiti-cache diff + ESM-hook union and does
- * NOT resolve an {@link App}, so it can be exercised without the cross-realm
- * `instanceof App` artifact that app resolution hits under Vitest.
+ * Import `configPath` through jiti and return the user-source files loaded as
+ * a side effect. This is the ADR-0004 tracking primitive: it runs the
+ * jiti-cache diff + ESM-hook union and does NOT itself resolve an
+ * {@link App}, so it can be exercised without the cross-realm `instanceof App`
+ * artifact that app resolution hits under Vitest.
+ *
+ * `onLoaded`, when given, is awaited with the imported module *inside* the
+ * tracking window — after the import, before either half of the union is read
+ * — and whatever it returns comes back as `loaded`. {@link trackUserFiles}
+ * passes app resolution here so that a helper imported lazily inside
+ * `createApp()` (loaded only when the factory runs) is tracked; with the
+ * window closing first, those files are missed and their `uses:` refs are
+ * silently left un-rewritten — ADR-0004's defended failure mode. Python's
+ * `track_user_files` places `resolve_app` inside its `sys.modules` snapshot
+ * for exactly this reason. Callers wanting tracking without an App omit it.
  *
  * Returns absolute file paths, filtering out `node_modules` and files inside
  * the ghagen package itself (via {@link isUserFile}).
  */
-export async function trackFiles(
+export async function trackFiles<T = void>(
   configPath: string,
-): Promise<{ mod: unknown; files: Set<string> }> {
+  onLoaded?: (mod: unknown) => T | Promise<T>,
+): Promise<{ loaded: T; files: Set<string> }> {
   // Wait for the ESM load hook's loader thread to be ready before importing,
   // so even the first import in the process is observed (ADR-0004 union).
   await ensureEsmHook();
@@ -124,9 +141,14 @@ export async function trackFiles(
   // native require, the case a `transform` hook would miss (ADR-0004).
   const mod = await jiti.import(configPath);
 
+  // Inside the window: anything this loads (a `createApp()` factory's lazy
+  // imports) still lands in `jiti.cache` / the ESM hook before both are read.
+  const loaded = (await onLoaded?.(mod)) as T;
+
   // The ESM load hook posts URLs cross-thread; let queued messages drain
-  // before reading the recorded set. One macrotask turn is enough — the
-  // module has already loaded (hook returned) by the time import() resolves.
+  // before reading the recorded set. One macrotask turn is enough — every
+  // module has already loaded (hook returned) by the time the import and
+  // `onLoaded` above have resolved.
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
   const afterKeys = new Set<string>(Object.keys(jiti.cache));
@@ -155,7 +177,7 @@ export async function trackFiles(
     files.add(configPath);
   }
 
-  return { mod, files };
+  return { loaded, files };
 }
 
 /**
@@ -164,14 +186,18 @@ export async function trackFiles(
  *
  * The file tracking is done by {@link trackFiles} (the ADR-0004 mechanism);
  * the App is resolved from the imported module via the shared
- * {@link resolveApp} policy. The jiti import — and therefore file tracking —
- * always runs, so app resolution never disables the cache diff.
+ * {@link resolveApp} policy. Resolution runs as `trackFiles`'s `onLoaded`
+ * callback — i.e. *inside* the tracking window — so a helper imported lazily
+ * inside `createApp()` is tracked like an eagerly imported one. The jiti
+ * import — and therefore file tracking — always runs, so app resolution never
+ * disables the cache diff.
  */
 export async function trackUserFiles(
   configPath: string,
 ): Promise<{ app: App; files: Set<string> }> {
-  const { mod, files } = await trackFiles(configPath);
-  const resolution = await resolveApp(mod, configPath);
+  const { loaded: resolution, files } = await trackFiles(configPath, (mod) =>
+    resolveApp(mod, configPath),
+  );
   if (resolution.error) {
     throw new Error(resolution.error.message);
   }
