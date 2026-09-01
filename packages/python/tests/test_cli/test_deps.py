@@ -75,10 +75,11 @@ def test_deps_check_synced_passes_when_lockfile_in_sync(
     lockfile.write_text(_LOCKFILE)
 
     result = runner.invoke(app, ["deps", "check-synced"])
-    assert result.exit_code == 0, result.output
-    assert "Lockfile is in sync." in result.output
+    assert result.exit_code == 0, (result.stdout, result.stderr)
+    assert "Lockfile is in sync." in result.stdout
     # check-synced never hits the network, so the no-token warning must NOT fire.
-    assert "no GitHub token found" not in result.output
+    assert "no GitHub token found" not in result.stdout
+    assert "no GitHub token found" not in result.stderr
 
 
 def test_deps_check_synced_fails_when_entry_missing(
@@ -95,9 +96,10 @@ def test_deps_check_synced_fails_when_entry_missing(
 
     result = runner.invoke(app, ["deps", "check-synced"])
     assert result.exit_code == 1
-    assert "Missing lockfile entries" in result.output
-    assert "actions/checkout@v4" in result.output
-    assert "no GitHub token found" not in result.output
+    assert "Missing lockfile entries" in result.stderr
+    assert "actions/checkout@v4" in result.stderr
+    assert "no GitHub token found" not in result.stdout
+    assert "no GitHub token found" not in result.stderr
 
 
 def test_deps_check_synced_fails_on_stale_entry_with_prune(
@@ -119,8 +121,8 @@ def test_deps_check_synced_fails_on_stale_entry_with_prune(
 
     result = runner.invoke(app, ["deps", "check-synced"])
     assert result.exit_code == 1
-    assert "Stale lockfile entries" in result.output
-    assert "actions/unused@v1" in result.output
+    assert "Stale lockfile entries" in result.stderr
+    assert "actions/unused@v1" in result.stderr
 
 
 # -- deps upgrade ------------------------------------------------------------
@@ -216,7 +218,7 @@ app.add_workflow(ci, "ci.yml")
             app,
             ["deps", "upgrade", "--mode", "lockfile", "--format", "json", "--check"],
         )
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         data = json.loads(result.stdout)
         assert data["lockfile_stale"] == []
 
@@ -246,7 +248,7 @@ class TestUpgradeApply:
         _setup_upgrade_project(tmp_path)
 
         result = runner.invoke(app, ["deps", "upgrade", "--mode", "versions"])
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert "Applied version bumps" in result.stdout
         assert "modified" in result.stdout
 
@@ -268,7 +270,7 @@ class TestUpgradeApply:
         result = runner.invoke(
             app, ["deps", "upgrade", "--mode", "versions", "--format", "json"]
         )
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert "Applied version bumps" not in result.stdout
         data = json.loads(result.stdout)
         assert "version_bumps" in data
@@ -302,7 +304,7 @@ class TestUpgradeApply:
         result = runner.invoke(
             app, ["deps", "upgrade", "--mode", "versions", "--check"]
         )
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
 
         # The upgrade really was available -- otherwise this asserts nothing.
         assert "actions/checkout@v4" in result.stdout
@@ -326,7 +328,7 @@ class TestUpgradeTokenHandling:
         result = runner.invoke(
             app, ["deps", "upgrade", "--mode", "versions", "--check"]
         )
-        assert "no GitHub token found" in result.output
+        assert "no GitHub token found" in result.stderr
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
@@ -339,7 +341,8 @@ class TestUpgradeTokenHandling:
         result = runner.invoke(
             app, ["deps", "upgrade", "--mode", "versions", "--check"]
         )
-        assert "no GitHub token found" not in result.output
+        assert "no GitHub token found" not in result.stdout
+        assert "no GitHub token found" not in result.stderr
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
@@ -352,7 +355,8 @@ class TestUpgradeTokenHandling:
         result = runner.invoke(
             app, ["deps", "upgrade", "--mode", "versions", "--check"]
         )
-        assert "no GitHub token found" not in result.output
+        assert "no GitHub token found" not in result.stdout
+        assert "no GitHub token found" not in result.stderr
 
 
 class TestUpgradeErrorHandling:
@@ -365,7 +369,7 @@ class TestUpgradeErrorHandling:
 
         result = runner.invoke(app, ["deps", "upgrade", "--mode", "invalid"])
         assert result.exit_code == 2
-        assert "unknown --mode value" in result.output
+        assert "unknown --mode value" in result.stderr
 
     def test_invalid_format(self, tmp_path, monkeypatch):
         """``--format`` validation stays at the CLI edge, beside ``--mode``.
@@ -379,7 +383,7 @@ class TestUpgradeErrorHandling:
 
         result = runner.invoke(app, ["deps", "upgrade", "--format", "yaml"])
         assert result.exit_code == 2
-        assert "unknown --format value" in result.output
+        assert "unknown --format value" in result.stderr
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     def test_warnings_are_echoed_to_stderr(self, mock_track, tmp_path, monkeypatch):
@@ -419,7 +423,7 @@ class TestUpgradeErrorHandling:
                 ],
             )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert "warning: failed to list tags for actions/checkout" in result.stderr
         assert "rate limited" in result.stderr
         assert "warning:" not in result.stdout
@@ -485,9 +489,14 @@ app.add_workflow(ci, "ci.yml")
                     app,
                     ["deps", "upgrade", "--mode", mode, "--format", "json", "--check"],
                 )
-                assert result.exit_code == 0, result.output
+                assert result.exit_code == 0, (result.stdout, result.stderr)
                 data = json.loads(result.stdout)
                 assert data == expected, mode
+                # Deliberately spans both streams: `data == expected` above
+                # already pins stdout exactly, so this is a belt-and-suspenders
+                # check that the key never leaks onto stderr either -- a total
+                # absence claim, not a which-stream claim, so result.output
+                # (the merged stream) is the right tool here.
                 assert "helper_provided" not in result.output
 
 
@@ -555,7 +564,9 @@ class TestDepsUpdate:
 
         result = runner.invoke(app, ["deps", "update", "--format", "json"])
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
+        # Deliberately spans both streams: this is a total-absence claim (the
+        # H7 guard must never fire, on either stream), not a which-stream claim.
         assert "lockfile is disabled" not in result.output
         plan = json.loads(result.stdout)
         assert plan["refresh_lockfile"] is False
@@ -585,7 +596,7 @@ class TestDepsUpdate:
             app, ["deps", "update", "--dry-run", "--labels", " a , b ,, c "]
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         outputs = _github_outputs(result.stdout)
         assert set(outputs) == _PLAN_FIELDS
         assert outputs["action"] == "create-pr"
@@ -616,8 +627,8 @@ class TestDepsUpdate:
             app, ["deps", "update", "--dry-run", "--format", "github"]
         )
 
-        assert as_json.exit_code == 0, as_json.output
-        assert as_github.exit_code == 0, as_github.output
+        assert as_json.exit_code == 0, (as_json.stdout, as_json.stderr)
+        assert as_github.exit_code == 0, (as_github.stdout, as_github.stderr)
         assert set(json.loads(as_json.stdout)) == _PLAN_FIELDS
         assert set(_github_outputs(as_github.stdout)) == _PLAN_FIELDS
 
@@ -632,7 +643,7 @@ class TestDepsUpdate:
 
         result = runner.invoke(app, ["deps", "update", "--dry-run", "--format", "json"])
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert config.read_text() == before
         assert json.loads(result.stdout)["changed"] is False
 
@@ -657,7 +668,7 @@ class TestDepsUpdate:
             ["deps", "update", "--body-file", str(body), "--format", "json"],
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert json.loads(result.stdout)["body_format"] == "pr-body"
         assert body.read_text().startswith("## ghagen dependency update")
         assert "actions/checkout@v4" in body.read_text()
@@ -695,7 +706,7 @@ class TestDepsUpdate:
             ],
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert json.loads(result.stdout)["body_format"] == "pr-body"
         assert not body.exists()
 
@@ -719,7 +730,7 @@ class TestDepsUpdate:
             ["deps", "update", "--body-file", str(body), "--format", "json"],
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         plan = json.loads(result.stdout)
         assert plan["action"] == "none"
         assert plan["body_format"] is None
@@ -750,7 +761,7 @@ class TestDepsUpdate:
 
         result = runner.invoke(app, ["deps", "update", "--format", "github"])
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         lines = [ln for ln in result.stdout.splitlines() if ln]
         assert all(re.match(r"^[a-z_]+=", ln) for ln in lines), lines
         # Exactly one `action=`: the plan's own, and it is a PR, not the issue
@@ -778,6 +789,8 @@ class TestDepsUpdateFlagValidation:
         result = runner.invoke(app, ["deps", "update", "--mode", "bogus"])
         assert result.exit_code == 2
         assert "unknown --mode value" in result.stderr
+        # Deliberately spans both streams: a traceback must never appear on
+        # either one, not specifically the one already pinned above.
         assert "Traceback" not in result.output
         assert len(result.stderr.strip().splitlines()) == 1
 
@@ -877,11 +890,11 @@ class TestDepsUpdateLeavesASynthesizableTree:
         _setup_lockfile_project(tmp_path)
 
         result = runner.invoke(app, ["deps", "update", "--format", "json"])
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert json.loads(result.stdout)["changed"] is True
 
         synced = runner.invoke(app, ["check-synced"])
-        assert synced.exit_code == 0, synced.output
+        assert synced.exit_code == 0, (synced.stdout, synced.stderr)
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
@@ -904,14 +917,14 @@ class TestDepsUpdateLeavesASynthesizableTree:
         result = runner.invoke(
             app, ["deps", "update", "--mode", "versions", "--format", "json"]
         )
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert "actions/checkout@v7" in config.read_text()
 
         assert json.loads(result.stdout)["refresh_lockfile"] is True
         assert "actions/checkout@v7" in (tmp_path / ".ghagen.lock.yml").read_text()
 
         synthed = runner.invoke(app, ["synth"])
-        assert synthed.exit_code == 0, synthed.output
+        assert synthed.exit_code == 0, (synthed.stdout, synthed.stderr)
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
@@ -932,7 +945,7 @@ class TestDepsUpdateLeavesASynthesizableTree:
 
         result = runner.invoke(app, ["deps", "update", "--dry-run", "--format", "json"])
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert (
             config.read_text(),
             (tmp_path / ".ghagen.lock.yml").read_text(),
@@ -968,7 +981,7 @@ class TestDepsUpdateLeavesASynthesizableTree:
             app, ["deps", "update", "--output", "issue", "--format", "json"]
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 0, (result.stdout, result.stderr)
         assert (
             config.read_text(),
             (tmp_path / ".ghagen.lock.yml").read_text(),

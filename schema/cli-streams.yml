@@ -1,0 +1,132 @@
+# The CLI stream contract. Peer of `fixtures/cli-exit-codes.yml`: that file is
+# the shared "which exit code" oracle; this one is the shared "which stream"
+# oracle. See docs/issues/10-cli-stream-contract.md.
+#
+# `result.output` (Python's `click.testing.Result.output`) is click 8.5's
+# **merged** stream -- "mixing <stdout> and <stderr>, in the order they were
+# written" -- so an assertion against it can never tell a caller's machine-
+# readable payload from a stray progress line ahead of it. That is exactly
+# what hotfix H6 was: `deps upgrade --format json` printed "Applied version
+# bumps" to stdout before the JSON, making the payload unparseable by anything
+# that piped it straight into `jq`.
+#
+# Every row below is one (command, condition) pair from a real CLI
+# invocation, naming the ONE stream that piece of output actually lands on --
+# `stream: stdout` or `stream: stderr`, never both. Both suites read this file
+# and invoke the command it describes, so a stream regression in either port
+# fails the corresponding row in BOTH suites rather than drifting silently.
+#
+# Read by:
+#   - Python (packages/python/tests/test_cli/test_streams.py)
+#   - TypeScript (packages/typescript/src/cli/streams.test.ts)
+#
+# The two rows this table exists for are `deps-upgrade-progress-note-*`: the
+# apply-progress note ("Applied version bumps" / "modified <path>") tracks
+# `--format` on `deps upgrade` -- stdout when absent (there is no payload to
+# protect), stderr when present (the payload owns stdout) -- but is
+# unconditionally stderr on `deps update` (`deps-update-modified-note`),
+# because `deps update`'s stdout is *always* the plan, format or no format.
+# Collapsing that asymmetry into one rule for both commands is precisely the
+# H6-class bug this table exists to catch.
+
+- id: synth-success
+  command: synth
+  stream: stdout
+  note: >-
+    the "wrote <path>" lines and the "Synthesized N file(s)." summary --
+    synth has no separate machine-readable payload, so both land together.
+
+- id: synth-config-not-found
+  command: synth
+  stream: stderr
+  note: the "no config file found" error (shared _find_config/findConfig rendering).
+
+- id: check-synced-top-level-in-sync
+  command: check-synced
+  stream: stdout
+  note: '"All files are up-to-date."'
+
+- id: check-synced-top-level-stale
+  command: check-synced
+  stream: stderr
+  note: the "<N> file(s) are out of date" report and its diffs.
+
+- id: init-success
+  command: init
+  stream: stdout
+  note: '"Created <path>" and the "Run `ghagen synth`..." hint.'
+
+- id: init-already-exists
+  command: init
+  stream: stderr
+  note: the "Config file already exists" error.
+
+- id: deps-check-synced-in-sync
+  command: deps check-synced
+  stream: stdout
+  note: '"Lockfile is in sync."'
+
+- id: deps-check-synced-missing
+  command: deps check-synced
+  stream: stderr
+  note: the "Missing lockfile entries" report.
+
+- id: deps-pin-resolved
+  command: deps pin
+  stream: stdout
+  note: each "<uses> -> <sha>" line, plus the pruned/written/up-to-date summaries.
+
+- id: deps-pin-no-token-warning
+  command: deps pin
+  stream: stderr
+  note: the no-GitHub-token warning (and any resolve warnings/errors).
+
+- id: deps-upgrade-report
+  command: deps upgrade
+  stream: stdout
+  note: >-
+    the rendered report, unconditionally -- text or one of
+    --format json/pr-body/issue-body.
+
+- id: deps-upgrade-warning
+  command: deps upgrade
+  stream: stderr
+  note: a report.warnings entry, unconditionally -- never routed through --format.
+
+- id: deps-upgrade-progress-note-no-format
+  command: deps upgrade
+  condition: no --format flag
+  stream: stdout
+  note: >-
+    the "Applied version bumps" / "modified <path>" progress note -- beside
+    the human-readable report, since there is no payload to protect.
+
+- id: deps-upgrade-progress-note-with-format
+  command: deps upgrade
+  condition: --format passed (json, pr-body, or issue-body)
+  stream: stderr
+  note: >-
+    the same progress note -- moved off stdout so the --format payload
+    (e.g. the JSON document) stays parseable. This is the H6 hotfix.
+
+- id: deps-update-plan
+  command: deps update
+  stream: stdout
+  note: >-
+    the rendered plan, unconditionally -- --format github ($GITHUB_OUTPUT
+    key=value) or --format json, so a bare `>> "$GITHUB_OUTPUT"` redirect
+    is safe.
+
+- id: deps-update-warning
+  command: deps update
+  stream: stderr
+  note: a report.warnings entry, unconditionally.
+
+- id: deps-update-modified-note
+  command: deps update
+  stream: stderr
+  note: >-
+    each "modified <path>" note (source edits, the re-resolved lockfile,
+    resynthesized workflows) -- unconditionally stderr, unlike deps upgrade's
+    format-conditional progress note, because deps update's stdout is always
+    the plan.
