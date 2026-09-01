@@ -376,11 +376,20 @@ def _check_deps_smoke_workflow() -> Workflow:
                         },
                     ),
                     Step(
+                        # `changed` added by docs/issues/20: `--output issue`
+                        # now writes nothing even without `--dry-run`, so this
+                        # step keeps `dry-run: 'true'` regardless -- it also
+                        # gates the composite action's "Raise PR or issue"
+                        # step, and dropping it here would file a real issue
+                        # against this repository. The no-`--dry-run` half of
+                        # the write-suppression fix is exercised offline
+                        # instead, in both ports' `deps update` CLI tests.
                         name="Assert issue plan",
                         run="""
                             set -euo pipefail
                             [ "${{ steps.issue.outputs.action }}" = "create-issue" ]
                             [ -z "${{ steps.issue.outputs.branch }}" ]
+                            [ "${{ steps.issue.outputs.changed }}" = "false" ]
                         """,
                     ),
                 ],

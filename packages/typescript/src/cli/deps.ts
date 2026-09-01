@@ -260,12 +260,15 @@ function rejectNewlines(values: Record<string, string>): void {
 /**
  * Sweep for dependency updates, apply them, and print the resulting plan.
  *
- * One command per automation run. It performs every write the update needs —
- * version bumps in user source, and the lockfile re-resolve when, and only
- * when, that is the right thing to do — and prints what the caller should
- * raise. A caller reads the plan and acts on it; it never reconstructs a
- * decision from `deps upgrade --format json`, which cannot answer the lockfile
- * question because the payload does not carry `app.lockfilePath`.
+ * One command per automation run. With `--output pr` it performs every write
+ * the update needs — version bumps in user source, and the lockfile
+ * re-resolve when, and only when, that is the right thing to do — and prints
+ * what the caller should raise. With `--output issue` it performs no writes
+ * at all: an issue describes pending work rather than applying it, so the
+ * plan it prints describes what *would* be written, not what was. A caller
+ * reads the plan and acts on it; it never reconstructs a decision from
+ * `deps upgrade --format json`, which cannot answer the lockfile question
+ * because the payload does not carry `app.lockfilePath`.
  *
  * Stdout carries the plan and nothing else, so `--format github` can be a bare
  * `>> "$GITHUB_OUTPUT"` redirect. Warnings and progress go to stderr.
@@ -297,7 +300,13 @@ async function depsUpdate(opts: UpdateOpts): Promise<void> {
   let { app, files: userFiles } = await withConfigOutputOnStderr(() => trackUserFiles(configPath));
   const client = buildGitHubClient(opts.token);
 
-  const report = await upgrade(app, client, userFiles, { mode, apply: !opts.dryRun });
+  // `--output issue` files an issue describing pending work; it does not
+  // perform that work. Only `pr` writes, and only when the caller has not
+  // also asked for `--dry-run`.
+  const report = await upgrade(app, client, userFiles, {
+    mode,
+    apply: output === "pr" && !opts.dryRun,
+  });
   for (const w of report.warnings) {
     process.stderr.write(`warning: ${w}\n`);
   }

@@ -261,18 +261,18 @@ formats carry the same ten fields, in the same order, under the same
 snake_case names. The field set is declared once, in
 `schema/update-plan-fields.yml`, and pinned by both ports' suites.
 
-| Field                 | Meaning                                                                         |
-| --------------------- | ------------------------------------------------------------------------------- |
-| `action`              | `none`, `create-pr`, or `create-issue`.                                         |
-| `total_updates`       | Version bumps plus stale lockfile entries.                                      |
-| `apply_version_bumps` | Whether newer tags are to be written back into user source.                     |
-| `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile=None`. |
-| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                      |
-| `title`               | The PR or issue title.                                                          |
-| `commit_message`      | The commit subject, prefix already applied.                                     |
-| `labels`              | Comma-separated under `github`, a list under `json`.                            |
-| `body_format`         | Which `pin.render` format the body is in; empty when there is no body.          |
-| `changed`             | Whether anything was written. Always `false` under `--dry-run`.                 |
+| Field                 | Meaning                                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `action`              | `none`, `create-pr`, or `create-issue`.                                                             |
+| `total_updates`       | Version bumps plus stale lockfile entries.                                                          |
+| `apply_version_bumps` | Whether newer tags are to be written back into user source. Always `false` with `--output issue`.   |
+| `refresh_lockfile`    | Whether the lockfile is to be re-resolved. Always `false` with `lockfile=None` or `--output issue`. |
+| `branch`              | The dated branch, or empty unless `action` is `create-pr`.                                          |
+| `title`               | The PR or issue title.                                                                              |
+| `commit_message`      | The commit subject, prefix already applied.                                                         |
+| `labels`              | Comma-separated under `github`, a list under `json`.                                                |
+| `body_format`         | Which `pin.render` format the body is in; empty when there is no body.                              |
+| `changed`             | Whether anything was written. Always `false` under `--dry-run` or `--output issue`.                 |
 
 Every field except `changed` is a **decision, not an outcome** — what the run
 determined should happen, which under `--dry-run` is exactly what did not. Only
@@ -287,11 +287,15 @@ lockfile stale by definition.
 
 ### Writes
 
-Without `--dry-run` this command modifies the working tree. Version bumps are
+`--output` decides whether this command writes anything, not just which
+artifact it raises. `--output pr` (the default) is "do the work and open a PR
+for it": without `--dry-run` it modifies the working tree — version bumps are
 written into your source files, and the lockfile is re-resolved when
-`refresh_lockfile` is true. That holds for `--output issue` too: the issue
-describes updates that have _already_ been applied locally. Use `--dry-run`
-when you want the decision without the writes.
+`refresh_lockfile` is true. `--output issue` is "tell a human there is work":
+it never writes, with or without `--dry-run`. The issue it files describes
+updates that have been _detected_, not applied — nothing in the working tree
+changes. Use `--dry-run` with `--output pr` when you want the decision
+without the writes.
 
 ## ghagen init
 

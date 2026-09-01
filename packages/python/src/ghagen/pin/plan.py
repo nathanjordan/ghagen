@@ -52,7 +52,12 @@ class UpdatePlan:
     """Version bumps plus stale lockfile entries."""
 
     apply_version_bumps: bool
-    """Whether to write newer version tags back into the user source files."""
+    """Whether to write newer version tags back into the user source files.
+
+    ``False`` whenever ``output == "issue"``: an issue reports pending work,
+    it does not perform it, so no write happens for either output. See
+    ``refresh_lockfile`` for the same rule applied to the lockfile.
+    """
 
     refresh_lockfile: bool
     """Whether to re-resolve the lockfile.
@@ -60,7 +65,8 @@ class UpdatePlan:
     ``False`` when the App has no lockfile configured, whatever the report
     says -- ``ghagen deps pin`` exits 1 on such a project, and the report's
     ``checked_lockfile`` stays ``True`` there because it records what the run
-    was *asked* for, not what it ran.
+    was *asked* for, not what it ran.  Also ``False`` whenever
+    ``output == "issue"``, for the same reason as ``apply_version_bumps``.
     """
 
     branch: str
@@ -109,6 +115,10 @@ def plan_update(
         report: The typed outcome of an
             :func:`~ghagen.pin.engine.upgrade` run.
         output: What the caller wants raised when there is something to raise.
+            Also decides whether anything gets written: ``"issue"`` implies
+            ``apply_version_bumps`` and ``refresh_lockfile`` are both
+            ``False``, since an issue reports pending work rather than
+            performing it.
         branch_prefix: Prefix for the dated PR branch, e.g. ``ghagen-update/``.
         commit_message_prefix: Optional prefix for the commit subject, e.g.
             ``chore(deps):``.  Trimmed; an empty prefix leaves no leading
@@ -126,22 +136,34 @@ def plan_update(
     # `version_bumps` is empty unless the versions stage ran, so the flag adds
     # nothing here -- reading it would make this a fresh derivation site for a
     # fact the report already encodes structurally.
-    apply_version_bumps = bool(report.version_bumps)
+    #
+    # Gated on `output == "pr"`: an issue *describes* pending work, it does
+    # not perform it, so `--output issue` writes nothing -- no version bumps,
+    # no lockfile refresh.  This is a decision, computed the same way whether
+    # or not the caller passed `--dry-run`; the CLI is what turns "would
+    # apply" into "did apply" by additionally gating on `not dry_run`.
+    apply_version_bumps = output == "pr" and bool(report.version_bumps)
 
-    refresh_lockfile = app.lockfile_path is not None and (
-        # A new version tag needs a lockfile entry whichever stage found it.
-        # This clause is deliberately *not* gated on `checked_lockfile`:
-        # `--mode versions` skips the lockfile stage, but it still rewrites
-        # `@v4` to `@v7` in user source, and a lockfile that only knows `@v4`
-        # makes the very next `ghagen synth` raise `PinError: No lockfile
-        # entry`.  `mode` is a documented action input with `versions` among
-        # its values, so that tree is reachable by any consumer.
-        apply_version_bumps
-        # Read, never re-derived from `--mode`.  Load-bearing only here: an
-        # empty `lockfile_stale` cannot distinguish "the stage ran and found
-        # nothing" from "the stage was not asked for", so without this the
-        # rule could not tell a clean lockfile from an unexamined one.
-        or (report.checked_lockfile and bool(report.lockfile_stale))
+    refresh_lockfile = (
+        output == "pr"
+        and app.lockfile_path is not None
+        and (
+            # A new version tag needs a lockfile entry whichever stage found
+            # it.  This clause is deliberately *not* gated on
+            # `checked_lockfile`: `--mode versions` skips the lockfile stage,
+            # but it still rewrites `@v4` to `@v7` in user source, and a
+            # lockfile that only knows `@v4` makes the very next `ghagen
+            # synth` raise `PinError: No lockfile entry`.  `mode` is a
+            # documented action input with `versions` among its values, so
+            # that tree is reachable by any consumer.
+            bool(report.version_bumps)
+            # Read, never re-derived from `--mode`.  Load-bearing only here:
+            # an empty `lockfile_stale` cannot distinguish "the stage ran and
+            # found nothing" from "the stage was not asked for", so without
+            # this the rule could not tell a clean lockfile from an
+            # unexamined one.
+            or (report.checked_lockfile and bool(report.lockfile_stale))
+        )
     )
 
     if total_updates == 0:
