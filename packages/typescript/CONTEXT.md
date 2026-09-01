@@ -151,6 +151,14 @@ A named node in a Snapshot (`schema/conformance-scopes.yml`) that both ports mus
 covering model, and whose declared property set that model must emit in full. A path segment may
 be an integer, indexing a `oneOf` alternative. A scope one port cannot bind is a parity failure.
 
+**Gap**:
+A scope property both ports intentionally do not model, allow-listed by name in
+`schema/conformance-gaps.yml`. Both sweeps hold every row to three claims, not just "listed":
+the name must still exist upstream (else stale), must still be uncovered by the model (else the
+gap has been closed and the row must go), and the file's own snapshot/scope keys must equal the
+sweep's exactly — so a gap entry is a live regression guard against a re-introduced gap, not a
+comment that happens to be YAML.
+
 ### CLI
 
 **Exit code**:
