@@ -268,10 +268,35 @@ def _schema_drift_workflow() -> Workflow:
                               echo "No schema drift."
                               exit 0
                             fi
-                            BRANCH="schema-drift/$(date +%Y%m%d)"
-                            if gh pr list --head "$BRANCH" --json number \\
+                            # Name the branch after the CONTENT of the drift, not
+                            # the date. A date-named branch is new on every run, so
+                            # the "already filed" guard below could never match --
+                            # three byte-identical drift branches were filed on
+                            # consecutive Mondays before this was fixed. Hash the
+                            # post-refresh files, not the diff, whose index lines
+                            # move with the base: identical upstream schema then
+                            # yields an identical branch name, so a repeat run is a
+                            # no-op and only genuinely new drift opens a new PR.
+                            DRIFT="$(git hash-object \\
+                                       schema/workflow_schema.json \\
+                                       schema/action_schema.json \\
+                                       packages/typescript/src/schema/workflow-types.generated.ts \\
+                                     | git hash-object --stdin | cut -c1-12)"
+                            BRANCH="schema-drift/$DRIFT"
+                            # --state all deliberately: a drift a human closed
+                            # without merging stays dispositioned. Delete the branch
+                            # and the PR to make this same drift file again.
+                            if gh pr list --head "$BRANCH" --state all --json number \\
                                  --jq '.[0].number' | grep -q .; then
-                              echo "Drift PR already open for $BRANCH."
+                              echo "Drift $DRIFT already filed as a PR."
+                              exit 0
+                            fi
+                            # The fallback issue carries the same id, so a run whose
+                            # push landed but whose PR call failed is not re-filed.
+                            if gh issue list --label schema-drift --state all \\
+                                 --search "$DRIFT" --json number \\
+                                 --jq '.[0].number' | grep -q .; then
+                              echo "Drift $DRIFT already filed as an issue."
                               exit 0
                             fi
                             git config user.name  "github-actions[bot]"
@@ -279,15 +304,15 @@ def _schema_drift_workflow() -> Workflow:
                               "41898282+github-actions[bot]@users.noreply.github.com"
                             git checkout -b "$BRANCH"
                             git add schema/ packages/typescript/src/schema/
-                            git commit -m "chore(schema): sync upstream drift + regenerate types"
+                            git commit -m "chore(schema): sync upstream drift $DRIFT + regenerate types"
                             if ! git push --force-with-lease -u origin "$BRANCH" || ! gh pr create \\
-                                 --title "Schema drift: refreshed Snapshot + types" \\
-                                 --body "Automated upstream schema refresh (Snapshot + regenerated types). CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \\
+                                 --title "Schema drift $DRIFT: refreshed Snapshot + types" \\
+                                 --body "Automated upstream schema refresh (Snapshot + regenerated types), drift id \\`$DRIFT\\`. CI's offline staleness guard (lint-meta) runs on this PR; review the Snapshot diff and regenerated types before merging." \\
                                  --label schema-drift; then
                               echo "::warning::PR creation failed; opening a fallback issue."
                               gh issue create \\
-                                --title "GitHub Actions schema drift detected" \\
-                                --body "Automated schema refresh could not open a PR. Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
+                                --title "GitHub Actions schema drift $DRIFT detected" \\
+                                --body "Automated schema refresh could not open a PR (drift id \\`$DRIFT\\`). Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
                                 --label schema-drift
                             fi
                         """,
