@@ -944,3 +944,46 @@ class TestDepsUpdateLeavesASynthesizableTree:
             workflow.read_text(),
         ) == before
         assert json.loads(result.stdout)["changed"] is False
+
+    @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
+    @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)
+    @patch("ghagen.pin.github.GitHubClient.resolve_ref", side_effect=_mock_resolve_ref)
+    def test_output_issue_writes_nothing(
+        self, mock_resolve, mock_tags, mock_track, tmp_path, monkeypatch
+    ):
+        """``--output issue`` without ``--dry-run`` still writes nothing.
+
+        Issue 20's deliverable: before this fix, ``--output issue`` applied the
+        version bump and re-resolved the lockfile exactly like ``--output pr``
+        -- an issue mode leaves the source tree byte-identical, since the
+        shipped action never commits on that path and those writes would
+        otherwise be stranded in a runner's checkout nothing will ever commit.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
+        config = _setup_lockfile_project(tmp_path)
+        workflow = tmp_path / ".github" / "workflows" / "ci.yml"
+        before = (
+            config.read_text(),
+            (tmp_path / ".ghagen.lock.yml").read_text(),
+            workflow.read_text(),
+        )
+
+        result = runner.invoke(
+            app, ["deps", "update", "--output", "issue", "--format", "json"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert (
+            config.read_text(),
+            (tmp_path / ".ghagen.lock.yml").read_text(),
+            workflow.read_text(),
+        ) == before
+        plan = json.loads(result.stdout)
+        # The run really did find something -- otherwise the no-write
+        # assertion above is vacuous.
+        assert plan["action"] == "create-issue"
+        assert plan["total_updates"] > 0
+        assert plan["apply_version_bumps"] is False
+        assert plan["refresh_lockfile"] is False
+        assert plan["changed"] is False

@@ -211,6 +211,47 @@ class TestAction:
         assert _plan(app, report).total_updates == 2
 
 
+class TestOutputIssueImpliesNoWrites:
+    """Issue 20: ``--output issue`` writes nothing, even with plenty to report.
+
+    ``apply_version_bumps`` and ``refresh_lockfile`` gate the CLI's actual
+    writes, so they must be ``False`` for ``output="issue"`` regardless of
+    what the report found -- otherwise the plan would tell a caller "these
+    were applied" for a run that applied nothing.
+    """
+
+    def test_version_bump_is_not_applied_under_issue_output(self, tmp_path: Path):
+        app = App(root=tmp_path)
+        report = UpgradeReport(
+            version_bumps=[_bump()],
+            checked_versions=True,
+            checked_lockfile=True,
+        )
+
+        plan = _plan(app, report, output="issue")
+
+        assert plan.apply_version_bumps is False
+        assert plan.refresh_lockfile is False
+        assert plan.action == "create-issue"
+        assert plan.total_updates == 1
+
+    def test_stale_lockfile_entry_is_not_refreshed_under_issue_output(
+        self, tmp_path: Path
+    ):
+        app = App(root=tmp_path)
+        report = UpgradeReport(
+            lockfile_stale=[_stale()],
+            checked_versions=True,
+            checked_lockfile=True,
+        )
+
+        plan = _plan(app, report, output="issue")
+
+        assert plan.apply_version_bumps is False
+        assert plan.refresh_lockfile is False
+        assert plan.action == "create-issue"
+
+
 class TestLabels:
     """The nine-line bash label loop, turned into assertions."""
 

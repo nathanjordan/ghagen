@@ -40,4 +40,5 @@ jobs:
         set -euo pipefail
         [ "${{ steps.issue.outputs.action }}" = "create-issue" ]
         [ -z "${{ steps.issue.outputs.branch }}" ]
+        [ "${{ steps.issue.outputs.changed }}" = "false" ]
     timeout-minutes: 10

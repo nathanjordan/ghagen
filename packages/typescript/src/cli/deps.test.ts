@@ -460,6 +460,40 @@ describe("deps update", () => {
   });
 
   /**
+   * Issue 20's deliverable: `--output issue` writes nothing, even without
+   * `--dry-run`.
+   *
+   * Before this fix, `--output issue` applied the version bump exactly like
+   * `--output pr` — an issue mode leaves the tree untouched, since the
+   * shipped action never commits on that path and those writes would
+   * otherwise be stranded in a runner's checkout nothing will ever commit.
+   */
+  test("--output issue asks the engine not to apply, without --dry-run", async () => {
+    trackUserFilesMock.mockResolvedValue({
+      app: fakeApp({ lockfilePath: null }),
+      files: new Set<string>(),
+    });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, output: "issue", format: "json" });
+    out.restore();
+
+    expect(upgradeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ apply: false }),
+    );
+    expect(pinMock).not.toHaveBeenCalled();
+    const plan = JSON.parse(out.text());
+    expect(plan.action).toBe("create-issue");
+    expect(plan.apply_version_bumps).toBe(false);
+    expect(plan.refresh_lockfile).toBe(false);
+    expect(plan.changed).toBe(false);
+  });
+
+  /**
    * The body is a file path, never an output value.
    *
    * Keeping bytes out of `$GITHUB_OUTPUT` sidesteps the multiline delimiter
@@ -592,6 +626,22 @@ describe("deps update leaves a synthesizable tree", () => {
     out.restore();
 
     expect(synth).not.toHaveBeenCalled();
+    expect(JSON.parse(out.text()).changed).toBe(false);
+  });
+
+  test("--output issue synthesizes nothing", async () => {
+    const { stale } = lockfileProject();
+    trackUserFilesMock.mockResolvedValue({ app: stale, files: new Set<string>() });
+    upgradeMock.mockResolvedValue(bumpOnLocklessProject());
+
+    const out = captureStdout();
+    await depsUpdate({ ...UPDATE_DEFAULTS, output: "issue", format: "json" });
+    out.restore();
+
+    // Never applied, so the app is never re-read from disk either -- `stale`
+    // is what `synth()` would run against if it ran at all.
+    expect(loadAppMock).not.toHaveBeenCalled();
+    expect((stale as unknown as { synth: ReturnType<typeof vi.fn> }).synth).not.toHaveBeenCalled();
     expect(JSON.parse(out.text()).changed).toBe(false);
   });
 });

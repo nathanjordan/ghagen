@@ -204,6 +204,41 @@ describe("planUpdate action mapping", () => {
   });
 });
 
+/**
+ * Issue 20: `--output issue` writes nothing, even with plenty to report.
+ *
+ * `applyVersionBumps` and `refreshLockfile` gate the CLI's actual writes, so
+ * they must be `false` for `output: "issue"` regardless of what the report
+ * found — otherwise the plan would tell a caller "these were applied" for a
+ * run that applied nothing.
+ */
+describe("planUpdate with output issue", () => {
+  test("a version bump is not applied under issue output", () => {
+    const p = plan(
+      app(".ghagen.lock.yml"),
+      report({ versionBumps: [bump()], checkedVersions: true, checkedLockfile: true }),
+      { output: "issue" },
+    );
+
+    expect(p.applyVersionBumps).toBe(false);
+    expect(p.refreshLockfile).toBe(false);
+    expect(p.action).toBe("create-issue");
+    expect(p.totalUpdates).toBe(1);
+  });
+
+  test("a stale lockfile entry is not refreshed under issue output", () => {
+    const p = plan(
+      app(".ghagen.lock.yml"),
+      report({ lockfileStale: [stale()], checkedVersions: true, checkedLockfile: true }),
+      { output: "issue" },
+    );
+
+    expect(p.applyVersionBumps).toBe(false);
+    expect(p.refreshLockfile).toBe(false);
+    expect(p.action).toBe("create-issue");
+  });
+});
+
 /** The nine-line bash label loop, turned into assertions. */
 describe("planUpdate label parsing", () => {
   const nonEmpty = () => report({ versionBumps: [bump()], checkedVersions: true });

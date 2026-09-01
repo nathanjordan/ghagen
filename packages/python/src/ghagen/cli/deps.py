@@ -298,10 +298,13 @@ def deps_update(
 ) -> None:
     """Sweep for dependency updates, apply them, and print the resulting plan.
 
-    One command per automation run.  It performs every write the update needs
-    -- version bumps in user source, and the lockfile re-resolve when, and only
-    when, that is the right thing to do -- and prints what the caller should
-    raise.  A caller reads the plan and acts on it; it never reconstructs a
+    One command per automation run.  With ``--output pr`` it performs every
+    write the update needs -- version bumps in user source, and the lockfile
+    re-resolve when, and only when, that is the right thing to do -- and
+    prints what the caller should raise.  With ``--output issue`` it performs
+    no writes at all: an issue describes pending work rather than applying
+    it, so the plan it prints describes what *would* be written, not what
+    was.  A caller reads the plan and acts on it; it never reconstructs a
     decision from ``deps upgrade --format json``, which cannot answer the
     lockfile question because the payload does not carry ``app.lockfile_path``.
 
@@ -363,7 +366,10 @@ def deps_update(
             client,
             user_files,
             mode=mode,  # type: ignore[arg-type]
-            apply=not dry_run,
+            # `--output issue` files an issue describing pending work; it does
+            # not perform that work.  Only `pr` writes, and only when the
+            # caller has not also asked for `--dry-run`.
+            apply=output == "pr" and not dry_run,
         )
 
         # `apply_updates` rewrote the source *files*.  The App in hand was
