@@ -22,14 +22,21 @@ from ghagen_schema.paths import EXPECTED_DIR
 
 
 def _bumps() -> list[VersionBump]:
-    """The shared golden's version bumps (the second has no source files)."""
+    """The shared golden's version bumps (the second has no source files).
+
+    The first bump's source file carries a non-ASCII character (`á`)
+    deliberately -- see ``docs/issues/23`` item 2. ``json.dumps`` defaults to
+    ``\\uXXXX``-escaping it; ``JSON.stringify`` never does. Both ports must
+    emit the raw UTF-8 byte, which is what makes this a byte-exact oracle
+    rather than a merely value-equal one for the JSON format.
+    """
     return [
         VersionBump(
             uses="actions/checkout@v5",
             current="v5",
             latest="v6",
             severity="major",
-            source_files=[".github/ghagen_workflows.py"],
+            source_files=[".github/ghágen_workflows.py"],
         ),
         VersionBump(
             uses="actions/setup-node@v3",
@@ -48,7 +55,7 @@ def _stale() -> list[LockfileStaleEntry]:
             uses="actions/setup-python@v6",
             current_sha="ece7cb06caefa5fff74198d8649806c4678c61a1",
             latest_sha="aaaa1111bbbb2222cccc3333dddd4444eeee5555",
-            source_files=[".github/ghagen_workflows.py"],
+            source_files=[".github/ghágen_workflows.py"],
         )
     ]
 
@@ -75,6 +82,13 @@ class TestGoldenFixtures:
         rendered = render_upgrade_report(_full_report(), output_format="json")
 
         golden = (EXPECTED_DIR / "upgrade_report.json").read_text(encoding="utf-8")
+
+        # Byte-exact, not merely value-equal: `json.loads(rendered) ==
+        # json.loads(golden)` would pass even if this port \uXXXX-escaped the
+        # non-ASCII `á` in a source file and the TypeScript peer didn't (or
+        # vice versa) -- docs/issues/23 item 2. The raw text comparison is
+        # what makes the `ensure_ascii=False` fix load-bearing.
+        assert rendered == golden
         assert json.loads(rendered) == json.loads(golden)
 
         # The phantom `helper_provided` field must never appear.

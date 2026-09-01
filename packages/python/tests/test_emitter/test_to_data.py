@@ -27,6 +27,7 @@ from ghagen import (
 )
 from ghagen.emitter import CommentNode, to_data
 from ghagen.models.job import Defaults, DefaultsRun
+from ghagen_schema.paths import EXPECTED_DIR
 
 
 def test_returns_plain_dict():
@@ -65,6 +66,31 @@ def test_extras_merged_after_ordered_keys():
     data = to_data(step)
     assert list(data) == ["name", "custom"]
     assert data["custom"] == "x"
+
+
+def test_extras_astral_plane_keys_order_by_code_point():
+    """``On(extras=...)`` (docs/issues/23 item 5) -- the only reachable path.
+
+    The issue's own example pair: ``"\\u{1F600}"`` (an astral-plane key,
+    U+1F600) and ``"＀"`` (U+FF00, a BMP key). ``On.SPEC.order ==
+    "alphabetical"``, so every extras key merges into the same sort
+    ``order_entries`` runs on typed fields, and these two disagree on where
+    they land depending on whether the comparison is by Unicode code point
+    (Python's native ``str`` ordering) or by UTF-16 code unit (the pre-fix
+    TypeScript ``.sort()``): the BMP char's single code unit (0xFF00) is
+    numerically *larger* than the astral char's leading surrogate (0xD83D),
+    even though the astral char's actual code point (0x1F600) is larger
+    still. ``fixtures/expected/on_extras_astral_order.txt`` is the shared
+    oracle the TypeScript peer asserts the same order against.
+    """
+    on = On(
+        push=PushTrigger(),
+        extras={"＀_event": {}, "\U0001f600_event": {}},
+    )
+
+    fixture_path = EXPECTED_DIR / "on_extras_astral_order.txt"
+    expected = fixture_path.read_text(encoding="utf-8").splitlines()
+    assert list(to_data(on)) == expected
 
 
 def test_raw_unwrapped_to_inner_value():

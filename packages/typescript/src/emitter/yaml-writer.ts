@@ -10,6 +10,7 @@ import { attachFieldComment, attachModelComment } from "./comments.js";
 import { commentString } from "./comment-geometry.js";
 import { formatHeader, type HeaderVariables } from "./header.js";
 import { dedentScript } from "../_dedent.js";
+import { codePointCompare } from "../_codepoint.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -192,7 +193,13 @@ function orderedEntries(model: Model): [string, unknown][] {
   const extras = model.meta.extras ?? {};
 
   if (model.spec.order === "alphabetical") {
-    const allKeys = [...new Set([...Object.keys(data), ...Object.keys(extras)])].sort();
+    // Code-point order, not `.sort()`'s default UTF-16 code-unit order — the
+    // two agree across the BMP but diverge for astral-plane keys (surrogate
+    // pairs). Matches Python's `sorted()`, which compares `str` by code
+    // point natively. See `_codepoint.ts`.
+    const allKeys = [...new Set([...Object.keys(data), ...Object.keys(extras)])].sort(
+      codePointCompare,
+    );
     return allKeys.map((key) => [key, key in data ? data[key] : extras[key]]);
   }
 

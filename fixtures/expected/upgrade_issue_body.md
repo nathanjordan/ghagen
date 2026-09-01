@@ -1,6 +1,6 @@
 ## Version updates available
 
-- [ ] `actions/checkout@v5` -> `v6` [major]  in `.github/ghagen_workflows.py`
+- [ ] `actions/checkout@v5` -> `v6` [major]  in `.github/ghágen_workflows.py`
 - [ ] `actions/setup-node@v3` -> `v4` [major]
 
 ## Stale lockfile entries

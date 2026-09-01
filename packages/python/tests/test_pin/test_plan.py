@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ghagen.app import App
 from ghagen.pin.engine import LockfileStaleEntry, UpgradeReport, VersionBump
-from ghagen.pin.plan import UpdatePlan, plan_update
+from ghagen.pin.plan import UpdatePlan, plan_update, render_update_plan
 
 _TODAY = date(2026, 7, 31)
 
@@ -297,3 +297,32 @@ class TestCommitMessage:
         plan = _plan(app, report, commit_message_prefix="  chore(deps):  ")
 
         assert plan.commit_message == "chore(deps): update ghagen action dependencies"
+
+
+class TestJsonFormatNonAscii:
+    """``docs/issues/23`` item 2 also names the plan output as reachable.
+
+    ``render_update_plan``'s ``json`` branch shares ``render_upgrade_report``'s
+    ``ensure_ascii=False`` fix (see ``pin/render.py``'s golden-fixture test for
+    the primary oracle); this pins the same fix at its own call site with a
+    direct, byte-exact assertion rather than a fixture file, since the two
+    call sites share one line of code and one rationale.
+    """
+
+    def test_json_does_not_escape_non_ascii(self, tmp_path: Path):
+        plan = UpdatePlan(
+            action="create-pr",
+            total_updates=1,
+            apply_version_bumps=True,
+            refresh_lockfile=False,
+            branch="ghagen-update/2026-07-31",
+            title="update ghagen action dependencies",
+            commit_message="update ghágen action dependencies",
+            labels=(),
+            body_format="pr-body",
+        )
+
+        rendered = render_update_plan(plan, changed=True, output_format="json")
+
+        assert "ghágen" in rendered
+        assert "\\u" not in rendered

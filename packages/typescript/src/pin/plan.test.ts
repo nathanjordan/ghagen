@@ -11,7 +11,7 @@
 import { describe, expect, test } from "vitest";
 import type { App } from "../app.js";
 import type { LockfileStaleEntry, UpgradeReport, VersionBump } from "./engine.js";
-import { type UpdatePlan, planUpdate, parseLabels } from "./plan.js";
+import { type UpdatePlan, planUpdate, parseLabels, renderUpdatePlan } from "./plan.js";
 
 const TODAY = new Date(Date.UTC(2026, 6, 31));
 
@@ -278,5 +278,34 @@ describe("planUpdate commit message", () => {
     expect(
       plan(app(null), nonEmpty(), { commitMessagePrefix: "  chore(deps):  " }).commitMessage,
     ).toBe("chore(deps): update ghagen action dependencies");
+  });
+});
+
+// docs/issues/23 item 2 also names the plan output as reachable.
+// `renderUpdatePlan`'s `json` branch was already correct here (JSON.stringify
+// never \uXXXX-escapes non-ASCII); the Python peer's `render_update_plan`
+// needed the same `ensure_ascii=False` fix as `render_upgrade_report` (see
+// `pin/render.py`'s golden-fixture test for the primary oracle). This pins
+// the same fact at its own call site with a direct, byte-exact assertion
+// rather than a fixture file, since the two call sites share one line of
+// code and one rationale.
+describe("renderUpdatePlan json format non-ASCII", () => {
+  test("does not escape non-ASCII", () => {
+    const updatePlan: UpdatePlan = {
+      action: "create-pr",
+      totalUpdates: 1,
+      applyVersionBumps: true,
+      refreshLockfile: false,
+      branch: "ghagen-update/2026-07-31",
+      title: "update ghagen action dependencies",
+      commitMessage: "update ghágen action dependencies",
+      labels: [],
+      bodyFormat: "pr-body",
+    };
+
+    const rendered = renderUpdatePlan(updatePlan, true, "json");
+
+    expect(rendered).toContain("ghágen");
+    expect(rendered).not.toContain("\\u");
   });
 });

@@ -11,6 +11,7 @@
  */
 
 import { resolve } from "node:path";
+import { codePointCompare } from "../_codepoint.js";
 import type { App } from "../app.js";
 import { collectUsesRefs } from "./collect.js";
 import { ResolveError, type GitHubClient } from "./github.js";
@@ -247,9 +248,12 @@ export async function upgrade(
     }
 
     // One `listTags` call per repo — the grouping above is what deduplicates,
-    // so no cache is involved.
+    // so no cache is involved. Sorted by code point (not `localeCompare`,
+    // which is locale-dependent and not reproducible across machines) to
+    // match Python's `sorted()` on the equivalent `(owner, repo)` tuples —
+    // see `_codepoint.ts`.
     for (const [key, repoRefList] of [...repoRefs.entries()].sort(([a], [b]) =>
-      a.localeCompare(b),
+      codePointCompare(a, b),
     )) {
       const [owner, repo] = key.split("/", 2) as [string, string];
       let tags: string[];

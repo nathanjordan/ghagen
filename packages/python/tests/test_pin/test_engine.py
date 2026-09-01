@@ -20,6 +20,7 @@ from ghagen.models.workflow import Workflow
 from ghagen.pin.engine import check_sync, pin, upgrade
 from ghagen.pin.github import GitHubClient, Response
 from ghagen.pin.lockfile import Lockfile, PinEntry, read_lockfile, write_lockfile
+from ghagen_schema.paths import EXPECTED_DIR
 from tests.test_pin.transport_contract import FakeTransport, canned
 
 SAMPLE_TIME = datetime(2026, 4, 9, tzinfo=UTC)
@@ -303,6 +304,35 @@ class TestUpgrade:
         assert report.version_bumps == []
         assert len(report.warnings) == 1
         assert "failed to list tags for actions/checkout" in report.warnings[0]
+
+    def test_groups_repos_by_code_point(self, tmp_path: Path):
+        """Repos are grouped for the ``list_tags`` sweep by code point.
+
+        Companion to the TypeScript peer's regression for
+        ``docs/issues/23`` item 1: ``sorted()`` on the ``(owner, repo)``
+        tuples already sorts by code point here (this is the reference
+        side, not the fix site), but this pins that fact against drift and
+        proves both ports agree with the shared oracle
+        ``fixtures/expected/pin_repo_group_order.txt`` -- the order a
+        locale-aware comparator (the pre-fix TypeScript ``localeCompare``)
+        would get backwards, since ``Z`` (0x5A) sorts before ``a`` (0x61) by
+        code point but dictionary collation puts lowercase-initial words
+        first.
+        """
+        app = _app_with_refs(tmp_path, "Zulu/repo@v4", "apple/repo@v4")
+        client = GitHubClient(
+            FakeTransport(
+                {
+                    "repos/Zulu/repo/git/refs/tags": _tags("v4", "v5"),
+                    "repos/apple/repo/git/refs/tags": _tags("v4", "v9"),
+                }
+            )
+        )
+
+        report = upgrade(app, client, set(), mode="versions", apply=False)
+
+        expected = (EXPECTED_DIR / "pin_repo_group_order.txt").read_text().splitlines()
+        assert [b.uses for b in report.version_bumps] == expected
 
 
 # -- upgrade: what the run was asked to check ------------------------------

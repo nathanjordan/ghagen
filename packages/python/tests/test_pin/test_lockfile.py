@@ -342,6 +342,44 @@ class TestGoldenConformance:
         assert "resolved_at" in str(exc.value)
 
 
+class TestKeyQuoting:
+    """LATENT (docs/issues/23 item 4): an ambiguous ``uses`` key must be quoted.
+
+    No fixture in ``fixtures/expected/`` reaches this through the CLI --
+    every realistic ``uses:`` string already contains a ``/``, an ``@``, or a
+    ``docker://`` prefix, none of which is YAML-ambiguous. ``Lockfile``'s
+    public API accepts any ``str`` key, though, so this constructs the input
+    directly: ``"123456"`` parses as a YAML int unless quoted. Before the fix,
+    ruamel single-quoted it (``'123456':``) while the TypeScript peer's
+    ``yaml`` package double-quoted it (``"123456":``) -- same semantic key,
+    different bytes, and thus a lockfile written by one port and committed
+    would read back correctly in both, but re-writing it in the other port
+    would produce a byte-level diff with no functional cause.
+
+    ``fixtures/expected/lockfile_key_quoting.yml`` is the shared oracle: both
+    ports write this exact ``Lockfile`` and must produce identical bytes.
+    """
+
+    def test_write_matches_golden_bytes(self, tmp_path):
+        path = tmp_path / "lock.yml"
+        lf = Lockfile(
+            pins={
+                "123456": PinEntry(sha="a" * 40, resolved_at=SAMPLE_TIME),
+                "actions/checkout@v4": PinEntry(sha="b" * 40, resolved_at=SAMPLE_TIME),
+            }
+        )
+        write_lockfile(lf, path)
+        golden = EXPECTED_DIR / "lockfile_key_quoting.yml"
+        assert path.read_bytes() == golden.read_bytes()
+
+    def test_read_round_trips_the_quoted_key(self, tmp_path):
+        path = tmp_path / "lock.yml"
+        path.write_bytes((EXPECTED_DIR / "lockfile_key_quoting.yml").read_bytes())
+        lf = read_lockfile(path)
+        assert set(lf.keys()) == {"123456", "actions/checkout@v4"}
+        assert lf.get("123456").sha == "a" * 40
+
+
 class TestDecodeGrammar:
     """Grammar rule 7 — one accepted ``resolved_at`` shape, in both ports."""
 
@@ -374,6 +412,18 @@ class TestDecodeGrammar:
             '"2026-04-09T14:30:00"',  # quoted, naive
             "2026-04-09T14:30:00",  # bare, naive
             '"2026-04-09T14:30:00+02:00"',  # explicit non-UTC offset
+            # The following are all forms `datetime.fromisoformat` accepts on
+            # its own (and the old, regex-less implementation therefore
+            # silently accepted) but the TypeScript peer's `TIMESTAMP_RE`
+            # never has -- docs/issues/23 item 3. Each is individually
+            # verified in the module docstring's `_TIMESTAMP_RE` discussion.
+            '"2026-04-09 14:30:00+00:00"',  # space separator, not T
+            '"2026-04-09T14:30:00+0000"',  # offset without a colon
+            '"2026-04-09T14:30:00+00"',  # offset with no minutes
+            '"2026-04-09T14:30:00,123456+00:00"',  # comma decimal separator
+            '"20260409T143000+0000"',  # basic format, no separators
+            '"2026-04-09T14:30:00+00:00:00"',  # offset carrying seconds
+            '"2026-04-09T14:30:00-00:00"',  # negative-zero offset
         ],
     )
     def test_rejected(self, tmp_path, literal):
@@ -381,6 +431,24 @@ class TestDecodeGrammar:
         path.write_text(_lock_doc(literal))
         with pytest.raises(LockfileError) as exc:
             read_lockfile(path)
+        assert "resolved_at" in str(exc.value)
+
+
+class TestDecodeGrammarFixture:
+    """The one tightened-grammar case with its own shared-file oracle.
+
+    ``fixtures/expected/lockfile_space_separator_rejected.yml`` pins the
+    space-separator form (accepted by ``datetime.fromisoformat`` alone,
+    rejected by the shared ``_TIMESTAMP_RE`` -- docs/issues/23 item 3) as an
+    actual on-disk document, read by both ports, rather than only as an
+    in-process literal. Flipping the space to ``T`` (one byte) makes the
+    fixture a valid timestamp and the read no longer raises, so the test
+    goes from a pass to a failure -- proof the fixture is load-bearing.
+    """
+
+    def test_rejects_the_golden_space_separator_document(self):
+        with pytest.raises(LockfileError) as exc:
+            read_lockfile(EXPECTED_DIR / "lockfile_space_separator_rejected.yml")
         assert "resolved_at" in str(exc.value)
 
 

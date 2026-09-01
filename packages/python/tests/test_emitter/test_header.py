@@ -12,6 +12,7 @@ from ghagen.emitter.header import (
     build_header_variables,
     format_header,
 )
+from ghagen_schema.paths import EXPECTED_DIR
 
 # --- format_header ---------------------------------------------------------
 
@@ -171,6 +172,43 @@ def test_build_variables_fallback_when_no_app_root(tmp_path: Path) -> None:
     # absolute path. If it *is* inside one, we at least assert that the
     # recorded path is a suffix of the result (covers both cases safely).
     assert variables["source_file"].endswith("orphan.py")
+
+
+def test_build_variables_source_file_not_resolved_through_symlink(
+    tmp_path: Path,
+) -> None:
+    """``source_file`` walks the *lexical* path -- a symlink is never followed.
+
+    Regression for ``docs/issues/23`` item 6: Python's ``Path.resolve()``
+    follows symlinks for existing path components; TypeScript's ``resolve()``
+    from ``node:path`` never touches the filesystem. This puts a real
+    (marker-bearing) project root behind a directory symlink whose own
+    lexical ancestor has a *different* marker-bearing root, so the two
+    root-discovery strategies would disagree if either resolved the link:
+    resolving would walk from ``tmp_path/project/sub`` and find no marker;
+    not resolving walks from ``tmp_path/other/link`` and finds
+    ``tmp_path/other/.ghagen.yml``.
+
+    ``fixtures/expected/header_source_file_symlink.txt`` is the shared byte
+    oracle: the TypeScript peer builds the identical directory layout and
+    asserts the same string.
+    """
+    # The symlink's target -- nobody should ever be resolved into this tree.
+    real_project = tmp_path / "project" / "sub"
+    real_project.mkdir(parents=True)
+
+    # The symlink's own lexical ancestor -- the root the *lexical* walk finds.
+    link_parent = tmp_path / "other"
+    link_parent.mkdir()
+    (link_parent / ".ghagen.yml").write_text("")
+    (link_parent / "link").symlink_to(real_project, target_is_directory=True)
+
+    src = link_parent / "link" / "workflows.py"  # never created -- lexical only
+
+    variables = build_header_variables((str(src), 1))
+
+    expected = (EXPECTED_DIR / "header_source_file_symlink.txt").read_text().strip()
+    assert variables["source_file"] == expected
 
 
 def test_build_variables_tool_is_ghagen() -> None:
