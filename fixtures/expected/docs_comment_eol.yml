@@ -1,0 +1,11 @@
+name: CI
+on:
+  push:
+    branches:
+    - main
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Ruff  # fast Python linter
+      run: ruff check .

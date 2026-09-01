@@ -3,7 +3,15 @@ title: Comments
 description: Attaching comments to ghagen models that appear in generated YAML
 ---
 
-import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Code, Tabs, TabItem } from "@astrojs/starlight/components";
+import {
+  commentBlockYaml,
+  commentEolYaml,
+  commentFieldBlockYaml,
+  commentFieldEolYaml,
+  commentFullYaml,
+  headerVerbatimYaml,
+} from "../../../snippets/emitted.ts";
 
 You can attach comments to any model and they appear in the generated YAML. This is useful for documenting intent, explaining non-obvious configuration, and adding context for anyone reading the generated files.
 
@@ -21,7 +29,7 @@ Job(
     name="Test",
     runs_on="ubuntu-latest",
     comment="Run the full test suite against all supported Python versions",
-    steps=[...],
+    steps=[Step(run="pytest")],
 )
 ```
 
@@ -33,22 +41,16 @@ job({
   name: "Test",
   runsOn: "ubuntu-latest",
   comment: "Run the full test suite against all supported Python versions",
-  steps: [...],
+  steps: [step({ run: "pytest" })],
 });
 ```
 
 </TabItem>
 </Tabs>
 
-Generated YAML:
+That job renders under `jobs:` as:
 
-{/* prettier-ignore */}
-```yaml
-test:
-  # Run the full test suite against all supported Python versions
-  name: Test
-  runs-on: ubuntu-latest
-```
+<Code code={commentBlockYaml} lang="yaml" />
 
 ### End-of-line comments
 
@@ -79,13 +81,9 @@ step({
 </TabItem>
 </Tabs>
 
-Generated YAML:
+That step renders in its job's `steps:` list as:
 
-{/* prettier-ignore */}
-```yaml
-- name: Ruff  # fast Python linter
-  run: ruff check .
-```
+<Code code={commentEolYaml} lang="yaml" />
 
 ### Field-level block comments
 
@@ -95,39 +93,34 @@ Wrap a field value with `with_comment()` / `withComment()` to add a comment abov
 <TabItem label="Python">
 
 ```python
-from ghagen import with_comment
+from ghagen import Job, On, PushTrigger, Step, Workflow, with_comment
 
 Workflow(
-name=with_comment("CI", "The name shown in the GitHub UI"),
-on=On(push=PushTrigger(branches=["main"])),
-jobs={...},
+    name=with_comment("CI", "The name shown in the GitHub UI"),
+    on=On(push=PushTrigger(branches=["main"])),
+    jobs={"build": Job(runs_on="ubuntu-latest", steps=[Step(run="make")])},
 )
-
 ```
 
 </TabItem>
 <TabItem label="TypeScript">
 
 ```typescript
-import { withComment } from "ghagen";
+import { job, on, pushTrigger, step, withComment, workflow } from "@ghagen/ghagen";
 
 workflow({
   name: withComment("CI", "The name shown in the GitHub UI"),
-  on: { push: { branches: ["main"] } },
-  jobs: { ... },
+  on: on({ push: pushTrigger({ branches: ["main"] }) }),
+  jobs: { build: job({ runsOn: "ubuntu-latest", steps: [step({ run: "make" })] }) },
 });
 ```
 
 </TabItem>
 </Tabs>
 
-Generated YAML:
+The `name` field renders as:
 
-{/* prettier-ignore */}
-```yaml
-# The name shown in the GitHub UI
-name: CI
-```
+<Code code={commentFieldBlockYaml} lang="yaml" />
 
 ### Field-level EOL comments
 
@@ -137,52 +130,52 @@ Wrap a field value with `with_eol_comment()` / `withEolComment()` to add an end-
 <TabItem label="Python">
 
 ```python
-from ghagen import with_eol_comment
+from ghagen import Job, On, PushTrigger, Step, Workflow, with_eol_comment
 
 Workflow(
-name="CI",
-on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
-jobs={...},
+    name="CI",
+    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
+    jobs={"build": Job(runs_on="ubuntu-latest", steps=[Step(run="make")])},
 )
-
 ```
 
 </TabItem>
 <TabItem label="TypeScript">
 
 ```typescript
-import { withEolComment } from "ghagen";
+import { job, on, pushTrigger, step, withEolComment, workflow } from "@ghagen/ghagen";
 
 workflow({
   name: "CI",
-  on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
-  jobs: { ... },
+  on: withEolComment(on({ push: pushTrigger({ branches: ["main"] }) }), "trigger configuration"),
+  jobs: { build: job({ runsOn: "ubuntu-latest", steps: [step({ run: "make" })] }) },
 });
 ```
 
 </TabItem>
 </Tabs>
 
-Generated YAML:
+The `on` field renders as:
 
-{/* prettier-ignore */}
-```yaml
-name: CI
-on:  # trigger configuration
-  push:
-    branches:
-    - main
-```
+<Code code={commentFieldEolYaml} lang="yaml" />
 
 Both `with_comment` and `with_eol_comment` are chainable — you can wrap a value with both a block comment and an EOL comment:
 
 <Tabs syncKey="lang">
-  <TabItem label="Python">
-    ```python name=with_eol_comment(with_comment("CI", "Block comment"), "EOL comment") ```
-  </TabItem>
-  <TabItem label="TypeScript">
-    ```typescript name: withEolComment(withComment("CI", "Block comment"), "EOL comment") ```
-  </TabItem>
+<TabItem label="Python">
+
+```python
+name=with_eol_comment(with_comment("CI", "Block comment"), "EOL comment")
+```
+
+</TabItem>
+<TabItem label="TypeScript">
+
+```typescript
+name: withEolComment(withComment("CI", "Block comment"), "EOL comment");
+```
+
+</TabItem>
 </Tabs>
 
 ## Full example
@@ -193,39 +186,46 @@ Here is a workflow that uses all four comment types:
 <TabItem label="Python">
 
 ```python
-from ghagen import with_comment, with_eol_comment
-
-Workflow(
-name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
-on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
-jobs={
-"lint": Job(
-name="Lint",
-runs_on="ubuntu-latest",
-comment="Run linters before tests",
-steps=[
-Step(uses="actions/checkout@v4"),
-Step(
-name="Ruff",
-run="ruff check .",
-eol_comment="fast Python linter",
-),
-],
-),
-},
+from ghagen import (
+    Job,
+    On,
+    PushTrigger,
+    Step,
+    Workflow,
+    with_comment,
+    with_eol_comment,
 )
 
+Workflow(
+    name=with_comment("Commented Workflow", "The name shown in the GitHub UI"),
+    on=with_eol_comment(On(push=PushTrigger(branches=["main"])), "trigger configuration"),
+    jobs={
+        "lint": Job(
+            name="Lint",
+            runs_on="ubuntu-latest",
+            comment="Run linters before tests",
+            steps=[
+                Step(uses="actions/checkout@v4"),
+                Step(
+                    name="Ruff",
+                    run="ruff check .",
+                    eol_comment="fast Python linter",
+                ),
+            ],
+        ),
+    },
+)
 ```
 
 </TabItem>
 <TabItem label="TypeScript">
 
 ```typescript
-import { withComment, withEolComment } from "ghagen";
+import { job, on, pushTrigger, step, withComment, withEolComment, workflow } from "@ghagen/ghagen";
 
 workflow({
   name: withComment("Commented Workflow", "The name shown in the GitHub UI"),
-  on: withEolComment({ push: { branches: ["main"] } }, "trigger configuration"),
+  on: withEolComment(on({ push: pushTrigger({ branches: ["main"] }) }), "trigger configuration"),
   jobs: {
     lint: job({
       name: "Lint",
@@ -249,30 +249,12 @@ workflow({
 
 This produces the following YAML:
 
-{/* prettier-ignore */}
-```yaml
-# The name shown in the GitHub UI
-name: Commented Workflow
-on:  # trigger configuration
-  push:
-    branches:
-    - main
-jobs:
-  lint:
-    # Run linters before tests
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Ruff  # fast Python linter
-      run: ruff check .
-```
+<Code code={commentFullYaml} lang="yaml" />
 
 ## Header comments
 
-Every generated file starts with an auto-generated header comment block. By default it points back at the source file that defined the workflow or action:
+Every generated file starts with an auto-generated header comment block. By default it points back at the source file that defined the workflow or action, so the path you see is your own:
 
-{/* prettier-ignore */}
 ```yaml
 # This file is generated by ghagen from .github/ghagen_workflows.py.
 # Do not edit manually.
@@ -330,23 +312,18 @@ const app = new App({
 </TabItem>
 </Tabs>
 
-Emits:
+Emits -- with your own source path, and whichever ghagen version is installed:
 
-{/* prettier-ignore */}
 ```yaml
 # Generated by ghagen 0.2.1 from .github/ghagen_workflows.py.
 # Edit the Python source and run `ghagen synth` instead of hand-editing this file.
-````
+```
 
 A plain string is emitted verbatim, with no substitution -- literal `{` and `}` survive untouched. Multiline strings (and multiline closure return values) are fine; every line gets a leading `# `, blank lines render as a bare `#`.
 
 The YAML body follows the header immediately, with **no blank line** between them:
 
-{/* prettier-ignore */}
-```yaml
-# Hand written
-name: CI
-```
+<Code code={headerVerbatimYaml} lang="yaml" />
 
 Two further shape rules, identical in both ports:
 
