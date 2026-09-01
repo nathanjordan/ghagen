@@ -15,6 +15,13 @@ Properties ghagen intentionally does not model live in the shared allow-list at
 same allow-list means both modelling the same property set -- cross-port surface
 agreement, structurally. Anything upstream but missing from the models (and not
 allow-listed) fails the sweep, surfacing schema drift as a conformance gap.
+Every entry is itself asserted three ways, so the file is a regression guard,
+not a comment that happens to be YAML: a listed name must still be upstream
+(``stale``), must still be uncovered by the model (``closed`` -- catching a gap
+that was fixed without the row being deleted), and the file's own top-level
+snapshot/scope keys must match the sweep exactly (``test_gap_set_matches_sweep``
+-- catching a garbled key, which an empty allow-list under it would otherwise
+hide).
 
 A second sweep, one level down, covers *values* rather than properties: the
 shared ``schema/conformance-values.yml`` binds each declared value grammar (a
@@ -241,6 +248,16 @@ def test_scope_properties_covered(snapshot: str, scope_name: str) -> None:
         f"{snapshot}:{scope_name} allow-list has stale entries no longer in the "
         f"schema: {sorted(stale)}. Remove them from {GAPS_PATH.name}."
     )
+    # A gap entry is a claim that the model does NOT cover this name. If the
+    # model now covers it, the gap has been closed and the row is stale in the
+    # other direction -- catching that is the whole point of recording gaps as
+    # data instead of a comment: closing one forces this table to be updated.
+    closed = allow & covered
+    assert not closed, (
+        f"{snapshot}:{scope_name} allow-list names {sorted(closed)} that "
+        f"{scope.model.__name__} now covers -- the gap has been closed. Remove "
+        f"them from {GAPS_PATH.name}."
+    )
 
 
 def test_scope_set_matches_shared_table() -> None:
@@ -260,6 +277,33 @@ def test_scope_set_matches_shared_table() -> None:
             f"{snapshot} conformance scopes diverge from {SCOPES_PATH.name}: "
             f"port has {sorted(_MODELS[snapshot])}, shared table has "
             f"{sorted(shared[snapshot])}."
+        )
+
+
+def test_gap_set_matches_sweep() -> None:
+    """The gaps file's key structure must match the sweep exactly.
+
+    ``test_scope_properties_covered`` above reads ``conformance-gaps.yml`` via
+    ``.get(..., {})``, which silently treats a garbled or missing snapshot/scope
+    key as "no gaps recorded" -- so if the file happened to record no gaps for
+    that key anyway, corrupting the key is invisible to that test. This guard
+    makes the file's shape itself load-bearing: every snapshot and scope key the
+    sweep binds must appear here, and vice versa, so renaming or dropping a
+    top-level key (e.g. ``workflow_schema`` -> ``workflow_schemas``) fails here
+    even when every allow-list under it is empty. Mirrored in the TypeScript
+    sweep.
+    """
+    gaps = _load_gaps()
+    sweep_keys = {snapshot.removesuffix(".json") for snapshot in SWEEP}
+    assert sweep_keys == set(gaps), (
+        f"{GAPS_PATH.name} top-level keys diverge from the sweep: "
+        f"sweep has {sorted(sweep_keys)}, {GAPS_PATH.name} has {sorted(gaps)}."
+    )
+    for snapshot, scopes in SWEEP.items():
+        key = snapshot.removesuffix(".json")
+        assert set(scopes) == set(gaps[key]), (
+            f"{key} scope keys in {GAPS_PATH.name} diverge from the sweep: "
+            f"sweep has {sorted(scopes)}, {GAPS_PATH.name} has {sorted(gaps[key])}."
         )
 
 

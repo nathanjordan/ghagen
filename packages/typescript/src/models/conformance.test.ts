@@ -13,7 +13,12 @@
  * mirrored exactly by the Python sweep
  * (`packages/python/tests/test_schema/test_conformance.py`). Both ports held to
  * the same allow-list means both model the same property set -- cross-port
- * surface agreement, structurally.
+ * surface agreement, structurally. Every entry is asserted three ways: a
+ * listed name must still be upstream ("stale"), must still be uncovered by the
+ * model ("closed" -- catching a gap that was fixed without deleting the row),
+ * and the file's own top-level snapshot/scope keys must match the sweep
+ * exactly ("gap set matches the sweep" -- catching a garbled key, which an
+ * empty allow-list under it would otherwise hide).
  */
 
 import { readFileSync } from "node:fs";
@@ -189,6 +194,18 @@ describe("schema conformance sweep", () => {
           `${snapshot}:${scopeName} allow-list has stale entries ${JSON.stringify(stale)} ` +
             `no longer in the schema. Remove them from conformance-gaps.yml.`,
         ).toEqual([]);
+
+        // A gap entry claims the model does NOT cover this name. If the model
+        // now covers it, the gap has been closed and the row is stale in the
+        // other direction -- this is what makes a recorded gap a *test that
+        // the gap still exists*, so closing it forces the table to be updated.
+        const closed = [...allow].filter((a) => covered.has(a)).sort();
+        expect(
+          closed,
+          `${snapshot}:${scopeName} allow-list names ${JSON.stringify(closed)} that ` +
+            `the model now covers -- the gap has been closed. Remove them from ` +
+            `conformance-gaps.yml.`,
+        ).toEqual([]);
       });
     }
   }
@@ -205,6 +222,26 @@ describe("schema conformance sweep", () => {
         Object.keys(SPECS[snapshot]).sort(),
         `${snapshot} scopes diverge from conformance-scopes.yml`,
       ).toEqual(Object.keys(shared[snapshot]).sort());
+    }
+  });
+
+  it("gap set matches the sweep", () => {
+    // Mirrors the Python guard (test_gap_set_matches_sweep). The per-scope
+    // test above reads `gaps[snapshotKey]?.[scopeName] ?? []`, which silently
+    // treats a garbled or missing key as "no gaps recorded" -- invisible when
+    // that key's allow-list is empty anyway, which is exactly this file's
+    // current state. This guard makes the file's shape itself load-bearing:
+    // every snapshot and scope key the sweep binds must appear here and vice
+    // versa, so renaming or dropping a top-level key (e.g. `workflow_schema`
+    // -> `workflow_schemas`) fails here.
+    const sweepKeys = Object.keys(SWEEP).map((snapshot) => snapshot.replace(/\.json$/, ""));
+    expect(sweepKeys.sort()).toEqual(Object.keys(gaps).sort());
+    for (const [snapshot, scopes] of Object.entries(SWEEP)) {
+      const key = snapshot.replace(/\.json$/, "");
+      expect(
+        Object.keys(scopes).sort(),
+        `${key} scope keys in conformance-gaps.yml diverge from the sweep`,
+      ).toEqual(Object.keys(gaps[key] ?? {}).sort());
     }
   });
 });

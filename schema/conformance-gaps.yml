@@ -15,6 +15,18 @@
 # listed here) fails that port's sweep; a listed name no longer in the schema
 # is flagged as stale.
 #
+# Every row is a claim, and both sweeps hold it to that claim three ways:
+#   1. The named property must still exist upstream ("stale" otherwise).
+#   2. The named property must still be UNCOVERED by the port's model
+#      ("closed" otherwise) -- a gap someone fixed without deleting the row
+#      would otherwise sit here forever, silently correct. This is what makes
+#      recording a gap here a *test that the gap still exists*.
+#   3. This file's own top-level snapshot keys, and each snapshot's scope
+#      keys, must equal the sweep's exactly (`test_gap_set_matches_sweep` /
+#      "gap set matches the sweep") -- so garbling a key here (e.g.
+#      `workflow_schema` -> `workflow_schemas`) fails both suites even though
+#      every list below is currently empty.
+#
 # Keys are <snapshot>.<scope>; the scope set is defined by each port's sweep.
 # Every entry needs an inline comment: why the gap is intentional, or
 # "# TODO: unmodeled" if it is a genuine gap worth tracking.
