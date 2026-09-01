@@ -196,6 +196,41 @@ describe("upgrade()", () => {
     expect(readFileSync(source, "utf8")).toContain("actions/checkout@v5");
   });
 
+  // Python's counterpart is test_cli/test_deps.py::TestUpgradeApply's
+  // multi-repo case (`_mock_list_tags`, `:156-162`) — the only multi-repo
+  // upgrade() coverage on either port before docs/issues/16. That test drives
+  // the CLI with a mocked `GitHubClient.list_tags`; this one drives the engine
+  // directly against the shared canned transport (proposal 16), one entry per
+  // repo, to prove a second loop iteration over a distinct repo is exercised.
+  it("detects and applies version bumps across more than one repository", async () => {
+    const app = appWithRefs(tmp, "actions/checkout@v4", "actions/setup-python@v5");
+    const source = join(tmp, "wf.ts");
+    writeFileSync(
+      source,
+      'step({ uses: "actions/checkout@v4" });\nstep({ uses: "actions/setup-python@v5" });\n',
+    );
+    const client = new GitHubClient(
+      new FakeTransport({
+        "repos/actions/checkout/git/refs/tags": tags("v1", "v2", "v3", "v4", "v5", "v6", "v7"),
+        "repos/actions/setup-python/git/refs/tags": tags("v4", "v5", "v5.1.0", "v6", "v7"),
+      }),
+    );
+
+    const report = await upgrade(app, client, new Set([source]), {
+      mode: "versions",
+      apply: true,
+    });
+
+    expect(report.versionBumps.map((b) => b.uses)).toEqual([
+      "actions/checkout@v4",
+      "actions/setup-python@v5",
+    ]);
+    expect(report.changedFiles).toEqual([source]);
+    const content = readFileSync(source, "utf8");
+    expect(content).toContain("actions/checkout@v7");
+    expect(content).toContain("actions/setup-python@v7");
+  });
+
   // A four-segment tag is a version tag, end to end, in both ports. The shared
   // grammar (schema/tag-grammar.yml) accepts arity > 3, so v4.1.2.3 is a real
   // upgrade candidate. This is the source-file mutation guard: before 14,
