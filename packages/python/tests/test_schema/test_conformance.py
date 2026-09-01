@@ -28,6 +28,7 @@ It needs no code generation -- it reads each model's ``ModelSpec`` directly.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -436,6 +437,68 @@ def test_value_pattern_matches_snapshot(snapshot: str, key: str) -> None:
     pattern = binding.spec.patterns.get(field_name)
     assert pattern is not None, f"{key} declares no pattern in its ModelSpec"
     assert pattern.pattern == _resolve(_load_schema(snapshot), tuple(entry["path"]))
+
+
+def _assert_pattern_anchored(pattern: re.Pattern[str], key: str) -> None:
+    """A bound pattern's source must start with ``^`` and end with ``$``.
+
+    Python enforces value grammars with ``re.fullmatch`` (see
+    ``GhagenModel._enforce_spec_patterns``), which makes the anchors
+    redundant here -- but TypeScript's peer check uses ``pattern.test``
+    (``models/_base.ts``), which depends on the anchors entirely. The two
+    ports therefore agree today only by coincidence of every current pattern
+    happening to be anchored. The next grammar copied from a JSON Schema
+    ``pattern`` -- where *unanchored* is the norm -- would make Python
+    reject a value TypeScript accepts, with nothing catching the divergence
+    (issue 28 #3). This assertion is what closes that gap: it fails loudly,
+    at the moment a new unanchored pattern is bound, rather than waiting for
+    a conformance-values.yml reject vector to happen to expose it.
+    """
+    src = pattern.pattern
+    assert src.startswith("^") and src.endswith("$"), (
+        f"{key} pattern {src!r} is not anchored with ^ and $. Python's "
+        "fullmatch() does not need the anchors, but TypeScript's "
+        "pattern.test() (models/_base.ts) depends on them entirely -- "
+        "without them the two ports would validate this field differently. "
+        "Add ^ and $ to the pattern, or wrap the TypeScript RegExp as "
+        "^(?:...)$ so the anchors stop being load-bearing in either port."
+    )
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "key"),
+    _iter_values(),
+    ids=[f"{snapshot}:{key}" for snapshot, key in _iter_values()],
+)
+def test_value_pattern_is_anchored(snapshot: str, key: str) -> None:
+    """Every bound pattern source must be anchored with ``^`` and ``$``.
+
+    See :func:`_assert_pattern_anchored`. Mirrored by the TypeScript sweep's
+    identically named check.
+    """
+    binding = _VALUE_BINDINGS[snapshot][key]
+    field_name = key.split(".", 1)[1]
+    pattern = binding.spec.patterns.get(field_name)
+    assert pattern is not None, f"{key} declares no pattern in its ModelSpec"
+    _assert_pattern_anchored(pattern, key)
+
+
+def test_assert_pattern_anchored_rejects_an_unanchored_pattern() -> None:
+    """Direct proof :func:`_assert_pattern_anchored` catches what it must.
+
+    ``test_value_pattern_is_anchored`` above only ever sees today's real
+    bindings, which are already anchored -- so on its own it can never turn
+    red. This test constructs the exact input the sweep cannot currently
+    produce (an unanchored pattern bound to a field) and confirms the
+    assertion actually fails it, rather than passing by construction.
+    """
+    with pytest.raises(AssertionError, match="not anchored"):
+        _assert_pattern_anchored(re.compile(r"\d+"), "synthetic.field")
+
+
+def test_assert_pattern_anchored_accepts_an_anchored_pattern() -> None:
+    """Control case: a correctly anchored pattern must not raise."""
+    _assert_pattern_anchored(re.compile(r"^\d+$"), "synthetic.field")
 
 
 @pytest.mark.parametrize(

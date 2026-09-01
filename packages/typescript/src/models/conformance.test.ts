@@ -315,6 +315,47 @@ function resolveValuePath(schema: Record<string, unknown>, path: SchemaPath): un
   return node;
 }
 
+/**
+ * A bound pattern's source must start with `^` and end with `$`.
+ *
+ * TypeScript enforces value grammars with `pattern.test` (`models/_base.ts`),
+ * which depends on the anchors entirely -- unlike Python's `fullmatch`
+ * (`GhagenModel._enforce_spec_patterns`), for which they are redundant. The
+ * two ports therefore agree today only by coincidence of every current
+ * pattern happening to be anchored. The next grammar copied from a JSON
+ * Schema `pattern` -- where *unanchored* is the norm -- would make
+ * TypeScript accept a value Python rejects, with nothing catching the
+ * divergence (issue 28 #3). This assertion is what closes that gap.
+ */
+function assertPatternAnchored(pattern: RegExp, key: string): void {
+  const src = pattern.source;
+  const anchored = src.startsWith("^") && src.endsWith("$");
+  expect(
+    anchored,
+    `${key} pattern ${JSON.stringify(src)} is not anchored with ^ and $. ` +
+      "TypeScript's pattern.test() depends on the anchors entirely, but " +
+      "Python's fullmatch() (models/_base.py) does not need them -- " +
+      "without them the two ports would validate this field differently. " +
+      "Add ^ and $ to the pattern, or wrap the RegExp as ^(?:...)$ so the " +
+      "anchors stop being load-bearing in either port.",
+  ).toBe(true);
+}
+
+describe("value-grammar pattern anchoring", () => {
+  // Direct proof `assertPatternAnchored` catches what it must. The sweep
+  // below only ever sees today's real bindings, which are already anchored
+  // -- so on its own it can never turn red. This constructs the exact input
+  // the sweep cannot currently produce (an unanchored pattern) and confirms
+  // the assertion actually fails it, rather than passing by construction.
+  it("rejects an unanchored pattern", () => {
+    expect(() => assertPatternAnchored(/\d+/, "synthetic.field")).toThrow(/not anchored/);
+  });
+
+  it("accepts an anchored pattern", () => {
+    expect(() => assertPatternAnchored(/^\d+$/, "synthetic.field")).not.toThrow();
+  });
+});
+
 describe("schema value-grammar sweep", () => {
   const values = loadValues();
 
@@ -334,6 +375,12 @@ describe("schema value-grammar sweep", () => {
         expect(pattern?.source).toBe(resolveValuePath(schema, entry.path));
         // A `/g` pattern makes `RegExp.test` stateful across calls.
         expect(pattern?.flags, `${key} pattern must carry no flags`).toBe("");
+      });
+
+      it(`${snapshot}:${key} pattern is anchored with ^ and $`, () => {
+        const pattern = binding.spec.patterns?.[field];
+        expect(pattern, `${key} declares no pattern in its ModelSpec`).toBeDefined();
+        assertPatternAnchored(pattern as RegExp, key);
       });
 
       it(`${snapshot}:${key} accepts every schema-valid vector`, () => {
