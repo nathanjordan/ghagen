@@ -10,7 +10,8 @@ hero:
       variant: minimal
 ---
 
-import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Code, Tabs, TabItem } from "@astrojs/starlight/components";
+import { quickstartYaml } from "../../snippets/emitted.ts";
 
 ## Quick Install
 
@@ -89,23 +90,7 @@ Define your workflow in code:
 
 ghagen generates clean, readable YAML:
 
-```yaml
-name: CI
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: python -m pytest
-```
+<Code code={quickstartYaml} lang="yaml" />
 
 ## Features
 

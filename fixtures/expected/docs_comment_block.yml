@@ -1,0 +1,12 @@
+name: CI
+on:
+  push:
+    branches:
+    - main
+jobs:
+  test:
+    # Run the full test suite against all supported Python versions
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - run: pytest

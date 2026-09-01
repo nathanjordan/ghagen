@@ -1,0 +1,10 @@
+name: CI
+on:  # trigger configuration
+  push:
+    branches:
+    - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - run: make
