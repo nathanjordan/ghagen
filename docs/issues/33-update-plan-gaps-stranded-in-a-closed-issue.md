@@ -90,20 +90,20 @@ serialization detail the table has no vocabulary for. Both ports render the same
 All six are in `fixtures/cli-exit-codes.yml`, and both ports' drivers iterate the table, so a row
 is consumed by both by construction:
 
-| row                                 | argv                                              | exit |
-| ----------------------------------- | ------------------------------------------------- | ---- |
-| `bad-update-mode-value`             | `deps update --mode bogus`                        | 2    |
-| `bad-update-output-value`           | `deps update --output bogus`                      | 2    |
-| `bad-update-format-value`           | `deps update --format bogus`                      | 2    |
-| `newline-in-branch-prefix`          | `deps update --branch-prefix "…\nname=forged"`    | 2    |
-| `newline-in-commit-message-prefix`  | `deps update --commit-message-prefix "…\nname=…"` | 2    |
-| `newline-in-labels`                 | `deps update --labels "ci\nname=forged"`          | 2    |
+| row                                | argv                                              | exit |
+| ---------------------------------- | ------------------------------------------------- | ---- |
+| `bad-update-mode-value`            | `deps update --mode bogus`                        | 2    |
+| `bad-update-output-value`          | `deps update --output bogus`                      | 2    |
+| `bad-update-format-value`          | `deps update --format bogus`                      | 2    |
+| `newline-in-branch-prefix`         | `deps update --branch-prefix "…\nname=forged"`    | 2    |
+| `newline-in-commit-message-prefix` | `deps update --commit-message-prefix "…\nname=…"` | 2    |
+| `newline-in-labels`                | `deps update --labels "ci\nname=forged"`          | 2    |
 
 The codes were **measured**, not guessed: each argv was run through both ports' `main()` in a fresh
 empty directory before any row was written. Both ports answered `2` on all six, with the message on
 stderr in both, so there was no parity bug to fix and neither port was changed. That both ports
 reach the check at all from an empty directory is itself part of the contract and is why these rows
-work without a fixture project: `deps update` validates its flags *before* config discovery, so a
+work without a fixture project: `deps update` validates its flags _before_ config discovery, so a
 bad flag is a usage error and never gets downgraded to `1` ("no config file found").
 
 ### Corruption proof
@@ -112,8 +112,8 @@ Thirteen corruptions, each one byte or one row, each run through `./scripts/test
 `./scripts/test.sh ts` separately (`test.sh all` is `set -e`, so a Python failure would hide the
 TypeScript result). **All thirteen failed both suites**; the tree was restored after each.
 
-| corruption                                                     | pytest | vitest |
-| -------------------------------------------------------------- | ------ | ------ |
+| corruption                                                      | pytest | vitest |
+| --------------------------------------------------------------- | ------ | ------ |
 | `bad-update-mode-value` exit `2` → `1`                          | fail   | fail   |
 | `bad-update-output-value` exit `2` → `1`                        | fail   | fail   |
 | `bad-update-format-value` exit `2` → `1`                        | fail   | fail   |
@@ -128,14 +128,14 @@ TypeScript result). **All thirteen failed both suites**; the tree was restored a
 | golden json: `"total_updates": 2` → `3`                         | fail   | fail   |
 | golden github: `labels=ci,deps,automated` → `…automate`         | fail   | fail   |
 
-The order row is the one worth naming: swapping two rows leaves the field *set* identical, so it is
+The order row is the one worth naming: swapping two rows leaves the field _set_ identical, so it is
 invisible to every comparison that existed before this change and fails only because both ports now
 compare sequences.
 
 ### Also changed
 
 - `packages/python/CONTEXT.md`, `packages/typescript/CONTEXT.md` — the glossary said the shared file
-  declares the wire *shape*; it now says which four things it declares.
+  declares the wire _shape_; it now says which four things it declares.
 - `docs/src/content/docs/{python,typescript}/cli.md` — the same, plus a sentence naming
   `fixtures/cli-exit-codes.yml` as what holds the six flag-validation checks. Both pages already
   claimed the two encodings carry their fields "in the same order"; until this change nothing held
