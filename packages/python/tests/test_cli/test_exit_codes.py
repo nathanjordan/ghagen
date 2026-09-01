@@ -28,6 +28,7 @@ one is an integer.
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -139,6 +140,20 @@ _FIDELITY_CASES = [
 ]
 
 
+#: Rich styles a usage error's tokens individually, so an option flag arrives as
+#: ``\x1b[1;2;34m-\x1b[0m\x1b[2;34m-version`` -- ``"--version" in err`` is false
+#: on the very output that renders it correctly. Colour is on whenever rich sees a
+#: reason to enable it, and ``CI=true`` is one, so this is not a hypothetical: the
+#: four cases below passed locally and failed on GitHub Actions. Assert on the
+#: de-styled text; the box-drawing characters survive either way.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    """Strip SGR escapes so fragment assertions do not depend on rich's colour mode."""
+    return _ANSI.sub("", text)
+
+
 @pytest.mark.skipif(
     not typer.core.HAS_RICH,
     reason="TYPER_USE_RICH=0 -- Typer itself falls back to click's plain renderer, "
@@ -163,7 +178,7 @@ def test_error_rendering_is_typers_not_clicks(
 
     assert main(argv) == 2
 
-    err = capsys.readouterr().err
+    err = _plain(capsys.readouterr().err)
     assert "╭─" in err, "Typer's rich error panel is gone -- click's plain renderer?"
     assert "Error" in err
     assert "╰─" in err

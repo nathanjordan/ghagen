@@ -132,9 +132,16 @@ def _ci_workflow() -> Workflow:
                 ],
             ),
             "test-py": Job(
+                # The matrix is enforced by UV_PYTHON, not by actions/setup-python.
+                # uv resolves the interpreter itself and `.python-version` (3.14) wins
+                # over anything setup-python puts on PATH, so the previous job ran 3.14
+                # on all three legs and reported them as 3.11/3.12/3.13. UV_PYTHON
+                # outranks the file; "Assert interpreter" makes a future regression fail
+                # instead of lying.
                 name="Test (Python ${{ matrix.python-version }})",
                 runs_on="ubuntu-latest",
                 timeout_minutes=15,
+                env={"UV_PYTHON": "${{ matrix.python-version }}"},
                 strategy=Strategy(
                     matrix=Matrix(
                         extras={
@@ -145,8 +152,20 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Set up Python", uses="actions/setup-python@v6", with_={"python-version": "${{ matrix.python-version }}"}),
                     Step(name="Sync", run="uv sync --locked"),
+                    Step(
+                        name="Assert interpreter",
+                        run="""
+                            set -euo pipefail
+                            want='${{ matrix.python-version }}'
+                            got="$(uv run python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+                            if [ "$got" != "$want" ]; then
+                              echo "matrix says $want, uv ran $got -- the matrix is not enforced" >&2
+                              exit 1
+                            fi
+                            echo "running Python $got"
+                        """,
+                    ),
                     Step(name="Test", run="scripts/test.sh py"),
                 ],
             ),
