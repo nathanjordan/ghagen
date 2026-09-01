@@ -565,9 +565,14 @@ const release = job({
 Both languages support writing inline multiline scripts with natural
 indentation.
 
-In Python, `Step.run` auto-dedents triple-quoted strings so you can use
-natural Python indentation. In TypeScript, JavaScript template literals
-handle multiline strings naturally -- no dedent needed.
+In Python, write `Step.run` as a triple-quoted string with natural Python
+indentation; auto-dedent removes the common leading whitespace when the
+workflow is emitted (see below). In TypeScript, JavaScript template literals
+let you write the script without leading indentation in the first place, so
+there is nothing to dedent when authoring -- but `toYaml` and `toData` still
+apply the same emit-time auto-dedent as Python, so a script that _does_
+carry leading indentation (e.g. built programmatically) is normalized the
+same way in both languages.
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
@@ -662,9 +667,10 @@ step({
 </TabItem>
 </Tabs>
 
-For `github-script` and other actions that take script content via `with_`,
-Python provides the `dedent` helper. In TypeScript, template literals handle
-this naturally:
+For `github-script` and other actions that take script content via `with_`
+(a field the emitter never dedents -- auto-dedent only ever touches a Step's
+`run`), Python provides the `dedent` helper. In TypeScript, template literals
+handle this naturally:
 
 <Tabs syncKey="lang">
 <TabItem label="Python">
@@ -705,9 +711,11 @@ console.log(\`Created #\${issue.data.number}\`);`,
 </TabItem>
 </Tabs>
 
-Auto-dedent is enabled by default in Python. To disable it project-wide, set
-`auto_dedent = false` in your config. This option is Python-only; TypeScript
-does not perform auto-dedent.
+Auto-dedent is enabled by default in both languages -- `to_yaml`/`toYaml` and
+`to_data`/`toData` all dedent each Step's `run` string unless you pass
+`auto_dedent=False` / `autoDedent: false` explicitly. To disable it
+project-wide instead, set `auto_dedent = false` in your config; this option
+is supported by both ports.
 
 ```yaml
 # .ghagen.yml

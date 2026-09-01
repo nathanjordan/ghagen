@@ -168,11 +168,27 @@ def test_non_model_raises_type_error():
         to_data("just a string")  # type: ignore[arg-type]
 
 
-def test_bare_step_run_dedented_with_auto_dedent():
+def test_bare_step_run_dedented_by_default():
     # Parity with the ruamel recursion: a bare Step's run dedents wherever it is
     # encountered, not only inside a Document.
-    data = to_data(Step(run="  echo one\n  echo two"), auto_dedent=True)
+    data = to_data(Step(run="  echo one\n  echo two"))
     assert data["run"] == "echo one\necho two"
+
+
+def test_to_data_and_to_yaml_agree_on_run_with_no_options():
+    # The deliverable invariant (issue 13): a to_data / to_yaml pair called
+    # with no options must never disagree about a Step's run. Both default
+    # auto_dedent to True, so this must hold for any indented multi-line run.
+    step = Step(name="Build", run="  echo building\n  make all")
+    wf = Workflow(
+        name="CI",
+        jobs={"build": Job(runs_on="ubuntu-latest", steps=[step])},
+    )
+    yaml = YAML(typ="safe")
+    parsed = yaml.load(io.StringIO(wf.to_yaml(header=None)))
+    run_from_yaml = parsed["jobs"]["build"]["steps"][0]["run"]
+    run_from_data = to_data(wf)["jobs"]["build"]["steps"][0]["run"]
+    assert run_from_data == run_from_yaml == "echo building\nmake all"
 
 
 def test_deep_structure_matches_emitted_yaml():
@@ -180,7 +196,8 @@ def test_deep_structure_matches_emitted_yaml():
     # must equal to_data's output for a RICH document, so the two duplicated
     # recursions cannot diverge on exclude/unwrap/present-null/dedent — not just
     # top-level ordering. Comments are dropped by the YAML parse, so to_data runs
-    # with comments off; auto_dedent matches the ``to_yaml`` default-on.
+    # with comments off; auto_dedent is left at its default, which now matches
+    # ``to_yaml``'s default-on.
     wf = Workflow(
         name="CI",
         on=On(
@@ -207,4 +224,4 @@ def test_deep_structure_matches_emitted_yaml():
     )
     yaml = YAML(typ="safe")
     parsed = yaml.load(io.StringIO(wf.to_yaml(header=None)))
-    assert to_data(wf, auto_dedent=True) == parsed
+    assert to_data(wf) == parsed

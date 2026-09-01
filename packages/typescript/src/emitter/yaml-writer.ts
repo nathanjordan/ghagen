@@ -283,7 +283,12 @@ export interface CommentNode {
 
 /** Options for {@link toData}. */
 export interface ToDataOptions {
-  /** Dedent each step's `run` script, as {@link toYaml} does. Defaults to false. */
+  /**
+   * Dedent each step's `run` script, matching {@link toYaml}'s default.
+   * Defaults to `true`, so a no-options `toData` / `toYaml` pair can never
+   * disagree about `run`. Pass `false` to observe the authored string
+   * verbatim.
+   */
   autoDedent?: boolean;
   /**
    * Surface commented nodes as {@link CommentNode} so comment placement is
@@ -303,12 +308,15 @@ export interface ToDataOptions {
  * - `comments: true`: a node that carries a comment is returned as a
  *   {@link CommentNode}.
  *
- * Any model may be passed (step, job, on, …). Unlike {@link toYaml}, this does
- * not run the `yaml`-backend passes (block-literal promotion, comment
+ * Any model may be passed (step, job, on, …). Dedent is NOT one of the
+ * `yaml`-backend passes below — it is applied here in the recursion itself
+ * (matching Python's `collect_fields`, the shared pre-backend collection
+ * stage), so `toData` reproduces it exactly. Unlike {@link toYaml}, `toData`
+ * does not run the `yaml`-backend passes (block-literal promotion, comment
  * geometry) or `postProcess`; assert those via the YAML string.
  */
 export function toData(model: Model, options?: ToDataOptions): unknown {
-  return modelToData(model, options?.comments ?? false, options?.autoDedent ?? false);
+  return modelToData(model, options?.comments ?? false, options?.autoDedent ?? true);
 }
 
 /** Walk a model's `data` bag to a plain object — the peer of `modelToYamlMap`. */

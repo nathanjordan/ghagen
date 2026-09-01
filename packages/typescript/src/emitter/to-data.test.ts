@@ -141,7 +141,8 @@ describe("toData", () => {
   // must equal toData's output for a RICH document, so the two duplicated
   // recursions cannot diverge on exclude/unwrap/present-null/dedent — not just
   // top-level ordering. Comments are dropped by the YAML parse, so toData runs
-  // with comments off; autoDedent matches toYaml's default-on.
+  // with comments off; autoDedent is left at its default, which now matches
+  // toYaml's default-on.
   it("deep-matches the parsed emitted YAML for a rich document", () => {
     const wf = workflow({
       name: "CI",
@@ -170,7 +171,7 @@ describe("toData", () => {
       },
     });
     const parsed = parse(toYaml(wf, { header: null }));
-    expect(toData(wf, { autoDedent: true })).toEqual(parsed);
+    expect(toData(wf)).toEqual(parsed);
   });
 
   it("keeps the comment on a commented empty present-null map (comments: true)", () => {
@@ -179,9 +180,28 @@ describe("toData", () => {
     expect(data["workflow_dispatch"]).toEqual({ value: null, comment: "note" });
   });
 
-  it("dedents a bare Step's run with autoDedent (recursion parity with Python)", () => {
+  it("dedents a bare Step's run by default (recursion parity with Python)", () => {
     const s = step({ run: "  echo one\n  echo two" });
-    const data = toData(s, { autoDedent: true }) as Record<string, unknown>;
+    const data = toData(s) as Record<string, unknown>;
     expect(data["run"]).toBe("echo one\necho two");
+  });
+
+  // The deliverable invariant (issue 13): a toData / toYaml pair called with
+  // no options must never disagree about a Step's run. Both default
+  // autoDedent to true, so this must hold for any indented multi-line run.
+  it("agrees with toYaml on a Step's run with no options", () => {
+    const s = step({ name: "Build", run: "  echo building\n  make all" });
+    const wf = workflow({
+      name: "CI",
+      jobs: { build: job({ runsOn: "ubuntu-latest", steps: [s] }) },
+    });
+    const parsed = parse(toYaml(wf, { header: null })) as Record<string, unknown>;
+    const jobs = parsed["jobs"] as Record<string, { steps: { run: string }[] }>;
+    const runFromYaml = jobs["build"].steps[0].run;
+    const data = toData(wf) as Record<string, unknown>;
+    const dataJobs = data["jobs"] as Record<string, { steps: { run: string }[] }>;
+    const runFromData = dataJobs["build"].steps[0].run;
+    expect(runFromData).toBe(runFromYaml);
+    expect(runFromData).toBe("echo building\nmake all");
   });
 });
