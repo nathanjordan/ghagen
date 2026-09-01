@@ -89,7 +89,7 @@ class HttpClient(Protocol):
     the moment it is called, *including reading the body*.  The distinction is
     the whole point: a per-socket-operation timeout is reset by every byte
     that arrives, so a peer trickling one byte per interval holds the call open
-    indefinitely while never exceeding it.  Row 12 of the conformance table
+    indefinitely while never exceeding it.  Row 13 of the conformance table
     (``dribble-body``) is that peer, and it is what an adapter must survive.
 
     One phase is excluded, in both ports' wording and in fact: the response
@@ -187,7 +187,7 @@ class UrllibTransport:
 
         ``urlopen``'s own ``timeout`` is per socket operation, so every byte
         that arrives resets it and a trickling peer is never cut off — the
-        defect row 12 of the conformance table exists to catch.  Draining in
+        defect row 13 of the conformance table exists to catch.  Draining in
         bounded steps instead puts a monotonic check between them, which is
         what makes the ceiling wall-clock.
 
@@ -207,7 +207,7 @@ class UrllibTransport:
         Truncation is re-detected explicitly.  ``read`` raised
         :class:`http.client.IncompleteRead` when a peer delivered fewer bytes
         than ``Content-Length`` promised; ``read1`` reports the same EOF as an
-        ordinary end of body, so row 11 (``truncated-body``) would pass a short
+        ordinary end of body, so row 12 (``truncated-body``) would pass a short
         body off as a complete one without this check.
         """
         chunks: list[bytes] = []

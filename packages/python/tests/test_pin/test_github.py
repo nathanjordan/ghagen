@@ -292,6 +292,24 @@ class TestMalformedShape:
         transport = FakeTransport({"git/refs/tags": canned([])})
         assert GitHubClient(transport).list_tags("o", "r") == []
 
+    def test_a_later_page_being_malformed_also_raises(self):
+        # Issue 14: a well-formed page 1 with a Link header must not mask a
+        # malformed page 2 — the guard applies to every page the loop
+        # follows, not only the request list_tags makes first.
+        next_url = "https://api.github.com/repos/o/r/git/refs/tags?page=2"
+        page1 = [{"ref": "refs/tags/v1"}, {"ref": "refs/tags/v2"}]
+        transport = FakeTransport(
+            {
+                "git/refs/tags?page=2": canned({"message": "not an array"}),
+                "git/refs/tags": [
+                    canned(page1, headers={"Link": f'<{next_url}>; rel="next"'}),
+                ],
+            }
+        )
+        client = GitHubClient(transport)
+        with pytest.raises(ResolveError, match="Unexpected response shape"):
+            client.list_tags("o", "r")
+
 
 class _StubHTTPResponse:
     """The smallest thing ``UrllibTransport.get`` will accept from ``urlopen``."""

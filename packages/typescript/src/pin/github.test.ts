@@ -245,6 +245,20 @@ describe("a shape-malformed 200 surfaces as ResolveError", () => {
     const transport = new FakeTransport({ "git/refs/tags": canned([]) });
     expect(await new GitHubClient(transport).listTags("o", "r")).toEqual([]);
   });
+
+  it("throws when a later page is malformed, not just the first", async () => {
+    // Issue 14: a well-formed page 1 with a Link header must not mask a
+    // malformed page 2 — the guard applies to every page the loop follows,
+    // not only the request `listTags` makes first.
+    const next = "https://api.github.com/repos/o/r/git/refs/tags?page=2";
+    const page1 = [{ ref: "refs/tags/v1" }, { ref: "refs/tags/v2" }];
+    const transport = new FakeTransport({
+      "git/refs/tags?page=2": canned({ message: "not an array" }),
+      "git/refs/tags": [canned(page1, { headers: { Link: `<${next}>; rel="next"` } })],
+    });
+    const client = new GitHubClient(transport);
+    await expect(client.listTags("o", "r")).rejects.toThrow(/Unexpected response shape/);
+  });
 });
 
 /**
