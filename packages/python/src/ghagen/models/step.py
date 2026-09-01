@@ -39,27 +39,27 @@ class Step(GhagenModel):
     id: str | None = None
     name: str | None = None
     if_: str | None = Field(
-        None,
+        default=None,
         description="Conditional expression that must evaluate "
         "to true for this step to run.",
     )
     uses: str | None = None
     run: str | None = None
     with_: OrRaw[dict[str, Any]] | None = Field(
-        None,
+        default=None,
         description="Input parameters for the action specified by ``uses``.",
     )
     env: dict[str, str] | None = None
     shell: ShellType | Raw[str] | None = None
     working_directory: str | None = Field(
-        None,
+        default=None,
         description="Working directory for ``run`` commands.",
     )
     continue_on_error: bool | str | None = Field(
-        None,
+        default=None,
         description="Allow the job to continue when this step fails.",
     )
     timeout_minutes: int | None = Field(
-        None,
+        default=None,
         description="Maximum minutes the step can run before being cancelled.",
     )

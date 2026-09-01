@@ -22,7 +22,7 @@ from ghagen import (
     WorkflowDispatchTrigger,
     expr,
 )
-from ghagen.models.common import PermissionLevel
+from ghagen.models.common import PermissionLevel, ShellType
 from ghagen.models.job import Environment
 
 # A handful of the ``run=`` blocks below carry ``# noqa: E501`` on their closing
@@ -833,12 +833,12 @@ def _ghagen_check_action() -> Action:
                           pip install ghagen${{ inputs.ghagen-version != '' && format('=={0}', inputs.ghagen-version) || '' }}
                         fi
                     """,  # noqa: E501  (embedded shell -- see the note at the top)
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
                 Step(
                     name="Check workflows",
                     run='ghagen check-synced --config "${{ inputs.config }}"',
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
             ],
         ),
@@ -993,7 +993,7 @@ def _ghagen_update_action() -> Action:
                           pip install ghagen
                         fi
                     """,
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
                 # One sweep, one plan, one append. No `|| true`: the CLI's exit
                 # code is the step's, and its one-line diagnostic is the log.
@@ -1019,7 +1019,7 @@ def _ghagen_update_action() -> Action:
                           ${{ inputs.dry-run == 'true' && '--dry-run' || '' }} \\
                           --format github >> "$GITHUB_OUTPUT"
                     """,  # noqa: E501  (embedded shell -- see the note at the top)
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
                 # git and `gh`, and nothing else. Every value it uses was
                 # decided by `pin/plan` and handed over as a step output.
@@ -1152,7 +1152,7 @@ def _ghagen_update_action() -> Action:
                             ;;
                         esac
                     """,  # noqa: E501  (embedded shell -- see the note at the top)
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
             ],
         ),

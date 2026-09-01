@@ -80,6 +80,21 @@ venv = ".venv"
 # composing with it, so scripts/_gate.sh's PY_PATHS_TYPED is what the gate actually checks; this
 # list keeps a bare `uv run pyright` agreeing with it.
 include = ["packages/python/src", "scripts", ".github/ghagen_workflows.py"]
+# pyright's default `exclude` is ["**/node_modules", "**/__pycache__", "**/.*"], and that last
+# pattern quietly swallows everything under `.github/`. An explicit path argument does not
+# override it: `pyright .github/ghagen_workflows.py` reported "0 errors" while analysing zero
+# files, which is how the hole in docs/issues/32 survived a green gate. Restate the defaults
+# without the blanket dot-glob and name the dot-directories that really must stay out.
+exclude = [
+  "**/node_modules",
+  "**/__pycache__",
+  "**/.venv",
+  "**/.git",
+  "**/.claude",
+  "**/.ruff_cache",
+  "**/.pytest_cache",
+  "**/.mypy_cache",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/python/tests"]

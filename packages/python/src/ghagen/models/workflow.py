@@ -50,7 +50,7 @@ class Workflow(Document):
 
     name: str | None = None
     run_name: str | None = Field(
-        None,
+        default=None,
         description="Custom name for workflow runs, supports expressions.",
     )
     on: OrRaw[On | dict[str, Any]] | None = None

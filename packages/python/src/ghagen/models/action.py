@@ -98,7 +98,7 @@ class ActionInput(GhagenModel):
     required: bool | None = None
     default: str | None = None
     deprecation_message: str | None = Field(
-        None,
+        default=None,
         description="Warning message shown when a deprecated input is used.",
     )
 
