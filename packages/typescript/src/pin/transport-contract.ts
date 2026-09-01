@@ -9,11 +9,12 @@
  * Two builders construct canned responses: `canned()` encodes a JSON value,
  * `cannedRaw()` takes a body verbatim (a malformed 200, a truncated payload).
  *
- * Rows 9-13 put the adapter in front of a **raw socket**, not a
+ * Rows 9-14 put the adapter in front of a **raw socket**, not a
  * request-handling server: `node:http`'s `createServer` always frames a
  * well-formed response, so it cannot express "peer closes without answering"
- * (row 10), "declared `Content-Length: 100`, delivered 5 bytes" (row 12), or
- * "trickle a byte at a time forever" (row 13).
+ * (row 10), "declared `Content-Length: 100`, delivered 5 bytes" (row 12),
+ * "trickle a body byte at a time forever" (row 13), or "trickle a *head*
+ * byte at a time, forever, never completing it" (row 14).
  *
  * Test-only; excluded from the build in `tsconfig.json` beside
  * `src/integration/test-utils.ts`.
@@ -159,13 +160,14 @@ export const RESPONSE_CASES: readonly ResponseCase[] = [
   new ResponseCase("non-array-page", 200, "OK", '{"message": "not an array"}'),
 ];
 
-/** Rows 9-13 — a canned double satisfies these by construction, so it skips them. */
+/** Rows 9-14 — a canned double satisfies these by construction, so it skips them. */
 export const FAILURE_CASES: readonly string[] = [
   "connection-refused",
   "abrupt-close",
   "stall-mid-body",
   "truncated-body",
   "dribble-body",
+  "dribble-head",
 ];
 
 export const ALL_CASES: ReadonlyArray<ResponseCase | string> = [
@@ -292,6 +294,28 @@ const FAILURE_HANDLERS: Record<string, Handler | null> = {
         return;
       }
       socket.write("x");
+    }, DRIBBLE_INTERVAL_MS);
+    timer.unref();
+    socket.on("close", () => clearInterval(timer));
+  },
+  /**
+   * Row 14 — send one head byte every 200ms for 10s, never completing it.
+   *
+   * `dribble-body` (row 13) proves a wall-clock deadline once the head is
+   * already in hand; this row proves the same thing about the head itself —
+   * no status line, no headers, ever, just a trickle that a per-operation
+   * timeout renews forever. An adapter that only starts its deadline once it
+   * sees body bytes — the exact gap a fix for row 13 alone could leave open —
+   * hangs on this row instead of failing it.
+   */
+  "dribble-head": (socket) => {
+    let sent = 0;
+    const timer = setInterval(() => {
+      if (sent++ >= DRIBBLE_LENGTH || socket.destroyed) {
+        clearInterval(timer);
+        return;
+      }
+      socket.write("H");
     }, DRIBBLE_INTERVAL_MS);
     timer.unref();
     socket.on("close", () => clearInterval(timer));

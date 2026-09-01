@@ -8,11 +8,12 @@ drift into a shape the real adapter is unable to produce.
 Two builders construct canned responses: :func:`canned` encodes a JSON value,
 :func:`canned_raw` takes a body verbatim (a malformed 200, a truncated payload).
 
-Rows 9-13 put the adapter in front of a **raw socket**, not a request-handling
+Rows 9-14 put the adapter in front of a **raw socket**, not a request-handling
 server: ``http.server`` always frames a well-formed response, so it cannot
 express "peer closes without answering" (row 10), "declared
-``Content-Length: 100``, delivered 5 bytes" (row 12), or "trickle a byte at a
-time forever" (row 13).  Each scenario gets its own listening socket and its
+``Content-Length: 100``, delivered 5 bytes" (row 12), "trickle a body byte at
+a time forever" (row 13), or "trickle a *head* byte at a time, forever, never
+completing it" (row 14).  Each scenario gets its own listening socket and its
 own daemon thread — a scenario whose handler deliberately never returns (row
 11) would otherwise block a shared accept loop and deadlock the next one.
 """
@@ -211,8 +212,9 @@ FAILURE_CASES: tuple[str, ...] = (
     "stall-mid-body",
     "truncated-body",
     "dribble-body",
+    "dribble-head",
 )
-"""Rows 9-13 — a canned double satisfies these by construction, so it skips them."""
+"""Rows 9-14 — a canned double satisfies these by construction, so it skips them."""
 
 ALL_CASES: tuple[ResponseCase | str, ...] = (*RESPONSE_CASES, *FAILURE_CASES)
 
@@ -351,6 +353,22 @@ def _dribble_body(conn: socket.socket, stop: threading.Event) -> None:
         conn.sendall(b"x")
 
 
+def _dribble_head(conn: socket.socket, stop: threading.Event) -> None:
+    """Row 14 — send one head byte every 200ms for 10s, never completing it.
+
+    ``dribble-body`` (row 13) proves a wall-clock deadline once the head is
+    already in hand; this row proves the same thing about the head itself —
+    no status line, no headers, ever, just a trickle that a per-operation
+    timeout renews forever.  An adapter that only starts its deadline once
+    ``read`` first sees body bytes — the exact gap a fix for row 13 alone
+    could leave open — hangs on this row instead of failing it.
+    """
+    for _ in range(_DRIBBLE_LENGTH):
+        if stop.wait(_DRIBBLE_INTERVAL):
+            return
+        conn.sendall(b"H")
+
+
 _FAILURE_HANDLERS: dict[
     str, Callable[[socket.socket, threading.Event], None] | None
 ] = {
@@ -359,6 +377,7 @@ _FAILURE_HANDLERS: dict[
     "stall-mid-body": _stall_mid_body,
     "truncated-body": _truncated_body,
     "dribble-body": _dribble_body,
+    "dribble-head": _dribble_head,
 }
 
 
