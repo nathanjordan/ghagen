@@ -34,10 +34,10 @@ from typing import Any
 
 import pytest
 import typer.core
-from ghagen_schema.paths import FIXTURES_ROOT
 from ruamel.yaml import YAML
 
 from ghagen.cli.main import main
+from ghagen_schema.paths import FIXTURES_ROOT
 
 _TABLE: list[dict[str, Any]] = YAML(typ="safe").load(
     (FIXTURES_ROOT / "cli-exit-codes.yml").read_text()

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from ghagen_schema.paths import EXPECTED_DIR
 
 from ghagen.pin.lockfile import (
     Lockfile,
@@ -14,6 +13,7 @@ from ghagen.pin.lockfile import (
     read_lockfile,
     write_lockfile,
 )
+from ghagen_schema.paths import EXPECTED_DIR
 
 SAMPLE_SHA = "a" * 40
 SAMPLE_SHA2 = "b" * 40

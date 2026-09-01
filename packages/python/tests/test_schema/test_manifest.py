@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from ghagen_schema.manifest import (
     ManifestEntry,
     derive_generated_filename,

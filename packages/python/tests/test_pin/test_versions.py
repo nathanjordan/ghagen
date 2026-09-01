@@ -20,10 +20,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
 
 from ghagen.pin.versions import latest_bump, parse_tag
+from ghagen_schema.paths import SCHEMA_DIR
 
 TABLE_PATH = SCHEMA_DIR / "tag-grammar.yml"
 

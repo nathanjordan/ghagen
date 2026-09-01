@@ -77,7 +77,9 @@ declares", never more:
 | `scripts/test.sh`      | `py ts all`           | no      |
 
 - `py` / `ts` / `docs` each name **one** toolchain root: `packages/python/`,
-  `packages/typescript/`, `docs/`. `scripts/lint.sh py` needs no Node at all.
+  `packages/typescript/`, `docs/`. The `py` scope also covers `scripts/ghagen_schema/` -- dev
+  tooling (ADR-0003), not shipped package code, but still Python source that `ruff`/`pyright` must
+  see (see docs/issues/17). `scripts/lint.sh py` needs no Node at all.
 - `meta` is the language-neutral scope: `uv run ghagen deps check-synced` plus the ADR-0003 schema
   staleness guard (`python -m ghagen_schema check`). Run it through `scripts/lint.sh meta` rather
   than open-coding either command; CI does the same. It is read-only — it leaves the working tree
