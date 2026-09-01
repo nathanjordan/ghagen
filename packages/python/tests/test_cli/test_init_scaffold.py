@@ -17,10 +17,9 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
-from ghagen_schema.paths import FIXTURES_DIR
-
 from ghagen.app import App
 from ghagen.cli.main import main
+from ghagen_schema.paths import FIXTURES_DIR
 
 _FIXTURE = FIXTURES_DIR / "expected" / "init_scaffold.yml"
 

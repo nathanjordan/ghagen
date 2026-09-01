@@ -32,7 +32,6 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from ghagen_schema.paths import SCHEMA_DIR
 from pydantic import ValidationError
 from ruamel.yaml import YAML
 
@@ -74,6 +73,7 @@ from ghagen.models.trigger import (
     WorkflowDispatchTrigger,
 )
 from ghagen.models.workflow import Workflow
+from ghagen_schema.paths import SCHEMA_DIR
 
 GAPS_PATH = SCHEMA_DIR / "conformance-gaps.yml"
 SCOPES_PATH = SCHEMA_DIR / "conformance-scopes.yml"

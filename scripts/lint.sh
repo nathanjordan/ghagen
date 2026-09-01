@@ -9,9 +9,9 @@ if [[ "$FIX" -eq 1 ]]; then NPM_LINT=lint:fix; else NPM_LINT=lint; fi
 if in_scope py; then
   step "Ruff check"
   if [[ "$FIX" -eq 1 ]]; then
-    uv run ruff check --fix packages/python/src/ packages/python/tests/
+    uv run ruff check --fix packages/python/src/ packages/python/tests/ scripts/
   else
-    uv run ruff check packages/python/src/ packages/python/tests/
+    uv run ruff check packages/python/src/ packages/python/tests/ scripts/
   fi
 fi
 

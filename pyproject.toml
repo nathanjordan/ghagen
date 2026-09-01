@@ -58,7 +58,9 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-src = ["packages/python/src"]
+# `scripts/ghagen_schema/` (see ADR-0003) is dev tooling, not shipped package code, but it is
+# still Python source the `py` gate scope must cover -- see docs/issues/17.
+src = ["packages/python/src", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
@@ -68,7 +70,9 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-include = ["packages/python/src"]
+# scripts/ghagen_schema/ is dev tooling (ADR-0003), not shipped package code, but it is still
+# Python source the `py` gate scope must cover -- see docs/issues/17.
+include = ["packages/python/src", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/python/tests"]

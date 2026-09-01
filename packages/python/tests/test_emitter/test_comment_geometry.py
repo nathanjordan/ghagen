@@ -15,7 +15,6 @@ divergent. One oracle, two readers.
 from typing import Any
 
 import pytest
-from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
@@ -26,6 +25,7 @@ from ghagen.emitter.comment_geometry import (
     apply_comment_geometry,
     render_eol_comment,
 )
+from ghagen_schema.paths import SCHEMA_DIR
 
 COMMENT_GEOMETRY_PATH = SCHEMA_DIR / "comment-geometry.yml"
 

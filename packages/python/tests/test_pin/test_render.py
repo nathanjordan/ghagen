@@ -15,10 +15,10 @@ from __future__ import annotations
 import json
 
 import pytest
-from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
 
 from ghagen.pin.engine import LockfileStaleEntry, UpgradeReport, VersionBump
 from ghagen.pin.render import render_upgrade_report
+from ghagen_schema.paths import FIXTURES_DIR as _FIXTURES_ROOT
 
 FIXTURES_DIR = _FIXTURES_ROOT / "expected"
 
