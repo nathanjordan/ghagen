@@ -330,10 +330,10 @@ export type Document = WorkflowModel | ActionModel;
  *   and the spec does not declare `dynamicKeys`. The peer of Python's
  *   `extra="forbid"` (`models/_base.py`).
  * - `pattern` — a string field's value fell outside the grammar its spec
- *   declares in {@link ModelSpec.patterns}.
+ *   declares in `ModelSpec.patterns`.
  * - `integerKey` — a user-supplied YAML key (dynamic key or `extras` key) is a
  *   decimal-integer string, which this port cannot keep in its declared
- *   position. See {@link isIntegerLikeKey}.
+ *   position. See `isIntegerLikeKey`.
  */
 export type ModelInputProblem =
   | { readonly reason: "unknownKeys"; readonly keys: readonly string[] }

@@ -236,7 +236,7 @@ export const ACTION_SPEC: ModelSpec = {
  * Produces a model for a single entry in the action's `inputs` map.
  *
  * @param input - Input definition properties and optional metadata.
- * @returns A branded {@link ActionInputModel}.
+ * @returns A branded `ActionInputModel`.
  *
  * @example
  * ```ts
@@ -258,7 +258,7 @@ export const actionInputDef = defineFactory<ActionInputModel, ActionInputDefInpu
  * Produces a model for a single entry in the action's `outputs` map.
  *
  * @param input - Output definition properties and optional metadata.
- * @returns A branded {@link ActionOutputModel}.
+ * @returns A branded `ActionOutputModel`.
  *
  * @example
  * ```ts
@@ -277,7 +277,7 @@ export const actionOutputDef = defineFactory<ActionOutputModel, ActionOutputDefI
  * Create a branding model for a GitHub Actions Marketplace listing.
  *
  * @param input - Icon and color settings, plus optional metadata.
- * @returns A branded {@link BrandingModel}.
+ * @returns A branded `BrandingModel`.
  *
  * @example
  * ```ts
@@ -291,10 +291,10 @@ export const branding = defineFactory<BrandingModel, BrandingInput>(BRANDING_SPE
  * Create a composite runs model.
  *
  * Defines the `runs` section of a composite action, containing an ordered
- * list of {@link StepModel} entries.
+ * list of `StepModel` entries.
  *
  * @param input - Composite runs configuration and optional metadata.
- * @returns A branded {@link CompositeRunsModel}.
+ * @returns A branded `CompositeRunsModel`.
  *
  * @example
  * ```ts
@@ -316,7 +316,7 @@ export const compositeRuns = defineFactory<CompositeRunsModel, CompositeRunsInpu
  * image, entrypoint, arguments, and lifecycle hooks.
  *
  * @param input - Docker runs configuration and optional metadata.
- * @returns A branded {@link DockerRunsModel}.
+ * @returns A branded `DockerRunsModel`.
  *
  * @example
  * ```ts
@@ -337,7 +337,7 @@ export const dockerRuns = defineFactory<DockerRunsModel, DockerRunsInput>(DOCKER
  * the Node.js version, entry-point script, and optional pre/post hooks.
  *
  * @param input - Node.js runs configuration and optional metadata.
- * @returns A branded {@link NodeRunsModel}.
+ * @returns A branded `NodeRunsModel`.
  *
  * @example
  * ```ts
@@ -355,10 +355,10 @@ export const nodeRuns = defineFactory<NodeRunsModel, NodeRunsInput>(NODE_RUNS_SP
  * Create an action model representing a complete `action.yml` definition.
  *
  * This is the top-level factory for GitHub Actions action metadata. Pass the
- * returned model to {@link toYaml} or {@link toYamlFile} to emit the YAML.
+ * returned model to `toYaml` or `toYamlFile` to emit the YAML.
  *
  * @param input - Action definition properties and optional metadata.
- * @returns A branded {@link ActionModel}.
+ * @returns A branded `ActionModel`.
  *
  * @example
  * ```ts
