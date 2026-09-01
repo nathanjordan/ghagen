@@ -56,7 +56,11 @@ def test_on_event_is_accepted(
 ) -> None:
     """The event constructs and emits under its schema-declared key."""
     data = to_data(On(**{field: value}))
-    assert data[yaml_key] == value
+    assert yaml_key in data
+    # ``ON_SPEC.present_null_when_empty`` covers every event key, so an event
+    # given an empty filter map emits GitHub's bare ``key:`` form and is
+    # observed as ``None`` rather than ``{}`` (docs/issues/04).
+    assert data[yaml_key] == (None if value == {} else value)
 
 
 @pytest.mark.parametrize("field", [f for f, _, _ in ON_EVENTS])

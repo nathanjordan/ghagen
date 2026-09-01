@@ -379,6 +379,13 @@ export const workflowCall = defineFactory<WorkflowCallModel, WorkflowCallInput>(
  * Top-level trigger configuration for the `on:` section of a workflow.
  * Common event types have typed fields; less common events accept plain
  * objects for full flexibility.
+ *
+ * **`{}` is the event, `null` is no event.** An empty object emits GitHub's
+ * documented bare-key form (`create:`) for any event here, filterless or
+ * merely unfiltered; `null` — like omitting the field — means *unset* and
+ * drops the key entirely, the peer of Python's `None` under `exclude_none`.
+ * The two used to disagree across the ports, and they emitted semantically
+ * different workflows: see `docs/issues/04`.
  */
 export interface OnInput {
   /** Push event configuration. Accepts a `PushTriggerModel` or an inline `PushTriggerInput`. */
@@ -400,21 +407,21 @@ export interface OnInput {
   checkRun?: Record<string, unknown>;
   /** Check suite event configuration. */
   checkSuite?: Record<string, unknown>;
-  /** Branch/tag creation event. Pass `null` for an event with no configuration. */
+  /** Branch/tag creation event. Pass `{}` for an event with no configuration. */
   create?: Record<string, unknown> | null;
-  /** Branch/tag deletion event. The trailing `_` avoids the reserved word; it is stripped during emission. Pass `null` for an event with no configuration. */
+  /** Branch/tag deletion event. The trailing `_` avoids the reserved word; it is stripped during emission. Pass `{}` for an event with no configuration. */
   delete_?: Record<string, unknown> | null;
-  /** Deployment event configuration. Pass `null` for an event with no configuration. */
+  /** Deployment event configuration. Pass `{}` for an event with no configuration. */
   deployment?: Record<string, unknown> | null;
-  /** Deployment status event. Pass `null` for an event with no configuration. */
+  /** Deployment status event. Pass `{}` for an event with no configuration. */
   deploymentStatus?: Record<string, unknown> | null;
   /** Discussion event configuration. */
   discussion?: Record<string, unknown>;
   /** Discussion comment event configuration. */
   discussionComment?: Record<string, unknown>;
-  /** Fork event configuration. Pass `null` for an event with no configuration. */
+  /** Fork event configuration. Pass `{}` for an event with no configuration. */
   fork?: Record<string, unknown> | null;
-  /** Gollum (wiki) event configuration. Pass `null` for an event with no configuration. */
+  /** Gollum (wiki) event configuration. Pass `{}` for an event with no configuration. */
   gollum?: Record<string, unknown> | null;
   /** Issue comment event configuration. */
   issueComment?: Record<string, unknown>;
@@ -426,7 +433,7 @@ export interface OnInput {
   mergeGroup?: Record<string, unknown>;
   /** Milestone event configuration. */
   milestone?: Record<string, unknown>;
-  /** GitHub Pages build event. Pass `null` for an event with no configuration. */
+  /** GitHub Pages build event. Pass `{}` for an event with no configuration. */
   pageBuild?: Record<string, unknown> | null;
   /** Project event configuration. */
   project?: Record<string, unknown>;
@@ -438,21 +445,68 @@ export interface OnInput {
   pullRequestReview?: Record<string, unknown>;
   /** Pull request review comment event configuration. */
   pullRequestReviewComment?: Record<string, unknown>;
-  /** Repository visibility change event. Pass `null` for an event with no configuration. */
+  /** Repository visibility change event. Pass `{}` for an event with no configuration. */
   public?: Record<string, unknown> | null;
   /** Registry package event. */
   registryPackage?: Record<string, unknown>;
   /** Release event configuration. */
   release?: Record<string, unknown>;
-  /** Repository dispatch event. Pass `null` for an event with no configuration. */
+  /** Repository dispatch event. Pass `{}` for an event with no configuration. */
   repositoryDispatch?: Record<string, unknown> | null;
-  /** Commit status event. Pass `null` for an event with no configuration. */
+  /** Commit status event. Pass `{}` for an event with no configuration. */
   status?: Record<string, unknown> | null;
-  /** Watch/star event configuration. Pass `null` for an event with no configuration. */
+  /** Watch/star event configuration. Pass `{}` for an event with no configuration. */
   watch?: Record<string, unknown> | null;
   /** Workflow run event configuration. */
   workflowRun?: Record<string, unknown>;
 }
+
+/**
+ * The `on:` field map — every event key {@link OnModel} models, and the single
+ * source both {@link ON_SPEC}'s `fieldMap` and its `presentNullWhenEmpty` are
+ * read from.
+ *
+ * Declared apart from the spec only so the present-null rule can be derived
+ * from it; `order` is `alphabetical`, so this declaration order is UNREAD (the
+ * Emitter sorts every key at emit time).
+ */
+const ON_FIELD_MAP = {
+  push: "push",
+  pullRequest: "pull_request",
+  pullRequestTarget: "pull_request_target",
+  workflowDispatch: "workflow_dispatch",
+  workflowCall: "workflow_call",
+  schedule: "schedule",
+  branchProtectionRule: "branch_protection_rule",
+  checkRun: "check_run",
+  checkSuite: "check_suite",
+  create: "create",
+  delete_: "delete",
+  deployment: "deployment",
+  deploymentStatus: "deployment_status",
+  discussion: "discussion",
+  discussionComment: "discussion_comment",
+  fork: "fork",
+  gollum: "gollum",
+  issueComment: "issue_comment",
+  issues: "issues",
+  label: "label",
+  mergeGroup: "merge_group",
+  milestone: "milestone",
+  pageBuild: "page_build",
+  project: "project",
+  projectCard: "project_card",
+  projectColumn: "project_column",
+  pullRequestReview: "pull_request_review",
+  pullRequestReviewComment: "pull_request_review_comment",
+  public: "public",
+  registryPackage: "registry_package",
+  release: "release",
+  repositoryDispatch: "repository_dispatch",
+  status: "status",
+  watch: "watch",
+  workflowRun: "workflow_run",
+} as const;
 
 /**
  * Serialization spec for {@link OnModel}.
@@ -460,52 +514,28 @@ export interface OnInput {
  * `order` is `alphabetical` — the one spec in the port that is not the default
  * `explicit`: the Emitter sorts every key (typed triggers and dynamic extra
  * events alike) at emit time, matching Python's alphabetical trigger emission.
- * The sort lives in one place, not in this factory. The
- * typed trigger fields carry auto-wrap rules; the plain-object event fields
- * pass through untouched. `presentNullWhenEmpty` renders an empty
- * `workflow_dispatch` as a bare `workflow_dispatch:` key.
+ * The sort lives in one place, not in this factory. The typed trigger fields
+ * carry auto-wrap rules; the plain-object event fields pass through untouched.
  */
 export const ON_SPEC: ModelSpec = {
   kind: "on",
-  fieldMap: {
-    push: "push",
-    pullRequest: "pull_request",
-    pullRequestTarget: "pull_request_target",
-    workflowDispatch: "workflow_dispatch",
-    workflowCall: "workflow_call",
-    schedule: "schedule",
-    branchProtectionRule: "branch_protection_rule",
-    checkRun: "check_run",
-    checkSuite: "check_suite",
-    create: "create",
-    delete_: "delete",
-    deployment: "deployment",
-    deploymentStatus: "deployment_status",
-    discussion: "discussion",
-    discussionComment: "discussion_comment",
-    fork: "fork",
-    gollum: "gollum",
-    issueComment: "issue_comment",
-    issues: "issues",
-    label: "label",
-    mergeGroup: "merge_group",
-    milestone: "milestone",
-    pageBuild: "page_build",
-    project: "project",
-    projectCard: "project_card",
-    projectColumn: "project_column",
-    pullRequestReview: "pull_request_review",
-    pullRequestReviewComment: "pull_request_review_comment",
-    public: "public",
-    registryPackage: "registry_package",
-    release: "release",
-    repositoryDispatch: "repository_dispatch",
-    status: "status",
-    watch: "watch",
-    workflowRun: "workflow_run",
-  },
+  fieldMap: ON_FIELD_MAP,
   order: "alphabetical",
-  presentNullWhenEmpty: ["workflow_dispatch"],
+  // Every event key, DERIVED from `ON_FIELD_MAP` rather than listed: an empty
+  // map is never the right emission for an `on:` event. GitHub's documented
+  // spelling for "this event, no filters" is the bare key — `create:` for an
+  // event that takes no filters at all, and equally `push:` or
+  // `workflow_call:` for one whose filters were simply left empty. The
+  // allowlist used to name `workflow_dispatch` alone, which was not a decision
+  // about `workflow_dispatch` — it was the one key somebody needed.
+  //
+  // It is derived, not listed, so it cannot fall out of date: adding an event
+  // to `ON_FIELD_MAP` adds it here in the same edit, and there is no second
+  // list for a guard test to compare against the first. (`schema/key-order.yml`
+  // already binds this key set across the two ports, so the derivation inherits
+  // that cross-port binding for free.) The peer of Python's
+  // `present_null_when_empty=frozenset(_ON_YAML_KEYS.values())`.
+  presentNullWhenEmpty: Object.values(ON_FIELD_MAP),
   wrap: {
     push: { factory: pushTrigger, mode: "model" },
     pullRequest: { factory: prTrigger, mode: "model" },

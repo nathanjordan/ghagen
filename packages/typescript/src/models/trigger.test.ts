@@ -6,6 +6,8 @@ import {
   workflowDispatch,
   workflowCall,
   on,
+  ON_SPEC,
+  type OnInput,
 } from "./trigger.js";
 import { isModel } from "./_base.js";
 import { toData, toYaml } from "../emitter/yaml-writer.js";
@@ -170,7 +172,7 @@ describe("on", () => {
   });
 
   it("maps delete_ to delete", () => {
-    const data = toData(on({ delete_: null })) as Record<string, unknown>;
+    const data = toData(on({ delete_: {} })) as Record<string, unknown>;
     expect(data).toHaveProperty("delete");
     expect(data).not.toHaveProperty("delete_");
   });
@@ -232,5 +234,41 @@ describe("on", () => {
   it("keeps a boolean workflowDispatch untouched (not present-null)", () => {
     const data = toData(on({ workflowDispatch: true })) as Record<string, unknown>;
     expect(data["workflow_dispatch"]).toBe(true);
+  });
+
+  // docs/issues/04. The two ports used to disagree about `null`, and the
+  // disagreement was not cosmetic: Python dropped the key (`on: {}`, a
+  // workflow that fires on nothing) while this port kept it and rendered
+  // `on:\n  ? create` — a workflow that fires on `create`. One word, one
+  // meaning, both ports. Peer:
+  // `packages/python/tests/test_models/test_serialize.py`.
+  it("treats a null event as unset, not as a bare key", () => {
+    expect(toData(on({ create: null }))).toEqual({});
+    const yaml = toYaml(workflow({ name: "W", on: on({ create: null }), jobs: {} }), {
+      header: null,
+    });
+    expect(yaml).toContain("\non: {}\n");
+    expect(yaml).not.toContain("create");
+  });
+
+  // `ON_SPEC.presentNullWhenEmpty` is derived from the field map, so this
+  // walks the whole key set rather than restating a second list of names: an
+  // event added to the field map is covered here the moment it is declared.
+  // It was a one-element allowlist (`workflow_dispatch`) until docs/issues/04,
+  // so every other event emitted `create: {}`. `schedule` is the one key
+  // skipped, and it is not an exception to the rule: its value is a *list*,
+  // which `isEmptyMapValue` never treats as an empty map.
+  it("present-nulls an empty map on every event key", () => {
+    for (const [camelKey, yamlKey] of Object.entries(ON_SPEC.fieldMap)) {
+      if (camelKey === "schedule") {
+        expect(toData(on({ schedule: [] }))).toEqual({ schedule: [] });
+        continue;
+      }
+      const input = { [camelKey]: {} } as OnInput;
+      expect((toData(on(input)) as Record<string, unknown>)[yamlKey], yamlKey).toBeNull();
+      const yaml = toYaml(workflow({ name: "W", on: on(input), jobs: {} }), { header: null });
+      expect(yaml, yamlKey).toContain(`\n  ${yamlKey}:\n`);
+      expect(yaml, yamlKey).not.toContain(`${yamlKey}: {}`);
+    }
   });
 });

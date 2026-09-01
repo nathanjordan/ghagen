@@ -310,6 +310,96 @@ describe("snapshot tests", () => {
     });
     expect(toYaml(w, { header: null })).toBe(loadFixture("triple_quoted_run.yml"));
   });
+
+  // The five body shapes the byte oracle had no bytes for (docs/issues/02).
+  // Every other fixture here is a workflow shape somebody wrote for its own
+  // sake; this one exists because the *oracle* had holes, and each hole is a
+  // path the ports could have diverged on with both suites green:
+  //
+  //  1. `defaults:` — at the workflow level and again inside a job, so the one
+  //     defaults/defaultsRun pair is byte-bound at both places the schema
+  //     allows it.
+  //  2. present-null — `workflow_dispatch:` (the rule's original single
+  //     member) and `create:` (one of the 34 keys docs/issues/04 widened it
+  //     to). Both must be bare keys; neither may be `{}`.
+  //  3. a dynamic extras interleave on an alphabetical spec —
+  //     `pull_request_review_thread` is a real GitHub event the canonical
+  //     Snapshot's `on:` map does not declare, so it cannot be a typed field
+  //     (the conformance sweep asserts `on` covers exactly what the Snapshot
+  //     declares) and must travel through `extras`. It sorts strictly between
+  //     two typed keys, `create` and `push`, so a port that appended extras
+  //     instead of interleaving them produces different bytes here.
+  //  4. SHA-pinned `uses:` — a bare 40-hex ref, and the `# vX.Y.Z`
+  //     end-of-line spelling that pinning tools actually emit.
+  //  5. `workflow_call:` with inputs, outputs and secrets — no file under
+  //     `fixtures/expected/` contained `workflow_call` at all before this one,
+  //     so the canonical key order of the three sub-map defs (bound per-port
+  //     by unit tests) had no shared oracle.
+  //
+  // Peer: `packages/python/tests/test_integration/test_snapshots.py`.
+  it("body_shapes.yml", () => {
+    const w = workflow({
+      name: "Body Shapes",
+      on: {
+        // Present-null on a key the old one-element allowlist did not cover.
+        create: {},
+        push: { branches: ["main"] },
+        workflowCall: {
+          inputs: {
+            environment: {
+              description: "Target environment",
+              required: true,
+              type: "string",
+            },
+          },
+          outputs: {
+            digest: {
+              description: "Digest of the image this run built",
+              value: "${{ jobs.build.outputs.digest }}",
+            },
+          },
+          secrets: {
+            "deploy-token": {
+              description: "Token the deploy step authenticates with",
+              required: true,
+            },
+          },
+        },
+        // Present-null on the key the rule started with.
+        workflowDispatch: {},
+        // An event GitHub ships ahead of the Snapshot: untyped, so it can only
+        // arrive through extras, and it sorts between `create` and `push`.
+        extras: { pull_request_review_thread: { types: ["resolved"] } },
+      },
+      defaults: { run: { shell: "bash", workingDirectory: "src" } },
+      jobs: {
+        build: job({
+          runsOn: "ubuntu-latest",
+          defaults: { run: { workingDirectory: "build" } },
+          outputs: { digest: "${{ steps.build.outputs.digest }}" },
+          steps: [
+            step({
+              name: "Checkout",
+              uses: withEolComment(
+                "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+                "v4.2.2",
+              ),
+            }),
+            step({
+              name: "Set up Python",
+              uses: "actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b",
+            }),
+            step({
+              id: "build",
+              name: "Build",
+              run: 'echo "digest=sha256:deadbeef" >> "$GITHUB_OUTPUT"',
+            }),
+          ],
+        }),
+      },
+    });
+    expect(toYaml(w, { header: null })).toBe(loadFixture("body_shapes.yml"));
+  });
 });
 
 // ---------------------------------------------------------------------------

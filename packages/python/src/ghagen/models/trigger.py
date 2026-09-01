@@ -73,49 +73,63 @@ WORKFLOW_CALL_SPEC = ModelSpec(
 )
 
 # ``On`` has no canonical trigger order: ``order="alphabetical"`` sorts every
-# key at emit time (extras interleave). An empty ``workflow_dispatch`` emits as a bare
-# ``workflow_dispatch:`` key via ``present_null_when_empty`` — the declared rule
-# that replaces the old model-layer ``Raw(None)`` smuggle.
+# key at emit time (extras interleave).
+_ON_YAML_KEYS = {
+    "push": "push",
+    "pull_request": "pull_request",
+    "pull_request_target": "pull_request_target",
+    "workflow_dispatch": "workflow_dispatch",
+    "workflow_call": "workflow_call",
+    "workflow_run": "workflow_run",
+    "schedule": "schedule",
+    "release": "release",
+    "issues": "issues",
+    "issue_comment": "issue_comment",
+    "create": "create",
+    "delete": "delete",
+    "fork": "fork",
+    "page_build": "page_build",
+    "deployment": "deployment",
+    "deployment_status": "deployment_status",
+    "check_run": "check_run",
+    "check_suite": "check_suite",
+    "branch_protection_rule": "branch_protection_rule",
+    "discussion": "discussion",
+    "discussion_comment": "discussion_comment",
+    "gollum": "gollum",
+    "merge_group": "merge_group",
+    "pull_request_review": "pull_request_review",
+    "pull_request_review_comment": "pull_request_review_comment",
+    "repository_dispatch": "repository_dispatch",
+    "label": "label",
+    "milestone": "milestone",
+    "project": "project",
+    "project_card": "project_card",
+    "project_column": "project_column",
+    "public": "public",
+    "registry_package": "registry_package",
+    "status": "status",
+    "watch": "watch",
+}
+
+# Every event key, DERIVED from ``_ON_YAML_KEYS`` rather than listed: an empty
+# map is never the right emission for an ``on:`` event. GitHub's documented
+# spelling for "this event, no filters" is the bare key — ``create:`` for an
+# event that takes no filters at all, and equally ``push:`` or
+# ``workflow_call:`` for one whose filters were simply left empty. The
+# allowlist used to name ``workflow_dispatch`` alone, which was not a decision
+# about ``workflow_dispatch`` — it was the one key somebody needed.
+#
+# It is derived, not listed, so it cannot fall out of date: adding an event to
+# ``_ON_YAML_KEYS`` adds it here in the same edit, and there is no second list
+# for a guard test to compare against the first. (``schema/key-order.yml``
+# already binds this key set across the two ports, so the derivation inherits
+# that cross-port binding for free.) The peer of TypeScript's
+# ``presentNullWhenEmpty: Object.values(ON_FIELD_MAP)``.
 ON_SPEC = ModelSpec(
-    yaml_keys={
-        "push": "push",
-        "pull_request": "pull_request",
-        "pull_request_target": "pull_request_target",
-        "workflow_dispatch": "workflow_dispatch",
-        "workflow_call": "workflow_call",
-        "workflow_run": "workflow_run",
-        "schedule": "schedule",
-        "release": "release",
-        "issues": "issues",
-        "issue_comment": "issue_comment",
-        "create": "create",
-        "delete": "delete",
-        "fork": "fork",
-        "page_build": "page_build",
-        "deployment": "deployment",
-        "deployment_status": "deployment_status",
-        "check_run": "check_run",
-        "check_suite": "check_suite",
-        "branch_protection_rule": "branch_protection_rule",
-        "discussion": "discussion",
-        "discussion_comment": "discussion_comment",
-        "gollum": "gollum",
-        "merge_group": "merge_group",
-        "pull_request_review": "pull_request_review",
-        "pull_request_review_comment": "pull_request_review_comment",
-        "repository_dispatch": "repository_dispatch",
-        "label": "label",
-        "milestone": "milestone",
-        "project": "project",
-        "project_card": "project_card",
-        "project_column": "project_column",
-        "public": "public",
-        "registry_package": "registry_package",
-        "status": "status",
-        "watch": "watch",
-    },
+    yaml_keys=_ON_YAML_KEYS,
     order="alphabetical",
-    present_null_when_empty=frozenset({"workflow_dispatch"}),
+    present_null_when_empty=frozenset(_ON_YAML_KEYS.values()),
 )
 
 
