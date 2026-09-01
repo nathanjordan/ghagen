@@ -44,8 +44,8 @@ jobs:
     - name: Format check
       run: scripts/fmt.sh ts
     timeout-minutes: 10
-  lint-docs:
-    name: Lint (docs)
+  docs:
+    name: Docs
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -54,6 +54,9 @@ jobs:
       uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38  # v6
       with:
         node-version: '24'
+    - name: Install TS deps
+      run: npm ci
+      working-directory: packages/typescript
     - name: Install docs deps
       run: npm ci
       working-directory: docs
@@ -61,7 +64,10 @@ jobs:
       run: scripts/lint.sh docs
     - name: Format check
       run: scripts/fmt.sh docs
-    timeout-minutes: 10
+    - name: Build docs
+      run: npm run build
+      working-directory: docs
+    timeout-minutes: 20
   lint-meta:
     name: Lint (meta)
     runs-on: ubuntu-latest
