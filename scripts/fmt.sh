@@ -15,9 +15,9 @@ fi
 if in_scope py; then
   step "Ruff format ($MODE)"
   if [[ "$FIX" -eq 1 ]]; then
-    uv run ruff format packages/python/src/ packages/python/tests/
+    uv run ruff format "${PY_PATHS[@]}"
   else
-    uv run ruff format --check packages/python/src/ packages/python/tests/
+    uv run ruff format --check "${PY_PATHS[@]}"
   fi
 fi
 

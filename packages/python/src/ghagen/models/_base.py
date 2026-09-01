@@ -141,10 +141,21 @@ class GhagenModel(BaseModel):
 
     # The four ``_META_FIELDS`` below. They carry serialization *policy* rather
     # than YAML content, which is why each declares ``exclude=True``.
+    #
+    # Every ``Field`` in the models spells ``default=`` out rather than passing the
+    # default positionally. pydantic treats the two identically, but pyright's
+    # PEP 681 field-specifier handling only recognises the keyword form: with
+    # ``Field(None, ...)`` it synthesises an ``__init__`` where the field is
+    # *required*, so every construction site reports "Arguments missing for
+    # parameters". Nothing inside the type-checked scope constructed a model until
+    # .github/ghagen_workflows.py joined it, which is how 171 of those errors
+    # arrived at once -- see docs/issues/32.
     extras: dict[str, Any] = Field(default_factory=dict, exclude=True)
-    post_process: Callable[[CommentedMap], None] | None = Field(None, exclude=True)
-    comment: str | None = Field(None, exclude=True)
-    eol_comment: str | None = Field(None, exclude=True)
+    post_process: Callable[[CommentedMap], None] | None = Field(
+        default=None, exclude=True
+    )
+    comment: str | None = Field(default=None, exclude=True)
+    eol_comment: str | None = Field(default=None, exclude=True)
 
     # Captured source location (file, line) of the user code that
     # constructed this model. Populated by model_post_init via frame

@@ -22,8 +22,20 @@ from ghagen import (
     WorkflowDispatchTrigger,
     expr,
 )
-from ghagen.models.common import PermissionLevel
+from ghagen.models.common import PermissionLevel, ShellType
 from ghagen.models.job import Environment
+
+# A handful of the ``run=`` blocks below carry ``# noqa: E501`` on their closing
+# quote (ruff scopes such a directive to the whole string literal). E501 measures
+# a physical line in *this* file, but those lines are shell and GitHub Actions
+# expressions on their way into the generated YAML: their width is set by the
+# command being run plus this call site's nesting depth, and the only ways to get
+# them under 88 are to rewrite CI shell this repo cannot execute locally or to
+# reflow ``gh pr create --body`` prose, both of which change what CI does. Some
+# are irreducible at any indentation -- the schema-drift PR body is 222 characters
+# of one quoted argument. The suppression is per-literal and covers E501 only:
+# every other rule, and E501 on every line of actual Python here, still applies.
+# See docs/issues/32.
 
 
 def _ci_workflow() -> Workflow:
@@ -54,8 +66,16 @@ def _ci_workflow() -> Workflow:
                 timeout_minutes=10,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
                     Step(name="Lint", run="scripts/lint.sh ts"),
                     Step(name="Format check", run="scripts/fmt.sh ts"),
                 ],
@@ -76,12 +96,24 @@ def _ci_workflow() -> Workflow:
                 timeout_minutes=20,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
-                    Step(name="Install docs deps", run="npm ci", working_directory="docs"),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
+                    Step(
+                        name="Install docs deps", run="npm ci", working_directory="docs"
+                    ),
                     Step(name="Lint", run="scripts/lint.sh docs"),
                     Step(name="Format check", run="scripts/fmt.sh docs"),
-                    Step(name="Build docs", run="npm run build", working_directory="docs"),
+                    Step(
+                        name="Build docs", run="npm run build", working_directory="docs"
+                    ),
                 ],
             ),
             "lint-meta": Job(
@@ -91,9 +123,17 @@ def _ci_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
                     Step(name="Sync", run="uv sync --locked"),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
                     Step(
                         name="actionlint",
                         uses="rhysd/actionlint@v1.7.12",
@@ -126,8 +166,16 @@ def _ci_workflow() -> Workflow:
                 timeout_minutes=10,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
                     Step(name="tsc", run="scripts/typecheck.sh ts"),
                 ],
             ),
@@ -175,8 +223,16 @@ def _ci_workflow() -> Workflow:
                 timeout_minutes=15,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
                     Step(name="Test", run="scripts/test.sh ts"),
                 ],
             ),
@@ -256,9 +312,17 @@ def _schema_drift_workflow() -> Workflow:
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Set up uv", uses="astral-sh/setup-uv@v7"),
-                    Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(
+                        name="Setup Node.js",
+                        uses="actions/setup-node@v6",
+                        with_={"node-version": "24"},
+                    ),
                     Step(name="Sync", run="uv sync"),
-                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
+                    Step(
+                        name="Install TS deps",
+                        run="npm ci",
+                        working_directory="packages/typescript",
+                    ),
                     # Refresh the Snapshot AND regenerate the types from it, so the
                     # PR is a complete, mergeable fix rather than a diff to reproduce.
                     Step(
@@ -334,7 +398,7 @@ def _schema_drift_workflow() -> Workflow:
                                 --body "Automated schema refresh could not open a PR (drift id \\`$DRIFT\\`). Reproduce locally with \\`uv run python -m ghagen_schema sync && uv run python -m ghagen_schema generate\\`." \\
                                 --label schema-drift
                             fi
-                        """,
+                        """,  # noqa: E501  (embedded shell -- see the note at the top)
                         env={"GH_TOKEN": str(expr.secrets["GITHUB_TOKEN"])},
                     ),
                 ],
@@ -404,7 +468,7 @@ def _check_deps_smoke_workflow() -> Workflow:
                             set -euo pipefail
                             [ "${{ steps.versions.outputs.refresh_lockfile }}" = "false" ]
                             [ "${{ steps.versions.outputs.action }}" = "create-pr" ]
-                        """,
+                        """,  # noqa: E501  (embedded shell -- see the note at the top)
                     ),
                     Step(
                         name="Issue output on the same fixture",
@@ -455,8 +519,12 @@ def _release_workflow() -> Workflow:
         outputs={
             "release_created": "${{ steps.release.outputs.release_created }}",
             "tag_name": "${{ steps.release.outputs.tag_name }}",
-            "ts_release_created": "${{ steps.release.outputs['packages/typescript--release_created'] }}",
-            "ts_tag_name": "${{ steps.release.outputs['packages/typescript--tag_name'] }}",
+            "ts_release_created": (
+                "${{ steps.release.outputs['packages/typescript--release_created'] }}"
+            ),
+            "ts_tag_name": (
+                "${{ steps.release.outputs['packages/typescript--tag_name'] }}"
+            ),
         },
         steps=[
             Step(
@@ -479,7 +547,7 @@ def _release_workflow() -> Workflow:
                     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                     git tag -fa "$MAJOR" -m "Update $MAJOR tag to $TAG"
                     git push origin "$MAJOR" --force
-                """,
+                """,  # noqa: E501  (embedded shell -- see the note at the top)
             ),
         ],
     )
@@ -605,7 +673,7 @@ def _release_workflow() -> Workflow:
                     git add Formula/ghagen.rb
                     git commit -m "ghagen ${VERSION}"
                     git push origin main
-                """,
+                """,  # noqa: E501  (embedded shell -- see the note at the top)
             ),
         ],
     )
@@ -737,8 +805,7 @@ def _ghagen_check_action() -> Action:
     return Action(
         name="ghagen Check",
         description=(
-            "Verify GitHub Actions workflows are in sync "
-            "with Python definitions"
+            "Verify GitHub Actions workflows are in sync with Python definitions"
         ),
         branding=Branding(icon="check-circle", color="green"),
         inputs={
@@ -780,13 +847,13 @@ def _ghagen_check_action() -> Action:
                         else
                           pip install ghagen${{ inputs.ghagen-version != '' && format('=={0}', inputs.ghagen-version) || '' }}
                         fi
-                    """,
-                    shell="bash",
+                    """,  # noqa: E501  (embedded shell -- see the note at the top)
+                    shell=ShellType.BASH,
                 ),
                 Step(
                     name="Check workflows",
                     run='ghagen check-synced --config "${{ inputs.config }}"',
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
             ],
         ),
@@ -880,8 +947,7 @@ def _ghagen_update_action() -> Action:
             ),
             "dry-run": ActionInput(
                 description=(
-                    "Plan only: no source edits, no lockfile write, "
-                    "no git, no gh"
+                    "Plan only: no source edits, no lockfile write, no git, no gh"
                 ),
                 required=False,
                 default="false",
@@ -942,7 +1008,7 @@ def _ghagen_update_action() -> Action:
                           pip install ghagen
                         fi
                     """,
-                    shell="bash",
+                    shell=ShellType.BASH,
                 ),
                 # One sweep, one plan, one append. No `|| true`: the CLI's exit
                 # code is the step's, and its one-line diagnostic is the log.
@@ -967,8 +1033,8 @@ def _ghagen_update_action() -> Action:
                           --body-file "$RUNNER_TEMP/ghagen-body.md" \\
                           ${{ inputs.dry-run == 'true' && '--dry-run' || '' }} \\
                           --format github >> "$GITHUB_OUTPUT"
-                    """,
-                    shell="bash",
+                    """,  # noqa: E501  (embedded shell -- see the note at the top)
+                    shell=ShellType.BASH,
                 ),
                 # git and `gh`, and nothing else. Every value it uses was
                 # decided by `pin/plan` and handed over as a step output.
@@ -1100,8 +1166,8 @@ def _ghagen_update_action() -> Action:
                               --body-file "$BODY_FILE" ${LABEL_ARGS[@]+"${LABEL_ARGS[@]}"}
                             ;;
                         esac
-                    """,
-                    shell="bash",
+                    """,  # noqa: E501  (embedded shell -- see the note at the top)
+                    shell=ShellType.BASH,
                 ),
             ],
         ),
