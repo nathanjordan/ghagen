@@ -145,7 +145,8 @@ refresh the lockfile, what to raise, and under what branch, title, and labels. E
 decision, never data, and a caller never re-derives one from another. Deciding needs the **App**
 as well as the report, because one rule turns on `app.lockfilePath`, a fact the serialized report
 deliberately does not carry. Its ten-field wire shape (both `--format json` and `--format github`)
-is declared once, in `schema/update-plan-fields.yml`, and pinned by both suites.
+is declared once, in `schema/update-plan-fields.yml` — name, order, JSON type, and
+`$GITHUB_OUTPUT` encoding, one row per field — and pinned by both suites.
 
 ### Schema
 
