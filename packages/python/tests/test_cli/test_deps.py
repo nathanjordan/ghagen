@@ -28,11 +28,11 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
-from ghagen_schema.paths import SCHEMA_DIR
 from ruamel.yaml import YAML
 from typer.testing import CliRunner
 
 from ghagen.cli.main import app
+from ghagen_schema.paths import SCHEMA_DIR
 
 runner = CliRunner()
 
