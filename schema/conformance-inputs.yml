@@ -1,0 +1,235 @@
+# Shared conformance-sweep input-TYPE table for the hand-written ghagen models.
+#
+# The third table in the conformance family, and the one the other two leave a
+# hole where. conformance-scopes.yml binds the SET OF PROPERTIES a model
+# exposes. conformance-values.yml binds the VALUE GRAMMAR of the fields that
+# declare a `patterns` entry -- a regex, so a string field by construction.
+# Neither binds the ACCEPTED TYPE UNION of an input field, and that is the axis
+# on which the two ports' published APIs actually drifted (issue 27, three
+# instances at once):
+#
+#   * `job.permissions` took the `read-all` / `write-all` shorthand in
+#     TypeScript and not in Python;
+#   * `workflowDispatchInput.default` and `workflowCallInput.default` were
+#     `string | boolean | number` in TypeScript and bare `str` in Python;
+#   * the union `PermissionsValue` was published in the API reference under
+#     that name while neither port defined it.
+#
+# Three instances is a class, so this is the table for the class. Keys are
+# `<snapshot filename>` -> `<kind>.<field>`, the same shape
+# conformance-values.yml uses, where `kind` is a ModelSpec kind and `field` is
+# spelled the way the TypeScript port spells it (camelCase). Each entry
+# carries:
+#
+#   yaml_key   - the key this field emits. Each port asserts its own spec maps
+#                its own field name to this string, which is what lets the key
+#                above use ONE spelling for a field the two ports name
+#                differently (`continueOnError` / `continue_on_error`) without
+#                either port guessing the other's convention.
+#   type_paths - one or more paths into the loaded Snapshot, each resolving to
+#                a JSON-Schema `type` token or a list of them. Positional, and
+#                deliberately so: ADR-0003's posture is that upstream change
+#                surfaces as a failing conformance check. Where the Snapshot
+#                reaches a type through a `$ref` or an `allOf`/`if`/`then`, the
+#                path jumps to the referenced node directly -- there is no
+#                `$ref` resolver in either sweep and adding one would hide
+#                exactly the upstream restructuring this is meant to catch.
+#   types      - the sorted union of what `type_paths` resolve to: the
+#                Snapshot's UNCONDITIONAL accepted type union for this field.
+#                Both sweeps derive the union and assert it equals this list,
+#                so an upstream narrowing (or a typo here) fails.
+#   ref        - optional. A path plus the exact `$ref` string it must hold.
+#                Present only on the two `permissions` rows, where it is the
+#                whole justification for a shared alias: both fields are a bare
+#                `$ref` to the single `definitions.permissions` node, so one
+#                union type serves both. If upstream ever inlines or splits
+#                that node, these rows fail and the alias must be revisited.
+#   accept     - values every port must accept in this field.
+#   reject     - values every port must refuse in this field.
+#
+# ## The asymmetry, stated rather than papered over
+#
+# `reject` means something different in each port, because a type union is a
+# different kind of object in each.
+#
+#   Python enforces the declared annotation at RUNTIME. Pydantic validates
+#   every construction, so `WorkflowDispatchInput(default=[])` genuinely
+#   raises, and the Python sweep executes every `reject` vector and asserts
+#   ValidationError. Corrupting a vector here turns that sweep red by
+#   construction.
+#
+#   TypeScript has no runtime type system at all. `job({ permissions: 123 })`
+#   with the 123 cast away throws nothing -- `defineFactory` validates model
+#   METADATA and value grammars, never declared input types. The only place
+#   "this field's type admits X" is a checkable fact in that port is the
+#   compiler. So the TypeScript binding
+#   (packages/typescript/src/models/conformance-inputs.ts) re-declares its
+#   vectors as typed literals: `accept` is `satisfies readonly <FieldType>[]`,
+#   and each `reject` vector is a `satisfies <FieldType>` under an
+#   `@ts-expect-error`, which tsc reports as an *unused directive* the moment
+#   the field widens enough to admit it. That file lives in `src/` and not in a
+#   `.test.ts` precisely so `tsc --noEmit` visits it -- `tsconfig.json` excludes
+#   `src/**/*.test.ts`, and vitest (esbuild, transpile-only) type-checks
+#   nothing. The sweep then asserts those declared literals deep-equal the
+#   lists below, which is what binds the compiler's judgement back to this
+#   file: change a vector here and the TypeScript suite fails the comparison
+#   while the Python suite fails the construction.
+#
+# Both sweeps also assert their bound key set equals this file's, so a type
+# union bound in one port and not the other fails a test.
+#
+# Read by:
+#   - Python (packages/python/tests/test_schema/test_conformance.py)
+#   - TypeScript (packages/typescript/src/models/conformance.test.ts, binding
+#     in packages/typescript/src/models/conformance-inputs.ts)
+
+workflow_schema.json:
+  # --- permissions: one Snapshot node, one alias per port -------------------
+  # `definitions.permissions` is a two-way oneOf: the blanket string enum, or
+  # the per-scope `permissions-event` object. The object half is behind a
+  # `$ref`, so the second type path names `permissions-event` directly.
+  job.permissions:
+    yaml_key: permissions
+    ref:
+      path: [definitions, normalJob, properties, permissions, $ref]
+      value: "#/definitions/permissions"
+    type_paths:
+      - [definitions, permissions, oneOf, 0, type]
+      - [definitions, permissions-event, type]
+    types: [object, string]
+    accept:
+      - read-all
+      - write-all
+      # The per-scope object form. Only scopes both ports spell identically
+      # appear here -- `pull-requests` is `pull_requests` in Python and
+      # `pullRequests` in TypeScript, and this table is one list for both.
+      - contents: read
+      - contents: write
+        issues: none
+    reject:
+      # The enum has exactly two members; a third is not a shorthand.
+      - read-only
+      - write
+      - ""
+      # A blanket permission is a string or a mapping, never a scalar of
+      # another type and never a sequence.
+      - 123
+      - true
+      - [read-all]
+  workflow.permissions:
+    yaml_key: permissions
+    ref:
+      path: [properties, permissions, $ref]
+      value: "#/definitions/permissions"
+    type_paths:
+      - [definitions, permissions, oneOf, 0, type]
+      - [definitions, permissions-event, type]
+    types: [object, string]
+    accept:
+      - read-all
+      - write-all
+      - contents: read
+      - contents: write
+        issues: none
+    reject:
+      - read-only
+      - write
+      - ""
+      - 123
+      - true
+      - [read-all]
+
+  # --- input defaults -------------------------------------------------------
+  # `workflow_dispatch` leaves `default` untyped in `properties` and constrains
+  # it from an `allOf`/`if`/`then` block keyed on the sibling `type`: four
+  # branches, three distinct types. The union of those branches IS the
+  # unconditional union, which is what these four paths spell out. The
+  # conditional itself is NOT enforced by either port -- that limit is recorded,
+  # with its counterexample, under `constraints` in conformance-gaps.yml.
+  workflowDispatchInput.default:
+    yaml_key: default
+    type_paths:
+      - [definitions, workflowDispatchInput, allOf, 0, then, properties, default, type]
+      - [definitions, workflowDispatchInput, allOf, 1, then, properties, default, type]
+      - [definitions, workflowDispatchInput, allOf, 2, then, properties, default, type]
+      - [definitions, workflowDispatchInput, allOf, 3, then, properties, default, type]
+    types: [boolean, number, string]
+    accept:
+      - a-string
+      - ""
+      - true
+      - false
+      - 3
+      - 3.5
+    reject:
+      # Not a scalar of any admitted type.
+      - []
+      - {}
+      - [a, b]
+  # `workflow_call` types its `default` directly -- no conditional, same union.
+  workflowCallInput.default:
+    yaml_key: default
+    type_paths:
+      - [
+          properties,
+          on,
+          oneOf,
+          2,
+          properties,
+          workflow_call,
+          properties,
+          inputs,
+          patternProperties,
+          "^[_a-zA-Z][a-zA-Z0-9_-]*$",
+          properties,
+          default,
+          type,
+        ]
+    types: [boolean, number, string]
+    accept:
+      - a-string
+      - ""
+      - true
+      - false
+      - 3
+      - 3.5
+    reject:
+      - []
+      - {}
+      - [a, b]
+
+  # --- two rows that already agreed ----------------------------------------
+  # Not everything here is a repair. `continue-on-error` is `boolean` or an
+  # `expressionSyntax` string upstream, and both ports already declared
+  # `boolean | string`. Binding it costs two rows and turns an agreement that
+  # currently holds by coincidence into one a test holds.
+  job.continueOnError:
+    yaml_key: continue-on-error
+    type_paths:
+      - [definitions, normalJob, properties, continue-on-error, oneOf, 0, type]
+      - [definitions, expressionSyntax, type]
+    types: [boolean, string]
+    accept:
+      - true
+      - false
+      - "${{ github.event_name == 'push' }}"
+      - ""
+    reject:
+      - 123
+      - []
+      - {}
+  step.continueOnError:
+    yaml_key: continue-on-error
+    type_paths:
+      - [definitions, step, properties, continue-on-error, oneOf, 0, type]
+      - [definitions, expressionSyntax, type]
+    types: [boolean, string]
+    accept:
+      - true
+      - false
+      - "${{ github.event_name == 'push' }}"
+      - ""
+    reject:
+      - 123
+      - []
+      - {}

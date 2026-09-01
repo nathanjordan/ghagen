@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from ghagen._raw import Raw
-from ghagen.models._base import GhagenModel
+from ghagen.models._base import GhagenModel, OrRaw
 from ghagen.models.common import PermissionLevel
 from ghagen.models.spec import ModelSpec
 
@@ -60,3 +60,24 @@ class Permissions(GhagenModel):
     repository_projects: PermissionLevel | Raw[str] | None = None
     security_events: PermissionLevel | Raw[str] | None = None
     statuses: PermissionLevel | Raw[str] | None = None
+
+
+#: Everything a ``permissions:`` key accepts, at either level.
+#:
+#: The canonical Snapshot defines ``permissions`` once
+#: (``definitions.permissions``) as a two-way ``oneOf`` — the blanket enum
+#: ``read-all`` / ``write-all``, or the per-scope ``permissions-event``
+#: object — and both ``Workflow.permissions`` and ``Job.permissions`` are a
+#: bare ``$ref`` to it. One schema node, one alias: writing the union out at
+#: each use site is how the two drifted apart in the first place (issue 27 —
+#: ``Job`` was missing the string shorthand while ``Workflow`` had it, and the
+#: API reference published this alias under this name while neither port
+#: defined it).
+#:
+#: ``OrRaw[...]`` adds the every-field ``CommentedMap`` passthrough; ``Raw[str]``
+#: is the hatch for a blanket keyword GitHub ships before ghagen models it.
+#: Bound to the Snapshot, with executed accept/reject vectors, by
+#: ``schema/conformance-inputs.yml`` under ``job.permissions`` and
+#: ``workflow.permissions``. The TypeScript peer is ``PermissionsValue`` in
+#: ``models/permissions.ts``.
+PermissionsValue = OrRaw[Permissions | Literal["read-all", "write-all"] | Raw[str]]

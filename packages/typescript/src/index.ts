@@ -98,7 +98,7 @@ export type {
 } from "./models/trigger.js";
 
 export { permissions } from "./models/permissions.js";
-export type { PermissionsInput } from "./models/permissions.js";
+export type { PermissionsInput, PermissionsValue } from "./models/permissions.js";
 
 export { container, service } from "./models/container.js";
 export type { ContainerInput } from "./models/container.js";

@@ -415,3 +415,89 @@ def test_escape_hatches():
     yaml_str2 = wf2.to_yaml(header=None)
     assert "runs-on: ubuntu-latest" in yaml_str2
     assert "actions/checkout@v4" in yaml_str2
+
+
+def test_blanket_permissions_emit_as_bare_scalars(workflow_schema: dict[str, Any]):
+    """``read-all``/``write-all`` reach the file as scalars, not one-key mappings.
+
+    Divergence 2 of issue 27 was that ``Job.permissions`` refused the string
+    shorthand its TypeScript peer had always accepted. Widening the annotation
+    is only half a fix: the emitter walks models generically, so a shorthand
+    that survives construction could still land as a mapping, or quoted, or
+    folded, with no type error anywhere to show for it. So this asserts the
+    bytes -- exact lines at exact indents -- and not just the parsed shape.
+    """
+    wf = Workflow(
+        name="Blanket",
+        on=On(push=PushTrigger(branches=["main"])),
+        permissions="read-all",
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                permissions="write-all",
+                steps=[Step(uses="actions/checkout@v4")],
+            ),
+        },
+    )
+
+    yaml_str = wf.to_yaml(header=None)
+
+    # Workflow level at column 0, job level indented under `jobs.test`. An
+    # unquoted scalar on the same line as the key: no `|`, no `>`, no quotes.
+    assert "\npermissions: read-all\n" in yaml_str
+    assert "\n    permissions: write-all\n" in yaml_str
+    # A mapping would put the key alone on its line and the scopes beneath it.
+    assert "permissions:\n" not in yaml_str
+    assert "'read-all'" not in yaml_str
+    assert '"write-all"' not in yaml_str
+
+    data = validate_and_roundtrip(yaml_str, workflow_schema)
+    assert data["permissions"] == "read-all"
+    assert data["jobs"]["test"]["permissions"] == "write-all"
+
+
+def test_dispatch_input_defaults_span_the_schema_union(workflow_schema: dict[str, Any]):
+    """Divergence 3: `default` is not string-only, and an int stays an int.
+
+    Python is the port that had to widen here, and its union is spelled
+    ``str | bool | int | float`` rather than ``str | bool | float`` precisely
+    so that an integer default survives as ``3``. Pydantic's smart union would
+    otherwise coerce it to ``3.0``, which emits as ``3.0`` -- a different
+    document, and one the schema still accepts, so only a byte-level check
+    catches it.
+    """
+    wf = Workflow(
+        name="Defaults",
+        on=On(
+            workflow_dispatch=WorkflowDispatchTrigger(
+                inputs={
+                    "flag": WorkflowDispatchInput(type="boolean", default=True),
+                    "count": WorkflowDispatchInput(type="number", default=3),
+                    "ratio": WorkflowDispatchInput(type="number", default=3.5),
+                    "label": WorkflowDispatchInput(type="string", default="a-string"),
+                },
+            ),
+        ),
+        jobs={
+            "test": Job(
+                runs_on="ubuntu-latest",
+                steps=[Step(uses="actions/checkout@v4")],
+            ),
+        },
+    )
+
+    yaml_str = wf.to_yaml(header=None)
+
+    assert "default: true\n" in yaml_str
+    assert "default: 3\n" in yaml_str
+    assert "default: 3.5\n" in yaml_str
+    assert "default: a-string\n" in yaml_str
+    assert "default: 3.0\n" not in yaml_str
+
+    data = validate_and_roundtrip(yaml_str, workflow_schema)
+    inputs = data["on"]["workflow_dispatch"]["inputs"]
+    assert inputs["flag"]["default"] is True
+    assert inputs["count"]["default"] == 3
+    assert isinstance(inputs["count"]["default"], int)
+    assert inputs["ratio"]["default"] == 3.5
+    assert inputs["label"]["default"] == "a-string"

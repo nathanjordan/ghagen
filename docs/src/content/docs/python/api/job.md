@@ -22,25 +22,25 @@ job = Job(
 
 ### Parameters
 
-| Parameter           | Type                                   | Default | Description                                                                                      |
-| ------------------- | -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `name`              | `str \| None`                          | `None`  | Display name for the job.                                                                        |
-| `runs_on`           | `str \| list[str] \| Raw[str] \| None` | `None`  | Runner label(s) for this job (e.g., `"ubuntu-latest"`). Serialized as `runs-on`.                 |
-| `needs`             | `str \| list[str] \| None`             | `None`  | Job ID(s) that must complete before this job runs.                                               |
-| `if_`               | `str \| None`                          | `None`  | Conditional expression that must evaluate to true for this job to run. Serialized as `if`.       |
-| `permissions`       | `Permissions \| None`                  | `None`  | Token permissions for this job. See [Permissions](/python/api/permissions/).                     |
-| `environment`       | `str \| Environment \| None`           | `None`  | Deployment environment. Can be a string (name only) or an `Environment` object.                  |
-| `strategy`          | `Strategy \| None`                     | `None`  | Matrix strategy configuration. See [Strategy](#strategy).                                        |
-| `env`               | `dict[str, str] \| None`               | `None`  | Environment variables for all steps in this job.                                                 |
-| `defaults`          | `Defaults \| None`                     | `None`  | Default settings for `run` steps. See [Workflow - Defaults](/python/api/workflow/#defaults).     |
-| `steps`             | `list[Step] \| None`                   | `None`  | Steps to run. See [Step](/python/api/step/).                                                     |
-| `outputs`           | `dict[str, str] \| None`               | `None`  | Job outputs, accessible by downstream jobs. Values are strings.                                  |
-| `timeout_minutes`   | `int \| None`                          | `None`  | Maximum minutes the job can run before being cancelled. Serialized as `timeout-minutes`.         |
-| `continue_on_error` | `bool \| str \| None`                  | `None`  | Allow the workflow to continue when this job fails. Serialized as `continue-on-error`.           |
-| `concurrency`       | `str \| Concurrency \| None`           | `None`  | Concurrency group for this job. See [Workflow - Concurrency](/python/api/workflow/#concurrency). |
-| `services`          | `dict[str, Service \| str] \| None`    | `None`  | Service containers for the job. Values can be `Service` objects or image strings.                |
-| `container`         | `Container \| str \| None`             | `None`  | Container to run the job in. Can be a `Container` object or an image string.                     |
-| `snapshot`          | `str \| ImageSnapshot \| None`         | `None`  | Custom runner-image request. A `str` is the image name; an `ImageSnapshot` adds a version.       |
+| Parameter           | Type                                   | Default | Description                                                                                                                                                                                             |
+| ------------------- | -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | `str \| None`                          | `None`  | Display name for the job.                                                                                                                                                                               |
+| `runs_on`           | `str \| list[str] \| Raw[str] \| None` | `None`  | Runner label(s) for this job (e.g., `"ubuntu-latest"`). Serialized as `runs-on`.                                                                                                                        |
+| `needs`             | `str \| list[str] \| None`             | `None`  | Job ID(s) that must complete before this job runs.                                                                                                                                                      |
+| `if_`               | `str \| None`                          | `None`  | Conditional expression that must evaluate to true for this job to run. Serialized as `if`.                                                                                                              |
+| `permissions`       | `PermissionsValue \| None`             | `None`  | Token permissions for this job. A `Permissions`, the `"read-all"` / `"write-all"` shorthand, or a `Raw[str]` — the same union as the workflow-level field. See [Permissions](/python/api/permissions/). |
+| `environment`       | `str \| Environment \| None`           | `None`  | Deployment environment. Can be a string (name only) or an `Environment` object.                                                                                                                         |
+| `strategy`          | `Strategy \| None`                     | `None`  | Matrix strategy configuration. See [Strategy](#strategy).                                                                                                                                               |
+| `env`               | `dict[str, str] \| None`               | `None`  | Environment variables for all steps in this job.                                                                                                                                                        |
+| `defaults`          | `Defaults \| None`                     | `None`  | Default settings for `run` steps. See [Workflow - Defaults](/python/api/workflow/#defaults).                                                                                                            |
+| `steps`             | `list[Step] \| None`                   | `None`  | Steps to run. See [Step](/python/api/step/).                                                                                                                                                            |
+| `outputs`           | `dict[str, str] \| None`               | `None`  | Job outputs, accessible by downstream jobs. Values are strings.                                                                                                                                         |
+| `timeout_minutes`   | `int \| None`                          | `None`  | Maximum minutes the job can run before being cancelled. Serialized as `timeout-minutes`.                                                                                                                |
+| `continue_on_error` | `bool \| str \| None`                  | `None`  | Allow the workflow to continue when this job fails. Serialized as `continue-on-error`.                                                                                                                  |
+| `concurrency`       | `str \| Concurrency \| None`           | `None`  | Concurrency group for this job. See [Workflow - Concurrency](/python/api/workflow/#concurrency).                                                                                                        |
+| `services`          | `dict[str, Service \| str] \| None`    | `None`  | Service containers for the job. Values can be `Service` objects or image strings.                                                                                                                       |
+| `container`         | `Container \| str \| None`             | `None`  | Container to run the job in. Can be a `Container` object or an image string.                                                                                                                            |
+| `snapshot`          | `str \| ImageSnapshot \| None`         | `None`  | Custom runner-image request. A `str` is the image name; an `ImageSnapshot` adds a version.                                                                                                              |
 
 #### Reusable workflow fields
 

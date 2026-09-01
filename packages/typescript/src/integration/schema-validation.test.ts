@@ -220,3 +220,68 @@ describe("action schema validation", () => {
     expect(() => validateActionYaml(actionYaml(a))).not.toThrow();
   });
 });
+
+describe("published input unions reach the file intact", () => {
+  it("emits the blanket permissions shorthand as a bare scalar at both levels", () => {
+    // Peer of the Python test of the same name. Divergence 2 of issue 27 ran
+    // the other way here -- TypeScript already accepted the shorthand on a
+    // job -- so this port's job is to hold the emission contract the Python
+    // widening had to be measured against: an unquoted scalar on the key's
+    // own line, never a one-key mapping.
+    const w = workflow({
+      name: "Blanket",
+      on: { push: { branches: ["main"] } },
+      permissions: "read-all",
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          permissions: "write-all",
+          steps: [step({ uses: "actions/checkout@v4" })],
+        }),
+      },
+    });
+
+    const text = workflowYaml(w);
+    expect(text).toContain("\npermissions: read-all\n");
+    expect(text).toContain("\n    permissions: write-all\n");
+    // A mapping would leave the key alone on its line, scopes beneath it.
+    expect(text).not.toContain("permissions:\n");
+    expect(text).not.toContain("'read-all'");
+    expect(text).not.toContain('"write-all"');
+    expect(() => validateWorkflowYaml(text)).not.toThrow();
+  });
+
+  it("emits workflow_dispatch input defaults across the whole type union", () => {
+    // Divergence 3: `default` is `string | boolean | number` here and was
+    // `str | None` in Python. This is the emission side of the union both
+    // ports now declare -- and the reason Python spells `int` alongside
+    // `float`, since `3.0` would be a different document.
+    const w = workflow({
+      name: "Defaults",
+      on: {
+        workflowDispatch: {
+          inputs: {
+            flag: { type: "boolean", default: true },
+            count: { type: "number", default: 3 },
+            ratio: { type: "number", default: 3.5 },
+            label: { type: "string", default: "a-string" },
+          },
+        },
+      },
+      jobs: {
+        test: job({
+          runsOn: "ubuntu-latest",
+          steps: [step({ uses: "actions/checkout@v4" })],
+        }),
+      },
+    });
+
+    const text = workflowYaml(w);
+    expect(text).toContain("default: true\n");
+    expect(text).toContain("default: 3\n");
+    expect(text).toContain("default: 3.5\n");
+    expect(text).toContain("default: a-string\n");
+    expect(text).not.toContain("default: 3.0\n");
+    expect(() => validateWorkflowYaml(text)).not.toThrow();
+  });
+});

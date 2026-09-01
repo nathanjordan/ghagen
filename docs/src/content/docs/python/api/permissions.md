@@ -57,22 +57,37 @@ from ghagen.models.common import PermissionLevel
 
 ## PermissionsValue
 
-A type alias used for the `Workflow.permissions` field, which accepts multiple forms:
+The type of **both** `Workflow.permissions` and `Job.permissions`. The canonical
+schema gives the two fields one `$ref` to the same node, so ghagen gives them one
+alias:
 
 ```python
-PermissionsValue = Permissions | Literal["read-all", "write-all"] | Raw[str] | dict[str, str]
+from ghagen import PermissionsValue
+
+PermissionsValue = OrRaw[Permissions | Literal["read-all", "write-all"] | Raw[str]]
 ```
 
-This allows setting permissions as:
+That admits:
 
-- A `Permissions` object for fine-grained control
-- `"read-all"` or `"write-all"` for blanket permissions
-- A `Raw[str]` for arbitrary string values
-- A plain `dict[str, str]` for quick inline definitions
+- a `Permissions` object, for fine-grained control;
+- `"read-all"` or `"write-all"` — the blanket shorthand, a closed two-member set;
+- a `Raw[str]` to emit a string the closed set does not contain;
+- a `CommentedMap` (the `OrRaw` arm), the standard escape hatch for a
+  hand-assembled mapping with comments attached.
 
-## Workflow-level shorthand
+A plain `dict[str, str]` is **not** accepted; build a `Permissions`, or reach for
+`raw()` / a `CommentedMap` if you need something the model cannot express. The
+accepted and rejected values are pinned for both ports by the `job.permissions` and
+`workflow.permissions` rows of `schema/conformance-inputs.yml`.
 
-At the workflow level, you can pass a string shorthand instead of a full `Permissions` object:
+The TypeScript peer is `PermissionsValue` in `models/permissions.ts`, exported from
+the package root.
+
+## String shorthand
+
+Anywhere `permissions` is accepted — on the workflow and on a job alike — you can pass the
+string shorthand instead of a full `Permissions` object. It emits as a bare scalar
+(`permissions: read-all`), never as a mapping:
 
 ```python
 from ghagen import Workflow
@@ -90,4 +105,7 @@ workflow = Workflow(
     permissions=Permissions(contents=PermissionLevel.READ),
     # ...
 )
+
+# Same union on a job
+job = Job(runs_on="ubuntu-latest", permissions="write-all", steps=[...])
 ```

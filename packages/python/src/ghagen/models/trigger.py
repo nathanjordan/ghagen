@@ -162,7 +162,16 @@ class WorkflowDispatchInput(GhagenModel):
 
     description: str | None = None
     required: bool | None = None
-    default: str | None = None
+    # `str | bool | int | float`, not `str`: the Snapshot leaves this property
+    # untyped and constrains it from the `allOf`/`if`/`then` block instead —
+    # `type: string`/`environment` -> a string default, `type: boolean` -> a
+    # boolean one, `type: number` -> a number. The *unconditional* union is
+    # therefore the union of those branches. `int` is spelled out alongside
+    # `float` so an integer default emits as `3`, not `3.0`. The conditional
+    # itself is not enforced (see the `constraints` section of
+    # schema/conformance-gaps.yml); the union is bound to the Snapshot by
+    # schema/conformance-inputs.yml.
+    default: str | bool | int | float | None = None
     # The canonical Snapshot's five-member enum for this event, matching the
     # TypeScript port's union. `workflow_call` has a *narrower* set (below);
     # widening either to the other would manufacture a divergence from the
@@ -193,7 +202,11 @@ class WorkflowCallInput(GhagenModel):
 
     description: str | None = None
     required: bool | None = None
-    default: str | None = None
+    # The Snapshot types this one directly — `type: [boolean, number, string]`
+    # — rather than through the `workflow_dispatch` conditional. Same union
+    # either way; `int` is spelled out alongside `float` so an integer default
+    # emits as `3`, not `3.0`. Bound by schema/conformance-inputs.yml.
+    default: str | bool | int | float | None = None
     # Three members, not five: the Snapshot gives `workflow_call` a narrower
     # enum than `workflow_dispatch`, and marks it `"required"` — both of which
     # the TypeScript port already declared.

@@ -51,6 +51,31 @@ export interface PermissionsInput {
   statuses?: PermissionLevel | Raw<string>;
 }
 
+/**
+ * Everything a `permissions:` key accepts, at either level.
+ *
+ * The canonical Snapshot defines `permissions` once (`definitions.permissions`)
+ * as a two-way `oneOf` — the blanket enum `"read-all"` / `"write-all"`, or the
+ * per-scope `permissions-event` object — and both `WorkflowInput.permissions`
+ * and `JobInput.permissions` are a bare `$ref` to it. One schema node, one
+ * alias: writing the union out at each use site is how the two ports drifted
+ * apart in the first place (issue 27 — Python's `Job` was missing the string
+ * shorthand, and the API reference published this alias under this name while
+ * neither port defined it).
+ *
+ * `Raw<string>` is the hatch for a blanket keyword GitHub ships before ghagen
+ * models it. Bound to the Snapshot, with accept/reject vectors, by
+ * `schema/conformance-inputs.yml` under `job.permissions` and
+ * `workflow.permissions`. The Python peer is `PermissionsValue` in
+ * `models/permissions.py`.
+ */
+export type PermissionsValue =
+  | PermissionsModel
+  | PermissionsInput
+  | "read-all"
+  | "write-all"
+  | Raw<string>;
+
 /** Serialization spec for {@link PermissionsModel}. */
 export const PERMISSIONS_SPEC: ModelSpec = {
   kind: "permissions",
