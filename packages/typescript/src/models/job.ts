@@ -130,6 +130,16 @@ export interface ConcurrencyInput {
   group: string;
   /** Whether to cancel in-progress runs when a new run is queued. Serialized as `cancel-in-progress`. */
   cancelInProgress?: boolean;
+  /**
+   * How pending runs queue within the group. Upstream enumerates `"single"`
+   * (the default) and `"max"`; `Raw<string>` is the hatch for a mode GitHub
+   * ships before ghagen models it. GitHub also forbids `queue: "max"`
+   * together with `cancelInProgress: true`, but the Snapshot states that
+   * only in prose -- it is not a schema rule, so it is not a `constraints`
+   * row either (those record rules the Snapshot enforces and the ports do
+   * not).
+   */
+  queue?: "single" | "max" | Raw<string>;
 }
 
 /** Serialization spec for {@link ConcurrencyModel}. */
@@ -138,6 +148,7 @@ export const CONCURRENCY_SPEC: ModelSpec = {
   fieldMap: {
     group: "group",
     cancelInProgress: "cancel-in-progress",
+    queue: "queue",
   } satisfies Record<keyof ConcurrencyInput, keyof SchemaConcurrency>,
 };
 

@@ -79,6 +79,7 @@ const SPECS: Record<string, Record<string, ModelSpec>> = {
     // --- job sub-shapes ---
     permissions: SPECS_BY_KIND.permissions,
     container: SPECS_BY_KIND.container,
+    serviceContainer: SPECS_BY_KIND.service,
     strategy: SPECS_BY_KIND.strategy,
     concurrency: SPECS_BY_KIND.concurrency,
     defaults: SPECS_BY_KIND.defaults,
@@ -127,11 +128,22 @@ type Gaps = Record<string, Record<string, string[]>>;
  */
 const CONSTRAINTS_KEY = "constraints";
 
+/**
+ * Reserved top-level key in conformance-gaps.yml holding the gaps in the OTHER
+ * direction -- emitted keys the Snapshot does not declare for their scope (see
+ * "scope emits only declared keys"). Not a snapshot either, so the property-gap
+ * sweep and its key-set guard skip it too.
+ */
+const UNDECLARED_KEY = "undeclared";
+
+/** Every reserved (non-snapshot) top-level key in conformance-gaps.yml. */
+const RESERVED_KEYS: readonly string[] = [CONSTRAINTS_KEY, UNDECLARED_KEY];
+
 function loadSchema(filename: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(SCHEMA_DIR, filename), "utf8"));
 }
 
-/** The whole gaps document, `constraints` section included. */
+/** The whole gaps document, reserved sections included. */
 function loadGapsFile(): Record<string, unknown> {
   return parse(readFileSync(GAPS_PATH, "utf8")) as Record<string, unknown>;
 }
@@ -139,7 +151,14 @@ function loadGapsFile(): Record<string, unknown> {
 /** Only the per-snapshot property-gap sections. */
 function loadGaps(): Gaps {
   const doc = loadGapsFile();
-  return Object.fromEntries(Object.entries(doc).filter(([key]) => key !== CONSTRAINTS_KEY)) as Gaps;
+  return Object.fromEntries(
+    Object.entries(doc).filter(([key]) => !RESERVED_KEYS.includes(key)),
+  ) as Gaps;
+}
+
+/** The `undeclared` section: snapshot -> scope -> emitted-but-unbacked. */
+function loadUndeclared(): Gaps {
+  return loadGapsFile()[UNDECLARED_KEY] as Gaps;
 }
 
 function resolvePath(schema: Record<string, unknown>, path: SchemaPath): Record<string, unknown> {
@@ -258,6 +277,84 @@ describe("schema conformance sweep", () => {
         Object.keys(scopes).sort(),
         `${key} scope keys in conformance-gaps.yml diverge from the sweep`,
       ).toEqual(Object.keys(gaps[key] ?? {}).sort());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The sweep in the other direction: model keys must be DECLARED upstream.
+//
+// The sweep above asserts upstream <= model -- every property the Snapshot
+// declares is emitted by some model, or allow-listed. It says nothing about the
+// reverse. This port has a compile-time answer to the reverse for SOME specs:
+// `satisfies Record<keyof StepInput, keyof SchemaStep>` binds each emitted key
+// to a property name the generated type declares, so a typo is TS2322 and an
+// upstream rename is TS2724 -- which is exactly how the 2026-09-01 refresh's
+// `definitions.container` -> `jobContainer`/`serviceContainer` split surfaced.
+// But there are seven such clauses, covering eight of this sweep's twenty-nine
+// scopes, and Python (whose `yaml_keys` values are free strings, ADR-0003 having deleted
+// the generated models) had no peer for any of them: `"shell": "shel"` passed
+// every check in the family while ghagen emitted a workflow the platform
+// refuses. This is the peer, for every scope, in both ports. Mirrored by the
+// Python sweep (`test_scope_emits_only_declared_keys`).
+// ---------------------------------------------------------------------------
+
+describe("undeclared-key sweep", () => {
+  const undeclared = loadUndeclared();
+
+  for (const [snapshot, scopes] of Object.entries(SWEEP)) {
+    const snapshotKey = snapshot.replace(/\.json$/, "");
+    const schema = loadSchema(snapshot);
+
+    for (const [scopeName, s] of Object.entries(scopes)) {
+      it(`${snapshot}:${scopeName} scope emits only declared keys`, () => {
+        const props = schemaProperties(schema, s);
+        const emitted = modelPropertyNames(s.spec);
+        const allow = new Set(undeclared[snapshotKey]?.[scopeName] ?? []);
+
+        const invented = [...emitted].filter((k) => !props.has(k) && !allow.has(k)).sort();
+        expect(
+          invented,
+          `${snapshot}:${scopeName} spec emits keys the Snapshot does not declare for ` +
+            `this scope: ${JSON.stringify(invented)}. Fix the fieldMap, or record them ` +
+            `under \`undeclared\` in conformance-gaps.yml with the reason they are ` +
+            `emitted anyway.`,
+        ).toEqual([]);
+
+        // Claim 1: the row is still needed -- the model still emits this key.
+        const closed = [...allow].filter((a) => !emitted.has(a)).sort();
+        expect(
+          closed,
+          `${snapshot}:${scopeName} \`undeclared\` names ${JSON.stringify(closed)} that ` +
+            `the spec no longer emits. Remove them from conformance-gaps.yml.`,
+        ).toEqual([]);
+
+        // Claim 2: the key is still un-upstream. The day the Snapshot declares
+        // it, the exception has become ordinary coverage and the row must go.
+        const backed = [...allow].filter((a) => props.has(a)).sort();
+        expect(
+          backed,
+          `${snapshot}:${scopeName} \`undeclared\` names ${JSON.stringify(backed)} that ` +
+            `the Snapshot now declares -- the exception is no longer one. Remove them ` +
+            `from conformance-gaps.yml.`,
+        ).toEqual([]);
+      });
+    }
+  }
+
+  it("undeclared set matches the sweep", () => {
+    // Claim 3, and the peer of "gap set matches the sweep": the test above
+    // reads `undeclared[snapshotKey]?.[scopeName] ?? []`, so a garbled key
+    // would read as "no exceptions recorded" -- which is this section's entire
+    // current content, and therefore invisible.
+    const sweepKeys = Object.keys(SWEEP).map((snapshot) => snapshot.replace(/\.json$/, ""));
+    expect(sweepKeys.sort()).toEqual(Object.keys(undeclared).sort());
+    for (const [snapshot, scopes] of Object.entries(SWEEP)) {
+      const key = snapshot.replace(/\.json$/, "");
+      expect(
+        Object.keys(scopes).sort(),
+        `${key} scope keys under \`undeclared\` in conformance-gaps.yml diverge from the sweep`,
+      ).toEqual(Object.keys(undeclared[key] ?? {}).sort());
     }
   });
 });

@@ -1,4 +1,7 @@
-import type { Container as SchemaContainer } from "../schema/workflow-types.generated.js";
+import type {
+  JobContainer as SchemaJobContainer,
+  ServiceContainer as SchemaServiceContainer,
+} from "../schema/workflow-types.generated.js";
 import { defineFactory } from "./_base.js";
 import type { ModelSpec, ContainerModel, ServiceModel } from "./_base.js";
 
@@ -23,6 +26,18 @@ export interface ContainerInput {
   options?: string;
 }
 
+/**
+ * The six keys both container shapes emit, bound to both upstream nodes.
+ *
+ * Upstream used to declare one `definitions.container` for the job-level
+ * container and every service container alike; it now declares two --
+ * `jobContainer` (these six keys) and `serviceContainer` (these six plus
+ * `command` and `entrypoint`). One field map still serves both models, and
+ * `keyof SchemaJobContainer & keyof SchemaServiceContainer` is the statement of
+ * exactly why: these are the keys BOTH nodes declare. Adding a key only one of
+ * them has (`entrypoint`, say) stops compiling here, which is where a
+ * service-only field has to stop being shared.
+ */
 const CONTAINER_FIELD_MAP = {
   image: "image",
   credentials: "credentials",
@@ -30,7 +45,7 @@ const CONTAINER_FIELD_MAP = {
   ports: "ports",
   volumes: "volumes",
   options: "options",
-} satisfies Record<keyof ContainerInput, keyof SchemaContainer>;
+} satisfies Record<keyof ContainerInput, keyof SchemaJobContainer & keyof SchemaServiceContainer>;
 
 /**
  * Serialization spec for {@link ContainerModel}.

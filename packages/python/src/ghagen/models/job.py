@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field
 
@@ -31,7 +31,11 @@ ENVIRONMENT_SPEC = ModelSpec(
 )
 
 CONCURRENCY_SPEC = ModelSpec(
-    yaml_keys={"group": "group", "cancel_in_progress": "cancel-in-progress"},
+    yaml_keys={
+        "group": "group",
+        "cancel_in_progress": "cancel-in-progress",
+        "queue": "queue",
+    },
 )
 
 DEFAULTS_SPEC = ModelSpec(yaml_keys={"run": "run"})
@@ -118,6 +122,14 @@ class Concurrency(GhagenModel):
 
     group: str
     cancel_in_progress: bool | None = None
+    #: How pending runs queue within the group. Upstream enumerates
+    #: ``single`` (default) and ``max``; ``Raw[str]`` is the hatch for a
+    #: mode GitHub ships before ghagen models it. GitHub also forbids
+    #: ``queue: max`` together with ``cancel-in-progress: true``, but the
+    #: Snapshot states that only in prose -- it is not a schema rule, so it
+    #: is not a ``constraints`` row either (those record rules the Snapshot
+    #: enforces and the ports do not).
+    queue: Literal["single", "max"] | Raw[str] | None = None
 
 
 class Defaults(GhagenModel):
