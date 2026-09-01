@@ -73,13 +73,18 @@ declares", never more:
 | ---------------------- | --------------------- | ------- |
 | `scripts/lint.sh`      | `py ts docs meta all` | yes     |
 | `scripts/fmt.sh`       | `py ts docs all`      | yes     |
-| `scripts/typecheck.sh` | `py ts all`           | no      |
+| `scripts/typecheck.sh` | `py ts docs all`      | no      |
 | `scripts/test.sh`      | `py ts all`           | no      |
 
 - `py` / `ts` / `docs` each name **one** toolchain root: `packages/python/`,
   `packages/typescript/`, `docs/`. The `py` scope also covers `scripts/ghagen_schema/` -- dev
   tooling (ADR-0003), not shipped package code, but still Python source that `ruff`/`pyright` must
   see (see docs/issues/17). `scripts/lint.sh py` needs no Node at all.
+- `scripts/typecheck.sh docs` runs `npm run build` in `docs/` (`astro build`, which drives
+  TypeDoc over `packages/typescript/src/_docs-api-*.ts`). There is no separate "check without
+  building" step for the docs site, so the build **is** its type check, and it needs
+  `packages/typescript/` installed too — TypeDoc documents that package. CI's `docs` job runs the
+  same build as its PR-time gate.
 - `meta` is the language-neutral scope: `uv run ghagen deps check-synced` plus the ADR-0003 schema
   staleness guard (`python -m ghagen_schema check`). Run it through `scripts/lint.sh meta` rather
   than open-coding either command; CI does the same. It is read-only — it leaves the working tree
@@ -92,8 +97,8 @@ declares", never more:
 The documentation site is an [Astro Starlight](https://starlight.astro.build/) project in `docs/`.
 
 ```sh
-scripts/docs-dev.sh # serve docs locally (http://localhost:4321/ghagen/)
-cd docs && npm run build # production build (also regenerates TypeScript API docs)
+scripts/docs-dev.sh      # serve docs locally (http://localhost:4321/ghagen/)
+scripts/typecheck.sh docs # production build (also regenerates TypeScript API docs); the gate CI runs
 ```
 
 ## Agent skills

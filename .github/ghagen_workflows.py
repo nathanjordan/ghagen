@@ -64,16 +64,24 @@ def _ci_workflow() -> Workflow:
             # separate scope and a separate job: lint-ts no longer installs an Astro
             # site to run oxlint, and docs linting runs in parallel instead of
             # serially inside it.
-            "lint-docs": Job(
-                name="Lint (docs)",
+            #
+            # This job also builds the docs site (astro + starlight-typedoc), not just
+            # lints it. The build is the gate that actually catches `_docs-api-*.ts`
+            # TypeDoc entry-point drift; lint/fmt alone do not touch TypeDoc at all.
+            # That needs `packages/typescript/` installed too, since TypeDoc documents
+            # that package.
+            "docs": Job(
+                name="Docs",
                 runs_on="ubuntu-latest",
-                timeout_minutes=10,
+                timeout_minutes=20,
                 steps=[
                     Step(name="Checkout", uses="actions/checkout@v6"),
                     Step(name="Setup Node.js", uses="actions/setup-node@v6", with_={"node-version": "24"}),
+                    Step(name="Install TS deps", run="npm ci", working_directory="packages/typescript"),
                     Step(name="Install docs deps", run="npm ci", working_directory="docs"),
                     Step(name="Lint", run="scripts/lint.sh docs"),
                     Step(name="Format check", run="scripts/fmt.sh docs"),
+                    Step(name="Build docs", run="npm run build", working_directory="docs"),
                 ],
             ),
             "lint-meta": Job(
