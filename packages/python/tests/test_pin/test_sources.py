@@ -171,6 +171,58 @@ class TestTrackUserFiles:
         finally:
             sys.path.remove(parent)
 
+    def test_sys_path_entry_is_removed_even_if_something_shifts_it(
+        self, tmp_path: Path
+    ):
+        """Regression (issue 28 #2): cleanup must not depend on index 0.
+
+        If anything executed during ``resolve_app`` — the user's own config
+        module, most plausibly — inserts its own entry at ``sys.path[0]``,
+        the tracked entry this call inserted is pushed to a later index. A
+        position-based guard (``sys.path[0] == parent``) then finds a
+        different value at index 0 and silently declines to clean up,
+        leaking the entry for the life of the process. Removal must be by
+        identity, not position.
+        """
+        other = tmp_path / "other"
+        other.mkdir()
+
+        config = tmp_path / "shifting_cfg.py"
+        config.write_text(
+            "import sys\n"
+            f"sys.path.insert(0, {str(other)!r})\n"
+            "from ghagen.app import App\n"
+            "app = App(lockfile=None)\n"
+        )
+
+        parent = str(tmp_path.resolve())
+        before = list(sys.path)
+        assert parent not in before
+
+        leaked = True  # pessimistic default in case track_user_files raises
+        try:
+            track_user_files(config)
+            # Captured *before* any cleanup below — the whole point of this
+            # test is to observe whether ``track_user_files`` itself removed
+            # the entry, not to clean it up ourselves and then check.
+            leaked = parent in sys.path
+        finally:
+            # Defensive cleanup so this test never pollutes later tests'
+            # sys.path, run only *after* `leaked` above was captured. This is
+            # exactly the fragility issue 28 calls out; the assertion below,
+            # not this cleanup, is what actually proves the fix.
+            sys.modules.pop("ghagen_config", None)
+            if str(other) in sys.path:
+                sys.path.remove(str(other))
+            if parent in sys.path:
+                sys.path.remove(parent)
+
+        assert not leaked, (
+            "sys.path leaked the config's parent directory: something else "
+            "inserted ahead of it at index 0 during import, and cleanup did "
+            "not follow"
+        )
+
     def test_excludes_ghagen_internals(self, tmp_path: Path):
         """Modules from the ghagen package itself should not appear."""
         config = tmp_path / "my_config.py"

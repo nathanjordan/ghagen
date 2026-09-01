@@ -70,11 +70,17 @@ def track_user_files(config_path: Path) -> tuple[App, set[Path]]:
         spec.loader.exec_module(module)
         app, error = resolve_app(module, config_path)
     finally:
-        # Remove by index after checking identity, and only if this call did
-        # the inserting: a config that inserts its own copy of the same string
-        # during import must not be silently robbed of it.
-        if inserted and sys.path and sys.path[0] == parent:
-            del sys.path[0]
+        # Remove by identity, not position, and only if this call did the
+        # inserting: anything executed during `resolve_app` -- the user's own
+        # config module, most plausibly -- may itself push something onto
+        # `sys.path[0]`, in which case the entry this function inserted is no
+        # longer at index 0 and a position-based guard silently declines to
+        # clean up, leaking it for the life of the process. `list.remove`
+        # deletes the first matching entry regardless of where it now sits;
+        # if a config inserts its own copy of the same string, that copy is
+        # the second occurrence and survives untouched.
+        if inserted and parent in sys.path:
+            sys.path.remove(parent)
     after = set(sys.modules.keys())
 
     if error is not None:
