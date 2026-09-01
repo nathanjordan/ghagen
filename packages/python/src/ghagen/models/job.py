@@ -148,12 +148,12 @@ class Job(GhagenModel):
 
     name: str | None = None
     runs_on: str | list[str] | Raw[str] | Raw[list[str]] | None = Field(
-        None,
+        default=None,
         description="Runner label(s) for this job.",
     )
     needs: str | list[str] | None = None
     if_: str | None = Field(
-        None,
+        default=None,
         description="Conditional expression that must evaluate "
         "to true for this job to run.",
     )
@@ -165,18 +165,18 @@ class Job(GhagenModel):
     steps: list[OrRaw[Step]] | None = None
     outputs: dict[str, OrRaw[str]] | None = None
     timeout_minutes: int | None = Field(
-        None,
+        default=None,
         description="Maximum minutes the job can run before being cancelled.",
     )
     continue_on_error: bool | str | None = Field(
-        None,
+        default=None,
         description="Allow the workflow to continue when this job fails.",
     )
     concurrency: OrRaw[str | Concurrency] | None = None
     services: dict[str, OrRaw[Service | str]] | None = None
     container: OrRaw[Container | str] | None = None
     snapshot: OrRaw[str | ImageSnapshot] | None = Field(
-        None,
+        default=None,
         description="Custom runner-image generation request. A string is the "
         "image name (string syntax); an ImageSnapshot adds an optional version "
         "(mapping syntax).",

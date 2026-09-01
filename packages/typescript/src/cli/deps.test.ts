@@ -230,17 +230,23 @@ describe("deps upgrade --format json key set", () => {
 // -- deps update -------------------------------------------------------------
 
 /**
- * The field set `--format github` and `--format json` both carry, shared with
- * the Python suite through `schema/update-plan-fields.yml` — see
- * docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
+ * The field *sequence* `--format github` and `--format json` both carry,
+ * shared with the Python suite through `schema/update-plan-fields.yml` — see
+ * docs/issues/21-update-plan-is-not-under-the-shared-oracle.md and
+ * docs/issues/33-update-plan-gaps-stranded-in-a-closed-issue.md.
+ *
+ * Compared as a sequence, and deliberately no longer `.sort()`ed: order is
+ * observable output — the line order of the `$GITHUB_OUTPUT` block and the key
+ * order of the JSON document — and a sorted comparison cannot see two ports
+ * that emit the same ten fields in two different orders. The per-field type
+ * and encoding axes of the same table are driven from `src/pin/plan.test.ts`,
+ * where both `action` values are constructible offline.
  */
 const PLAN_FIELDS: string[] = (
   parseYaml(readFileSync(resolve(SCHEMA_DIR, "update-plan-fields.yml"), "utf8")) as {
-    keys: string[];
+    fields: { name: string }[];
   }
-).keys
-  .slice()
-  .sort();
+).fields.map((field) => field.name);
 
 /** Parse `--format github` back into the mapping a runner would build. */
 function githubOutputs(stdout: string): Record<string, string> {
@@ -378,7 +384,7 @@ describe("deps update", () => {
     err.restore();
 
     const outputs = githubOutputs(out.text());
-    expect(Object.keys(outputs).sort()).toEqual(PLAN_FIELDS);
+    expect(Object.keys(outputs)).toEqual(PLAN_FIELDS);
     expect(outputs["action"]).toBe("create-pr");
     expect(outputs["total_updates"]).toBe("1");
     expect(outputs["refresh_lockfile"]).toBe("false");
@@ -436,8 +442,8 @@ describe("deps update", () => {
     await depsUpdate({ ...UPDATE_DEFAULTS, dryRun: true, format: "github" });
     asGithub.restore();
 
-    expect(Object.keys(JSON.parse(asJson.text())).sort()).toEqual(PLAN_FIELDS);
-    expect(Object.keys(githubOutputs(asGithub.text())).sort()).toEqual(PLAN_FIELDS);
+    expect(Object.keys(JSON.parse(asJson.text()))).toEqual(PLAN_FIELDS);
+    expect(Object.keys(githubOutputs(asGithub.text()))).toEqual(PLAN_FIELDS);
   });
 
   test("--dry-run asks the engine not to apply", async () => {

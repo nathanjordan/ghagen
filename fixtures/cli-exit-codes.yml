@@ -78,3 +78,39 @@
   argv: ["synth"]
   project: config-raises
   exit: 1
+# `deps update`'s own flag validation. `bad-format-value` and `bad-mode-value`
+# above only cover `deps upgrade`; `deps update` validates a different and
+# larger set (`--mode`, `--output`, `--format`) in its own hand-written
+# `if`-ladder, and every one of those checks was asserted only inside each
+# port's own test file. A port that dropped a check, or answered 1 instead of
+# 2, drifted silently. See docs/issues/33.
+#
+# Every row below runs in an empty directory and still reaches its check,
+# which is itself part of the contract: `deps update` validates its flags
+# *before* config discovery, so a bad flag is a usage error (2) and never
+# gets downgraded to "no config file found" (1).
+- id: bad-update-mode-value
+  argv: ["deps", "update", "--mode", "bogus"]
+  exit: 2
+- id: bad-update-output-value
+  argv: ["deps", "update", "--output", "bogus"]
+  exit: 2
+- id: bad-update-format-value
+  argv: ["deps", "update", "--format", "bogus"]
+  exit: 2
+# The three newline rejections. These are not cosmetic: each of these values
+# is a workflow-author-supplied action input that reaches `$GITHUB_OUTPUT` as
+# the right-hand side of a `key=value` line, so an embedded newline forges
+# additional outputs. Rejecting at the edge is what lets `render_update_plan`
+# / `renderUpdatePlan` stay single-line per field and skip the heredoc
+# delimiter machinery entirely -- which means a port that stopped rejecting
+# would not fail any rendering test, only this one.
+- id: newline-in-branch-prefix
+  argv: ["deps", "update", "--branch-prefix", "ghagen-update/\nname=forged"]
+  exit: 2
+- id: newline-in-commit-message-prefix
+  argv: ["deps", "update", "--commit-message-prefix", "chore:\nname=forged"]
+  exit: 2
+- id: newline-in-labels
+  argv: ["deps", "update", "--labels", "ci\nname=forged"]
+  exit: 2

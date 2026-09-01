@@ -517,12 +517,24 @@ ci = Workflow(
 app.add_workflow(ci, "ci.yml")
 """
 
-#: The field set `--format github` and `--format json` both carry, shared with
-#: the TypeScript suite through ``schema/update-plan-fields.yml`` --
-#: see docs/issues/21-update-plan-is-not-under-the-shared-oracle.md.
-_PLAN_FIELDS = set(
-    YAML(typ="safe").load((SCHEMA_DIR / "update-plan-fields.yml").read_text())["keys"]
-)
+#: The field *sequence* ``--format github`` and ``--format json`` both carry,
+#: shared with the TypeScript suite through ``schema/update-plan-fields.yml``
+#: -- see docs/issues/21-update-plan-is-not-under-the-shared-oracle.md and
+#: docs/issues/33-update-plan-gaps-stranded-in-a-closed-issue.md.
+#:
+#: A list, compared as a list, and deliberately not a ``set``: order is
+#: observable output -- the line order of the ``$GITHUB_OUTPUT`` block and the
+#: key order of the JSON document -- and a set comparison cannot see two ports
+#: that emit the same ten fields in two different orders. The per-field type
+#: and encoding axes of the same table are driven from
+#: ``tests/test_pin/test_plan.py``, where both ``action`` values are
+#: constructible offline.
+_PLAN_FIELDS = [
+    field["name"]
+    for field in YAML(typ="safe").load(
+        (SCHEMA_DIR / "update-plan-fields.yml").read_text()
+    )["fields"]
+]
 
 
 def _github_outputs(stdout: str) -> dict[str, str]:
@@ -598,7 +610,7 @@ class TestDepsUpdate:
 
         assert result.exit_code == 0, (result.stdout, result.stderr)
         outputs = _github_outputs(result.stdout)
-        assert set(outputs) == _PLAN_FIELDS
+        assert list(outputs) == _PLAN_FIELDS
         assert outputs["action"] == "create-pr"
         assert outputs["total_updates"] == "1"
         assert outputs["refresh_lockfile"] == "false"
@@ -629,8 +641,8 @@ class TestDepsUpdate:
 
         assert as_json.exit_code == 0, (as_json.stdout, as_json.stderr)
         assert as_github.exit_code == 0, (as_github.stdout, as_github.stderr)
-        assert set(json.loads(as_json.stdout)) == _PLAN_FIELDS
-        assert set(_github_outputs(as_github.stdout)) == _PLAN_FIELDS
+        assert list(json.loads(as_json.stdout)) == _PLAN_FIELDS
+        assert list(_github_outputs(as_github.stdout)) == _PLAN_FIELDS
 
     @patch("ghagen.pin.sources.track_user_files", side_effect=_mock_track_user_files)
     @patch("ghagen.pin.github.GitHubClient.list_tags", side_effect=_mock_list_tags)

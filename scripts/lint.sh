@@ -9,9 +9,9 @@ if [[ "$FIX" -eq 1 ]]; then NPM_LINT=lint:fix; else NPM_LINT=lint; fi
 if in_scope py; then
   step "Ruff check"
   if [[ "$FIX" -eq 1 ]]; then
-    uv run ruff check --fix packages/python/src/ packages/python/tests/ scripts/
+    uv run ruff check --fix "${PY_PATHS[@]}"
   else
-    uv run ruff check packages/python/src/ packages/python/tests/ scripts/
+    uv run ruff check "${PY_PATHS[@]}"
   fi
 
   # click 8.3+'s Result.output interleaves stdout and stderr in write order,

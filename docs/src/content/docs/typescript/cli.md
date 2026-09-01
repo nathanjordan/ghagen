@@ -265,6 +265,9 @@ report. Callers must read the plan rather than reconstruct it from
 An unknown `--mode`, `--output`, or `--format` value exits `2`, as does a
 newline in `--branch-prefix`, `--commit-message-prefix`, or `--labels` — under
 `--format github` a newline in a value would forge extra `$GITHUB_OUTPUT` keys.
+All six checks run before config discovery, so a bad flag stays a usage error
+rather than becoming "no config file found", and all six are rows in
+`fixtures/cli-exit-codes.yml` that both ports are driven against.
 
 ### The plan
 
@@ -273,8 +276,11 @@ Stdout carries the plan and nothing else, so `--format github` can be a bare
 formats carry the same ten fields, in the same order, under the same
 snake_case names — snake_case rather than the camelCase of the `UpdatePlan`
 interface, because the field names are a cross-port wire contract shared byte
-for byte with the Python port. The field set is declared once, in
-`schema/update-plan-fields.yml`, and pinned by both ports' suites.
+for byte with the Python port. The field table is declared once, in
+`schema/update-plan-fields.yml` — name, order, JSON type, and
+`$GITHUB_OUTPUT` encoding, one row per field — and pinned by both ports'
+suites, with `fixtures/expected/update_plan.json` and
+`fixtures/expected/update_plan_github.txt` binding one plan's bytes.
 
 | Field                 | Meaning                                                                                              |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -331,9 +337,30 @@ npx ghagen init
 ```bash
 # Create .github/ghagen.workflows.ts
 npx ghagen init
+```
 
-# Create in a custom directory
+The default lands in one of the auto-detected locations, so a bare `npx ghagen synth` finds it with
+no further setup.
+
+`--outdir` does not: it writes `<outdir>/ghagen.workflows.ts`, which is outside
+[the search paths](#config-file-resolution), so a bare `npx ghagen synth` afterwards exits `1` with
+`no config file found`. Point ghagen at the file — either per invocation with `--config`:
+
+```bash
 npx ghagen init --outdir workflows
+npx ghagen synth --config workflows/ghagen.workflows.ts
+```
+
+or once and for all, with the `entrypoint` key in `.ghagen.yml`:
+
+```yaml
+# .ghagen.yml
+entrypoint: workflows/ghagen.workflows.ts
+```
+
+```bash
+npx ghagen init --outdir workflows
+npx ghagen synth
 ```
 
 The generated file contains an `App` instance with a single CI workflow that checks out code and runs a placeholder test command.

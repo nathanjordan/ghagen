@@ -141,9 +141,9 @@ jobs:
       run: |-
         set -euo pipefail
         want='${{ matrix.python-version }}'
-        got="$(uv run python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+        got=$(uv run python -V | cut -d" " -f2 | cut -d. -f1,2)
         if [ "$got" != "$want" ]; then
-          echo "matrix says $want, uv ran $got -- the matrix is not enforced" >&2
+          echo "matrix says $want, uv ran $got -- not enforced" >&2
           exit 1
         fi
         echo "running Python $got"
