@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
@@ -378,5 +378,42 @@ describe("exported defineFactory bindings carry @function", () => {
       const block = preceding.slice(preceding.lastIndexOf("/**"));
       expect(block, `${name}: ${match[1]} is missing @function`).toContain("@function");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// production writes into an existing model's `data` bag
+// ---------------------------------------------------------------------------
+//
+// `Model` is intentionally not frozen (see the class doc above) so a
+// synthesis-time transform can rewrite a field on a `cloneModel` copy — but
+// that escape hatch has exactly one sanctioned user, `pin/sites.ts`'s
+// `UsesSite.replace`. `emitter/yaml-writer.ts` used to be a second, silent
+// one (docs/issues/11-second-write-into-model-data.md): `dedentSteps` cloned
+// a document, walked it, and wrote a dedented `run` back into the clone's
+// `data`. It was harmless — the key was already present, so neither port
+// reorders it on reassignment — but nothing held the count at one, so a
+// proposal reasoning about `data` mutability could count one site and miss
+// the other. `yaml-writer.ts` now dedents at read time instead, exactly as
+// `toData`'s `modelToData` already did (and as Python's `collect_fields` has
+// always done — "no model mutation, no copy", `emitter/nodes.py:108-110`),
+// so this sweeps every production `.ts` file and pins the count at exactly
+// the one write `pin/sites.ts` makes. A future site — sanctioned or not —
+// must update this test, not slip past it.
+describe("writes into an existing model's `data` bag", () => {
+  it("happen only in pin/sites.ts", () => {
+    const srcDir = fileURLToPath(new URL("../", import.meta.url));
+    const files = readdirSync(srcDir, { recursive: true })
+      .filter((entry): entry is string => typeof entry === "string")
+      .filter((entry) => entry.endsWith(".ts") && !entry.endsWith(".test.ts"));
+
+    // `model.data[key] = …` / `node.data[field] = …`, but not `==`, so an
+    // equality check on a `data` entry is not mistaken for a write.
+    const writePattern = /\.data\[[^\]]+\]\s*=[^=]/;
+    const sites = files
+      .filter((file) => writePattern.test(readFileSync(`${srcDir}${file}`, "utf8")))
+      .sort();
+
+    expect(sites).toEqual(["pin/sites.ts"]);
   });
 });

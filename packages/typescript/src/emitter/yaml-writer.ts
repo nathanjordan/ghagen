@@ -1,6 +1,5 @@
 import { Document, YAMLMap, YAMLSeq, Scalar, Pair } from "yaml";
 import {
-  cloneModel,
   isCommented,
   isRaw,
   Model,
@@ -34,24 +33,6 @@ export interface ToYamlOptions {
   autoDedent?: boolean;
 }
 
-/**
- * Return a deep clone of *model* with every step's `run` dedented.
- *
- * Dedent is a serialization-time normalization (ADR-0002): a step's `run`
- * holds the raw string until emit, so this pass walks the tree — steps nested
- * inside jobs *and* composite-action runs — and rewrites `run` on the clone,
- * leaving the caller's model untouched.
- */
-function dedentSteps(model: GhagenDocument): GhagenDocument {
-  const clone = cloneModel(model);
-  clone.walk((node) => {
-    if (node.kind === "step" && typeof node.data["run"] === "string") {
-      node.data["run"] = dedentScript(node.data["run"] as string);
-    }
-  });
-  return clone;
-}
-
 // ---- value → YAML node recursion (the emitter owns it end to end) ----
 //
 // The single home for turning any Model value into a `yaml` node. Recursion
@@ -65,19 +46,32 @@ function dedentSteps(model: GhagenDocument): GhagenDocument {
  * comment attachment, extras merging, and postProcess support. The emitter's
  * successor to the old `Model.toYamlMap` method.
  *
+ * `autoDedent` dedents a Step's `run` here, at read time, exactly where
+ * {@link modelToData} does it — no model mutation, no clone (ADR-0002; the
+ * peer of Python's `collect_fields`, `emitter/nodes.py:107-110`). Applied
+ * wherever a Step is encountered in the recursion, not gated on the document
+ * kind, so a step nested in a job, a composite action's `runs`, or `extras`
+ * dedents alike.
+ *
  * Module-private: the supported way to observe a model's emitted structure is
  * {@link toData}. `modelToYamlMap` builds `yaml` backend nodes for file
  * emission and is an internal of that path.
  */
-function modelToYamlMap(model: Model): YAMLMap {
+function modelToYamlMap(model: Model, autoDedent: boolean): YAMLMap {
   const map = new YAMLMap();
   const entries = orderedEntries(model);
   const presentNull = new Set(model.spec.presentNullWhenEmpty ?? []);
+  const isStep = model.kind === "step";
 
   // Emit each field, attaching any Commented-wrapper comment inline at the
   // point of emission (no collect-then-reattach two-pass). The comment module
   // owns the actual placement.
-  for (const [key, value] of entries) {
+  for (const [key, entryValue] of entries) {
+    const value =
+      autoDedent && isStep && key === "run" && typeof entryValue === "string"
+        ? dedentScript(entryValue)
+        : entryValue;
+
     // present-null-when-empty: an empty sub-map emits as a bare `key:` (null).
     if (presentNull.has(key) && isEmptyMapValue(value)) {
       const pair = new Pair(new Scalar(key), nullScalar());
@@ -89,11 +83,11 @@ function modelToYamlMap(model: Model): YAMLMap {
       continue;
     }
     if (isCommented(value)) {
-      const pair = new Pair(new Scalar(key), toYamlValue(unwrapCommented(value)));
+      const pair = new Pair(new Scalar(key), toYamlValue(unwrapCommented(value), autoDedent));
       map.items.push(pair);
       attachFieldComment(pair, value.comment, value.eolComment);
     } else {
-      map.items.push(new Pair(new Scalar(key), toYamlValue(value)));
+      map.items.push(new Pair(new Scalar(key), toYamlValue(value, autoDedent)));
     }
   }
 
@@ -104,15 +98,17 @@ function modelToYamlMap(model: Model): YAMLMap {
   return map;
 }
 
-/** Convert any Model value to a YAML node. */
-function toYamlValue(value: unknown): unknown {
+/** Convert any Model value to a YAML node. `autoDedent` threads through to
+ * every nested {@link modelToYamlMap} call so a Step reached at any depth
+ * dedents alike. */
+function toYamlValue(value: unknown, autoDedent: boolean): unknown {
   if (value === null || value === undefined) {
     return null;
   }
 
   // Commented values — unwrap and recurse
   if (isCommented(value)) {
-    return toYamlValue(unwrapCommented(value));
+    return toYamlValue(unwrapCommented(value), autoDedent);
   }
 
   // Raw values — unwrap and emit as plain scalar
@@ -125,7 +121,7 @@ function toYamlValue(value: unknown): unknown {
   // Nested Model as a map value — its own comment renders on the map as a
   // whole (block before first key, EOL on last value).
   if (value instanceof Model) {
-    const childMap = modelToYamlMap(value);
+    const childMap = modelToYamlMap(value, autoDedent);
     attachModelComment(childMap, value.meta.comment, value.meta.eolComment, {
       atSeqItem: false,
     });
@@ -141,13 +137,13 @@ function toYamlValue(value: unknown): unknown {
       // nested-Model branch above, so there is no wrong attach to undo — the
       // container decision is made here, once.
       if (item instanceof Model) {
-        const node = modelToYamlMap(item);
+        const node = modelToYamlMap(item, autoDedent);
         attachModelComment(node, item.meta.comment, item.meta.eolComment, {
           atSeqItem: true,
         });
         seq.add(node);
       } else {
-        seq.add(toYamlValue(item));
+        seq.add(toYamlValue(item, autoDedent));
       }
     }
     return seq;
@@ -160,7 +156,7 @@ function toYamlValue(value: unknown): unknown {
       if (v === undefined) {
         continue;
       }
-      const pair = new Pair(new Scalar(k), toYamlValue(v));
+      const pair = new Pair(new Scalar(k), toYamlValue(v, autoDedent));
       map.items.push(pair);
     }
     return map;
@@ -420,15 +416,15 @@ function commentNode(value: unknown, comment?: string, eolComment?: string): Com
  * ```
  */
 export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
-  const target = (options?.autoDedent ?? true) ? dedentSteps(model) : model;
+  const autoDedent = options?.autoDedent ?? true;
 
   const doc = new Document();
-  doc.contents = modelToYamlMap(target);
+  doc.contents = modelToYamlMap(model, autoDedent);
 
   if (doc.contents instanceof YAMLMap) {
     // The root model's OWN comment, rendered on the map as a whole — the same
     // helper that closes the nested map-value gap.
-    attachModelComment(doc.contents, target.meta.comment, target.meta.eolComment, {
+    attachModelComment(doc.contents, model.meta.comment, model.meta.eolComment, {
       atSeqItem: false,
     });
   }
@@ -445,7 +441,7 @@ export function toYaml(model: GhagenDocument, options?: ToYamlOptions): string {
   // insert a blank line between a `commentBefore` and the body and drop a
   // falsy one outright — neither configurable, and neither what the Python
   // port emits. `formatHeader` returns the exact bytes; this concatenates.
-  const headerStr = formatHeader(options?.header, target.sourceLocation);
+  const headerStr = formatHeader(options?.header, model.sourceLocation);
   return headerStr === null ? yaml : headerStr + yaml;
 }
 
