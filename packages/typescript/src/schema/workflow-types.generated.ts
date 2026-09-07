@@ -1041,7 +1041,7 @@ export interface HttpsJsonSchemastoreOrgGithubWorkflowJson {
         /**
          * Allows workflows to be reused by other workflows.
          */
-        workflow_call?: {
+        workflow_call?: null | {
           /**
            * When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.
            */
