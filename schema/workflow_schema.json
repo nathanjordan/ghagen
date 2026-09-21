@@ -17,6 +17,17 @@
       "$ref": "#/definitions/globs",
       "description": "When using the push and pull_request events, you can configure a workflow to run on specific branches or tags. If you only define only tags or only branches, the workflow won't run for events affecting the undefined Git ref.\nThe branches, branches-ignore, tags, and tags-ignore keywords accept glob patterns that use the * and ** wildcard characters to match more than one branch or tag name. For more information, see https://help.github.com/en/github/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet.\nThe patterns defined in branches and tags are evaluated against the Git ref's name. For example, defining the pattern mona/octocat in branches will match the refs/heads/mona/octocat Git ref. The pattern releases/** will match the refs/heads/releases/10 Git ref.\nYou can use two types of filters to prevent a workflow from running on pushes and pull requests to tags and branches:\n- branches or branches-ignore - You cannot use both the branches and branches-ignore filters for the same event in a workflow. Use the branches filter when you need to filter branches for positive matches and exclude branches. Use the branches-ignore filter when you only need to exclude branch names.\n- tags or tags-ignore - You cannot use both the tags and tags-ignore filters for the same event in a workflow. Use the tags filter when you need to filter tags for positive matches and exclude tags. Use the tags-ignore filter when you only need to exclude tag names.\nYou can exclude tags and branches using the ! character. The order that you define patterns matters.\n- A matching negative pattern (prefixed with !) after a positive match will exclude the Git ref.\n- A matching positive pattern after a negative match will include the Git ref again."
     },
+    "cacheMode": {
+      "$comment": "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#cache-mode",
+      "description": "Controls the level of GitHub Actions cache access granted to a workflow or job.",
+      "enum": [
+        "read",
+        "write",
+        "write-only",
+        "none"
+      ],
+      "type": "string"
+    },
     "concurrency": {
       "additionalProperties": false,
       "properties": {
@@ -363,6 +374,9 @@
       "additionalProperties": false,
       "description": "Each job must have an id to associate with the job. The key job_id is a string and its value is a map of the job's configuration data. You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
       "properties": {
+        "cache-mode": {
+          "$ref": "#/definitions/cacheMode"
+        },
         "concurrency": {
           "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idconcurrency",
           "description": "Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context. \nYou can also specify concurrency at the workflow level. \nWhen a concurrent job or workflow is queued, if another job or workflow using the same concurrency group in the repository is in progress, the queued job or workflow will be pending. By default any previously pending job or workflow in the concurrency group will be canceled; this behavior can be changed with `queue`. To also cancel any currently running job or workflow in the same concurrency group, specify cancel-in-progress: true.",
@@ -639,7 +653,11 @@
           "$ref": "#/definitions/permissions-level"
         },
         "id-token": {
-          "$ref": "#/definitions/permissions-level"
+          "enum": [
+            "write",
+            "none"
+          ],
+          "type": "string"
         },
         "issues": {
           "$ref": "#/definitions/permissions-level"
@@ -692,6 +710,9 @@
       "additionalProperties": false,
       "description": "Each job must have an id to associate with the job. The key job_id is a string and its value is a map of the job's configuration data. You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
       "properties": {
+        "cache-mode": {
+          "$ref": "#/definitions/cacheMode"
+        },
         "concurrency": {
           "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idconcurrency",
           "description": "Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context. \nYou can also specify concurrency at the workflow level. \nWhen a concurrent job or workflow is queued, if another job or workflow using the same concurrency group in the repository is in progress, the queued job or workflow will be pending. By default any previously pending job or workflow in the concurrency group will be canceled; this behavior can be changed with `queue`. To also cancel any currently running job or workflow in the same concurrency group, specify cancel-in-progress: true.",
@@ -1280,6 +1301,9 @@
     }
   },
   "properties": {
+    "cache-mode": {
+      "$ref": "#/definitions/cacheMode"
+    },
     "concurrency": {
       "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#concurrency",
       "description": "Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context. \nYou can also specify concurrency at the workflow level. \nWhen a concurrent job or workflow is queued, if another job or workflow using the same concurrency group in the repository is in progress, the queued job or workflow will be pending. By default any previously pending job or workflow in the concurrency group will be canceled; this behavior can be changed with `queue`. To also cancel any currently running job or workflow in the same concurrency group, specify cancel-in-progress: true.",
@@ -2300,108 +2324,116 @@
             "workflow_call": {
               "$comment": "https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows#workflow_call",
               "description": "Allows workflows to be reused by other workflows.",
-              "properties": {
-                "inputs": {
-                  "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#onworkflow_callinputs",
-                  "additionalProperties": false,
-                  "description": "When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.",
-                  "patternProperties": {
-                    "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
-                      "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#inputsinput_id",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "properties": {
+                    "inputs": {
+                      "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#onworkflow_callinputs",
                       "additionalProperties": false,
-                      "description": "A string identifier to associate with the input. The value of <input_id> is a map of the input's metadata. The <input_id> must be a unique identifier within the inputs object. The <input_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
-                      "properties": {
-                        "default": {
-                          "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_iddefault",
-                          "anyOf": [
-                            {
+                      "description": "When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.",
+                      "patternProperties": {
+                        "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
+                          "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#inputsinput_id",
+                          "additionalProperties": false,
+                          "description": "A string identifier to associate with the input. The value of <input_id> is a map of the input's metadata. The <input_id> must be a unique identifier within the inputs object. The <input_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
+                          "properties": {
+                            "default": {
+                              "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_iddefault",
+                              "anyOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "string"
+                                }
+                              ],
+                              "description": "The default value is used when an input parameter isn't specified in a workflow file."
+                            },
+                            "description": {
+                              "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_iddescription",
+                              "description": "A string description of the input parameter.",
+                              "type": "string"
+                            },
+                            "required": {
+                              "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_idrequired",
+                              "description": "A boolean to indicate whether the action requires the input parameter. Set to true when the parameter is required.",
                               "type": "boolean"
                             },
-                            {
-                              "type": "number"
-                            },
-                            {
+                            "type": {
+                              "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callinput_idtype",
+                              "description": "Required if input is defined for the on.workflow_call keyword. The value of this parameter is a string specifying the data type of the input. This must be one of: boolean, number, or string.",
+                              "enum": [
+                                "boolean",
+                                "number",
+                                "string"
+                              ],
                               "type": "string"
                             }
+                          },
+                          "required": [
+                            "type"
                           ],
-                          "description": "The default value is used when an input parameter isn't specified in a workflow file."
-                        },
-                        "description": {
-                          "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_iddescription",
-                          "description": "A string description of the input parameter.",
-                          "type": "string"
-                        },
-                        "required": {
-                          "$comment": "https://help.github.com/en/github/automating-your-workflow-with-github-actions/metadata-syntax-for-github-actions#inputsinput_idrequired",
-                          "description": "A boolean to indicate whether the action requires the input parameter. Set to true when the parameter is required.",
-                          "type": "boolean"
-                        },
-                        "type": {
-                          "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callinput_idtype",
-                          "description": "Required if input is defined for the on.workflow_call keyword. The value of this parameter is a string specifying the data type of the input. This must be one of: boolean, number, or string.",
-                          "enum": [
-                            "boolean",
-                            "number",
-                            "string"
-                          ],
-                          "type": "string"
+                          "type": "object"
                         }
                       },
-                      "required": [
-                        "type"
-                      ],
                       "type": "object"
-                    }
-                  },
-                  "type": "object"
-                },
-                "outputs": {
-                  "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#onworkflow_calloutputs",
-                  "additionalProperties": false,
-                  "description": "When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.",
-                  "patternProperties": {
-                    "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
-                      "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_id",
+                    },
+                    "outputs": {
+                      "$comment": "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#onworkflow_calloutputs",
                       "additionalProperties": false,
-                      "description": "A string identifier to associate with the output. The value of <output_id> is a map of the output's metadata. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
-                      "properties": {
-                        "description": {
-                          "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_iddescription",
-                          "description": "A string description of the output parameter.",
-                          "type": "string"
-                        },
-                        "value": {
-                          "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_idvalue",
-                          "description": "The value that the output parameter will be mapped to. You can set this to a string or an expression with context. For example, you can use the steps context to set the value of an output to the output value of a step.",
-                          "type": "string"
+                      "description": "When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.",
+                      "patternProperties": {
+                        "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
+                          "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_id",
+                          "additionalProperties": false,
+                          "description": "A string identifier to associate with the output. The value of <output_id> is a map of the output's metadata. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.",
+                          "properties": {
+                            "description": {
+                              "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_iddescription",
+                              "description": "A string description of the output parameter.",
+                              "type": "string"
+                            },
+                            "value": {
+                              "$comment": "https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#outputsoutput_idvalue",
+                              "description": "The value that the output parameter will be mapped to. You can set this to a string or an expression with context. For example, you can use the steps context to set the value of an output to the output value of a step.",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "type": "object"
                         }
                       },
-                      "required": [
-                        "value"
-                      ],
                       "type": "object"
-                    }
-                  },
-                  "type": "object"
-                },
-                "secrets": {
-                  "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecrets",
-                  "additionalProperties": false,
-                  "description": "A map of the secrets that can be used in the called workflow. Within the called workflow, you can use the secrets context to refer to a secret.",
-                  "patternProperties": {
-                    "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
-                      "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecretssecret_id",
+                    },
+                    "secrets": {
+                      "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecrets",
                       "additionalProperties": false,
-                      "description": "A string identifier to associate with the secret.",
-                      "properties": {
-                        "description": {
-                          "description": "A string description of the secret parameter.",
-                          "type": "string"
-                        },
-                        "required": {
-                          "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecretssecret_idrequired",
-                          "description": "A boolean specifying whether the secret must be supplied.",
-                          "type": "boolean"
+                      "description": "A map of the secrets that can be used in the called workflow. Within the called workflow, you can use the secrets context to refer to a secret.",
+                      "patternProperties": {
+                        "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
+                          "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecretssecret_id",
+                          "additionalProperties": false,
+                          "description": "A string identifier to associate with the secret.",
+                          "properties": {
+                            "description": {
+                              "description": "A string description of the secret parameter.",
+                              "type": "string"
+                            },
+                            "required": {
+                              "$comment": "https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onworkflow_callsecretssecret_idrequired",
+                              "description": "A boolean specifying whether the secret must be supplied.",
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
                         }
                       },
                       "type": "object"
@@ -2409,8 +2441,7 @@
                   },
                   "type": "object"
                 }
-              },
-              "type": "object"
+              ]
             },
             "workflow_dispatch": {
               "$comment": "https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/",

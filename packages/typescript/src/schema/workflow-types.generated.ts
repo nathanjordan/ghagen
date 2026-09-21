@@ -8,6 +8,10 @@
  * model interfaces. Re-generate with: npm run generate-types
  */
 
+/**
+ * Controls the level of GitHub Actions cache access granted to a workflow or job.
+ */
+export type CacheMode = "read" | "write" | "write-only" | "none";
 export type ExpressionSyntax = string;
 /**
  * You can override the default shell settings in the runner's operating system using the shell keyword. You can use built-in shell keywords, or you can define a custom set of shell options.
@@ -742,6 +746,7 @@ export type Types19 = ([unknown, ...unknown[]] | string) &
   ("requested" | "completed" | "in_progress")[];
 
 export interface HttpsJsonSchemastoreOrgGithubWorkflowJson {
+  "cache-mode"?: CacheMode;
   /**
    * Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context.
    * You can also specify concurrency at the workflow level.
@@ -1041,7 +1046,7 @@ export interface HttpsJsonSchemastoreOrgGithubWorkflowJson {
         /**
          * Allows workflows to be reused by other workflows.
          */
-        workflow_call?: {
+        workflow_call?: null | {
           /**
            * When using the workflow_call keyword, you can optionally specify inputs that are passed to the called workflow from the caller workflow.
            */
@@ -1174,6 +1179,7 @@ export interface Defaults {
  * Each job must have an id to associate with the job. The key job_id is a string and its value is a map of the job's configuration data. You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.
  */
 export interface NormalJob {
+  "cache-mode"?: CacheMode;
   /**
    * Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context.
    * You can also specify concurrency at the workflow level.
@@ -1343,7 +1349,7 @@ export interface PermissionsEvent {
   "copilot-requests"?: "write";
   deployments?: PermissionsLevel;
   discussions?: PermissionsLevel;
-  "id-token"?: PermissionsLevel;
+  "id-token"?: "write" | "none";
   issues?: PermissionsLevel;
   models?: "read" | "none";
   packages?: PermissionsLevel;
@@ -1405,6 +1411,7 @@ export interface ServiceContainer {
  * Each job must have an id to associate with the job. The key job_id is a string and its value is a map of the job's configuration data. You must replace <job_id> with a string that is unique to the jobs object. The <job_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.
  */
 export interface ReusableWorkflowCallJob {
+  "cache-mode"?: CacheMode;
   /**
    * Concurrency ensures that only a single job or workflow using the same concurrency group will run at a time. A concurrency group can be any string or expression. The expression can use any context except for the secrets context.
    * You can also specify concurrency at the workflow level.

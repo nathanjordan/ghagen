@@ -12,21 +12,6 @@
     "outputs": {
       "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#outputs-for-docker-container-and-javascript-actions",
       "additionalProperties": false,
-      "dependencies": {
-        "runs": {
-          "properties": {
-            "using": {
-              "not": {
-                "const": "composite"
-              }
-            }
-          },
-          "required": [
-            "using"
-          ],
-          "type": "object"
-        }
-      },
       "description": "Output parameters allow you to declare data that an action sets. Actions that run later in a workflow can use the output data set in previously run actions. For example, if you had an action that performed the addition of two inputs (x + y = z), the action could output the sum (z) for other actions to use as an input.\nIf you don't declare an output in your action metadata file, you can still set outputs and use them in a workflow.",
       "patternProperties": {
         "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
@@ -51,19 +36,6 @@
     "outputs-composite": {
       "$comment": "https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#outputs-for-composite-actions",
       "additionalProperties": false,
-      "dependencies": {
-        "runs": {
-          "properties": {
-            "using": {
-              "const": "composite"
-            }
-          },
-          "required": [
-            "using"
-          ],
-          "type": "object"
-        }
-      },
       "description": "Output parameters allow you to declare data that an action sets. Actions that run later in a workflow can use the output data set in previously run actions. For example, if you had an action that performed the addition of two inputs (x + y = z), the action could output the sum (z) for other actions to use as an input.\nIf you don't declare an output in your action metadata file, you can still set outputs and use them in a workflow.",
       "patternProperties": {
         "^[_a-zA-Z][a-zA-Z0-9_-]*$": {
@@ -381,6 +353,25 @@
       "$comment": "escape `{` and `}` in pattern to be unicode compatible (#1360)",
       "pattern": "^.*\\$\\{\\{(.|[\r\n])*\\}\\}.*$",
       "type": "string"
+    }
+  },
+  "else": {
+    "properties": {
+      "outputs": {
+        "$ref": "#/definitions/outputs"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "runs": {
+        "properties": {
+          "using": {
+            "const": "composite"
+          }
+        },
+        "type": "object"
+      }
     }
   },
   "properties": {
@@ -726,14 +717,7 @@
       "type": "string"
     },
     "outputs": {
-      "oneOf": [
-        {
-          "$ref": "#/definitions/outputs-composite"
-        },
-        {
-          "$ref": "#/definitions/outputs"
-        }
-      ]
+      "$comment": "Because of `additionalProperties: false`, this empty schema is needed to allow the `outputs` property. The `outputs` subschema is determined by the if/then/else keywords."
     },
     "runs": {
       "oneOf": [
@@ -754,5 +738,12 @@
     "description",
     "runs"
   ],
+  "then": {
+    "properties": {
+      "outputs": {
+        "$ref": "#/definitions/outputs-composite"
+      }
+    }
+  },
   "type": "object"
 }
